@@ -19,8 +19,9 @@ Branch: `gfx-dll-backend`. Status: milestone 1 (Scaffold) done; milestone 2 next
   runner inserts a `RenderDevice`/`RenderQueue` on wgpu's `noop` backend (no GPU, no surface)
   after `finish`, because main-world startup code creates wgpu handles (`open_world_assets`'
   shared light buffer, `ui_models::setup_tiles`) that the material extensions and
-  `WorldAssets` hold; they are never drawn. **Decision for the maintainer to confirm**: the
-  alternative is gating those ~15 files onto gfx types. With `gfx`, `boot.rs` raises
+  `WorldAssets` hold; they are never drawn. Decided (maintainer, 2026-09-27): keep the noop
+  stand-in rather than gating those ~15 files onto gfx types; the gfx renderer reads the
+  CPU-side data (e.g. packs the light blob from `WowLighting` itself). With `gfx`, `boot.rs` raises
   `bevy_egui::input` to error (it warns every frame without a winit window) until milestone 6.
 - [ ] 2. **Window and input.** gfx events -> Bevy `KeyboardInput` / `ButtonInput<KeyCode>`,
   `KeyboardInput.text`/`logical_key` (text entry: `textinput` reads these), `MouseButtonInput`,
@@ -68,9 +69,11 @@ Not yet run: glfw/gl3, glfw/gles3, sdl/gles3; Windows (win32, d3d11, d3d12) not 
 ## Build notes
 
 - gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (copy of `gfx_dll/gfx`, gfx repo
-  commits `e518b4f` copy, `5b46e64` x11/win32 teardown order: display closed before libGLX /
-  the Vulkan loader is unloaded; the stock library segfaults in `XCloseDisplay` on window
-  delete). Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build &&
+  `e518b4f`). The x11/win32 teardown fix (display closed before libGLX / the Vulkan loader is
+  unloaded; before it, x11/gl* segfaulted in `XCloseDisplay` on window delete) is upstream in
+  `gfx_dll/gfx` (`3693aa8`) and `my_wow/c/wc_clean_new/lib/gfx` (my_wow `6aa7b9bb`), so
+  `gfx_benilla` equals `gfx` again (`775685a`). Keep `wc_clean_new/lib/gfx` in step when a
+  fix in `gfx_benilla` is not benilla-specific. Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build &&
   cmake .. -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)` -> `bin/Debug_x64/libgfx.so`
   (`GFX_ENABLE_TARGET_FRAMEBUFFER=ON`, the default; `ffi::GfxPipelineCreateInfo` carries
   `target_framebuffer` to match). `benilla-gfx/build.rs` takes `gfx_benilla` over `gfx`
