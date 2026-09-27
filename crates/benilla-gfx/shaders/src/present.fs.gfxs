@@ -1,0 +1,20 @@
+in 0 vec2 uv
+
+out 0 vec4 color
+
+sampler 0 2d scene
+
+vec3 linear_to_srgb(vec3 c)
+{
+	vec3 lo = c * 12.92;
+	vec3 hi = 1.055 * pow(c, vec3(0.41666667, 0.41666667, 0.41666667)) - vec3(0.055, 0.055, 0.055);
+	return mix(lo, hi, step(vec3(0.0031308, 0.0031308, 0.0031308), c));
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec3 c = clamp(gfx_sample(scene, gfx_input.uv).xyz, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
+	gfx_output.color = vec4(linear_to_srgb(c), 1.0);
+	return gfx_output;
+}

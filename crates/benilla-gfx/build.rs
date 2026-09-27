@@ -68,6 +68,10 @@ fn main() {
         );
     }
     println!("cargo:rustc-link-search=native={}", target_dir.display());
+    // This crate's examples live one below the library, in `target/<profile>/examples`.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        println!("cargo:rustc-link-arg-examples=-Wl,-rpath,$ORIGIN/..");
+    }
 }
 
 fn gfx_dir() -> PathBuf {

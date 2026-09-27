@@ -13,20 +13,27 @@
 
 pub mod backend;
 pub mod context;
+pub mod draw;
 pub mod events;
 pub mod ffi;
+pub mod images;
 pub mod input;
+pub mod material;
+pub mod meshes;
 pub mod noop_device;
+pub mod pipelines;
 pub mod render;
 pub mod runner;
 pub mod shader_def;
 pub mod shader_loader;
+pub mod target;
 pub mod window;
 
 use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
 
 pub use context::GfxContext;
+pub use material::{GfxAlpha, GfxMaterialDesc, GfxMaterialPlugin};
 pub use render::{GfxRender, GfxRenderSystems};
 
 /// `group` (the `DefaultPlugins` set) with winit and wgpu swapped out for gfx.
@@ -45,7 +52,20 @@ impl Plugin for GfxPlugin {
     fn build(&self, app: &mut App) {
         render::build(app);
         window::build(app);
+        app.add_plugins(GfxMaterialPlugin::<StandardMaterial>::new(
+            material::standard,
+        ));
         app.set_runner(runner::run);
+    }
+
+    fn finish(&self, app: &mut App) {
+        // The sampler an `ImageSampler::Default` image gets, as `TexturePlugin::finish` reads it.
+        let sampler = app
+            .get_added_plugins::<bevy::image::ImagePlugin>()
+            .first()
+            .map(|p| p.default_sampler.clone())
+            .unwrap_or_default();
+        app.insert_resource(runner::DefaultSampler(sampler));
     }
 }
 
@@ -62,11 +82,16 @@ impl Plugin for RenderMainWorldPlugin {
         app.init_asset::<bevy::shader::Shader>()
             .init_asset_loader::<bevy::shader::ShaderLoader>();
         // What `RenderPlugin::finish` publishes from the device, read by `TexturePlugin::finish`
-        // and the BLP loader. None yet: BLPs decode to RGBA8 until the gfx texture path takes BC
-        // blocks (milestone 3).
-        app.insert_resource(bevy::image::CompressedImageFormatSupport(
-            bevy::image::CompressedImageFormats::NONE,
-        ));
+        // and the BLP loader: BC for every gfx device that uploads BC blocks, which is all but
+        // gles3 (`gles3.c` has no S3TC formats), where BLPs decode to RGBA8. The device does not
+        // exist yet; the backend it will be does.
+        let bc = crate::backend::Backends::from_env()
+            .is_ok_and(|b| b.device != crate::ffi::GfxDeviceBackend::Gles3);
+        app.insert_resource(bevy::image::CompressedImageFormatSupport(if bc {
+            bevy::image::CompressedImageFormats::BC
+        } else {
+            bevy::image::CompressedImageFormats::NONE
+        }));
         app.add_plugins((
             view::window::WindowRenderPlugin,
             camera::CameraPlugin,

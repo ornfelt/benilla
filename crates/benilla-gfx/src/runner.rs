@@ -8,8 +8,13 @@ use bevy::window::{PrimaryWindow, WindowCloseRequested};
 
 use crate::backend::Backends;
 use crate::context::{GfxContext, WindowSpec};
+use crate::draw::GfxRenderer;
 use crate::events;
 use crate::render::GfxRender;
+
+/// The `ImagePlugin` default sampler, handed from `GfxPlugin::finish` to the renderer.
+#[derive(Resource)]
+pub(crate) struct DefaultSampler(pub bevy::image::ImageSamplerDescriptor);
 
 pub fn run(mut app: App) -> AppExit {
     if app.plugins_state() != PluginsState::Cleaned {
@@ -30,6 +35,16 @@ pub fn run(mut app: App) -> AppExit {
         }
     };
     app.world_mut().insert_non_send_resource(ctx);
+    {
+        let world = app.world_mut();
+        let sampler = world
+            .remove_resource::<DefaultSampler>()
+            .map(|s| s.0)
+            .unwrap_or_default();
+        let mut ctx = world.non_send_resource_mut::<GfxContext>();
+        let renderer = GfxRenderer::new(&mut ctx, sampler);
+        world.insert_non_send_resource(renderer);
+    }
     {
         let world = app.world_mut();
         let mut primary = world.query_filtered::<Entity, With<PrimaryWindow>>();
@@ -56,7 +71,9 @@ pub fn run(mut app: App) -> AppExit {
         "gfx: {presented} frames presented in {secs:.2} s ({:.1}/s); exit {exit:?}",
         presented as f64 / secs.max(f64::EPSILON)
     );
-    // The window and every device object go before the app does.
+    // The window and every device object go before the app does; the renderer's objects first,
+    // while their device lives.
+    drop(app.world_mut().remove_non_send_resource::<GfxRenderer>());
     drop(app.world_mut().remove_non_send_resource::<GfxContext>());
     exit
 }

@@ -19,3 +19,8 @@ bevy = { workspace = true, optional = true }
 include_dir = { version = "0.7", optional = true }
 # Only its `noop` backend: the stand-in `RenderDevice` of `noop_device.rs`. No GPU, no surface.
 wgpu = { workspace = true, optional = true, features = ["noop"] }
+
+# `parity wgpu|gfx`: one scene through either path, for the numeric A/B.
+[[example]]
+name = "parity"
+required-features = ["gfx"]

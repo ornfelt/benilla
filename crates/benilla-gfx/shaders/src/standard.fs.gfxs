@@ -1,0 +1,48 @@
+in 0 vec2 uv
+in 1 vec4 color
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	vec4 world_position
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	vec4 base_color
+	vec4 uv_matrix
+	vec4 uv_offset_cutoff_mode
+	vec4 flags
+}
+
+sampler 0 2d base_color_texture
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec4 c = base_color * gfx_sample(base_color_texture, gfx_input.uv) * gfx_input.color;
+	float mode = uv_offset_cutoff_mode.w;
+	if (mode < 0.5)
+	{
+		c.w = 1.0;
+	}
+	else if (mode < 1.5)
+	{
+		if (c.w < uv_offset_cutoff_mode.z)
+			discard;
+		c.w = 1.0;
+	}
+	else if (mode > 3.5 && mode < 4.5)
+	{
+		c = vec4(c.xyz * c.w, 0.0);
+	}
+	else if (mode > 4.5)
+	{
+		c = vec4(c.xyz * c.w, c.w);
+	}
+	gfx_output.color = c;
+	return gfx_output;
+}

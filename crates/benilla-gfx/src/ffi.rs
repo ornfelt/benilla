@@ -103,6 +103,11 @@ pub enum GfxFormat {
     Bc4SnormBlock,
     Bc5UnormBlock,
     Bc5SnormBlock,
+    /// `gfx_benilla`: the sRGB formats, decoded per texel before filtering.
+    R8G8B8A8Srgb,
+    Bc1RgbaSrgbBlock,
+    Bc2SrgbBlock,
+    Bc3SrgbBlock,
 }
 
 #[repr(C)]
@@ -243,7 +248,7 @@ pub enum GfxFrontFace {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GfxPrimitiveType {
     Triangles,
     TriangleStrip,
