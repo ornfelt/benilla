@@ -68,10 +68,10 @@ milestone 3 next.
 
 ## For the maintainer
 
-- Mouselook's `CursorGrabMode::Locked` is honoured as a real gfx grab (pointer held and hidden,
-  raw motion, warped back on release). winit rejects `Locked` on X11 and Windows, so there the
-  wgpu path leaves the hidden pointer roaming; benilla restores its stash either way, and holding
-  the pointer is what 1.12 does. Confirm or ask for winit's refusal to be copied.
+- Deferred (maintainer, 2026-09-27): mouselook's `CursorGrabMode::Locked` stays a real gfx grab
+  (pointer held and hidden, raw motion, warped back on release), where winit rejects `Locked` on
+  X11 and Windows and the wgpu path lets the hidden pointer roam. Not a blocker; fix it later if
+  it matters, and don't re-ask before then.
 - Outside a grab, glfw and sdl report motion as pointer steps over the window (neither has raw
   device events then); x11 and win32 report raw device motion with focus, as winit does.
 - Upstream candidates in `gfx_benilla` that are gfx bugs rather than benilla needs: the x11 raw
