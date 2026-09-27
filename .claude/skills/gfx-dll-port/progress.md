@@ -140,8 +140,9 @@ test ran against the install (it was not known about yet).
 This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/wow_classic`
 (`WoW.exe` "Build 5875 (Sep 19 2006)"; `Data/` holds `base`, `dbc`, `model`, `terrain`,
 `texture`, `patch`, `patch-2` and the rest of the vanilla MPQs). Point benilla at it with
-`WOW_DATA="$wow_classic_dir/Data"` (or a gitignored `WoW` link at the repo root to
-`$wow_classic_dir`); it is read-only to benilla. Not the other `$wow_*_dir` installs:
+the gitignored `WoW` link at the repo root (`WoW -> $wow_classic_dir`, made 2026-09-27; a dev
+build finds `WoW/Data` by itself), or `WOW_DATA="$wow_classic_dir/Data"`; `WOW_DATA=` (set,
+empty) runs without it. It is read-only to benilla. Not the other `$wow_*_dir` installs:
 `$wow_dir` (`~/Downloads/wow`) is 3.3.5, `$wow_tbc_dir` TBC, `$wow_cata_dir` Cataclysm. With it,
 world scenes (worldview, the glue screens) can be A/B'd against wgpu live; `BENILLA_REQUIRE_DATA=1`
 makes the gates' data-reading tests count. A login still needs a `.probe-identity` account.
