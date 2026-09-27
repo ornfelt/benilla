@@ -10,6 +10,7 @@ use crate::backend::Backends;
 use crate::events;
 use crate::ffi::{self, GfxDevice, GfxFormat, GfxWindow};
 use crate::shader_loader::{program_names, ShaderLibrary};
+use crate::window::{CursorState, Reported};
 
 /// What the window opens with, read off the primary `Window`.
 pub struct WindowSpec {
@@ -24,6 +25,10 @@ pub struct GfxContext {
     pub device: GfxDevice,
     pub backends: Backends,
     pub shaders: ShaderLibrary,
+    /// The pointer's grab, visibility and cursor, kept by [`crate::window`].
+    pub cursor: CursorState,
+    /// The size and focus the window last reported.
+    pub reported: Reported,
 }
 
 impl GfxContext {
@@ -76,6 +81,8 @@ impl GfxContext {
             device,
             backends,
             shaders: ShaderLibrary::new(device, backends.device, backends.window),
+            cursor: CursorState::default(),
+            reported: Reported::default(),
         };
         let family = ctx.shaders.family();
         let names = program_names(family);
@@ -109,6 +116,18 @@ impl GfxContext {
         }
     }
 
+    /// Physical pixels per logical pixel on the display the window opened on, as winit measures
+    /// it for the platform (`gfx_benilla` asks the display the way winit does).
+    pub fn scale_factor(&self) -> f32 {
+        // SAFETY: `self.window` is live for the life of `self`.
+        let scale = unsafe { ffi::gfx_dll_window_get_scale_factor(self.window) };
+        if scale.is_finite() && scale > 0.0 {
+            scale
+        } else {
+            1.0
+        }
+    }
+
     pub fn poll_events(&self) {
         // SAFETY: the live window, on its thread; the handler only queues.
         unsafe { ffi::gfx_dll_window_poll_events(self.window) };
@@ -134,7 +153,8 @@ impl GfxContext {
 
 impl Drop for GfxContext {
     fn drop(&mut self) {
-        // Programs first: they are the device's, which the window owns.
+        // Cursors and programs first: they are the window's and its device's.
+        self.cursor.clear(self.window);
         self.shaders.clear();
         // SAFETY: nothing references the window past this point.
         unsafe { ffi::gfx_dll_delete_window(self.window) };

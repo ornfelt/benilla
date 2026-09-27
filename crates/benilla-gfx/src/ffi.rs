@@ -22,6 +22,7 @@ pub type GfxPipeline = *mut c_void;
 pub type GfxFramebuffer = *mut c_void;
 pub type GfxConstantState = *mut c_void;
 pub type GfxSamplerState = *mut c_void;
+pub type GfxCursor = *mut c_void;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -292,6 +293,154 @@ pub mod key_mods {
     pub const NUM_LOCK: u32 = 0x20;
 }
 
+/// `enum gfx_key_code` (`events.h`), read raw off [`GfxKeyEvent::key`] and
+/// [`GfxKeyEvent::physical`].
+pub mod key {
+    pub const UNKNOWN: u32 = 0;
+    pub const A: u32 = 1;
+    pub const B: u32 = 2;
+    pub const C: u32 = 3;
+    pub const D: u32 = 4;
+    pub const E: u32 = 5;
+    pub const F: u32 = 6;
+    pub const G: u32 = 7;
+    pub const H: u32 = 8;
+    pub const I: u32 = 9;
+    pub const J: u32 = 10;
+    pub const K: u32 = 11;
+    pub const L: u32 = 12;
+    pub const M: u32 = 13;
+    pub const N: u32 = 14;
+    pub const O: u32 = 15;
+    pub const P: u32 = 16;
+    pub const Q: u32 = 17;
+    pub const R: u32 = 18;
+    pub const S: u32 = 19;
+    pub const T: u32 = 20;
+    pub const U: u32 = 21;
+    pub const V: u32 = 22;
+    pub const W: u32 = 23;
+    pub const X: u32 = 24;
+    pub const Y: u32 = 25;
+    pub const Z: u32 = 26;
+    pub const _0: u32 = 27;
+    pub const _1: u32 = 28;
+    pub const _2: u32 = 29;
+    pub const _3: u32 = 30;
+    pub const _4: u32 = 31;
+    pub const _5: u32 = 32;
+    pub const _6: u32 = 33;
+    pub const _7: u32 = 34;
+    pub const _8: u32 = 35;
+    pub const _9: u32 = 36;
+    pub const KP_0: u32 = 37;
+    pub const KP_1: u32 = 38;
+    pub const KP_2: u32 = 39;
+    pub const KP_3: u32 = 40;
+    pub const KP_4: u32 = 41;
+    pub const KP_5: u32 = 42;
+    pub const KP_6: u32 = 43;
+    pub const KP_7: u32 = 44;
+    pub const KP_8: u32 = 45;
+    pub const KP_9: u32 = 46;
+    pub const KP_DIVIDE: u32 = 47;
+    pub const KP_MULTIPLY: u32 = 48;
+    pub const KP_SUBTRACT: u32 = 49;
+    pub const KP_ADD: u32 = 50;
+    pub const KP_EQUAL: u32 = 51;
+    pub const KP_DECIMAL: u32 = 52;
+    pub const KP_ENTER: u32 = 53;
+    pub const F1: u32 = 54;
+    pub const F2: u32 = 55;
+    pub const F3: u32 = 56;
+    pub const F4: u32 = 57;
+    pub const F5: u32 = 58;
+    pub const F6: u32 = 59;
+    pub const F7: u32 = 60;
+    pub const F8: u32 = 61;
+    pub const F9: u32 = 62;
+    pub const F10: u32 = 63;
+    pub const F11: u32 = 64;
+    pub const F12: u32 = 65;
+    pub const F13: u32 = 66;
+    pub const F14: u32 = 67;
+    pub const F15: u32 = 68;
+    pub const F16: u32 = 69;
+    pub const F17: u32 = 70;
+    pub const F18: u32 = 71;
+    pub const F19: u32 = 72;
+    pub const F20: u32 = 73;
+    pub const F21: u32 = 74;
+    pub const F22: u32 = 75;
+    pub const F23: u32 = 76;
+    pub const F24: u32 = 77;
+    pub const LSHIFT: u32 = 78;
+    pub const RSHIFT: u32 = 79;
+    pub const LCONTROL: u32 = 80;
+    pub const RCONTROL: u32 = 81;
+    pub const LALT: u32 = 82;
+    pub const RALT: u32 = 83;
+    pub const LSUPER: u32 = 84;
+    pub const RSUPER: u32 = 85;
+    pub const LEFT: u32 = 86;
+    pub const RIGHT: u32 = 87;
+    pub const UP: u32 = 88;
+    pub const DOWN: u32 = 89;
+    pub const SPACE: u32 = 90;
+    pub const BACKSPACE: u32 = 91;
+    pub const ENTER: u32 = 92;
+    pub const TAB: u32 = 93;
+    pub const ESCAPE: u32 = 94;
+    pub const PAUSE: u32 = 95;
+    pub const DELETE: u32 = 96;
+    pub const INSERT: u32 = 97;
+    pub const HOME: u32 = 98;
+    pub const PAGE_UP: u32 = 99;
+    pub const PAGE_DOWN: u32 = 100;
+    pub const END: u32 = 101;
+    pub const COMMA: u32 = 102;
+    pub const PERIOD: u32 = 103;
+    pub const SLASH: u32 = 104;
+    pub const APOSTROPHE: u32 = 105;
+    pub const SEMICOLON: u32 = 106;
+    pub const GRAVE: u32 = 107;
+    pub const LBRACKET: u32 = 108;
+    pub const RBRACKET: u32 = 109;
+    pub const BACKSLASH: u32 = 110;
+    pub const EQUAL: u32 = 111;
+    pub const SUBTRACT: u32 = 112;
+    pub const SCROLL_LOCK: u32 = 113;
+    pub const NUM_LOCK: u32 = 114;
+    pub const CAPS_LOCK: u32 = 115;
+    pub const PRINT: u32 = 116;
+    pub const LAST: u32 = 117;
+}
+
+/// `enum gfx_mouse_button`, read raw off [`GfxMouseEvent::button`].
+pub mod mouse_button {
+    pub const LEFT: u32 = 0;
+    pub const RIGHT: u32 = 1;
+    pub const MIDDLE: u32 = 2;
+    /// The first of the extra buttons: X11 button 8, `XBUTTON1`, SDL's X1 (back).
+    pub const BUTTON_4: u32 = 3;
+    pub const LAST: u32 = 8;
+}
+
+/// `enum gfx_native_cursor` (`window.h`), for [`gfx_dll_create_native_cursor`].
+pub mod native_cursor {
+    pub const ARROW: u32 = 0;
+    pub const CROSS: u32 = 1;
+    pub const HAND: u32 = 2;
+    pub const IBEAM: u32 = 3;
+    pub const NO: u32 = 4;
+    pub const SIZEALL: u32 = 5;
+    pub const VRESIZE: u32 = 6;
+    pub const HRESIZE: u32 = 7;
+    pub const WAIT: u32 = 8;
+    pub const BLANK: u32 = 9;
+    pub const LAST: u32 = 10;
+}
+
 /// `enum gfx_event_type`, read raw off [`GfxEvent::event_type`].
 pub mod event_type {
     pub const KEY_DOWN: u32 = 0;
@@ -310,6 +459,8 @@ pub mod event_type {
     pub const MOVE: u32 = 13;
     pub const EXPOSE: u32 = 14;
     pub const CLOSE: u32 = 15;
+    /// `gfx_benilla`: the device moved by [`super::GfxMotionEvent`], with focus.
+    pub const RAW_MOTION: u32 = 16;
 }
 
 #[repr(C)]
@@ -528,9 +679,13 @@ pub struct GfxClearColor {
 #[derive(Debug, Clone, Copy)]
 pub struct GfxKeyEvent {
     pub used: bool,
-    /// `enum gfx_key_code`, decoded by `input`.
+    /// [`key`]: what the keymap makes of the key, falling back to [`Self::physical`].
     pub key: u32,
     pub mods: u32,
+    /// [`key`]: the key at this place on a US keyboard, whatever the keymap says.
+    pub physical: u32,
+    /// The platform's own code: the X11 keycode, the Win32 scancode, the SDL scancode.
+    pub scancode: u32,
 }
 
 #[repr(C)]
@@ -586,6 +741,15 @@ pub struct GfxMoveEvent {
     pub y: i32,
 }
 
+/// `gfx_benilla`'s raw motion: the device's own movement, not the cursor's position.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct GfxMotionEvent {
+    pub used: bool,
+    pub dx: f32,
+    pub dy: f32,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub union GfxEventData {
@@ -596,6 +760,7 @@ pub union GfxEventData {
     pub pointer: GfxPointerEvent,
     pub resize: GfxResizeEvent,
     pub mov: GfxMoveEvent,
+    pub motion: GfxMotionEvent,
 }
 
 #[repr(C)]
@@ -648,6 +813,24 @@ unsafe extern "C" {
     pub fn gfx_dll_ungrab_cursor(window: GfxWindow);
     pub fn gfx_dll_get_mouse_x(window: GfxWindow) -> i32;
     pub fn gfx_dll_get_mouse_y(window: GfxWindow) -> i32;
+    pub fn gfx_dll_window_get_scale_factor(window: GfxWindow) -> f32;
+    pub fn gfx_dll_window_set_icon(window: GfxWindow, data: *const c_void, width: u32, height: u32);
+    /// `cursor`: a [`native_cursor`] value.
+    pub fn gfx_dll_create_native_cursor(window: GfxWindow, cursor: u32) -> GfxCursor;
+    /// RGBA8, top row first.
+    pub fn gfx_dll_create_cursor(
+        window: GfxWindow,
+        data: *const c_void,
+        width: u32,
+        height: u32,
+        xhot: u32,
+        yhot: u32,
+    ) -> GfxCursor;
+    pub fn gfx_dll_delete_cursor(window: GfxWindow, cursor: GfxCursor);
+    /// A null cursor is the system's default pointer.
+    pub fn gfx_dll_set_cursor(window: GfxWindow, cursor: GfxCursor);
+    /// Client-area pixels.
+    pub fn gfx_dll_set_mouse_position(window: GfxWindow, x: i32, y: i32);
 
     pub fn gfx_dll_get_uniform_buffer_size(device: GfxDevice, buffer_size: u32) -> u32;
 
@@ -838,4 +1021,20 @@ unsafe extern "C" {
 
     pub fn gfx_dll_set_line_width(device: GfxDevice, line_width: f32);
     pub fn gfx_dll_set_point_size(device: GfxDevice, point_size: f32);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `gfx_dll_event` as the library builds it (`gfx_dll_print_struct_sizes` on x86_64: 32 bytes,
+    /// the union at 12): `gfx_benilla`'s key and motion events fit the union's 20 bytes.
+    #[test]
+    fn the_event_matches_the_c_layout() {
+        assert_eq!(std::mem::size_of::<GfxKeyEvent>(), 20);
+        assert_eq!(std::mem::size_of::<GfxMotionEvent>(), 12);
+        assert_eq!(std::mem::size_of::<GfxEventData>(), 20);
+        assert_eq!(std::mem::offset_of!(GfxEvent, data), 12);
+        assert_eq!(std::mem::size_of::<GfxEvent>(), 32);
+    }
 }

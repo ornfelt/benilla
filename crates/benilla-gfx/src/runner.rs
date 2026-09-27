@@ -4,7 +4,7 @@
 
 use bevy::app::PluginsState;
 use bevy::prelude::*;
-use bevy::window::{PresentMode, PrimaryWindow, WindowCloseRequested};
+use bevy::window::{PrimaryWindow, WindowCloseRequested};
 
 use crate::backend::Backends;
 use crate::context::{GfxContext, WindowSpec};
@@ -30,6 +30,13 @@ pub fn run(mut app: App) -> AppExit {
         }
     };
     app.world_mut().insert_non_send_resource(ctx);
+    {
+        let world = app.world_mut();
+        let mut primary = world.query_filtered::<Entity, With<PrimaryWindow>>();
+        if let Ok(entity) = primary.single(world) {
+            crate::window::opened(world, entity);
+        }
+    }
 
     let mut queued = Vec::new();
     let started = std::time::Instant::now();
@@ -64,16 +71,14 @@ fn open(world: &mut World) -> Result<GfxContext, String> {
         title: window.title.clone(),
         width: window.resolution.physical_width(),
         height: window.resolution.physical_height(),
-        vsync: !matches!(
-            window.present_mode,
-            PresentMode::AutoNoVsync | PresentMode::Immediate | PresentMode::Mailbox
-        ),
+        vsync: crate::window::swap_interval(window.present_mode) != 0,
     };
     GfxContext::open(&spec, backends)
 }
 
-/// Polls the window and hands what it saw to the app. A close from the window manager becomes
-/// `WindowCloseRequested`, so the app's own close path (and its shutdown saves) runs.
+/// Polls the window and hands what it saw to the app ([`crate::window::pump`]). A close from the
+/// window manager becomes `WindowCloseRequested`, so the app's own close path (and its shutdown
+/// saves) runs.
 fn pump(world: &mut World, queued: &mut Vec<crate::ffi::GfxEvent>) {
     let close = {
         let ctx = world.non_send_resource::<GfxContext>();
@@ -82,6 +87,8 @@ fn pump(world: &mut World, queued: &mut Vec<crate::ffi::GfxEvent>) {
     };
     queued.clear();
     events::drain_into(queued);
+    world.resource_mut::<crate::window::InputTrace>().frame += 1;
+    crate::window::pump(world, queued);
     if close {
         let mut primary = world.query_filtered::<Entity, With<PrimaryWindow>>();
         if let Ok(window) = primary.single(world) {

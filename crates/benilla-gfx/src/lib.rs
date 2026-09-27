@@ -15,11 +15,13 @@ pub mod backend;
 pub mod context;
 pub mod events;
 pub mod ffi;
+pub mod input;
 pub mod noop_device;
 pub mod render;
 pub mod runner;
 pub mod shader_def;
 pub mod shader_loader;
+pub mod window;
 
 use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
@@ -42,6 +44,7 @@ pub struct GfxPlugin;
 impl Plugin for GfxPlugin {
     fn build(&self, app: &mut App) {
         render::build(app);
+        window::build(app);
         app.set_runner(runner::run);
     }
 }
