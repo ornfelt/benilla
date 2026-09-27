@@ -13,6 +13,7 @@
 
 pub mod backend;
 pub mod context;
+pub mod data;
 pub mod draw;
 pub mod events;
 pub mod ffi;
@@ -22,6 +23,7 @@ pub mod material;
 pub mod meshes;
 pub mod noop_device;
 pub mod pipelines;
+pub mod post;
 pub mod render;
 pub mod runner;
 pub mod shader_def;
@@ -33,7 +35,11 @@ use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
 
 pub use context::GfxContext;
-pub use material::{GfxAlpha, GfxMaterialDesc, GfxMaterialPlugin};
+pub use data::{DataTexture, GfxDataTextures};
+pub use material::{
+    GfxAlpha, GfxDrawState, GfxMaterialDesc, GfxMaterialPlugin, GfxProgram, GfxTextureSlot,
+};
+pub use post::GfxFfxGlow;
 pub use render::{GfxRender, GfxRenderSystems};
 
 /// `group` (the `DefaultPlugins` set) with winit and wgpu swapped out for gfx.

@@ -697,6 +697,34 @@ fn publish_rig_palettes(mut palettes: ResMut<RigPalettes>, mut out: ResMut<RigPa
     out.origin_mirror_generation = p.origin_mirror_generation;
 }
 
+/// With `gfx`: the published palette as [`upload_rig_palettes`] reads it.
+#[cfg(feature = "gfx")]
+pub(crate) struct GfxPaletteView<'a> {
+    pub rows: &'a [[f32; 4]],
+    pub table: &'a [u32],
+    pub origins: &'a [[f32; 4]],
+    /// The frame's dirty bone ranges `(base, len)`, and the published list's identity.
+    pub dirty: &'a [(u32, u32, bool)],
+    pub dirty_id: usize,
+    pub table_generation: u64,
+    pub origin_generation: u64,
+}
+
+#[cfg(feature = "gfx")]
+pub(crate) fn gfx_palettes(world: &World) -> Option<GfxPaletteView<'_>> {
+    world
+        .get_resource::<RigPaletteExtract>()
+        .map(|d| GfxPaletteView {
+            rows: d.rows.as_slice(),
+            table: d.table.as_slice(),
+            origins: d.origins.as_slice(),
+            dirty: d.dirty.as_slice(),
+            dirty_id: Arc::as_ptr(&d.dirty) as usize,
+            table_generation: d.table_generation,
+            origin_generation: d.origin_generation,
+        })
+}
+
 /// The glue and portrait booths' studio light buffers, which mirror the palette regions.
 #[derive(Resource, Clone, Default, ExtractResource)]
 pub struct RigPaletteMirrors(

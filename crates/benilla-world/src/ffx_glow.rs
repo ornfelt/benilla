@@ -909,6 +909,13 @@ fn live_combine(world: &World, glow: &FfxGlow) -> ([f32; 8], bool) {
     (uniform, wave_armed(glow.state, wave, death))
 }
 
+/// With `gfx`: one view's combine uniform and whether its underwater warp is armed, as the render
+/// graph's nodes read them.
+#[cfg(feature = "gfx")]
+pub(crate) fn gfx_live_combine(world: &World, glow: &FfxGlow) -> ([f32; 8], bool) {
+    live_combine(world, glow)
+}
+
 /// The render-world views an [`FfxBackdrop`] claims this frame; a claimed view has no combine.
 #[derive(Resource, Default)]
 struct FfxBackdropClaims(Vec<Entity>);

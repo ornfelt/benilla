@@ -195,6 +195,18 @@ pub(super) fn publish_prop_probes(
     }
 }
 
+/// With `gfx`: the published probe table as [`upload_prop_probes`] reads it: the rows, the
+/// allocated span, the generation and the span it changed (`None`: everything).
+#[cfg(feature = "gfx")]
+#[allow(clippy::type_complexity)]
+pub(crate) fn gfx_prop_probes(
+    world: &World,
+) -> Option<(&[[[f32; 4]; 7]], usize, u64, Option<(usize, usize)>)> {
+    world
+        .get_resource::<PropProbeExtract>()
+        .map(|d| (d.rows.as_slice(), d.high, d.generation, d.dirty))
+}
+
 /// Byte offset of the probe region in the shared light buffer, right after the per-frame blob.
 pub fn prop_probe_region_offset() -> u64 {
     super::global_light::per_frame_blob_bytes()

@@ -1,0 +1,293 @@
+in 0 vec3 position
+in 1 vec3 normal
+in 2 vec2 uv
+in 3 vec4 color
+in 4 uvec4 joint_indices
+in 5 vec4 joint_weights
+in 6 vec4 fade_sphere
+in 7 int merged_slot
+
+out 0 vec4 world_position
+out 1 vec3 world_normal
+out 2 vec2 uv
+out 3 vec4 color
+out 4 vec3 point_lit
+out 5 float merged_fade
+out 6 int merged_slot
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 base_color
+	vec4 uv_matrix
+	vec4 uv_offset_cutoff_mode
+	vec4 flags
+	vec4 clutter_fade
+	vec4 model_flags
+	vec4 sun_scale
+	vec4 tint
+	vec4 sidn
+	vec4 anim_slots
+}
+
+// The vertex stage of `benilla-assets/src/shaders/wow_model.wgsl` (the M2, WMO and clutter pass),
+// line for line. Bevy's shader defs are runtime tests here: `tag.y` has bit `i` for program input
+// `i` the mesh has (4 = `WOW_RIG_SKIN`, 6 = `WOW_MERGED_FADE`, 7 = `WOW_MERGED_SLOT`), and
+// `misc.y` is 1 where the clip matrices carry the GL depth remap.
+
+// The shared light buffer as a data texture (`benilla-gfx/src/data.rs`), declared here by hand:
+// the compiler prints samplers in the fragment stage only. Same slot as the fragment stage's.
+#ifdef GFX_GLSL
+#if defined(GFX_VK)
+layout(set = 1, binding = 1) uniform sampler2DArray wow_light;
+#elif defined(GFX_GL3)
+uniform sampler2DArray wow_light;
+#else
+layout(binding = 1) uniform sampler2DArray wow_light;
+#endif
+#else
+Texture2DArray wow_light : register(t1);
+#endif
+
+// Row bases of the `wow_light` regions, row = byte offset / 16 of the wgpu buffer (in sync with
+// `benilla-world/src/gfx/light.rs`, whose test reads these lines).
+#define WOW_POINTS_BASE 21
+#define WOW_RIG_TABLE_BASE 57877
+#define WOW_RIG_ORIGIN_BASE 58901
+#define WOW_PALETTE_BASE 64021
+
+vec4 light_row(int i)
+{
+	int layer = i >> 12;
+	int r = i & 4095;
+#ifdef GFX_GLSL
+	return texelFetch(wow_light, ivec3(r & 255, r >> 8, layer), 0);
+#else
+	return wow_light.Load(int4(r & 255, r >> 8, layer, 0));
+#endif
+}
+
+// Zero-safe normalize (`wow_normalize`): an authored (0,0,0) normal lights by the SH DC term.
+vec3 wow_normalize(vec3 v)
+{
+	float l2 = dot(v, v);
+	return l2 > 1e-12 ? normalize(v) : vec3(0.0, 0.0, 0.0);
+}
+
+// The <=3 point lights nearest `anchor` (`point_light_sum`): range bounds candidacy only, a
+// selected light falls off as 1/(0.7 d + 0.03 d^2), diffuse on the submitted normal.
+vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
+{
+	int count = int(light_row(20).x);
+	int sel0 = 0;
+	int sel1 = 0;
+	int sel2 = 0;
+	float sd0 = 1e30;
+	float sd1 = 1e30;
+	float sd2 = 1e30;
+	for (int i = 0; i < count; i++)
+	{
+		vec4 pos_range = light_row(WOW_POINTS_BASE + 2 * i);
+		vec3 dv = pos_range.xyz - anchor;
+		float d2 = dot(dv, dv);
+		if (d2 > pos_range.w * pos_range.w)
+			continue;
+		if (d2 < sd0)
+		{
+			sd2 = sd1; sel2 = sel1;
+			sd1 = sd0; sel1 = sel0;
+			sd0 = d2; sel0 = i;
+		}
+		else if (d2 < sd1)
+		{
+			sd2 = sd1; sel2 = sel1;
+			sd1 = d2; sel1 = i;
+		}
+		else if (d2 < sd2)
+		{
+			sd2 = d2; sel2 = i;
+		}
+	}
+	vec3 sum = vec3(0.0, 0.0, 0.0);
+	for (int s = 0; s < 3; s++)
+	{
+		float sd = s == 0 ? sd0 : (s == 1 ? sd1 : sd2);
+		int sel = s == 0 ? sel0 : (s == 1 ? sel1 : sel2);
+		if (sd > 9.9e29)
+			break;
+		vec4 pos_range = light_row(WOW_POINTS_BASE + 2 * sel);
+		vec3 to_light = pos_range.xyz - P;
+		float d = length(to_light);
+		float atten = 1.0 / (0.7 * d + 0.03 * d * d);
+		float nl = max(dot(N, to_light / max(d, 1e-4)), 0.0);
+		sum += light_row(WOW_POINTS_BASE + 2 * sel + 1).rgb * (atten * nl);
+	}
+	return sum;
+}
+
+// The centre of the MCNK chunk under P (`mcnk_cell_anchor`), world-merged clutter's light anchor.
+vec3 mcnk_cell_anchor(vec3 P)
+{
+	float cell = 533.33333 / 16.0;
+	float half_extent = 32.0 * 533.33333;
+	float ix = floor((half_extent + P.x) / cell);
+	float iz = floor((half_extent + P.z) / cell);
+	return vec3((ix + 0.5) * cell - half_extent, P.y, (iz + 0.5) * cell - half_extent);
+}
+
+// The doodad fade curve (`merged_fade_alpha`, `0x683f80`).
+float merged_fade_alpha(float radius, float horiz_dist)
+{
+	if (radius > 7.0)
+		return 1.0;
+	float start = 150.0;
+	float range = 50.0;
+	if (radius <= 0.5)
+	{
+		start = 40.0;
+		range = 10.0;
+	}
+	else if (radius <= 2.5)
+	{
+		start = 100.0;
+		range = 25.0;
+	}
+	float d = horiz_dist - radius;
+	return clamp(1.0 - (d - start) / range, 0.0, 1.0);
+}
+
+// `c0 * v.x + c1 * v.y + c2 * v.z`: a 3x3 by its columns times v.
+vec3 cols3(vec3 c0, vec3 c1, vec3 c2, vec3 v)
+{
+	return c0 * v.x + c1 * v.y + c2 * v.z;
+}
+
+// bevy_pbr::skinning's inverse-transpose via the adjugate, of the 3x3 with columns c0, c1, c2,
+// applied to n.
+vec3 inverse_transpose_apply(vec3 c0, vec3 c1, vec3 c2, vec3 n)
+{
+	vec3 x = cross(c1, c2);
+	vec3 y = cross(c2, c0);
+	vec3 z = cross(c0, c1);
+	float det = dot(c2, z);
+	return cols3(x / det, y / det, z / det, n);
+}
+
+vs_output gfx_main(vs_input gfx_input)
+{
+	vs_output gfx_output;
+	uint present = tag.y;
+	bool skin = (present & 16u) != 0u;
+	bool merged_fade_on = (present & 64u) != 0u;
+	bool merged_slot_on = merged_fade_on && (present & 128u) != 0u;
+	uint markers = uint(clutter_fade.z);
+
+	// Precision: the frame holds the orientation, `frame_origin` the ~9 k yd world position, so no
+	// f32 product mixes the two.
+	vec3 c0 = world_from_local[0].xyz;
+	vec3 c1 = world_from_local[1].xyz;
+	vec3 c2 = world_from_local[2].xyz;
+	vec3 frame_origin = world_from_local[3].xyz;
+	vec3 frame_t = vec3(0.0, 0.0, 0.0);
+	if (skin)
+	{
+		// `wow_skin_model`: the four weighted bones' palette rows blended into `rig_from_local`,
+		// relative to `rig_origin[slot]`.
+		int slot = int((tag.x >> 19u) & 0x7ffu);
+		vec4 table = light_row(WOW_RIG_TABLE_BASE + (slot >> 2));
+		int lane = slot & 3;
+		int base = int(lane == 0 ? table.x : (lane == 1 ? table.y : (lane == 2 ? table.z : table.w)));
+		uvec4 ji = gfx_input.joint_indices;
+		vec4 w = gfx_input.joint_weights;
+		int b0 = WOW_PALETTE_BASE + 3 * (base + int(ji.x));
+		int b1 = WOW_PALETTE_BASE + 3 * (base + int(ji.y));
+		int b2 = WOW_PALETTE_BASE + 3 * (base + int(ji.z));
+		int b3 = WOW_PALETTE_BASE + 3 * (base + int(ji.w));
+		vec4 r0 = w.x * light_row(b0) + w.y * light_row(b1) + w.z * light_row(b2) + w.w * light_row(b3);
+		vec4 r1 = w.x * light_row(b0 + 1) + w.y * light_row(b1 + 1) + w.z * light_row(b2 + 1) + w.w * light_row(b3 + 1);
+		vec4 r2 = w.x * light_row(b0 + 2) + w.y * light_row(b1 + 2) + w.z * light_row(b2 + 2) + w.w * light_row(b3 + 2);
+		// r0/r1/r2 are the affine's rows.
+		c0 = vec3(r0.x, r1.x, r2.x);
+		c1 = vec3(r0.y, r1.y, r2.y);
+		c2 = vec3(r0.z, r1.z, r2.z);
+		frame_t = vec3(r0.w, r1.w, r2.w);
+		frame_origin = light_row(WOW_RIG_ORIGIN_BASE + slot).xyz;
+	}
+
+	vec3 n = gfx_input.normal;
+	vec3 world_normal;
+	if (skin)
+		world_normal = wow_normalize(inverse_transpose_apply(c0, c1, c2, n));
+	else if (n.x != 0.0 || n.y != 0.0 || n.z != 0.0)
+		// `mesh_normal_local_to_world`: the inverse transpose, a zero normal left as is.
+		world_normal = normalize(inverse_transpose_apply(c0, c1, c2, n));
+	else
+		world_normal = n;
+	gfx_output.world_normal = world_normal;
+
+	// Camera-relative to clip space; `world_position` is absolute again.
+	vec3 p_cam = cols3(c0, c1, c2, gfx_input.position) + frame_t + (frame_origin - world_position.xyz);
+	gfx_output.world_position = vec4(p_cam + world_position.xyz, 1.0);
+	vec3 p_view = mul(vec4(p_cam, 0.0), view_from_world).xyz;
+	vec4 clip = mul(vec4(p_view, 1.0), clip_from_view);
+	// The WMO batch order nudge on Bevy's clip z, (1 + n 2^-23); under the GL remap
+	// (z' = 2z - w) the same z is (z' + w) / 2.
+	float nudge = 1.0 + sun_scale.y * 1.1920929e-7;
+	if (misc.y > 0.5)
+		clip.z = (clip.z + clip.w) * nudge - clip.w;
+	else
+		clip.z = clip.z * nudge;
+	// The WMO-skybox lane (bit 13): Bevy clip z = 0, reverse-Z infinitely far.
+	if ((markers & 8192u) != 0u)
+		clip.z = misc.y > 0.5 ? -clip.w : 0.0;
+	gfx_output.merged_fade = 1.0;
+	gfx_output.merged_slot = 0;
+	if (merged_fade_on)
+	{
+		// A fully faded placement leaves the clip volume.
+		float fade_d = distance(world_position.xz, gfx_input.fade_sphere.xz);
+		gfx_output.merged_fade = merged_fade_alpha(gfx_input.fade_sphere.w, fade_d);
+		if (gfx_output.merged_fade <= 0.0)
+			clip = vec4(0.0, 0.0, 2.0, 1.0);
+		if (merged_slot_on)
+			gfx_output.merged_slot = gfx_input.merged_slot;
+	}
+	gfx_output.gfx_position = clip;
+
+	gfx_output.uv = gfx_input.uv;
+	// Env-mapped batches (bit 12) generate their texcoord per vertex in view space as `Model2.bls`
+	// does: R = normalize(P - 2(P.N)N), uv = R.xy 0.5 + 0.5.
+	if ((markers & 4096u) != 0u)
+	{
+		vec3 n_view = normalize(mul(vec4(world_normal, 0.0), view_from_world).xyz);
+		vec3 refl = normalize(p_view - 2.0 * dot(p_view, n_view) * n_view);
+		gfx_output.uv = refl.xy * 0.5 + vec2(0.5, 0.5);
+	}
+	gfx_output.color = gfx_input.color;
+
+	// Point lights: none on WMO surfaces or interior M2 props, else the <=3 nearest the instance
+	// origin (clutter: its MCNK chunk).
+	if (model_flags.x > 0.5 || model_flags.z > 0.5)
+	{
+		gfx_output.point_lit = vec3(0.0, 0.0, 0.0);
+	}
+	else
+	{
+		vec3 anchor = world_from_local[3].xyz;
+		if (clutter_fade.w > 0.5)
+			anchor = mcnk_cell_anchor(gfx_output.world_position.xyz);
+		gfx_output.point_lit = point_light_sum(gfx_output.world_position.xyz, world_normal, anchor);
+	}
+	return gfx_output;
+}

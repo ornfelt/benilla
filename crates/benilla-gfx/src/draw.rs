@@ -7,7 +7,8 @@
 //! encodes the scene target into the window.
 //!
 //! Every draw's constants go into one uniform ring written once per frame, before the first
-//! draw, and bound per draw by offset.
+//! draw, and bound per draw by offset: the view block (bevy_render's `View` fields the programs
+//! read) and a draw block of the world matrix, the tag row and the program's parameter rows.
 
 use std::ptr;
 
@@ -16,23 +17,29 @@ use bevy::camera::visibility::VisibleEntities;
 use bevy::camera::{ClearColorConfig, RenderTarget};
 use bevy::ecs::entity::EntityHashMap;
 use bevy::prelude::*;
+use bevy::render::camera::MipBias;
 use bevy::render::render_resource::Face;
 use bevy::window::PrimaryWindow;
 
 use crate::context::GfxContext;
+use crate::data::{GfxDataTextures, GpuDataTextures};
 use crate::ffi::{self, GfxBuffer, GfxDevice, GfxDeviceBackend, GfxTexture};
 use crate::images::GpuImages;
-use crate::material::{GfxAlpha, GfxMaterialDesc};
+use crate::material::{GfxAlpha, GfxMaterialDesc, GfxTextureSlot, MAX_TEXTURES};
 use crate::meshes::GpuMeshes;
 use crate::pipelines::{Blend, PipelineKey, Pipelines};
+use crate::post::{FfxPost, GfxFfxGlow};
+use crate::shader_loader::ShaderLibrary;
 use crate::target::{Present, SceneTarget};
 
-/// One entity to draw: its mesh, its world matrix and its material description
-/// ([`DrawList::desc`]).
+/// One entity to draw: its mesh, its world matrix, the world point it sorts by, its `MeshTag`
+/// and its material description ([`DrawList::desc`]).
 #[derive(Debug, Clone, Copy)]
 pub struct DrawItem {
     pub mesh: AssetId<Mesh>,
     pub world_from_local: Mat4,
+    pub center: Vec3,
+    pub tag: u32,
     pub desc: u32,
 }
 
@@ -88,9 +95,11 @@ pub struct GfxRenderer {
     backend: GfxDeviceBackend,
     pub meshes: GpuMeshes,
     pub images: GpuImages,
+    pub data: GpuDataTextures,
     pipelines: Pipelines,
     target: Option<SceneTarget>,
     present: Option<Present>,
+    post: Option<FfxPost>,
     ring: UniformRing,
     /// Camera kinds not drawn yet, logged once each.
     skipped: Vec<&'static str>,
@@ -116,9 +125,11 @@ impl GfxRenderer {
             backend,
             meshes: GpuMeshes::new(device),
             images: GpuImages::new(device, default_sampler),
+            data: GpuDataTextures::new(device),
             pipelines: Pipelines::new(device),
             target: None,
             present,
+            post: FfxPost::new(device, backend),
             ring: UniformRing::new(device),
             skipped: Vec::new(),
         }
@@ -132,16 +143,22 @@ impl GfxRenderer {
     }
 
     /// The scene target at `size`, re-made (with every pipeline made for it) when the window
-    /// changed size.
+    /// changed size; each frame starts on its first colour.
     fn target(&mut self, size: UVec2) -> Option<&SceneTarget> {
         let size = size.max(UVec2::ONE);
         if self.target.as_ref().is_none_or(|t| t.size != size) {
             self.pipelines.clear_pipelines();
+            if let Some(post) = &mut self.post {
+                post.drop_targets();
+            }
             self.target = None;
             match SceneTarget::new(self.device, size) {
                 Ok(t) => self.target = Some(t),
                 Err(e) => error!("gfx: {e}"),
             }
+        }
+        if let Some(t) = &mut self.target {
+            t.current = 0;
         }
         self.target.as_ref()
     }
@@ -151,14 +168,20 @@ impl Drop for GfxRenderer {
     fn drop(&mut self) {
         // Pipelines before the target they were made for; the stores drop themselves.
         self.pipelines.clear();
+        self.post = None;
         self.present = None;
         self.target = None;
     }
 }
 
-/// `std140` sizes of the two constant blocks (`standard.vs.gfxs`).
-const VIEW_BLOCK: usize = 80;
-const DRAW_BLOCK: usize = 128;
+/// `std140` size of the view block every program declares: `clip_from_world`,
+/// `view_from_world`, `clip_from_view` (each GL-remapped where it reaches clip space), then
+/// `world_position`, `viewport` (x, y, width, height in pixels) and `misc` (x = the mip bias, y = 1
+/// where the clip matrices carry the GL remap, z = the target height in pixels).
+const VIEW_BLOCK: usize = 240;
+/// The draw block's fixed head: `world_from_local` and the tag row (`uvec4`: x = the `MeshTag`,
+/// y = the mask of program inputs the mesh has); the parameter rows follow.
+const DRAW_HEAD: usize = 80;
 /// d3d11 binds constants in whole 256-byte runs (`d3d11_bind_constant`): room past the last one.
 const RING_TAIL: usize = 256;
 
@@ -244,8 +267,13 @@ struct View {
     viewport: URect,
     clear: Option<LinearRgba>,
     clip_from_world: Mat4,
+    clip_from_view: Mat4,
     view_from_world: Mat4,
+    mip_bias: f32,
+    gl_remap: bool,
+    target_height: u32,
     invert_culling: bool,
+    glow: Option<GfxFfxGlow>,
     entity: Entity,
 }
 
@@ -255,13 +283,17 @@ enum Cmd {
         viewport: URect,
         clear: Option<LinearRgba>,
     },
+    /// The camera's FFXGlow chain, its four blocks at these ring offsets.
+    Glow { offsets: [u32; 4] },
     Draw {
         pipeline: ffi::GfxPipeline,
         layout: ffi::GfxInputLayout,
         attributes: ffi::GfxAttributesState,
-        texture: GfxTexture,
+        textures: [GfxTexture; MAX_TEXTURES],
+        texture_count: u32,
         view_offset: u32,
         draw_offset: u32,
+        draw_size: u32,
         count: u32,
         indexed: bool,
     },
@@ -281,10 +313,12 @@ fn clip_remap(backend: GfxDeviceBackend) -> Mat4 {
     }
 }
 
-/// Resets the draw list and applies this frame's asset changes to the device stores.
+/// Resets the draw list and applies this frame's asset and data-texture changes to the device
+/// stores.
 pub(crate) fn prepare(
     mut renderer: NonSendMut<GfxRenderer>,
     mut list: ResMut<DrawList>,
+    mut data: ResMut<GfxDataTextures>,
     mut mesh_events: MessageReader<AssetEvent<Mesh>>,
     mut image_events: MessageReader<AssetEvent<Image>>,
 ) {
@@ -303,6 +337,7 @@ pub(crate) fn prepare(
             _ => {}
         }
     }
+    renderer.data.sync(&mut data);
 }
 
 type CameraItem = (
@@ -312,6 +347,8 @@ type CameraItem = (
     &'static GlobalTransform,
     &'static VisibleEntities,
     Has<Camera3d>,
+    Option<&'static MipBias>,
+    Option<&'static GfxFfxGlow>,
 );
 
 /// Draws every active 3D camera on the primary window into the scene target, in `order`.
@@ -332,7 +369,7 @@ pub(crate) fn draw_views(
     let remap = clip_remap(renderer.backend);
 
     let mut views = Vec::new();
-    for (entity, camera, target, transform, _, is_3d) in &cameras {
+    for (entity, camera, target, transform, _, is_3d, mip_bias, glow) in &cameras {
         if !camera.is_active {
             continue;
         }
@@ -352,6 +389,7 @@ pub(crate) fn draw_views(
             continue;
         };
         let view_from_world = transform.to_matrix().inverse();
+        let clip_from_view = remap * camera.clip_from_view();
         views.push(View {
             order: camera.order,
             viewport,
@@ -360,16 +398,21 @@ pub(crate) fn draw_views(
                 ClearColorConfig::Custom(c) => Some(c.to_linear()),
                 ClearColorConfig::None => None,
             },
-            clip_from_world: remap * camera.clip_from_view() * view_from_world,
+            clip_from_world: clip_from_view * view_from_world,
+            clip_from_view,
             view_from_world,
+            mip_bias: mip_bias.map_or(0.0, |b| b.0),
+            gl_remap: remap != Mat4::IDENTITY,
+            target_height: size.y,
             invert_culling: camera.invert_culling,
+            glow: glow.copied(),
             entity,
         });
     }
     views.sort_by_key(|v| v.order);
 
     let renderer = &mut *renderer;
-    let Some(framebuffer) = renderer.target(size).map(|t| t.framebuffer) else {
+    let Some(framebuffer) = renderer.target(size).map(|t| t.framebuffers[0]) else {
         return;
     };
     let device = renderer.device;
@@ -386,14 +429,10 @@ pub(crate) fn draw_views(
     renderer.ring.data.clear();
     let mut cmds = Vec::new();
     for view in &views {
-        let Ok((_, _, _, _, visible, _)) = cameras.get(view.entity) else {
+        let Ok((_, _, _, _, visible, ..)) = cameras.get(view.entity) else {
             continue;
         };
-        let eye = view.view_from_world.inverse().w_axis;
-        let mut block = [0.0f32; VIEW_BLOCK / 4];
-        block[..16].copy_from_slice(&view.clip_from_world.to_cols_array());
-        block[16..20].copy_from_slice(&eye.to_array());
-        let view_offset = renderer.ring.push(&block);
+        let view_offset = renderer.ring.push(&view_block(view));
         cmds.push(Cmd::View {
             viewport: view.viewport,
             clear: view.clear,
@@ -420,7 +459,7 @@ pub(crate) fn draw_views(
                 continue;
             };
             let shader_state = program.state;
-            let Some(attributes) =
+            let Some((attributes, present)) =
                 gpu.attributes_state(device, desc.program.name, desc.program.inputs)
             else {
                 continue;
@@ -431,10 +470,12 @@ pub(crate) fn draw_views(
             let transparent_phase = desc.alpha.is_transparent();
             let key = PipelineKey {
                 program: desc.program.name,
-                blend: Blend::of(desc.alpha),
+                blend: desc.state.blend.unwrap_or(Blend::of(desc.alpha)),
+                color_write: desc.state.color_write,
                 cull: cull(desc.cull, view.invert_culling),
-                depth_write: !transparent_phase,
+                depth_write: desc.state.depth_write.unwrap_or(!transparent_phase),
                 depth_test: true,
+                depth_always: desc.state.depth_always,
                 primitive,
             };
             let Some(pipeline) = renderer
@@ -444,37 +485,62 @@ pub(crate) fn draw_views(
                 renderer.skip_once("a pipeline gfx refused");
                 continue;
             };
-            let texture = match desc.texture {
-                Some(id) => match images.get(id).and_then(|i| renderer.images.get(id, i)) {
-                    Some(t) => t.texture,
-                    // Bevy skips a material whose texture is not loaded yet.
-                    None => continue,
-                },
-                None => renderer.images.white,
-            };
-            let draw_offset = renderer.ring.push(&draw_block(item, desc));
+            let mut textures = [ptr::null_mut(); MAX_TEXTURES];
+            let mut ready = true;
+            for (slot, texture) in desc.textures.iter().zip(&mut textures) {
+                *texture = match *slot {
+                    GfxTextureSlot::White => renderer.images.white,
+                    GfxTextureSlot::Image(id) => {
+                        match images.get(id).and_then(|i| renderer.images.get(id, i)) {
+                            Some(t) => t.texture,
+                            // Bevy skips a material whose texture is not loaded yet.
+                            None => {
+                                ready = false;
+                                break;
+                            }
+                        }
+                    }
+                    GfxTextureSlot::Data(id) => match renderer.data.get(id) {
+                        Some(t) => t,
+                        None => {
+                            renderer.skip_once("a material whose data texture is not kept");
+                            ready = false;
+                            break;
+                        }
+                    },
+                };
+            }
+            if !ready {
+                continue;
+            }
+            let block = draw_block(item, desc, present);
+            let draw_offset = renderer.ring.push(&block);
             let cmd = Cmd::Draw {
                 pipeline,
                 layout,
                 attributes,
-                texture,
+                textures,
+                texture_count: desc.program.samplers.min(MAX_TEXTURES) as u32,
                 view_offset,
                 draw_offset,
+                draw_size: (block.len() * 4) as u32,
                 count,
                 indexed,
             };
             if transparent_phase {
-                let z = view
-                    .view_from_world
-                    .transform_point3(item.world_from_local.w_axis.truncate())
-                    .z;
+                // bevy_pbr's `Transparent3d` distance: the view z of the AABB centre plus the
+                // material's depth bias, sorted ascending.
+                let z = view.view_from_world.transform_point3(item.center).z + desc.state.sort_bias;
                 transparent.push((z, cmd));
             } else {
                 let rank = match desc.alpha {
                     GfxAlpha::Mask(_) => 1u8,
                     _ => 0,
                 };
-                opaque.push(((rank, pipeline as usize, texture as usize, item.mesh), cmd));
+                opaque.push((
+                    (rank, pipeline as usize, textures[0] as usize, item.mesh),
+                    cmd,
+                ));
             }
         }
         opaque.sort_by_key(|(key, _)| *key);
@@ -482,6 +548,12 @@ pub(crate) fn draw_views(
         // Farthest first: the most negative view-space z.
         transparent.sort_by(|a, b| a.0.total_cmp(&b.0));
         cmds.extend(transparent.into_iter().map(|(_, c)| c));
+
+        if let (Some(glow), Some(post)) = (&view.glow, &renderer.post) {
+            let blocks = post.blocks(glow, size.max(UVec2::ONE));
+            let offsets = blocks.map(|b| renderer.ring.push(&b));
+            cmds.push(Cmd::Glow { offsets });
+        }
     }
 
     if !renderer.ring.upload() {
@@ -489,17 +561,35 @@ pub(crate) fn draw_views(
         return;
     }
     let ring = renderer.ring.buffer;
-    execute(device, framebuffer, ring, &cmds);
+    let (Some(target), post) = (&mut renderer.target, &mut renderer.post) else {
+        return;
+    };
+    execute(device, target, post.as_mut(), &mut ctx.shaders, ring, &cmds);
 }
 
-fn execute(device: GfxDevice, framebuffer: ffi::GfxFramebuffer, ring: GfxBuffer, cmds: &[Cmd]) {
+fn execute(
+    device: GfxDevice,
+    target: &mut SceneTarget,
+    mut post: Option<&mut FfxPost>,
+    shaders: &mut ShaderLibrary,
+    ring: GfxBuffer,
+    cmds: &[Cmd],
+) {
     let mut bound = ptr::null_mut();
     for cmd in cmds {
         match *cmd {
+            Cmd::Glow { offsets } => {
+                if let Some(post) = post.as_deref_mut() {
+                    post.run(shaders, target, ring, offsets);
+                }
+                bound = ptr::null_mut();
+            }
             Cmd::View { viewport, clear } => {
                 let size = viewport.size();
+                let framebuffer = target.framebuffer();
                 // SAFETY: the live device and scene target, on the device's thread.
                 unsafe {
+                    ffi::gfx_dll_bind_framebuffer(device, framebuffer);
                     ffi::gfx_dll_set_viewport(
                         device,
                         viewport.min.x as i32,
@@ -526,13 +616,14 @@ fn execute(device: GfxDevice, framebuffer: ffi::GfxFramebuffer, ring: GfxBuffer,
                 pipeline,
                 layout,
                 attributes,
-                texture,
+                mut textures,
+                texture_count,
                 view_offset,
                 draw_offset,
+                draw_size,
                 count,
                 indexed,
             } => {
-                let mut textures = [texture];
                 // SAFETY: every handle is live and made on `device`; the ring holds both blocks.
                 unsafe {
                     if pipeline != bound {
@@ -541,8 +632,8 @@ fn execute(device: GfxDevice, framebuffer: ffi::GfxFramebuffer, ring: GfxBuffer,
                     }
                     ffi::gfx_dll_bind_attributes_state(device, attributes, layout);
                     ffi::gfx_dll_bind_constant(device, 0, ring, VIEW_BLOCK as u32, view_offset);
-                    ffi::gfx_dll_bind_constant(device, 1, ring, DRAW_BLOCK as u32, draw_offset);
-                    ffi::gfx_dll_bind_samplers(device, 0, 1, textures.as_mut_ptr());
+                    ffi::gfx_dll_bind_constant(device, 1, ring, draw_size, draw_offset);
+                    ffi::gfx_dll_bind_samplers(device, 0, texture_count, textures.as_mut_ptr());
                     if indexed {
                         ffi::gfx_dll_draw_indexed(device, count, 0);
                     } else {
@@ -554,15 +645,28 @@ fn execute(device: GfxDevice, framebuffer: ffi::GfxFramebuffer, ring: GfxBuffer,
     }
 }
 
-/// `draw_block` of `standard.vs.gfxs`.
-fn draw_block(item: &DrawItem, desc: &GfxMaterialDesc) -> [f32; DRAW_BLOCK / 4] {
-    let mut b = [0.0f32; DRAW_BLOCK / 4];
-    b[..16].copy_from_slice(&item.world_from_local.to_cols_array());
-    b[16..20].copy_from_slice(&desc.base_color.to_f32_array());
-    let m = desc.uv_transform.matrix2;
-    b[20..24].copy_from_slice(&[m.x_axis.x, m.x_axis.y, m.y_axis.x, m.y_axis.y]);
-    let t = desc.uv_transform.translation;
-    b[24..28].copy_from_slice(&[t.x, t.y, desc.alpha.cutoff(), desc.alpha.shader_mode()]);
+/// The view block (see [`VIEW_BLOCK`]).
+fn view_block(view: &View) -> [f32; VIEW_BLOCK / 4] {
+    let mut b = [0.0f32; VIEW_BLOCK / 4];
+    b[..16].copy_from_slice(&view.clip_from_world.to_cols_array());
+    b[16..32].copy_from_slice(&view.view_from_world.to_cols_array());
+    b[32..48].copy_from_slice(&view.clip_from_view.to_cols_array());
+    b[48..52].copy_from_slice(&view.view_from_world.inverse().w_axis.to_array());
+    let (min, size) = (view.viewport.min.as_vec2(), view.viewport.size().as_vec2());
+    b[52..56].copy_from_slice(&[min.x, min.y, size.x, size.y]);
+    b[56] = view.mip_bias;
+    b[57] = if view.gl_remap { 1.0 } else { 0.0 };
+    b[58] = view.target_height as f32;
+    b
+}
+
+/// One draw's block: the world matrix, the tag row and the program's parameter rows.
+fn draw_block(item: &DrawItem, desc: &GfxMaterialDesc, present: u32) -> Vec<f32> {
+    let params = desc.program.params.min(desc.params.len());
+    let mut b = Vec::with_capacity(DRAW_HEAD / 4 + 4 * params);
+    b.extend_from_slice(&item.world_from_local.to_cols_array());
+    b.extend_from_slice(&[f32::from_bits(item.tag), f32::from_bits(present), 0.0, 0.0]);
+    b.extend(desc.params[..params].iter().flatten());
     b
 }
 
@@ -588,7 +692,7 @@ fn gfx_color(c: LinearRgba) -> ffi::GfxClearColor {
 pub(crate) fn present(ctx: NonSend<GfxContext>, renderer: NonSend<GfxRenderer>) {
     let size = ctx.size();
     if let (Some(present), Some(target)) = (&renderer.present, &renderer.target) {
-        present.draw(target.color, size);
+        present.draw(target.color(), size);
     }
 }
 
@@ -644,9 +748,9 @@ mod tests {
             data: Vec::new(),
         };
         assert_eq!(ring.push(&[1.0; VIEW_BLOCK / 4]), 0);
-        assert_eq!(ring.push(&[2.0; DRAW_BLOCK / 4]), 256);
-        assert_eq!(ring.push(&[3.0; DRAW_BLOCK / 4]), 512);
-        assert_eq!(ring.data.len(), 512 + DRAW_BLOCK);
+        assert_eq!(ring.push(&[2.0; 32]), 256);
+        assert_eq!(ring.push(&[3.0; 32]), 512);
+        assert_eq!(ring.data.len(), 512 + 128);
         assert_eq!(
             f32::from_le_bytes(ring.data[256..260].try_into().unwrap()),
             2.0

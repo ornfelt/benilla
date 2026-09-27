@@ -101,6 +101,14 @@ impl InstanceTints {
     }
 }
 
+#[cfg(feature = "gfx")]
+impl InstanceTints {
+    /// With `gfx`: every slot's word and the generation, as [`upload_instance_tints`] reads them.
+    pub(crate) fn gfx_slots(&self) -> (&[u32], u64) {
+        (self.slots.as_slice(), self.generation)
+    }
+}
+
 /// Render world (`PrepareResources`): writes the whole 8 KB region when the generation changed.
 fn upload_instance_tints(
     queue: Res<RenderQueue>,

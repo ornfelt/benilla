@@ -111,6 +111,14 @@ pub fn affine_row(q: [f32; 4], scale: [f32; 2]) -> [f32; 4] {
     [c - 1.0, s, scale[0] - 1.0, scale[1] - 1.0]
 }
 
+#[cfg(feature = "gfx")]
+impl MatAnimTable {
+    /// With `gfx`: every row and the generation, as [`upload_mat_anim`] reads them.
+    pub(crate) fn gfx_rows(&self) -> (&[[f32; 4]], u64) {
+        (self.rows.as_slice(), self.generation)
+    }
+}
+
 /// Render world (`PrepareResources`): write the whole region to every carrying buffer when the
 /// generation moved.
 fn upload_mat_anim(

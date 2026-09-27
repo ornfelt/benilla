@@ -1,0 +1,28 @@
+in 0 vec2 uv
+
+out 0 vec4 color
+
+constant 0 post_block
+{
+	vec4 lane
+	vec4 wave
+	vec4 texel
+}
+
+sampler 0 2d in_tex
+
+// FFXGlow's Box4, full to 1/4 (`fs_downsample` of `benilla-world/src/shaders/ffx_glow.wgsl`):
+// four bilinear taps over a 4x4 footprint, each clamped to 1.0. `texel.xy` = 1 / the source size,
+// `texel.z` = the sign of image-down in V (-1 on GL, whose rows run bottom-up).
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec2 t = texel.xy * vec2(1.0, texel.z);
+	vec2 uv = gfx_input.uv;
+	vec4 one = vec4(1.0, 1.0, 1.0, 1.0);
+	gfx_output.color = (min(gfx_sample(in_tex, uv + vec2(-1.5, -1.5) * t), one)
+		+ min(gfx_sample(in_tex, uv + vec2(0.5, -1.5) * t), one)
+		+ min(gfx_sample(in_tex, uv + vec2(0.5, 0.5) * t), one)
+		+ min(gfx_sample(in_tex, uv + vec2(-1.5, 0.5) * t), one)) * 0.25;
+	return gfx_output;
+}

@@ -1,0 +1,26 @@
+in 0 vec2 uv
+
+out 0 vec4 color
+
+constant 0 post_block
+{
+	vec4 lane
+	vec4 wave
+	vec4 texel
+}
+
+sampler 0 2d in_tex
+
+// FFXGauss4 (`gauss4` of `ffx_glow.wgsl`): taps at +-0.5 and +-2.5 source texels along the axis,
+// weights 1/8 3/8 3/8 1/8. `texel.xy` = the axis over the source size.
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec2 t = texel.xy;
+	vec2 uv = gfx_input.uv;
+	gfx_output.color = gfx_sample(in_tex, uv - 2.5 * t) * 0.125
+		+ gfx_sample(in_tex, uv - 0.5 * t) * 0.375
+		+ gfx_sample(in_tex, uv + 0.5 * t) * 0.375
+		+ gfx_sample(in_tex, uv + 2.5 * t) * 0.125;
+	return gfx_output;
+}

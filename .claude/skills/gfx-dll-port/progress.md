@@ -1,7 +1,8 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1 (Scaffold), 2 (Window and input) and 3 (GPU
-resources) done; milestone 4 (World shaders) next.
+Branch: `gfx-dll-backend`. Status: milestones 1-3 done; milestone 4 (World shaders) in flight:
+the model program (`WowModelMaterial`), the shared light buffer and the FFXGlow post pass are
+ported and A/B'd live; the static-gx pool, terrain and the rest are next.
 
 ## Milestones
 
@@ -20,52 +21,70 @@ resources) done; milestone 4 (World shaders) next.
   `CursorIcon` sync). `WOW_GFX_INPUT_TRACE=<path>` logs every message and window call. Not applied
   yet, each logged once: `WindowMode` (milestone 6), `window_level`, `position`, `decorations`,
   `resizable`, focus requests; no runtime scale-factor change, no IME.
-- [x] 3. **GPU resources.** `GfxRender` sets: `Prepare` (asset events -> stores, draw list reset),
-  `Collect` (per-material collectors), `Draw`, `Present`.
+- [x] 3. **GPU resources.** `GfxRender` sets: `Pack` (main-world data into data textures),
+  `Prepare` (asset and data-texture changes -> device stores, draw list reset), `Collect`
+  (per-material collectors), `Draw`, `Present`.
   - `meshes.rs`: one gfx vertex buffer per attribute stream + index buffer, uploaded on first draw;
     `AssetEvent::Modified` re-makes it `Dynamic`, later changes rewrite in place while sizes hold;
-    a program's missing attribute is a per-mesh filler of its default (colour white).
-  - `images.rs`: 2D and 2D-array images, every mip, layer- or mip-major data, BGRA swizzled;
-    BC1-5 as blocks; `*Srgb` as `gfx_benilla`'s sRGB formats; sampler from `ImageSampler` or the
-    `ImagePlugin` default. `CompressedImageFormatSupport` = BC for every device but gles3 (read
-    from `WOW_GFX_DEVICE` at build; the BLP loader decodes on gles3).
-  - `material.rs`: `GfxMaterialPlugin::<M>::new(describe)` draws visible `MeshMaterial3d<M>`;
-    `standard` = `StandardMaterial` unlit (base colour x texture x vertex colour, `uv_transform`,
-    alpha modes as bevy_pbr); `extended_base` for `ExtendedMaterial<StandardMaterial, _>`.
-    `benilla-world/src/gfx.rs` registers the 8 world materials through their base.
-  - `draw.rs`: active `Camera3d`s on the primary window, by `order`; `ClearColorConfig`, viewport,
-    `invert_culling`; per-view `VisibleEntities` (Mesh3d class: frustum + `RenderLayers`);
-    opaque, mask, then transparent back to front (view z of the origin); reverse-Z `GreaterEqual`,
-    depth cleared to 0 per view; GL gets `z' = 2z - w`. One uniform ring per frame (view block 80
-    B, draw block 128 B, aligned by `gfx_dll_get_uniform_buffer_size`, 256 B tail for d3d11).
-  - `pipelines.rs`: pipeline + state caches (bevy_pbr blend states, CCW front, cull from the
-    material). `target.rs`: `R16G16B16A16Sfloat` + `D32Sfloat` scene target (the world camera is
-    `Hdr`, `Tonemapping::None`) and `present.{vs,fs}` clamping and sRGB-encoding into the window
-    (V flipped on vk/d3d, where render-target rows are top-down).
-  - Carried to milestone 4: lit `StandardMaterial` (drawn unlit now), fog, emissive, normal maps,
-    `depth_bias` (gfx rasterizer state has none), skinning/morph. To milestone 5: 2D/UI cameras
-    (skipped, logged once). To 6: image-target cameras (skipped, logged once), MSAA (`Msaa` is
-    ignored: drawn without).
-- [ ] 4. **World shaders.** 17 WGSL files to `.gfxs`: `benilla-assets/src/shaders/{terrain,
-  wdl, liquid, wow_model}.wgsl` (`TerrainExtension`, `WdlExt`, `LiquidExt`, `WowModelExt`),
-  `benilla-world/src/shaders/{sky, sky_vertex, celestial, star, cloud, static_gx, wow_effect,
-  ffx_glow}.wgsl` (`SkyExt`, `CelestialExt`, `StarExt`, `CloudExt`, static_gx pool/render,
-  particles/render, ribbons, weather, ffx_glow post), plus StandardMaterial lit as benilla uses
-  it, fog, lighting (`lighting/global_light.rs`, blob shadows), instance tint, rig palette
-  (skinning), mat_anim_table, straddle, zfill, depth bias. Each gets its own `GfxProgram` and
-  describe fn in place of `extended_base`.
+    a program's missing attribute is a per-mesh filler of its default; `VertexInput::read_as`
+    reads a stream as another same-size format (a `Uint32` as `R32_SINT`); the mask of inputs a
+    mesh has goes to the draw block's tag (`tag.y`), the shader defs' stand-in.
+  - `images.rs`: 2D and 2D-array images, every mip, BGRA swizzled, BC1-5 as blocks, `*Srgb` as
+    `gfx_benilla`'s sRGB formats; `CompressedImageFormatSupport` = BC except on gles3.
+  - `data.rs`: a storage buffer as an RGBA32F 2D-array data texture (256x16 rows a layer; every
+    device updates a 2D array one whole layer at a time), keyed by the Bevy `BufferId` a material
+    binds; main-world `GfxDataTextures`, uploaded by dirty layer.
+  - `material.rs`: `GfxMaterialPlugin::<M>::new(describe)`; `GfxMaterialDesc` = program
+    (`GfxProgram`: name, inputs, parameter rows, sampler count), up to 4 texture slots
+    (`White`/`Image`/`Data`), up to 12 parameter rows, alpha, cull, `GfxDrawState` (blend,
+    depth-write and `Always` overrides, colour write, sort bias). `standard` = `StandardMaterial`
+    unlit; `extended_base` for an unported `ExtendedMaterial`. The collector takes `MeshTag` and
+    the AABB centre (bevy_pbr's transparent sort point).
+  - `draw.rs`: active `Camera3d`s on the primary window, by `order`; view block (240 B:
+    `clip_from_world`, `view_from_world`, `clip_from_view`, eye, viewport, `misc` = mip bias, GL
+    remap flag, target height); draw block = world matrix, tag `uvec4`, the program's rows; opaque,
+    mask, then transparent sorted by the AABB centre's view z + depth bias; reverse-Z; GL gets
+    `z' = 2z - w`. `pipelines.rs`: bevy_pbr blend states plus `Add` (ONE,ONE), `Modulate`,
+    `Modulate2x`, colour mask, `Always` depth. `target.rs`: two `R16G16B16A16Sfloat` colours
+    sharing a `D32Sfloat` depth (Bevy's ping-pong), linear-filtered; `present` clamps and
+    sRGB-encodes the current one into the window.
+- [ ] 4. **World shaders.**
+  - [x] `WowModelExt` (`wow_model.wgsl` -> `wow_model.{vs,fs}.gfxs`, `benilla-world/src/gfx/
+    model.rs`): M2/WMO/clutter lighting, SH lobe, prop probes, point lights, rig palette skinning,
+    body tint, mat-anim UV/tint/affine, straddle clip, merged fade/slot, env map, fog policies,
+    Mod/Mod2x/additive/zfill/no-depth states as `WowModelExt::specialize`. Shader defs are runtime
+    tests (input mask, `flags.x` = `WOW_WATER_CLIP`). No `front_facing` (every model material is
+    double-sided exactly when it culls nothing, so the lit normal is the interpolated one).
+  - [x] The shared light buffer (`benilla-world/src/gfx/light.rs`): packed from the main-world
+    tables the render-world uploads read (`WowLightData`, `PropProbeExtract`,
+    `RigPaletteExtract`, `InstanceTints`, `MatAnimTable`, `WaterClips`, via `cfg(gfx)` accessors),
+    at row = the wgpu byte offset / 16; `u32` regions as floats (rig table: base index; tint:
+    `word & 0xFFFFFF`, -1 = identity). A test checks the shader's `#define` bases.
+  - [x] FFXGlow (`post.rs`, `ffx_{downsample,gauss,combine}.fs.gfxs`, `benilla-world/src/gfx/
+    ffx.rs`): Box4 to 1/4 (min 8), Gauss4 H/V, combine (glow, haze, FFXDeath, dither) with the
+    frame's gamma decode, into the other scene colour. Not yet: the underwater GlowWave warp (plain
+    combine, warned once), the UI camera's backdrop claim.
+  - [ ] static_gx (`static_gx/render.rs`, `static_gx.wgsl`): the default path for static doodads
+    and WMOs, a custom render-graph node; not drawn under gfx at all yet, so a default run misses
+    most of the world's models (`WOW_STATIC_GX=0` puts them back on `WowModelMaterial`).
+  - [ ] `TerrainExtension` (`terrain.wgsl`), `WdlExt`, `LiquidExt`, `SkyExt` + `sky_vertex`,
+    `CelestialExt`, `StarExt`, `CloudExt`: still through their unlit base (terrain draws white).
+  - [ ] Particles (`particles/render.rs`), ribbons, weather (`wow_effect.wgsl`): render-world
+    pipelines, not drawn. Lit `StandardMaterial`, blob shadows.
+  - [ ] Raster depth bias: gfx's rasterizer state has none; bevy_pbr packs `depth_bias as i32`
+    (0 for every model batch but the zfill twin's -8). Needs a `gfx_benilla` addition.
 - [ ] 5. **UI.** bevy_ui nodes (`Node`, `BackgroundColor`, `ImageNode` x69, borders, 9-slice),
   text (`ui_text` shapes with cosmic-text into its own atlas: `ui_text/engine/gpu.rs`,
   `ui_text/pack.rs`), `ui_pass.rs`, `ui_gamma.rs`, `opaque2d.rs`, the `AddUiMaterial`
   (`glue/add_material.rs`), UI shaders `benilla-app/src/shaders/ui_{add,gamma,node_gamma,quad,
   slice_gamma}.wgsl`, sprites (the FrameXML quad pass), gizmos (bowstring, fishing line), glue
-  screens, portraits / model frames (`ui_models`, `portrait/glue_booth.rs`: render-to-texture).
-- [ ] 6. **The rest.** Render-to-texture cameras (16 `RenderTarget::Image` sites), screenshots
-  (`screenshot.rs`) and the capture harness (`capture/`, `depth_probe`, `phase_probe`; needs a
-  gfx read-back call, which the API lacks), `WOW_GPU_MS` (`perf/gpu.rs`, `perf/journal.rs`),
-  `pipe_warm`, MSAA (gfx takes MS textures with `levels` as the sample count, 1 on vk, see
-  `wc_clean_new_rs/src/fx/render_target.rs`), fullscreen / window modes (`video.rs`), background
-  window level, the `dev` egui panel (`bevy_egui` -> `gfx_imgui` or equivalent).
+  screens, portraits / model frames (`ui_models`, `portrait/glue_booth.rs`: render-to-texture),
+  the FFX backdrop claim.
+- [ ] 6. **The rest.** Render-to-texture cameras (16 `RenderTarget::Image` sites) and their
+  studio light buffers (`LightBlob` buffers written through the noop queue: mirror them into data
+  textures), screenshots (`screenshot.rs`) and the capture harness (`capture/`, `depth_probe`,
+  `phase_probe`; needs a gfx read-back call, which the API lacks), `WOW_GPU_MS`, `pipe_warm`,
+  MSAA, fullscreen / window modes (`video.rs`), background window level, the `dev` egui panel.
 - [ ] 7. **Backend matrix and `GFX.md`.**
 
 ## Parity instrument
@@ -78,25 +97,33 @@ pair, captures each window with ImageMagick `import` at 1 s, diffs with `parity_
 mean, share of pixels off by >1/>4/>16 levels, bbox, x8 diff image). Both windows are resizable,
 so the tiling WM gives both the same slot (gfx does not apply `resizable: false`).
 
+The live world A/B: `.claude/skills/gfx-dll-port/tools/world_ab.sh <wgpu-bin> <gfx-bin> x11:gl4
+...` runs `benilla-worldview` (default Northshire overview, `WOW_CLOCK=720`, `WOW_WIN=1280x720`,
+`WOW_BG=0`) through both builds (copy each out of `target/debug`: `target/ab/` holds them with
+`libgfx.so`), captures at `AT` s, and `masked_diff.py <wgpu> <gfx> --erode 24` diffs only where
+gfx drew and 24 px past the glow's reach of anything it did not (unported white terrain).
+`validate_gfx.py crates/benilla-gfx/shaders` runs glslangValidator over every family's GL/GLES
+text and the d3d11 HLSL (glslang's HLSL front end, not fxc).
+
 ## Verified backend pairs
 
 Linux (Debian 13, X11 :0, awesome WM, Radeon/Mesa), `gfx_benilla` Debug, no account (no
-`.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`. The runs so far used no install (see "The
-install" below: one exists and was missed until 2026-09-27).
-- Milestone 3, parity scene vs wgpu, 928x1013, all twelve Linux pairs (x11, glfw, sdl) x (gl3, gl4,
-  gles3, vk), 2026-09-27: vk max 1 level, 0 pixels >1; gl3/gl4/gles3 mean 0.048, 19 pixels >1 and
-  10 >4 (of 940k), each on a triangle edge or a nearest-texel boundary; no gfx error in any log.
-- benilla boots on x11/gl4 and x11/vk with the renderer: 57.6 frames/s, `WM_DELETE_WINDOW` ->
-  exit 0; logs "a camera on an image or other target" and "a 2D or UI camera" not drawn yet.
+`.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled to 928x1013.
+- Milestone 4, world A/B with the install, `WOW_STATIC_GX=0`, 2026-09-27, eroded mask 25.8% of the
+  frame (models only): x11/vk max 1 level, 0 pixels >1; x11/gl4 mean 0.24, 0.125% >1 (speckles
+  that did not recur on vk: foliage animation between runs); x11/gles3 0.575% >1, 0.05% >4 (BLPs
+  CPU-decoded there). vk run: 59 frames/s, `WORLDVIEW_CHECK ok`, exit 0.
+- Parity scene after this run's block changes: gl4 mean 0.048 (as before), vk max 1.
+- Milestone 3: parity scene on all twelve Linux pairs (x11, glfw, sdl) x (gl3, gl4, gles3, vk).
 - Milestone 2 (input, grab, scale factor): see git `3db008e3`; not re-run.
-Windows (win32, d3d11, d3d12) not built.
+Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes glslang's parser.
 
 ## Build notes
 
 - gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `b046a3d`). Differs from
   `gfx_dll/gfx`: key events carry `physical` + `scancode`, `GFX_EVENT_RAW_MOTION`, per-window
   `scale_factor`, exported cursor / warp / icon / scale-factor calls, milestone-2 backend fixes,
-  and (this run) `GFX_FORMAT_R8G8B8A8_SRGB`, `BC1_RGBA_SRGB_BLOCK`, `BC2_SRGB_BLOCK`,
+  and (milestone 3) `GFX_FORMAT_R8G8B8A8_SRGB`, `BC1_RGBA_SRGB_BLOCK`, `BC2_SRGB_BLOCK`,
   `BC3_SRGB_BLOCK` appended to `enum gfx_format` (all six devices; d3d11/d3d12 not compiled), GL
   depth attachment by format (`gl_depth_attachment`), `D32_SFLOAT` = `GL_DEPTH_COMPONENT32F`.
   Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build && cmake ..
@@ -104,24 +131,27 @@ Windows (win32, d3d11, d3d12) not built.
   takes `gfx_benilla` over `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it beside the binary
   (and gives this crate's examples an rpath to it).
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs` (`blit`, `present`,
-  `standard`); `crates/benilla-gfx/shaders/compile.sh` writes the four families. Compiler: build
-  it first, `cd ~/Code2/General/gfx/wc_compiler_rs && cargo build --release` (compile.sh prefers
-  release; the old March debug build appended a `pow(c, 2.2)` gamma hack to every gles3 fragment
-  output, which the current source only does on Windows for a `*gles3*dark*` source dir).
+  `standard`, `wow_model`, `ffx_downsample`, `ffx_gauss`, `ffx_combine`);
+  `crates/benilla-gfx/shaders/compile.sh` writes the four families. The compiler prints samplers
+  in fragment stages only: a vertex stage that fetches (`wow_model.vs`) declares its sampler in
+  the body per backend, at the fragment stage's slot (every device binds samplers to all
+  stages). Compiler: build it first, `cd ~/Code2/General/gfx/wc_compiler_rs && cargo build
+  --release` (compile.sh prefers release; the old March debug build appended a `pow(c, 2.2)`
+  gamma hack to every gles3 fragment output, which the current source only does on Windows for a
+  `*gles3*dark*` source dir). No gfx library or compiler change this run.
 - Build: `cargo build -p benilla --features gfx`; the instrument: `cargo build -p benilla-gfx
   --features gfx --example parity` (1.5 GB debug binary).
 
 ## Gates (this run)
 
 `cargo fmt --all -- --check` clean; `cargo clippy --workspace --all-targets -D warnings` green
-with and without `--features benilla/gfx`; `cargo test -p benilla-gfx` with `--features gfx` (22
-passed) and without (empty); `cargo test -p benilla-world` feature-off (547 passed, 6 ignored).
-`scripts/check.sh` escalates to `gates.sh` (the branch's `Cargo.lock` differs from main) and was
-not run: its workspace test build does not fit this disk (9 GB free at the end, after deleting
-`target/debug/incremental` and stale >200 MB test binaries). The feature-off change outside
-`benilla-gfx` is `WorldPlugins::build` binding the group before returning it (same plugins) and a
-cfg'd `mod gfx`. Not run: the player build, the engine boot checks, `smoke.sh` (no `.probe-identity`), and no
-test ran against the install (it was not known about yet).
+with and without `--features benilla/gfx`; `cargo test -p benilla-gfx --features gfx` 25 passed;
+`benilla-world --features gfx` `gfx::` tests 3 passed (the shader's region bases, tint words,
+row packing); `cargo test -p benilla-world` feature-off 547 passed, 6 ignored (as before).
+`scripts/check.sh` / `gates.sh`, the player build and `smoke.sh` not run: the disk has ~6 GB free
+(`target/` ~70 GB) and there is no `.probe-identity` for a login. The feature-off change outside
+`benilla-gfx` is `cfg(feature = "gfx")` accessors only (global_light, prop_probes, rig_palette,
+instance_tint, mat_anim_table, straddle, ffx_glow) and `gfx.rs` -> `gfx/mod.rs`.
 
 ## For the maintainer
 
@@ -130,7 +160,7 @@ test ran against the install (it was not known about yet).
 - Window size is not a parity target (maintainer): the WM may tile a gfx window.
 - Upstream candidates in `gfx_benilla` that are gfx bugs, not benilla needs: the x11 raw event
   twice under a grab, the x11 release-as-repeat heuristic, glfw's no-op `set_mouse_position`,
-  sdl's late X1/X2, win32's screen-coordinate `set_mouse_position`, and this run's GL depth
+  sdl's late X1/X2, win32's screen-coordinate `set_mouse_position`, and milestone 3's GL depth
   attachment and `D32_SFLOAT` fixes.
 - The `shaders_gles3_dark` family (gles3 on a native window off Linux) is compiled here without
   the Windows-only gamma hack; whether that window needs it is a Windows question.
@@ -148,16 +178,22 @@ world scenes (worldview, the glue screens) can be A/B'd against wgpu live; `BENI
 makes the gates' data-reading tests count. A login still needs a `.probe-identity` account.
 
 ## Open problems
+- A default run (static-gx on) draws almost no doodads or WMOs under gfx: static_gx is next.
+- Filler streams are per mesh: a `wow_model` mesh lacking the rig and merged attributes carries
+  4 filler buffers of its vertex count. An instance-step shared filler would need per-mesh input
+  layouts.
+- The UI tile cell clip (`anim_slots.w`) flips the fragment row on GL; untested until model tiles
+  draw (milestone 6).
 - Log: each `Extract*Plugin` logs "Render app did not exist" once at build; `bevy_gizmos_render`
-  warns likewise (milestones 4-5).
+  warns likewise.
 - The capture harness is untested under gfx and gfx has no read-back (milestone 6).
+- Disk: this machine's disk is full but for ~12 GB; `target/debug/incremental` (16 GB) was
+  deleted again this run.
 
 ## Next
 
-Milestone 4, first program: `WowModelExt` (`benilla-assets/src/shaders/wow_model.wgsl`, the M2
-and WMO material), as a `wow_model.{vs,fs}.gfxs` with its own `GfxProgram` (its vertex inputs and
-uniforms read from `WowModelExt`'s fields), described in `benilla-world/src/gfx.rs` in place of
-`extended_base`; extend `examples/parity.rs` with a `WowModelMaterial` quad on synthetic textures
-and settle it by the same diff, then against the real thing: `benilla-worldview` with
-`WOW_DATA="$wow_classic_dir/Data"` through wgpu and gfx at one fixed view. Then lit
-`StandardMaterial` and fog, then terrain.
+Milestone 4, static_gx: port `static_gx.wgsl` and the pool draw (`static_gx/render.rs`,
+`prepare_static_gx` / `StaticGxNode`: record table, runs, kill bits) to a gfx program fed from the
+main-world `GxWorld` (publish_gx_world) and a data texture for the record table; A/B with the
+default `WOW_STATIC_GX` on. Then `terrain.wgsl` (reads the same light buffer data texture), then
+WDL, liquid, and the sky family.

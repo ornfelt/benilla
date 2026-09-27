@@ -1,5 +1,6 @@
 //! The gfx frame: after each `app.update()` the runner runs [`GfxRender`] on the main world and
-//! presents. [`GfxRenderSystems`] orders it: asset changes reach the device stores, the
+//! presents. [`GfxRenderSystems`] orders it: main-world data is packed into the data textures,
+//! asset and data changes reach the device stores, the
 //! registered materials list what is visible, the cameras draw into the scene target, and the
 //! target is encoded into the window.
 
@@ -15,6 +16,9 @@ pub struct GfxRender;
 /// The ordered stages of [`GfxRender`].
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GfxRenderSystems {
+    /// Main-world state the shaders read by index packed into [`crate::data::GfxDataTextures`],
+    /// as the render world's upload systems write their storage buffers.
+    Pack,
     /// Asset changes applied to the device stores; the draw list reset.
     Prepare,
     /// The material collectors fill the draw list ([`crate::material::GfxMaterialPlugin`]).
@@ -31,9 +35,11 @@ pub(crate) fn build(app: &mut App) {
     schedule.set_executor_kind(ExecutorKind::SingleThreaded);
     app.add_schedule(schedule)
         .init_resource::<DrawList>()
+        .init_resource::<crate::data::GfxDataTextures>()
         .configure_sets(
             GfxRender,
             (
+                GfxRenderSystems::Pack,
                 GfxRenderSystems::Prepare,
                 GfxRenderSystems::Collect,
                 GfxRenderSystems::Draw,

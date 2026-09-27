@@ -21,6 +21,11 @@ pub(crate) use prop_probes::prop_probe_region_offset;
 pub use resolve::WmoCrossfade;
 use resolve::{apply_sky_backdrop, setup_lighting, update_time_lighting};
 pub(crate) use sh::prop_probe_coeffs;
+#[cfg(feature = "gfx")]
+pub(crate) use {
+    global_light::{gfx_light_rows, light_blob_bytes, LIGHT_HEADER_ROWS},
+    prop_probes::gfx_prop_probes,
+};
 
 /// Scene lighting sampled from `Light.dbc` for the time of day. Colours are sRGB 0..1; `sun_dir` is
 /// the Bevy-space direction the sun's light travels.

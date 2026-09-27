@@ -5,7 +5,8 @@
 //!
 //! A program reads a fixed list of attributes ([`VertexInput`]); an attribute the mesh lacks is a
 //! per-mesh filler stream of the input's default, as the wgpu path's shader defs leave the
-//! attribute out and use the same constant.
+//! attribute out and use the same constant. The mask of inputs the mesh has goes to the draw
+//! block's tag, for a program whose shader defs change more than the constant.
 
 use std::collections::HashMap;
 use std::ptr;
@@ -26,11 +27,24 @@ use crate::ffi::{
 pub struct VertexInput {
     pub attribute: MeshVertexAttribute,
     pub default: [f32; 4],
+    /// The format the program reads the stream as, where it differs from the attribute's own
+    /// mapping ([`vertex_format`]); the stream's bytes are the same size.
+    pub read_as: Option<GfxFormat>,
 }
 
 impl VertexInput {
     pub const fn new(attribute: MeshVertexAttribute, default: [f32; 4]) -> Self {
-        Self { attribute, default }
+        Self {
+            attribute,
+            default,
+            read_as: None,
+        }
+    }
+
+    /// Read as `format`, e.g. a `Uint32` slot as the `int` the shader languages share.
+    pub const fn read_as(mut self, format: GfxFormat) -> Self {
+        self.read_as = Some(format);
+        self
     }
 }
 
@@ -56,8 +70,9 @@ pub struct GpuMesh {
     pub vertex_count: u32,
     pub primitive: GfxPrimitiveType,
     usage: GfxBufferUsage,
-    /// Attribute states by program name: the streams in the program's input order.
-    states: Vec<(&'static str, GfxAttributesState)>,
+    /// Attribute states by program name: the streams in the program's input order, and the mask
+    /// of inputs the mesh has.
+    states: Vec<(&'static str, GfxAttributesState, u32)>,
 }
 
 impl GpuMesh {
@@ -70,25 +85,30 @@ impl GpuMesh {
         self.index.is_some()
     }
 
-    /// The attribute state binding this mesh's streams in `inputs` order, for `program`.
+    /// The attribute state binding this mesh's streams in `inputs` order, for `program`, and the
+    /// mask of inputs the mesh has (bit `i` for input `i`).
     pub(crate) fn attributes_state(
         &mut self,
         device: GfxDevice,
         program: &'static str,
         inputs: &[VertexInput],
-    ) -> Option<GfxAttributesState> {
-        if let Some((_, s)) = self.states.iter().find(|(p, _)| *p == program) {
-            return Some(*s);
+    ) -> Option<(GfxAttributesState, u32)> {
+        if let Some((_, s, mask)) = self.states.iter().find(|(p, ..)| *p == program) {
+            return Some((*s, *mask));
         }
         let mut binds = Vec::with_capacity(inputs.len());
-        for input in inputs {
+        let mut mask = 0u32;
+        for (i, input) in inputs.iter().enumerate() {
             let id = input.attribute.id;
             let own = self
                 .streams
                 .get(&id)
                 .filter(|s| s.format == input.attribute.format);
             let buffer = match own {
-                Some(s) => s.buffer,
+                Some(s) => {
+                    mask |= 1 << i;
+                    s.buffer
+                }
                 None => {
                     if !self.fillers.contains_key(&id) {
                         let bytes = filler_bytes(input, self.vertex_count.max(1));
@@ -127,14 +147,14 @@ impl GpuMesh {
         if !unsafe { ffi::gfx_dll_create_attributes_state(device, &info, &mut state) } {
             return None;
         }
-        self.states.push((program, state));
-        Some(state)
+        self.states.push((program, state, mask));
+        Some((state, mask))
     }
 
     fn delete(self, device: GfxDevice) {
         // SAFETY: every handle was made on `device` and belongs to this mesh alone.
         unsafe {
-            for (_, s) in self.states {
+            for (_, s, _) in self.states {
                 ffi::gfx_dll_delete_attributes_state(device, s);
             }
             for s in self.streams.into_values().chain(self.fillers.into_values()) {

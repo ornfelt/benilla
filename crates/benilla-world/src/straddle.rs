@@ -410,6 +410,14 @@ fn trace(what: &str, part: Entity) {
     benilla_assets::trace::line("fx", &format!("straddle-twin {what} part={part}"));
 }
 
+#[cfg(feature = "gfx")]
+impl WaterClips {
+    /// With `gfx`: every slot's clip word and the generation, as [`upload_water_clips`] reads them.
+    pub(crate) fn gfx_slots(&self) -> (&[ClipWord], u64) {
+        (self.slots.as_slice(), self.generation)
+    }
+}
+
 /// Render world: write the whole region to the shared buffer on a change; studio buffers stay zero.
 fn upload_water_clips(
     queue: Res<RenderQueue>,

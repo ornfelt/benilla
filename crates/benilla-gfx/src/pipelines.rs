@@ -27,6 +27,12 @@ pub enum Blend {
     Premultiplied,
     /// Colour `Dst * src + (1 - src_alpha) * dst`, alpha `OVER`.
     Multiply,
+    /// Colour `ONE, ONE`; alpha kept (`ZERO, ONE`): benilla's gamma-space additive.
+    Add,
+    /// Colour `DST_COLOR, ZERO`; alpha kept: the M2/WMO Mod blend.
+    Modulate,
+    /// Colour `DST_COLOR, SRC_COLOR`; alpha kept: the Mod2x blend.
+    Modulate2x,
 }
 
 impl Blend {
@@ -44,10 +50,13 @@ impl Blend {
 pub struct PipelineKey {
     pub program: &'static str,
     pub blend: Blend,
+    pub color_write: bool,
     /// The face culled, after the camera's `invert_culling`.
     pub cull: Option<Face>,
     pub depth_write: bool,
     pub depth_test: bool,
+    /// `Always` in place of `GreaterEqual`.
+    pub depth_always: bool,
     pub primitive: GfxPrimitiveType,
 }
 
@@ -60,8 +69,8 @@ pub struct Pipelines {
     device: GfxDevice,
     pipelines: HashMap<PipelineKey, GfxPipeline>,
     layouts: HashMap<&'static str, Layout>,
-    blend: HashMap<Blend, ffi::GfxBlendState>,
-    depth: HashMap<(bool, bool), ffi::GfxDepthStencilState>,
+    blend: HashMap<(Blend, bool), ffi::GfxBlendState>,
+    depth: HashMap<(bool, bool, bool), ffi::GfxDepthStencilState>,
     raster: HashMap<Option<Face>, ffi::GfxRasterizerState>,
 }
 
@@ -91,7 +100,7 @@ impl Pipelines {
             let format = input.attribute.format;
             binds.push(ffi::GfxInputLayoutBind {
                 buffer: i as u32,
-                format: vertex_format(format)?,
+                format: input.read_as.or_else(|| vertex_format(format))?,
                 stride: format.size() as u32,
                 offset: 0,
                 step_mode: GfxStepMode::Vertex,
@@ -116,12 +125,14 @@ impl Pipelines {
         let device = self.device;
         let blend = *self
             .blend
-            .entry(key.blend)
-            .or_insert_with(|| blend_state(device, key.blend));
+            .entry((key.blend, key.color_write))
+            .or_insert_with(|| blend_state(device, key.blend, key.color_write));
         let depth = *self
             .depth
-            .entry((key.depth_test, key.depth_write))
-            .or_insert_with(|| depth_state(device, key.depth_test, key.depth_write));
+            .entry((key.depth_test, key.depth_write, key.depth_always))
+            .or_insert_with(|| {
+                depth_state(device, key.depth_test, key.depth_write, key.depth_always)
+            });
         let raster = *self
             .raster
             .entry(key.cull)
@@ -198,7 +209,11 @@ pub(crate) fn create_layout(
     unsafe { ffi::gfx_dll_create_input_layout(device, &info, &mut layout) }.then_some(layout)
 }
 
-pub(crate) fn blend_state(device: GfxDevice, blend: Blend) -> ffi::GfxBlendState {
+pub(crate) fn blend_state(
+    device: GfxDevice,
+    blend: Blend,
+    color_write: bool,
+) -> ffi::GfxBlendState {
     use GfxBlendFunction as F;
     let (enabled, src_color, dst_color, src_alpha, dst_alpha) = match blend {
         Blend::Replace => (false, F::One, F::Zero, F::One, F::Zero),
@@ -223,6 +238,9 @@ pub(crate) fn blend_state(device: GfxDevice, blend: Blend) -> ffi::GfxBlendState
             F::One,
             F::OneMinusSrcAlpha,
         ),
+        Blend::Add => (true, F::One, F::One, F::Zero, F::One),
+        Blend::Modulate => (true, F::DstColor, F::Zero, F::Zero, F::One),
+        Blend::Modulate2x => (true, F::DstColor, F::SrcColor, F::Zero, F::One),
     };
     let info = ffi::GfxBlendStateCreateInfo {
         enabled,
@@ -232,7 +250,11 @@ pub(crate) fn blend_state(device: GfxDevice, blend: Blend) -> ffi::GfxBlendState
         dst_alpha,
         equation_color: GfxBlendEquation::Add,
         equation_alpha: GfxBlendEquation::Add,
-        color_mask: color_mask::RGBA,
+        color_mask: if color_write {
+            color_mask::RGBA
+        } else {
+            color_mask::NONE
+        },
         constant_color: [0.0; 4],
     };
     let mut state = ptr::null_mut();
@@ -241,7 +263,12 @@ pub(crate) fn blend_state(device: GfxDevice, blend: Blend) -> ffi::GfxBlendState
     state
 }
 
-pub(crate) fn depth_state(device: GfxDevice, test: bool, write: bool) -> ffi::GfxDepthStencilState {
+pub(crate) fn depth_state(
+    device: GfxDevice,
+    test: bool,
+    write: bool,
+    always: bool,
+) -> ffi::GfxDepthStencilState {
     let stencil = GfxStencilState {
         fail: GfxStencilOperation::Keep,
         pass: GfxStencilOperation::Keep,
@@ -252,7 +279,11 @@ pub(crate) fn depth_state(device: GfxDevice, test: bool, write: bool) -> ffi::Gf
         reference: 0,
     };
     let info = ffi::GfxDepthStencilStateCreateInfo {
-        depth_compare: GfxCompareFunction::GEqual,
+        depth_compare: if always {
+            GfxCompareFunction::Always
+        } else {
+            GfxCompareFunction::GEqual
+        },
         depth_write: write,
         depth_test: test,
         stencil_enabled: false,

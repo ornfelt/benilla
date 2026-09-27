@@ -349,6 +349,14 @@ fn build_light_data(
     }
 }
 
+/// With `gfx`: the per-frame blob's rows, header then point table, as [`upload_light`] writes them.
+#[cfg(feature = "gfx")]
+pub(crate) fn gfx_light_rows(world: &World) -> Option<&[[f32; 4]]> {
+    world
+        .get_resource::<WowLightData>()
+        .map(|d| bytemuck::cast_slice(bytemuck::bytes_of(&d.0)))
+}
+
 /// Render world, in `PrepareResources`: writes the packed light into the shared buffer before any
 /// draw reads it.
 fn upload_light(

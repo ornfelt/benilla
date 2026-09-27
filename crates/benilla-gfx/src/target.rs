@@ -22,12 +22,15 @@ use crate::pipelines::{self, Blend};
 pub const SCENE_FORMAT: GfxFormat = GfxFormat::R16G16B16A16Sfloat;
 pub const DEPTH_FORMAT: GfxFormat = GfxFormat::D32Sfloat;
 
-/// The float colour and depth the cameras draw into.
+/// The float colour and depth the cameras draw into. Two colours share the depth, as Bevy's
+/// `ViewTarget` ping-pongs its main texture: a post pass reads [`Self::current`] and writes the
+/// other, which the later cameras and the present then use.
 pub struct SceneTarget {
     device: GfxDevice,
-    pub color: GfxTexture,
+    pub colors: [GfxTexture; 2],
     pub depth: GfxTexture,
-    pub framebuffer: GfxFramebuffer,
+    pub framebuffers: [GfxFramebuffer; 2],
+    pub current: usize,
     pub size: UVec2,
 }
 
@@ -36,40 +39,64 @@ impl SceneTarget {
         let size = size.max(UVec2::ONE);
         let mut target = Self {
             device,
-            color: ptr::null_mut(),
+            colors: [ptr::null_mut(); 2],
             depth: ptr::null_mut(),
-            framebuffer: ptr::null_mut(),
+            framebuffers: [ptr::null_mut(); 2],
+            current: 0,
             size,
         };
-        target.color = render_texture(device, SCENE_FORMAT, size)
-            .ok_or("scene colour texture creation failed")?;
         target.depth = render_texture(device, DEPTH_FORMAT, size)
             .ok_or("scene depth texture creation failed")?;
-        let mut colors = [target.color];
-        let info = ffi::GfxFramebufferCreateInfo {
-            color_attachments: colors.as_mut_ptr(),
-            depth_stencil_attachment: target.depth,
-            color_count: 1,
-            msaa_samples: 1,
-            width: size.x,
-            height: size.y,
-        };
-        // SAFETY: `info` and `colors` are live for the call.
-        if !unsafe { ffi::gfx_dll_create_framebuffer(device, &info, &mut target.framebuffer) } {
-            return Err("scene framebuffer creation failed".into());
+        for i in 0..2 {
+            target.colors[i] = render_texture(device, SCENE_FORMAT, size)
+                .ok_or("scene colour texture creation failed")?;
+            target.framebuffers[i] = framebuffer(device, target.colors[i], target.depth, size)
+                .ok_or("scene framebuffer creation failed")?;
         }
         Ok(target)
     }
+
+    /// The colour the next draw lands in.
+    pub fn color(&self) -> GfxTexture {
+        self.colors[self.current]
+    }
+
+    pub fn framebuffer(&self) -> GfxFramebuffer {
+        self.framebuffers[self.current]
+    }
+}
+
+/// A framebuffer of one colour and an optional depth.
+pub(crate) fn framebuffer(
+    device: GfxDevice,
+    color: GfxTexture,
+    depth: GfxTexture,
+    size: UVec2,
+) -> Option<GfxFramebuffer> {
+    let mut colors = [color];
+    let info = ffi::GfxFramebufferCreateInfo {
+        color_attachments: colors.as_mut_ptr(),
+        depth_stencil_attachment: depth,
+        color_count: 1,
+        msaa_samples: 1,
+        width: size.x,
+        height: size.y,
+    };
+    let mut fb: GfxFramebuffer = ptr::null_mut();
+    // SAFETY: `info` and `colors` are live for the call.
+    unsafe { ffi::gfx_dll_create_framebuffer(device, &info, &mut fb) }.then_some(fb)
 }
 
 impl Drop for SceneTarget {
     fn drop(&mut self) {
         // SAFETY: each handle was made on `self.device` and belongs to this target alone.
         unsafe {
-            if !self.framebuffer.is_null() {
-                ffi::gfx_dll_delete_framebuffer(self.device, self.framebuffer);
+            for fb in self.framebuffers {
+                if !fb.is_null() {
+                    ffi::gfx_dll_delete_framebuffer(self.device, fb);
+                }
             }
-            for t in [self.color, self.depth] {
+            for t in [self.colors[0], self.colors[1], self.depth] {
                 if !t.is_null() {
                     ffi::gfx_dll_delete_texture(self.device, t);
                 }
@@ -78,7 +105,18 @@ impl Drop for SceneTarget {
     }
 }
 
-fn render_texture(device: GfxDevice, format: GfxFormat, size: UVec2) -> Option<GfxTexture> {
+/// A sampled render target, linear-filtered (the post passes tap between texels; the present
+/// reads texel centres at 1:1, where linear is nearest) and clamped.
+pub(crate) fn render_texture(
+    device: GfxDevice,
+    format: GfxFormat,
+    size: UVec2,
+) -> Option<GfxTexture> {
+    let filter = if format == DEPTH_FORMAT {
+        GfxFiltering::Nearest
+    } else {
+        GfxFiltering::Linear
+    };
     let info = ffi::GfxTextureCreateInfo {
         texture_type: GfxTextureType::Texture2D,
         usage: texture_usage::RENDER_TARGET | texture_usage::SAMPLED,
@@ -90,8 +128,8 @@ fn render_texture(device: GfxDevice, format: GfxFormat, size: UVec2) -> Option<G
         addressing_s: GfxTextureAddressing::Clamp,
         addressing_t: GfxTextureAddressing::Clamp,
         addressing_r: GfxTextureAddressing::Clamp,
-        min_filtering: GfxFiltering::Nearest,
-        mag_filtering: GfxFiltering::Nearest,
+        min_filtering: filter,
+        mag_filtering: filter,
         mip_filtering: GfxFiltering::None,
         anisotropy: 0,
         border_color: [0.0; 4],
@@ -179,8 +217,8 @@ impl Present {
         {
             return Err("present attribute state creation failed".into());
         }
-        let blend = pipelines::blend_state(device, Blend::Replace);
-        let depth = pipelines::depth_state(device, false, false);
+        let blend = pipelines::blend_state(device, Blend::Replace, true);
+        let depth = pipelines::depth_state(device, false, false, false);
         let raster = pipelines::raster_state(device, None);
         present.states = [blend, depth, raster];
         let info = ffi::GfxPipelineCreateInfo {
