@@ -102,8 +102,9 @@ Free disk before the next run (`target/` was 56 GB; `target/debug/incremental` w
 
 ## Open problems
 
-- Window size: the WM here resizes the 640x360 window to 928x496 on map; `Window.resolution`
-  does not follow until milestone 2 handles `RESIZE` (winit reports it on the wgpu path).
+- Window size: not a parity target (maintainer): the window manager may resize the window
+  (here 640x360 -> 928x496 on map), and that is fine. Milestone 2 only has to feed `RESIZE`
+  into `Window.resolution` so layout follows whatever size the window ends up.
 - Log: each `Extract*Plugin` in Bevy's render plugins logs "Render app did not exist" once at
   build (as the stock headless configuration does); `bevy_gizmos_render` warns likewise. They
   go when those plugins get gfx counterparts (milestones 3-5).
