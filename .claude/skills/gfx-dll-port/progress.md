@@ -80,8 +80,9 @@ so the tiling WM gives both the same slot (gfx does not apply `resizable: false`
 
 ## Verified backend pairs
 
-Linux (Debian 13, X11 :0, awesome WM, Radeon/Mesa), `gfx_benilla` Debug, no install, no account
-(no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`.
+Linux (Debian 13, X11 :0, awesome WM, Radeon/Mesa), `gfx_benilla` Debug, no account (no
+`.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`. The runs so far used no install (see "The
+install" below: one exists and was missed until 2026-09-27).
 - Milestone 3, parity scene vs wgpu, 928x1013, all twelve Linux pairs (x11, glfw, sdl) x (gl3, gl4,
   gles3, vk), 2026-09-27: vk max 1 level, 0 pixels >1; gl3/gl4/gles3 mean 0.048, 19 pixels >1 and
   10 >4 (of 940k), each on a triangle edge or a nearest-texel boundary; no gfx error in any log.
@@ -119,7 +120,8 @@ passed) and without (empty); `cargo test -p benilla-world` feature-off (547 pass
 not run: its workspace test build does not fit this disk (9 GB free at the end, after deleting
 `target/debug/incremental` and stale >200 MB test binaries). The feature-off change outside
 `benilla-gfx` is `WorldPlugins::build` binding the group before returning it (same plugins) and a
-cfg'd `mod gfx`. Not run: the player build, the engine boot checks, `smoke.sh` (no install).
+cfg'd `mod gfx`. Not run: the player build, the engine boot checks, `smoke.sh` (no `.probe-identity`), and no
+test ran against the install (it was not known about yet).
 
 ## For the maintainer
 
@@ -133,11 +135,18 @@ cfg'd `mod gfx`. Not run: the player build, the engine boot checks, `smoke.sh` (
 - The `shaders_gles3_dark` family (gles3 on a native window off Linux) is compiled here without
   the Windows-only gamma hack; whether that window needs it is a Windows question.
 
-## Open problems
+## The install
 
-- No 1.12 install on this machine (`~/Downloads/wow` is 3.3.5), so world materials cannot be
-  compared live here: milestone 4 parity needs synthetic material inputs in the parity scene, or
-  a machine with an install.
+This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/wow_classic`
+(`WoW.exe` "Build 5875 (Sep 19 2006)"; `Data/` holds `base`, `dbc`, `model`, `terrain`,
+`texture`, `patch`, `patch-2` and the rest of the vanilla MPQs). Point benilla at it with
+`WOW_DATA="$wow_classic_dir/Data"` (or a gitignored `WoW` link at the repo root to
+`$wow_classic_dir`); it is read-only to benilla. Not the other `$wow_*_dir` installs:
+`$wow_dir` (`~/Downloads/wow`) is 3.3.5, `$wow_tbc_dir` TBC, `$wow_cata_dir` Cataclysm. With it,
+world scenes (worldview, the glue screens) can be A/B'd against wgpu live; `BENILLA_REQUIRE_DATA=1`
+makes the gates' data-reading tests count. A login still needs a `.probe-identity` account.
+
+## Open problems
 - Log: each `Extract*Plugin` logs "Render app did not exist" once at build; `bevy_gizmos_render`
   warns likewise (milestones 4-5).
 - The capture harness is untested under gfx and gfx has no read-back (milestone 6).
@@ -148,4 +157,6 @@ Milestone 4, first program: `WowModelExt` (`benilla-assets/src/shaders/wow_model
 and WMO material), as a `wow_model.{vs,fs}.gfxs` with its own `GfxProgram` (its vertex inputs and
 uniforms read from `WowModelExt`'s fields), described in `benilla-world/src/gfx.rs` in place of
 `extended_base`; extend `examples/parity.rs` with a `WowModelMaterial` quad on synthetic textures
-and settle it by the same diff. Then lit `StandardMaterial` and fog, then terrain.
+and settle it by the same diff, then against the real thing: `benilla-worldview` with
+`WOW_DATA="$wow_classic_dir/Data"` through wgpu and gfx at one fixed view. Then lit
+`StandardMaterial` and fog, then terrain.
