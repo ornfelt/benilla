@@ -1,0 +1,34 @@
+in 0 vec2 uv
+in 1 vec4 color
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+}
+sampler 0 2d cloud_tex
+
+// The fragment stage of `benilla-world/src/shaders/cloud.wgsl`: the CPU-built cloud texels (raw
+// gamma bytes), alpha times the dome's rim fade (the vertex alpha, white where the mesh has no
+// colours), blended premultiplied.
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec4 texel = gfx_sample(cloud_tex, gfx_input.uv);
+	float a = texel.w * gfx_input.color.w;
+	gfx_output.color = vec4(texel.xyz * a, a);
+	return gfx_output;
+}

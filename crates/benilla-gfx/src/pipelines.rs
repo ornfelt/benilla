@@ -57,6 +57,9 @@ pub struct PipelineKey {
     pub depth_test: bool,
     /// `Always` in place of `GreaterEqual`.
     pub depth_always: bool,
+    /// The rasterizer depth bias, wgpu's `DepthBiasState`: the constant and the slope scale's
+    /// bits (`f32` is not `Hash`).
+    pub depth_bias: (i32, u32),
     pub primitive: GfxPrimitiveType,
 }
 
@@ -71,7 +74,7 @@ pub struct Pipelines {
     layouts: HashMap<&'static str, Layout>,
     blend: HashMap<(Blend, bool), ffi::GfxBlendState>,
     depth: HashMap<(bool, bool, bool), ffi::GfxDepthStencilState>,
-    raster: HashMap<Option<Face>, ffi::GfxRasterizerState>,
+    raster: HashMap<(Option<Face>, (i32, u32)), ffi::GfxRasterizerState>,
 }
 
 impl Pipelines {
@@ -135,8 +138,11 @@ impl Pipelines {
             });
         let raster = *self
             .raster
-            .entry(key.cull)
-            .or_insert_with(|| raster_state(device, key.cull));
+            .entry((key.cull, key.depth_bias))
+            .or_insert_with(|| {
+                let (constant, slope) = key.depth_bias;
+                raster_state_biased(device, key.cull, constant, f32::from_bits(slope))
+            });
         if blend.is_null() || depth.is_null() || raster.is_null() {
             return None;
         }
@@ -297,6 +303,17 @@ pub(crate) fn depth_state(
 }
 
 pub(crate) fn raster_state(device: GfxDevice, cull: Option<Face>) -> ffi::GfxRasterizerState {
+    raster_state_biased(device, cull, 0, 0.0)
+}
+
+/// A rasterizer state with wgpu's depth bias (`DepthBiasState`, unclamped): `constant` in the
+/// depth format's minimal resolvable difference, as wgpu passes it to every backend.
+pub(crate) fn raster_state_biased(
+    device: GfxDevice,
+    cull: Option<Face>,
+    constant: i32,
+    slope: f32,
+) -> ffi::GfxRasterizerState {
     let info = ffi::GfxRasterizerStateCreateInfo {
         fill_mode: GfxFillMode::Solid,
         cull_mode: match cull {
@@ -311,6 +328,19 @@ pub(crate) fn raster_state(device: GfxDevice, cull: Option<Face>) -> ffi::GfxRas
     };
     let mut state = ptr::null_mut();
     // SAFETY: `info` is live for the call.
-    unsafe { ffi::gfx_dll_create_rasterizer_state(device, &info, &mut state) };
+    unsafe {
+        if constant == 0 && slope == 0.0 {
+            ffi::gfx_dll_create_rasterizer_state(device, &info, &mut state);
+        } else {
+            ffi::gfx_dll_create_rasterizer_state_biased(
+                device,
+                &info,
+                constant as f32,
+                slope,
+                0.0,
+                &mut state,
+            );
+        }
+    }
     state
 }

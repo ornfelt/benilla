@@ -1,0 +1,106 @@
+in 0 vec4 world_position
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 sky0
+	vec4 sky1
+	vec4 sky2
+	vec4 sky3
+	vec4 sky4
+	vec4 fog
+	vec4 warp
+}
+
+// The fragment stage of `benilla-world/src/shaders/sky.wgsl`, line for line: the five Light.dbc
+// SkyColor stops at the reference's ring elevations, the fog colour at and below the horizon, the
+// dawn/dusk azimuth warp on the four mid rings (`0x6d0f50`), raw gamma out.
+
+// Glow `g` for a sun-relative azimuth phase (`azimuth_glow`), the six-keyframe table at `0xce9af8`.
+float azimuth_glow(float phase)
+{
+	float p = fract(phase);
+	if (p < 0.125)
+		return mix(0.0, 1.0, (p + 0.125) / 0.25);
+	else if (p < 0.375)
+		return mix(1.0, 0.0, (p - 0.125) / 0.25);
+	else if (p < 0.5)
+		return mix(0.0, -0.5, (p - 0.375) / 0.125);
+	else if (p < 0.625)
+		return mix(-0.5, -0.7, (p - 0.5) / 0.125);
+	else if (p < 0.75)
+		return mix(-0.7, -0.5, (p - 0.625) / 0.125);
+	else if (p < 0.875)
+		return mix(-0.5, 0.0, (p - 0.75) / 0.125);
+	return mix(0.0, 1.0, (p - 0.875) / 0.25);
+}
+
+// One mid ring's warped colour for glow `g` (`warp_one`); 0.7 is the constant at `0x7ffd7c`.
+vec3 warp_one(vec3 base, float g, float s)
+{
+	float s2 = s * s;
+	if (g >= 0.0)
+		return mix(base, sky1.xyz, (1.0 - g) * s2);
+	return mix(mix(base, sky1.xyz, s), sky0.xyz, 0.7 * (-g) * s2);
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec3 dir = normalize(gfx_input.world_position.xyz - world_position.xyz);
+	float elev = degrees(asin(clamp(dir.y, -1.0, 1.0)));
+
+	vec3 s1 = sky1.xyz;
+	vec3 s2c = sky2.xyz;
+	vec3 s3 = sky3.xyz;
+	vec3 s4 = sky4.xyz;
+	float warp_s = warp.x;
+	if (warp_s > 0.0)
+	{
+#ifdef GFX_GLSL
+		float azimuth = atan(dir.z, dir.x);
+#else
+		float azimuth = atan2(dir.z, dir.x);
+#endif
+		float az = fract((azimuth - warp.y) / 6.2831853 + 0.125);
+		float seg = az * 24.0;
+		float s0 = floor(seg);
+		float f = seg - s0;
+		float g0 = azimuth_glow(s0 / 24.0);
+		float g1 = azimuth_glow((s0 + 1.0) / 24.0);
+		s1 = mix(warp_one(sky1.xyz, g0, warp_s), warp_one(sky1.xyz, g1, warp_s), f);
+		s2c = mix(warp_one(sky2.xyz, g0, warp_s), warp_one(sky2.xyz, g1, warp_s), f);
+		s3 = mix(warp_one(sky3.xyz, g0, warp_s), warp_one(sky3.xyz, g1, warp_s), f);
+		s4 = mix(warp_one(sky4.xyz, g0, warp_s), warp_one(sky4.xyz, g1, warp_s), f);
+	}
+
+	// Elevation gradient, linear between rings like the reference's Gouraud-shaded dome.
+	vec3 col;
+	if (elev <= 0.0)
+		col = fog.xyz;
+	else if (elev < 1.8)
+		col = mix(fog.xyz, s4, elev / 1.8);
+	else if (elev < 3.7)
+		col = mix(s4, s3, (elev - 1.8) / (3.7 - 1.8));
+	else if (elev < 9.8)
+		col = mix(s3, s2c, (elev - 3.7) / (9.8 - 3.7));
+	else if (elev < 16.8)
+		col = mix(s2c, s1, (elev - 9.8) / (16.8 - 9.8));
+	else
+		col = mix(s1, sky0.xyz, (elev - 16.8) / (90.0 - 16.8));
+	gfx_output.color = vec4(col, 1.0);
+	return gfx_output;
+}

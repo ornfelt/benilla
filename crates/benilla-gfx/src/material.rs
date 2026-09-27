@@ -132,6 +132,11 @@ pub struct GfxDrawState {
     pub color_write: bool,
     /// Added to the transparent phase's sort distance, as `StandardMaterial::depth_bias` is.
     pub sort_bias: f32,
+    /// The rasterizer depth-bias constant and slope scale (wgpu's `DepthBiasState`):
+    /// `StandardMaterial::specialize` packs `depth_bias as i32` into the constant, which an
+    /// extension's `specialize` may zero.
+    pub raster_bias: i32,
+    pub raster_slope: f32,
 }
 
 impl Default for GfxDrawState {
@@ -142,6 +147,8 @@ impl Default for GfxDrawState {
             depth_always: false,
             color_write: true,
             sort_bias: 0.0,
+            raster_bias: 0,
+            raster_slope: 0.0,
         }
     }
 }
@@ -191,6 +198,7 @@ pub fn standard_rows(
         alpha,
         GfxDrawState {
             sort_bias: m.depth_bias,
+            raster_bias: m.depth_bias as i32,
             ..default()
         },
     )

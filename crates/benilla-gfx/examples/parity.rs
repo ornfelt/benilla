@@ -3,7 +3,7 @@
 //! DLL as benilla does. The camera is set up as benilla's world camera (`Hdr`,
 //! `Tonemapping::None`), with MSAA off. The scene covers what the gfx renderer draws so far: an
 //! sRGB texture sampled nearest and linear, BC1 blocks, vertex colours, back-face culling, depth,
-//! alpha mask, alpha blend and additive blend.
+//! alpha mask, alpha blend, additive blend and the rasterizer depth bias.
 //!
 //! The window prints `parity: ready` once the scene has been on screen for a second and exits
 //! two seconds later; `.claude/skills/gfx-dll-port/tools/parity.sh` captures it in between and
@@ -165,6 +165,24 @@ fn scene(
         })),
         Transform::from_xyz(0.6, 0.5, 1.1),
     ));
+
+    // Two squares coplanar with the floor, triangulated unlike it, so without a raster bias each
+    // z-fights it: `StandardMaterial::depth_bias` +32768 (`Rung::DECAL_RASTER`'s size) wins
+    // everywhere, -32768 loses everywhere.
+    let decal = meshes.add(Plane3d::default().mesh().size(0.8, 0.8));
+    for (x, bias, color) in [
+        (-0.4, 32768.0, Color::srgb(0.9, 0.1, 0.8)),
+        (1.4, -32768.0, Color::srgb(0.1, 0.9, 0.2)),
+    ] {
+        commands.spawn((
+            Mesh3d(decal.clone()),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                depth_bias: bias,
+                ..unlit(color)
+            })),
+            Transform::from_xyz(x, 0.0, 1.7).with_rotation(Quat::from_rotation_y(0.3)),
+        ));
+    }
 
     // Additive over the sky and the mask quad.
     commands.spawn((

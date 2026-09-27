@@ -1,19 +1,20 @@
-//! The world's materials on the gfx renderer (`benilla-gfx`, the `gfx` feature). A material with a
-//! ported program draws through it ([`model`], [`terrain`], [`wdl`]); every other `ExtendedMaterial` draws through its
-//! `StandardMaterial` base until its extension's WGSL is ported. [`light`] keeps the shared light
-//! buffer's data texture, which the ported programs read, and [`ffx`] feeds each camera's FFXGlow
-//! combine, the frame's gamma decode.
+//! The world's materials on the gfx renderer (`benilla-gfx`, the `gfx` feature): each draws through
+//! a port of its WGSL ([`model`], [`terrain`], [`wdl`], [`liquid`], [`sky`]), and the effect lane
+//! through [`effect`]. [`light`] keeps the shared light buffer's data texture, which the ported
+//! programs read, and [`ffx`] feeds each camera's FFXGlow combine, the frame's gamma decode.
 
+mod effect;
 mod ffx;
 mod light;
+pub mod liquid;
 pub mod model;
+pub mod sky;
 pub mod terrain;
 pub mod wdl;
 
 use bevy::prelude::*;
 
 use benilla_assets::materials::{LiquidMaterial, TerrainMaterial, WdlMaterial, WowModelMaterial};
-use benilla_gfx::material::extended_base;
 use benilla_gfx::{GfxMaterialPlugin, GfxRender, GfxRenderSystems};
 
 use crate::clouds::CloudMaterial;
@@ -28,15 +29,19 @@ impl Plugin for GfxWorldMaterials {
             GfxMaterialPlugin::<TerrainMaterial>::new(terrain::describe),
             GfxMaterialPlugin::<WowModelMaterial>::new(model::describe),
             GfxMaterialPlugin::<WdlMaterial>::new(wdl::describe),
-            GfxMaterialPlugin::<LiquidMaterial>::new(extended_base),
-            GfxMaterialPlugin::<SkyMaterial>::new(extended_base),
-            GfxMaterialPlugin::<CelestialMaterial>::new(extended_base),
-            GfxMaterialPlugin::<StarMaterial>::new(extended_base),
-            GfxMaterialPlugin::<CloudMaterial>::new(extended_base),
+            GfxMaterialPlugin::<LiquidMaterial>::new(liquid::describe),
+            GfxMaterialPlugin::<SkyMaterial>::new(sky::describe_sky),
+            GfxMaterialPlugin::<CelestialMaterial>::new(sky::describe_celestial),
+            GfxMaterialPlugin::<StarMaterial>::new(sky::describe_star),
+            GfxMaterialPlugin::<CloudMaterial>::new(sky::describe_cloud),
         ))
+        .add_systems(Startup, effect::init)
         .add_systems(
             GfxRender,
-            (light::pack, ffx::sync).in_set(GfxRenderSystems::Pack),
+            (
+                (light::pack, ffx::sync).in_set(GfxRenderSystems::Pack),
+                effect::collect.in_set(GfxRenderSystems::Collect),
+            ),
         );
     }
 }

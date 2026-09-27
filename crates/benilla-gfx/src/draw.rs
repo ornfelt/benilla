@@ -9,6 +9,9 @@
 //! A system can also place draws itself ([`DrawList::push_early`]): an index range of a mesh with
 //! a description, drawn for one camera before its opaque phase in the order pushed, as a render
 //! graph node between bevy's `StartMainPass` and `MainOpaquePass` draws (benilla's static-gx pass).
+//! [`DrawList::push_sorted`] places one in the camera's transparent phase instead, sorted with the
+//! entities by its own point and bias, as a render-world lane queues its own `Transparent3d`
+//! items (benilla's effect lane).
 //!
 //! Every draw's constants go into one uniform ring written once per frame, before the first
 //! draw, and bound per draw by offset: the view block (bevy_render's `View` fields the programs
@@ -59,6 +62,19 @@ pub struct EarlyDraw {
     pub desc: u32,
 }
 
+/// A draw placed by a system in a camera's transparent phase ([`DrawList::push_sorted`]):
+/// `indices` of an indexed mesh with a description, sorted by the view z of `anchor` plus `bias`,
+/// the `Transparent3d` distance, whatever the description's alpha.
+#[derive(Debug, Clone)]
+pub struct SortedDraw {
+    pub mesh: AssetId<Mesh>,
+    pub indices: Range<u32>,
+    pub world_from_local: Mat4,
+    pub desc: u32,
+    pub anchor: Vec3,
+    pub bias: f32,
+}
+
 /// This frame's draw items by entity, rebuilt each frame by the material collectors.
 #[derive(Resource, Default)]
 pub struct DrawList {
@@ -66,6 +82,7 @@ pub struct DrawList {
     by_entity: EntityHashMap<u32>,
     descs: Vec<GfxMaterialDesc>,
     early: Vec<(Entity, EarlyDraw)>,
+    sorted: Vec<(Entity, SortedDraw)>,
 }
 
 impl DrawList {
@@ -74,11 +91,17 @@ impl DrawList {
         self.by_entity.clear();
         self.descs.clear();
         self.early.clear();
+        self.sorted.clear();
     }
 
     /// Draws `draw` for `camera` before its opaque phase, after the early draws pushed before it.
     pub fn push_early(&mut self, camera: Entity, draw: EarlyDraw) {
         self.early.push((camera, draw));
+    }
+
+    /// Draws `draw` in `camera`'s transparent phase, sorted with its entities.
+    pub fn push_sorted(&mut self, camera: Entity, draw: SortedDraw) {
+        self.sorted.push((camera, draw));
     }
 
     pub fn push_desc(&mut self, desc: GfxMaterialDesc) -> u32 {
@@ -200,7 +223,8 @@ impl Drop for GfxRenderer {
 /// `std140` size of the view block every program declares: `clip_from_world`,
 /// `view_from_world`, `clip_from_view` (each GL-remapped where it reaches clip space), then
 /// `world_position`, `viewport` (x, y, width, height in pixels) and `misc` (x = the mip bias, y = 1
-/// where the clip matrices carry the GL remap, z = the target height in pixels).
+/// where the clip matrices carry the GL remap, z = the target height in pixels, w = bevy's
+/// `globals.time`, the wrapped elapsed seconds).
 const VIEW_BLOCK: usize = 240;
 /// The draw block's fixed head: `world_from_local` and the tag row (`uvec4`: x = the `MeshTag`,
 /// y = the mask of program inputs the mesh has); the parameter rows follow.
@@ -294,6 +318,7 @@ struct View {
     view_from_world: Mat4,
     mip_bias: f32,
     gl_remap: bool,
+    time: f32,
     target_height: u32,
     invert_culling: bool,
     glow: Option<GfxFfxGlow>,
@@ -396,6 +421,7 @@ fn resolve(
         depth_write: desc.state.depth_write.unwrap_or(!transparent_phase),
         depth_test: true,
         depth_always: desc.state.depth_always,
+        depth_bias: (desc.state.raster_bias, desc.state.raster_slope.to_bits()),
         primitive,
     };
     let Some(pipeline) = renderer
@@ -505,6 +531,7 @@ pub(crate) fn draw_views(
     meshes: Res<Assets<Mesh>>,
     images: Res<Assets<Image>>,
     clear_color: Option<Res<ClearColor>>,
+    time: Res<Time>,
     primary: Query<Entity, With<PrimaryWindow>>,
     cameras: Query<CameraItem>,
 ) {
@@ -548,6 +575,7 @@ pub(crate) fn draw_views(
             view_from_world,
             mip_bias: mip_bias.map_or(0.0, |b| b.0),
             gl_remap: remap != Mat4::IDENTITY,
+            time: time.elapsed_secs_wrapped(),
             target_height: size.y,
             invert_culling: camera.invert_culling,
             glow: glow.copied(),
@@ -660,6 +688,46 @@ pub(crate) fn draw_views(
                     cmd,
                 ));
             }
+        }
+        // The placed transparent draws, after the entities, as a lane's queue system runs after
+        // bevy_pbr's; the sort is stable.
+        for (camera, sorted) in &list.sorted {
+            if *camera != view.entity {
+                continue;
+            }
+            let desc = list.desc(sorted.desc);
+            let Some(r) = resolve(
+                renderer,
+                &mut ctx.shaders,
+                framebuffer,
+                view,
+                sorted.mesh,
+                desc,
+                &meshes,
+                &images,
+            ) else {
+                continue;
+            };
+            if !r.indexed {
+                continue;
+            }
+            let item = DrawItem {
+                mesh: sorted.mesh,
+                world_from_local: sorted.world_from_local,
+                center: sorted.anchor,
+                tag: 0,
+                desc: sorted.desc,
+            };
+            let block = draw_block(&item, desc, r.present);
+            let draw_offset = renderer.ring.push(&block);
+            let cmd = r.cmd(
+                view_offset,
+                draw_offset,
+                (block.len() * 4) as u32,
+                Some(&sorted.indices),
+            );
+            let z = view.view_from_world.transform_point3(sorted.anchor).z + sorted.bias;
+            transparent.push((z, cmd));
         }
         opaque.sort_by_key(|(key, _)| *key);
         cmds.extend(opaque.into_iter().map(|(_, c)| c));
@@ -776,6 +844,7 @@ fn view_block(view: &View) -> [f32; VIEW_BLOCK / 4] {
     b[56] = view.mip_bias;
     b[57] = if view.gl_remap { 1.0 } else { 0.0 };
     b[58] = view.target_height as f32;
+    b[59] = view.time;
     b
 }
 

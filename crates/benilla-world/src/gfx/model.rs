@@ -60,6 +60,11 @@ pub fn describe(m: &WowModelMaterial) -> GfxMaterialDesc {
     // Every M2 batch writes depth, transparent ones too, unless render flag 0x10 clears it.
     state.depth_write = Some(markers & 1 == 0);
     state.depth_always = markers & 2 != 0;
+    // The far side's rung and the skybox's bias are sort-only: `specialize` zeroes the raster
+    // constant the base packs.
+    if markers & 0x800 != 0 || sky_depth {
+        state.raster_bias = 0;
+    }
     if e.model_flags.y > 0.5 && !sky_depth {
         state.depth_write = Some(true);
     }

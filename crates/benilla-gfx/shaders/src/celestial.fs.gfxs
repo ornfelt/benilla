@@ -1,0 +1,95 @@
+in 0 vec4 world_position
+in 1 vec2 uv
+in 2 vec4 color
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 base_color
+	vec4 uv_matrix
+	vec4 uv_offset_cutoff_mode
+	vec4 fade
+	vec4 span
+}
+sampler 0 2d base_color_texture
+
+// The fragment stage of `benilla-world/src/shaders/celestial.wgsl`, line for line: the standard
+// base colour (material x texel x vertex colour, `alpha_discard`), a disc's horizon clip and fade
+// across its quad's span (`0x6d1960`), a glare's additive gamma, blended in gamma space. `fade` and
+// `span` are the extension's rows.
+
+// The reference's per-vertex alpha at sin-elevation `y` (`vertex_alpha`).
+float vertex_alpha(float y)
+{
+	float ramp = y * fade.x;
+	return ramp < 1.0 ? clamp(ramp, 0.0, 1.0) : fade.w;
+}
+
+vec3 linear_to_srgb(vec3 c)
+{
+	vec3 lo = c * 12.92;
+	vec3 hi = 1.055 * pow(max(c, vec3(0.0, 0.0, 0.0)), vec3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) - 0.055;
+	return vec3(c.x <= 0.0031308 ? lo.x : hi.x, c.y <= 0.0031308 ? lo.y : hi.y, c.z <= 0.0031308 ? lo.z : hi.z);
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec4 base = base_color * gfx_sample(base_color_texture, gfx_input.uv) * gfx_input.color;
+	float mode = uv_offset_cutoff_mode.w;
+	if (mode < 0.5)
+	{
+		base.w = 1.0;
+	}
+	else if (mode < 1.5)
+	{
+		if (base.w < uv_offset_cutoff_mode.z)
+			discard;
+		base.w = 1.0;
+	}
+
+	float a = base.w;
+	if (fade.z < 0.5)
+	{
+		// Disc: the vertex rule, interpolated from the clipped bottom edge to the top.
+		vec3 dir = normalize(gfx_input.world_position.xyz - world_position.xyz);
+		float y = dir.y;
+		if (y <= 0.0)
+		{
+			a = 0.0;
+		}
+		else
+		{
+			float y_bot = max(span.x, 0.0);
+			float a_bot = vertex_alpha(y_bot);
+			float a_top = vertex_alpha(span.y);
+			float t = clamp((y - y_bot) / max(span.y - y_bot, 1e-6), 0.0, 1.0);
+			a *= mix(a_bot, a_top, t);
+		}
+	}
+
+	// The texel arrives linear (the sRGB texture decodes); the target takes gamma values.
+	vec3 gamma = linear_to_srgb(base.xyz);
+	if (fade.z >= 0.5)
+	{
+		// Glare: alpha 0 under `AlphaMode::Add` gives `dst + gamma * a`.
+		gfx_output.color = vec4(gamma * a * fade.y, 0.0);
+		return gfx_output;
+	}
+	// Disc: premultiplied gamma under `AlphaMode::Premultiplied`.
+	gfx_output.color = vec4(gamma * a * fade.y, a);
+	return gfx_output;
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The live world A/B: `benilla-worldview` over the install, one fixed view (the default Northshire
-# overview, or WOW_WORLDVIEW_AT), noon pinned (WOW_CLOCK=720), through a wgpu build and a gfx build
+# overview, or WOW_WORLDVIEW_AT), noon pinned (WOW_CLOCK, default 720), through a wgpu build and a gfx build
 # on each named pair; each window is captured with ImageMagick `import` AT seconds in (default 30)
 # and every gfx shot is diffed against the wgpu one (`parity_diff.py`).
 #
@@ -15,7 +15,7 @@ out="${OUT:-$(mktemp -d)}"
 at="${AT:-30}"
 mkdir -p "$out"
 # WOW_BG=0: on top and focused, so `import` reads the window and not what covers it.
-export WOW_UNATTENDED=1 WOW_NOSOUND=1 WOW_BG=0 WOW_CLOCK=720 WOW_WIN=1280x720
+export WOW_UNATTENDED=1 WOW_NOSOUND=1 WOW_BG=0 WOW_CLOCK="${WOW_CLOCK:-720}" WOW_WIN=1280x720
 export WOW_WORLDVIEW_CHECK=$((at + 4))
 
 shot() { # <label> <bin>

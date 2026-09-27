@@ -1,0 +1,102 @@
+in 0 vec3 position
+in 1 vec3 normal
+in 2 vec2 uv
+in 3 vec2 uv_b
+in 4 vec4 color
+
+out 0 vec4 world_position
+out 1 vec3 world_normal
+out 2 vec2 uv
+out 3 float depth
+out 4 vec3 secondary_vtx
+out 5 vec4 vcolor
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 kind
+	vec4 path
+	vec4 anim
+}
+
+// The vertex stage of `benilla-assets/src/shaders/liquid.wgsl`, line for line: the world
+// position and normal, the depth coordinate off UV1.x and the sun sheen per vertex. A mesh
+// without vertex colours reads white (the input's filler), as the WGSL's `VERTEX_COLORS` arm.
+
+// The shared light buffer, declared here by hand: the compiler prints samplers in the fragment
+// stage only. Same slot as the fragment stage's.
+#ifdef GFX_GLSL
+#if defined(GFX_VK)
+layout(set = 1, binding = 1) uniform sampler2DArray wow_light;
+#elif defined(GFX_GL3)
+uniform sampler2DArray wow_light;
+#else
+layout(binding = 1) uniform sampler2DArray wow_light;
+#endif
+#else
+Texture2DArray wow_light : register(t1);
+#endif
+
+vec4 light_row(int i)
+{
+	int layer = i >> 12;
+	int r = i & 4095;
+#ifdef GFX_GLSL
+	return texelFetch(wow_light, ivec3(r & 255, r >> 8, layer), 0);
+#else
+	return wow_light.Load(int4(r & 255, r >> 8, layer, 0));
+#endif
+}
+
+// `c0 * v.x + c1 * v.y + c2 * v.z`: a 3x3 by its columns times v.
+vec3 cols3(vec3 c0, vec3 c1, vec3 c2, vec3 v)
+{
+	return c0 * v.x + c1 * v.y + c2 * v.z;
+}
+
+vs_output gfx_main(vs_input gfx_input)
+{
+	vs_output gfx_output;
+	vec3 c0 = world_from_local[0].xyz;
+	vec3 c1 = world_from_local[1].xyz;
+	vec3 c2 = world_from_local[2].xyz;
+	vec3 world = cols3(c0, c1, c2, gfx_input.position) + world_from_local[3].xyz;
+	gfx_output.world_position = vec4(world, 1.0);
+	gfx_output.gfx_position = mul(vec4(world, 1.0), clip_from_world);
+	// `mesh_normal_local_to_world`: the inverse transpose via the adjugate, a zero normal left.
+	vec3 n_in = gfx_input.normal;
+	vec3 world_normal = n_in;
+	if (n_in.x != 0.0 || n_in.y != 0.0 || n_in.z != 0.0)
+	{
+		vec3 x = cross(c1, c2);
+		vec3 y = cross(c2, c0);
+		vec3 z = cross(c0, c1);
+		float det = dot(c2, z);
+		world_normal = normalize(cols3(x / det, y / det, z / det, n_in));
+	}
+	gfx_output.world_normal = world_normal;
+	gfx_output.uv = gfx_input.uv;
+	gfx_output.vcolor = gfx_input.color;
+	// Depth coordinate V (0..1) in UV1.x: the swatch row on ADT water, the alpha ramp on WMO.
+	gfx_output.depth = gfx_input.uv_b.x;
+
+	// The sun sheen (`sun_sheen`): `light_spec.rgb * (N.H)^shininess`, local viewer, no N.L gate.
+	vec3 n = normalize(world_normal);
+	vec3 to_light = -normalize(light_row(2).xyz);
+	vec3 to_view = normalize(world_position.xyz - world);
+	vec3 half_v = normalize(to_light + to_view);
+	float ndoth = max(dot(n, half_v), 0.0);
+	gfx_output.secondary_vtx = light_row(3).rgb * pow(ndoth, max(kind.w, 1.0));
+	return gfx_output;
+}

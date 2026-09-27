@@ -1,0 +1,35 @@
+in 0 vec2 uv
+in 1 vec4 color
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 base_color
+	vec4 uv_matrix
+	vec4 uv_offset_cutoff_mode
+}
+sampler 0 2d base_color_texture
+
+// The fragment stage of `benilla-world/src/shaders/star.wgsl`: premultiplied white at the base
+// colour's alpha (texel alpha x the per-frame `base_color` alpha x vertex alpha), raw gamma.
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	float a = base_color.w * gfx_sample(base_color_texture, gfx_input.uv).w * gfx_input.color.w;
+	gfx_output.color = vec4(a, a, a, a);
+	return gfx_output;
+}

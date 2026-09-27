@@ -923,6 +923,16 @@ unsafe extern "C" {
         statep: *mut GfxRasterizerState,
     ) -> bool;
     pub fn gfx_dll_delete_rasterizer_state(device: GfxDevice, state: GfxRasterizerState);
+    /// `gfx_benilla`: a rasterizer state with a depth bias (`constant` in the depth format's
+    /// minimal resolvable difference, `slope` the slope-scaled factor, `clamp` 0 for none).
+    pub fn gfx_dll_create_rasterizer_state_biased(
+        device: GfxDevice,
+        create_info: *const GfxRasterizerStateCreateInfo,
+        constant: f32,
+        slope: f32,
+        clamp: f32,
+        statep: *mut GfxRasterizerState,
+    ) -> bool;
 
     pub fn gfx_dll_create_pipeline(
         device: GfxDevice,

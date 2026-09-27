@@ -26,10 +26,10 @@ pub type CelestialMaterial = ExtendedMaterial<StandardMaterial, CelestialExt>;
 #[derive(Asset, AsBindGroup, Clone, TypePath, Default)]
 pub struct CelestialExt {
     #[uniform(100)]
-    pub(super) fade: Vec4,
+    pub(crate) fade: Vec4,
     /// The disc quad's bottom (`.x`) and top (`.y`) edges in sin-elevation, written each frame.
     #[uniform(101)]
-    pub(super) span: Vec4,
+    pub(crate) span: Vec4,
 }
 
 impl MaterialExtension for CelestialExt {
