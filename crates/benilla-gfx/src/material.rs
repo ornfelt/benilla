@@ -25,6 +25,7 @@ use bevy::render::alpha::AlphaMode;
 use bevy::render::render_resource::{BufferId, Face};
 
 use crate::draw::{DrawItem, DrawList};
+use crate::images::GfxSampler;
 use crate::meshes::VertexInput;
 use crate::pipelines::Blend;
 use crate::render::GfxRenderSystems;
@@ -109,6 +110,11 @@ pub enum GfxTextureSlot {
     /// An image asset; a draw whose image is not on the device yet is skipped, as Bevy skips a
     /// material whose texture is not loaded.
     Image(AssetId<Image>),
+    /// An image asset through a sampler of the draw's own ([`crate::images::GfxSampler`]).
+    ImageSampled(AssetId<Image>, GfxSampler),
+    /// An image asset through the second image's sampler, as a Bevy `#[sampler]` binding
+    /// samples its group's textures.
+    ImageSampledLike(AssetId<Image>, AssetId<Image>),
     /// The data texture standing in for a storage buffer ([`crate::data`]).
     Data(BufferId),
 }

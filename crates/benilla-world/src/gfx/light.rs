@@ -201,6 +201,19 @@ mod tests {
     }
 
     #[test]
+    fn the_static_and_terrain_shaders_read_the_same_regions() {
+        let b = bases();
+        for vs in [
+            include_str!("../../../benilla-gfx/shaders/src/static_gx.vs.gfxs"),
+            include_str!("../../../benilla-gfx/shaders/src/terrain.vs.gfxs"),
+        ] {
+            assert_eq!(define(vs, "WOW_POINTS_BASE"), b.points);
+        }
+        let fs = include_str!("../../../benilla-gfx/shaders/src/static_gx.fs.gfxs");
+        assert_eq!(define(fs, "WOW_PROBES_BASE"), b.probes);
+    }
+
+    #[test]
     fn a_tint_word_keeps_black_apart_from_the_identity() {
         assert_eq!(tint_value(0), -1.0);
         assert_eq!(tint_value(crate::instance_tint::pack([0, 0, 0])), 0.0);

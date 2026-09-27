@@ -1,0 +1,176 @@
+in 0 vec3 position
+in 1 vec3 normal
+in 2 vec2 uv
+in 3 vec4 color
+in 4 int word
+in 5 vec3 anchor
+
+out 0 vec4 world_position
+out 1 vec3 world_normal
+out 2 vec2 uv
+out 3 vec4 color
+out 4 vec3 point_lit
+out 5 int word
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 gx
+}
+
+// The vertex stage of `benilla-world/src/shaders/static_gx.wgsl` (the retained static-world
+// pass), line for line. `world_from_local` is the region's recentring origin as a translation;
+// the per-item records are a data texture (`gx_records`, 256x16 rows a layer) of floats:
+// y the WMO batch order, z the SIDN colour r|g<<8|b<<16, w the flags (bit 0 exile kill, 1..=13
+// the probe slot, 14 interior fog).
+
+// The shared light buffer and the record table, declared here by hand: the compiler prints
+// samplers in the fragment stage only. Same slots as the fragment stage's.
+#ifdef GFX_GLSL
+#if defined(GFX_VK)
+layout(set = 1, binding = 1) uniform sampler2DArray wow_light;
+layout(set = 1, binding = 2) uniform sampler2DArray gx_records;
+#elif defined(GFX_GL3)
+uniform sampler2DArray wow_light;
+uniform sampler2DArray gx_records;
+#else
+layout(binding = 1) uniform sampler2DArray wow_light;
+layout(binding = 2) uniform sampler2DArray gx_records;
+#endif
+#else
+Texture2DArray wow_light : register(t1);
+Texture2DArray gx_records : register(t2);
+#endif
+
+#define WOW_POINTS_BASE 21
+#define WORD_WMO 4194304u
+#define WORD_INTERIOR 8388608u
+
+vec4 light_row(int i)
+{
+	int layer = i >> 12;
+	int r = i & 4095;
+#ifdef GFX_GLSL
+	return texelFetch(wow_light, ivec3(r & 255, r >> 8, layer), 0);
+#else
+	return wow_light.Load(int4(r & 255, r >> 8, layer, 0));
+#endif
+}
+
+vec4 record(uint word)
+{
+	int i = int(word & 0xffffu);
+	int layer = i >> 12;
+	int r = i & 4095;
+#ifdef GFX_GLSL
+	return texelFetch(gx_records, ivec3(r & 255, r >> 8, layer), 0);
+#else
+	return gx_records.Load(int4(r & 255, r >> 8, layer, 0));
+#endif
+}
+
+// The <=3 point lights nearest `anchor` (`point_light_sum`, mirrored from `wow_model.vs.gfxs`).
+vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
+{
+	// At most the 256 lights the table holds (512 rows): a count read off a wrong binding must
+	// not spin the GPU into a reset.
+	int count = min(int(light_row(20).x), 256);
+	int sel0 = 0;
+	int sel1 = 0;
+	int sel2 = 0;
+	float sd0 = 1e30;
+	float sd1 = 1e30;
+	float sd2 = 1e30;
+	for (int i = 0; i < count; i++)
+	{
+		vec4 pos_range = light_row(WOW_POINTS_BASE + 2 * i);
+		vec3 dv = pos_range.xyz - anchor;
+		float d2 = dot(dv, dv);
+		if (d2 > pos_range.w * pos_range.w)
+			continue;
+		if (d2 < sd0)
+		{
+			sd2 = sd1; sel2 = sel1;
+			sd1 = sd0; sel1 = sel0;
+			sd0 = d2; sel0 = i;
+		}
+		else if (d2 < sd1)
+		{
+			sd2 = sd1; sel2 = sel1;
+			sd1 = d2; sel1 = i;
+		}
+		else if (d2 < sd2)
+		{
+			sd2 = d2; sel2 = i;
+		}
+	}
+	vec3 sum = vec3(0.0, 0.0, 0.0);
+	for (int s = 0; s < 3; s++)
+	{
+		float sd = s == 0 ? sd0 : (s == 1 ? sd1 : sd2);
+		int sel = s == 0 ? sel0 : (s == 1 ? sel1 : sel2);
+		if (sd > 9.9e29)
+			break;
+		vec4 pos_range = light_row(WOW_POINTS_BASE + 2 * sel);
+		vec3 to_light = pos_range.xyz - P;
+		float d = length(to_light);
+		float atten = 1.0 / (0.7 * d + 0.03 * d * d);
+		float nl = max(dot(N, to_light / max(d, 1e-4)), 0.0);
+		sum += light_row(WOW_POINTS_BASE + 2 * sel + 1).rgb * (atten * nl);
+	}
+	return sum;
+}
+
+vs_output gfx_main(vs_input gfx_input)
+{
+	vs_output gfx_output;
+	uint word = uint(gfx_input.word);
+	vec4 rec = record(word);
+	gfx_output.word = gfx_input.word;
+	// Exile kill bit: every vertex of the item collapses to one point outside the clip volume.
+	if ((uint(rec.w) & 1u) != 0u)
+	{
+		gfx_output.gfx_position = vec4(0.0, 0.0, 2.0, 1.0);
+		gfx_output.world_position = vec4(0.0, 0.0, 0.0, 0.0);
+		gfx_output.world_normal = vec3(0.0, 1.0, 0.0);
+		gfx_output.uv = vec2(0.0, 0.0);
+		gfx_output.point_lit = vec3(0.0, 0.0, 0.0);
+		gfx_output.color = vec4(1.0, 1.0, 1.0, 1.0);
+		return gfx_output;
+	}
+	// Camera-relative for f32 precision: the recentred vertex plus (cell origin - camera).
+	vec3 origin = world_from_local[3].xyz;
+	vec3 p_cam = gfx_input.position + (origin - world_position.xyz);
+	vec3 world = gfx_input.position + origin;
+	gfx_output.world_position = vec4(world, 1.0);
+	vec3 p_view = mul(vec4(p_cam, 0.0), view_from_world).xyz;
+	vec4 clip = mul(vec4(p_view, 1.0), clip_from_view);
+	// The authored MOBA batch order on Bevy's clip z, (1 + n 2^-23); under the GL remap
+	// (z' = 2z - w) the same z is (z' + w) / 2.
+	float nudge = 1.0 + rec.y * 1.1920929e-7;
+	if (misc.y > 0.5)
+		clip.z = (clip.z + clip.w) * nudge - clip.w;
+	else
+		clip.z = clip.z * nudge;
+	gfx_output.gfx_position = clip;
+	gfx_output.world_normal = gfx_input.normal;
+	gfx_output.uv = gfx_input.uv;
+	gfx_output.color = gfx_input.color;
+	// Point lights: none on WMO surfaces or interior props, else the <=3 nearest the placement.
+	if ((word & (WORD_WMO | WORD_INTERIOR)) != 0u)
+		gfx_output.point_lit = vec3(0.0, 0.0, 0.0);
+	else
+		gfx_output.point_lit = point_light_sum(world, gfx_input.normal, gfx_input.anchor);
+	return gfx_output;
+}

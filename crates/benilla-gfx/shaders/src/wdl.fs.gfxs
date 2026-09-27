@@ -1,0 +1,55 @@
+in 0 vec4 world_position
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+}
+
+sampler 0 2d_array wow_light
+
+// The fragment stage of `benilla-assets/src/shaders/wdl.wgsl`: the band starts 33 yd inside the
+// far-clip wall and is the flat fog colour (white with fog off); its depth clamp is the vertex
+// stage's.
+
+// The reference's far-band near plane, `farclip - 33` (`[0x8101b0]`).
+#define WDL_OVERLAP 33.0
+
+vec4 light_row(int i)
+{
+	int layer = i >> 12;
+	int r = i & 4095;
+#ifdef GFX_GLSL
+	return texelFetch(wow_light, ivec3(r & 255, r >> 8, layer), 0);
+#else
+	return wow_light.Load(int4(r & 255, r >> 8, layer, 0));
+#endif
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	float eye_z = -mul(vec4(gfx_input.world_position.xyz, 1.0), view_from_world).z;
+	float farclip = light_row(5).w;
+	if (farclip > 0.0 && eye_z < farclip - WDL_OVERLAP)
+		discard;
+	vec4 fog_color = light_row(4);
+	vec3 rgb = vec3(1.0, 1.0, 1.0);
+	if (fog_color.w > 0.5)
+		rgb = fog_color.xyz;
+	// Raw gamma out; the frame decodes once, in the FFXGlow combine.
+	gfx_output.color = vec4(rgb, 1.0);
+	return gfx_output;
+}

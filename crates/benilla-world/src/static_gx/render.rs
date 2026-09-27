@@ -123,18 +123,18 @@ use super::pool::GxTexturePool;
 
 /// Record column w, bit 14: the item's interior fog lane, read by `static_gx.wgsl`. Bit 0 is the
 /// kill bit and bits 1..=13 the probe slot.
-const RECORD_FOG_BIT: u32 = 1 << 14;
+pub(super) const RECORD_FOG_BIT: u32 = 1 << 14;
 
 /// One coalesced draw run of adjacent live items sharing bind-group slot, pipeline bucket and
 /// selection key; a killed item is never in one.
-struct GxRun {
+pub(super) struct GxRun {
     /// Index into the region's `bind_groups`, not a pool class.
-    slot: usize,
+    pub(super) slot: usize,
     cutout: bool,
     two_sided: bool,
-    index_range: Range<u32>,
+    pub(super) index_range: Range<u32>,
     /// The run's selection key; `None` for a cell run, which always draws.
-    group: Option<u16>,
+    pub(super) group: Option<u16>,
 }
 
 /// A region's assembled GPU state, cached until its bake (mesh handle) changes.
@@ -583,7 +583,7 @@ fn assemble_region(
 
 /// Coalesce adjacent live items sharing (slot, bucket, group) into draw runs; a killed item is
 /// skipped, so a fully gone cell submits nothing.
-fn build_runs(draws: &[GxItemDraw], item_slot: &[u16], killed: &[u64]) -> Vec<GxRun> {
+pub(super) fn build_runs(draws: &[GxItemDraw], item_slot: &[u16], killed: &[u64]) -> Vec<GxRun> {
     let mut runs: Vec<GxRun> = Vec::new();
     for (i, item) in draws.iter().enumerate() {
         if kill_bit(killed, i) != 0 {
@@ -613,7 +613,7 @@ fn build_runs(draws: &[GxItemDraw], item_slot: &[u16], killed: &[u64]) -> Vec<Gx
 }
 
 /// Record-table column 3: item `i`'s exile kill bit from the published bitmap.
-fn kill_bit(killed: &[u64], i: usize) -> u32 {
+pub(super) fn kill_bit(killed: &[u64], i: usize) -> u32 {
     u32::from(
         killed
             .get(i / 64)
@@ -770,6 +770,8 @@ impl ViewNode for StaticGxNode {
 
 /// Wire the render half (called by the plugin only when armed).
 pub(super) fn build(app: &mut App) {
+    #[cfg(feature = "gfx")]
+    super::gfx::build(app);
     // The shader registers in `crate::shaders`: `embedded_asset!` prefixes by the calling file.
     // `publish_gx_world` mirrors `StaticGx`'s published half into this resource for extraction.
     app.add_plugins((

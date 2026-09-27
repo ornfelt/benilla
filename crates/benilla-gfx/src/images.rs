@@ -7,7 +7,9 @@
 //! filter was measured off by up to 184 levels on a magnified 2x2 texture, `examples/parity.rs`.)
 //!
 //! A gfx texture carries its own sampling state; it is the image's `ImageSampler`, or the
-//! `ImagePlugin` default for `ImageSampler::Default`.
+//! `ImagePlugin` default for `ImageSampler::Default`. A draw that samples an image through a
+//! sampler of its own, as wgpu binds one beside a texture, takes a [`GfxSampler`] variant: the
+//! same texels uploaded again with that state, unless it is the image's own.
 
 use std::collections::HashMap;
 use std::ptr;
@@ -100,10 +102,62 @@ impl Upload {
     }
 }
 
+/// A sampler a draw binds beside an image in place of the image's own: linear min and mag, the
+/// address mode per axis (repeat or clamp to edge), the mip filter (linear, else nearest) and the
+/// anisotropy clamp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct GfxSampler {
+    pub repeat: [bool; 2],
+    pub mipmap_linear: bool,
+    pub anisotropy: u16,
+}
+
+impl GfxSampler {
+    /// `d` as a `GfxSampler`, when it is one.
+    pub fn of(d: &ImageSamplerDescriptor) -> Option<Self> {
+        let repeat = |mode| match mode {
+            ImageAddressMode::Repeat => Some(true),
+            ImageAddressMode::ClampToEdge => Some(false),
+            _ => None,
+        };
+        let sampler = Self {
+            repeat: [repeat(d.address_mode_u)?, repeat(d.address_mode_v)?],
+            mipmap_linear: d.mipmap_filter == ImageFilterMode::Linear,
+            anisotropy: d.anisotropy_clamp,
+        };
+        (sampler.descriptor() == *d).then_some(sampler)
+    }
+
+    pub fn descriptor(self) -> ImageSamplerDescriptor {
+        let mode = |repeat| {
+            if repeat {
+                ImageAddressMode::Repeat
+            } else {
+                ImageAddressMode::ClampToEdge
+            }
+        };
+        ImageSamplerDescriptor {
+            address_mode_u: mode(self.repeat[0]),
+            address_mode_v: mode(self.repeat[1]),
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: if self.mipmap_linear {
+                ImageFilterMode::Linear
+            } else {
+                ImageFilterMode::Nearest
+            },
+            anisotropy_clamp: self.anisotropy,
+            ..Default::default()
+        }
+    }
+}
+
 /// Every uploaded image by asset id, and the stand-ins drawn in place of a missing texture.
 pub struct GpuImages {
     device: GfxDevice,
     images: HashMap<AssetId<Image>, GpuImage>,
+    /// Images uploaded again under a sampler other than their own.
+    variants: HashMap<(AssetId<Image>, GfxSampler), GpuImage>,
     stale: HashMap<AssetId<Image>, ()>,
     /// Opaque white, 1x1: the texture a material without one samples.
     pub white: GfxTexture,
@@ -118,6 +172,7 @@ impl GpuImages {
         Self {
             device,
             images: HashMap::new(),
+            variants: HashMap::new(),
             stale: HashMap::new(),
             white,
             default_sampler,
@@ -126,17 +181,26 @@ impl GpuImages {
     }
 
     pub fn modified(&mut self, id: AssetId<Image>) {
-        if self.images.contains_key(&id) {
+        if self.images.contains_key(&id) || self.variants.keys().any(|(v, _)| *v == id) {
             self.stale.insert(id, ());
         }
     }
 
     pub fn removed(&mut self, id: AssetId<Image>) {
         self.stale.remove(&id);
+        let device = self.device;
         if let Some(i) = self.images.remove(&id) {
             // SAFETY: made on this device, owned by this entry alone.
-            unsafe { ffi::gfx_dll_delete_texture(self.device, i.texture) };
+            unsafe { ffi::gfx_dll_delete_texture(device, i.texture) };
         }
+        self.variants.retain(|(v, _), i| {
+            let keep = *v != id;
+            if !keep {
+                // SAFETY: made on this device, owned by this entry alone.
+                unsafe { ffi::gfx_dll_delete_texture(device, i.texture) };
+            }
+            keep
+        });
     }
 
     pub fn len(&self) -> usize {
@@ -154,7 +218,7 @@ impl GpuImages {
             self.removed(id);
         }
         if !self.images.contains_key(&id) {
-            match upload(self.device, image, &self.default_sampler) {
+            match upload(self.device, image, &self.default_sampler, false) {
                 Ok(gpu) => {
                     self.images.insert(id, gpu);
                 }
@@ -170,11 +234,79 @@ impl GpuImages {
         self.images.get(&id)
     }
 
+    /// The image on the device as `sampler` samples it: the image itself when that is its own
+    /// sampler, else a variant uploaded with it.
+    pub fn get_sampled(
+        &mut self,
+        id: AssetId<Image>,
+        image: &Image,
+        sampler: GfxSampler,
+    ) -> Option<&GpuImage> {
+        let descriptor = sampler.descriptor();
+        let own = match &image.sampler {
+            ImageSampler::Default => &self.default_sampler,
+            ImageSampler::Descriptor(d) => d,
+        };
+        if *own == descriptor {
+            return self.get(id, image);
+        }
+        if self.stale.remove(&id).is_some() {
+            self.removed(id);
+        }
+        if !self.variants.contains_key(&(id, sampler)) {
+            match upload(self.device, image, &descriptor, true) {
+                Ok(gpu) => {
+                    self.variants.insert((id, sampler), gpu);
+                }
+                Err(why) => {
+                    if !self.refused.contains(&why) {
+                        bevy::log::warn!("gfx: an image is not uploaded: {why}");
+                        self.refused.push(why);
+                    }
+                    return None;
+                }
+            }
+        }
+        self.variants.get(&(id, sampler))
+    }
+
+    /// The image on the device as `like`'s sampler samples it, as a Bevy `#[sampler]` binding
+    /// samples every texture of its group with one image's sampler.
+    pub fn get_sampled_like(
+        &mut self,
+        id: AssetId<Image>,
+        image: &Image,
+        like: &Image,
+    ) -> Option<&GpuImage> {
+        let own = |i: &Image| match &i.sampler {
+            ImageSampler::Default => self.default_sampler.clone(),
+            ImageSampler::Descriptor(d) => d.clone(),
+        };
+        let (mine, theirs) = (own(image), own(like));
+        if mine == theirs {
+            return self.get(id, image);
+        }
+        match GfxSampler::of(&theirs) {
+            Some(sampler) => self.get_sampled(id, image, sampler),
+            None => {
+                let why = format!("a shared sampler gfx cannot key ({theirs:?})");
+                if !self.refused.contains(&why) {
+                    bevy::log::warn!("gfx: {why}; the image samples with its own");
+                    self.refused.push(why);
+                }
+                self.get(id, image)
+            }
+        }
+    }
+
     /// Deletes every texture; the device must still be alive.
     pub fn clear(&mut self) {
         // SAFETY: every texture was made on this device and is dropped from the store here.
         unsafe {
             for (_, i) in self.images.drain() {
+                ffi::gfx_dll_delete_texture(self.device, i.texture);
+            }
+            for (_, i) in self.variants.drain() {
                 ffi::gfx_dll_delete_texture(self.device, i.texture);
             }
             if !self.white.is_null() {
@@ -192,10 +324,13 @@ impl Drop for GpuImages {
     }
 }
 
+/// Uploads `image`, sampled by its own sampler (`default_sampler` standing in for
+/// `ImageSampler::Default`) or, with `forced`, by `default_sampler` whatever its own.
 fn upload(
     device: GfxDevice,
     image: &Image,
     default_sampler: &ImageSamplerDescriptor,
+    forced: bool,
 ) -> Result<GpuImage, String> {
     let desc = &image.texture_descriptor;
     let format = desc.format;
@@ -219,6 +354,7 @@ fn upload(
     let (width, height) = (desc.size.width, desc.size.height);
     let levels = desc.mip_level_count.max(1);
     let sampler = match &image.sampler {
+        _ if forced => default_sampler,
         ImageSampler::Default => default_sampler,
         ImageSampler::Descriptor(d) => d,
     };
@@ -259,25 +395,34 @@ fn upload(
         ));
     }
     let layer_count = if array { layers } else { 1 };
+    // Every device writes a 2D array one layer a call, `offset` naming it (`data.rs` alike).
     let result = (0..levels).try_for_each(|level| {
         let bytes = level_data(&up, image, data, level, layer_count)?;
         let (w, h) = ((width >> level).max(1), (height >> level).max(1));
-        // SAFETY: `texture` is live; `bytes` holds the whole level and outlives the call.
-        let ok = unsafe {
-            ffi::gfx_dll_set_texture_data(
-                device,
-                texture,
-                level as u8,
-                0,
-                w,
-                h,
-                layer_count,
-                bytes.len() as u32,
-                bytes.as_ptr().cast(),
-            )
-        };
-        ok.then_some(())
-            .ok_or_else(|| format!("gfx_dll_set_texture_data failed at level {level}"))
+        let layer_bytes = bytes.len() / layer_count as usize;
+        bytes
+            .chunks_exact(layer_bytes)
+            .enumerate()
+            .try_for_each(|(layer, texels)| {
+                // SAFETY: `texture` is live; `texels` holds one whole layer of the level and
+                // outlives the call.
+                let ok = unsafe {
+                    ffi::gfx_dll_set_texture_data(
+                        device,
+                        texture,
+                        level as u8,
+                        if array { layer as u32 } else { 0 },
+                        w,
+                        h,
+                        1,
+                        texels.len() as u32,
+                        texels.as_ptr().cast(),
+                    )
+                };
+                ok.then_some(()).ok_or_else(|| {
+                    format!("gfx_dll_set_texture_data failed at level {level}, layer {layer}")
+                })
+            })
     });
     if let Err(e) = result {
         // SAFETY: made above, referenced nowhere else.
@@ -374,6 +519,29 @@ fn solid(device: GfxDevice, rgba: [u8; 4]) -> GfxTexture {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_blp_sampler_keys_and_an_unkeyable_one_does_not() {
+        // The BLP loader's model sampler: linear, clamped U, repeated V, trilinear, aniso 8.
+        let blp = ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::ClampToEdge,
+            address_mode_v: ImageAddressMode::Repeat,
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: ImageFilterMode::Linear,
+            anisotropy_clamp: 8,
+            ..Default::default()
+        };
+        let s = GfxSampler::of(&blp).expect("keyable");
+        assert_eq!(s.repeat, [false, true]);
+        assert_eq!(s.descriptor(), blp);
+        // Nearest magnification is not a `GfxSampler`.
+        let nearest = ImageSamplerDescriptor {
+            mag_filter: ImageFilterMode::Nearest,
+            ..blp
+        };
+        assert_eq!(GfxSampler::of(&nearest), None);
+    }
 
     #[test]
     fn bc_levels_round_up_to_whole_blocks() {

@@ -1,5 +1,5 @@
 //! The world's materials on the gfx renderer (`benilla-gfx`, the `gfx` feature). A material with a
-//! ported program draws through it ([`model`]); every other `ExtendedMaterial` draws through its
+//! ported program draws through it ([`model`], [`terrain`], [`wdl`]); every other `ExtendedMaterial` draws through its
 //! `StandardMaterial` base until its extension's WGSL is ported. [`light`] keeps the shared light
 //! buffer's data texture, which the ported programs read, and [`ffx`] feeds each camera's FFXGlow
 //! combine, the frame's gamma decode.
@@ -7,6 +7,8 @@
 mod ffx;
 mod light;
 pub mod model;
+pub mod terrain;
+pub mod wdl;
 
 use bevy::prelude::*;
 
@@ -23,9 +25,9 @@ pub struct GfxWorldMaterials;
 impl Plugin for GfxWorldMaterials {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            GfxMaterialPlugin::<TerrainMaterial>::new(extended_base),
+            GfxMaterialPlugin::<TerrainMaterial>::new(terrain::describe),
             GfxMaterialPlugin::<WowModelMaterial>::new(model::describe),
-            GfxMaterialPlugin::<WdlMaterial>::new(extended_base),
+            GfxMaterialPlugin::<WdlMaterial>::new(wdl::describe),
             GfxMaterialPlugin::<LiquidMaterial>::new(extended_base),
             GfxMaterialPlugin::<SkyMaterial>::new(extended_base),
             GfxMaterialPlugin::<CelestialMaterial>::new(extended_base),

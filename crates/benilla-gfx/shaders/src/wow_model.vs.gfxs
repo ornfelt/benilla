@@ -89,7 +89,9 @@ vec3 wow_normalize(vec3 v)
 // selected light falls off as 1/(0.7 d + 0.03 d^2), diffuse on the submitted normal.
 vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 {
-	int count = int(light_row(20).x);
+	// At most the 256 lights the table holds (512 rows): a count read off a wrong binding must
+	// not spin the GPU into a reset.
+	int count = min(int(light_row(20).x), 256);
 	int sel0 = 0;
 	int sel1 = 0;
 	int sel2 = 0;

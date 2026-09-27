@@ -110,6 +110,11 @@ fn every_input_channel_the_client_reads_has_a_verdict_under_the_cover() {
         if file.ends_with("tests/cover_input_wall.rs") {
             continue;
         }
+        // The gfx backend's window half sends these channels, as bevy_winit does, and reads none.
+        if file.ends_with("benilla-gfx/src/window.rs") || file.ends_with("benilla-gfx/src/input.rs")
+        {
+            continue;
+        }
         let Ok(text) = std::fs::read_to_string(&file) else {
             continue;
         };

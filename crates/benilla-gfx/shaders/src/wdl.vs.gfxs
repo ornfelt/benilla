@@ -1,0 +1,74 @@
+in 0 vec3 position
+
+out 0 vec4 world_position
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+}
+
+// The vertex stage of `benilla-assets/src/shaders/wdl.wgsl` (the WDL horizon band), with the
+// WGSL's fragment depth clamp moved here: the compiler has no depth output. Each vertex's Bevy
+// depth is clamped to just behind the far-clip wall, `near / farclip * WDL_DEPTH_PUSH`, so a
+// triangle wholly past the wall or wholly inside the 33 yd overlap takes the WGSL's depths, and one
+// straddling the wall interpolates between them: still behind the world and before the sky. The
+// band is one flat colour, so the difference only picks which of its own fragments wins.
+
+#ifdef GFX_GLSL
+#if defined(GFX_VK)
+layout(set = 1, binding = 0) uniform sampler2DArray wow_light;
+#elif defined(GFX_GL3)
+uniform sampler2DArray wow_light;
+#else
+layout(binding = 0) uniform sampler2DArray wow_light;
+#endif
+#else
+Texture2DArray wow_light : register(t0);
+#endif
+
+// Keeps the band strictly behind a world fragment exactly at the wall.
+#define WDL_DEPTH_PUSH 0.999
+
+vec4 light_row(int i)
+{
+	int layer = i >> 12;
+	int r = i & 4095;
+#ifdef GFX_GLSL
+	return texelFetch(wow_light, ivec3(r & 255, r >> 8, layer), 0);
+#else
+	return wow_light.Load(int4(r & 255, r >> 8, layer, 0));
+#endif
+}
+
+vs_output gfx_main(vs_input gfx_input)
+{
+	vs_output gfx_output;
+	vec4 world = mul(vec4(gfx_input.position, 1.0), world_from_local);
+	gfx_output.world_position = world;
+	vec4 clip = mul(world, clip_from_world);
+	float farclip = light_row(5).w;
+	if (farclip > 0.0 && clip.w > 0.0)
+	{
+		// `view_z_to_depth_ndc(-farclip)`, in Bevy's [0, 1] depth: under the GL remap
+		// (z' = 2z - w) Bevy's z is (z' + w) / 2.
+		vec4 wall = mul(vec4(0.0, 0.0, -farclip, 1.0), clip_from_view);
+		float wall_z = misc.y > 0.5 ? (wall.z + wall.w) * 0.5 : wall.z;
+		float limit = wall_z / wall.w * WDL_DEPTH_PUSH;
+		float z = misc.y > 0.5 ? (clip.z + clip.w) * 0.5 : clip.z;
+		z = min(z, limit * clip.w);
+		clip.z = misc.y > 0.5 ? 2.0 * z - clip.w : z;
+	}
+	gfx_output.gfx_position = clip;
+	return gfx_output;
+}

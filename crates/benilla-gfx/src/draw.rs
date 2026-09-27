@@ -6,10 +6,16 @@
 //! transparent sorted back to front by view-space depth of the mesh origin. [`present`] then
 //! encodes the scene target into the window.
 //!
+//! A system can also place draws itself ([`DrawList::push_early`]): an index range of a mesh with
+//! a description, drawn for one camera before its opaque phase in the order pushed, as a render
+//! graph node between bevy's `StartMainPass` and `MainOpaquePass` draws (benilla's static-gx pass).
+//!
 //! Every draw's constants go into one uniform ring written once per frame, before the first
 //! draw, and bound per draw by offset: the view block (bevy_render's `View` fields the programs
 //! read) and a draw block of the world matrix, the tag row and the program's parameter rows.
 
+use std::collections::HashMap;
+use std::ops::Range;
 use std::ptr;
 
 use bevy::asset::AssetId;
@@ -43,12 +49,23 @@ pub struct DrawItem {
     pub desc: u32,
 }
 
+/// A draw placed by a system rather than an entity: `indices` of an indexed mesh, drawn with a
+/// description before the camera's opaque phase ([`DrawList::push_early`]).
+#[derive(Debug, Clone)]
+pub struct EarlyDraw {
+    pub mesh: AssetId<Mesh>,
+    pub indices: Range<u32>,
+    pub world_from_local: Mat4,
+    pub desc: u32,
+}
+
 /// This frame's draw items by entity, rebuilt each frame by the material collectors.
 #[derive(Resource, Default)]
 pub struct DrawList {
     items: Vec<DrawItem>,
     by_entity: EntityHashMap<u32>,
     descs: Vec<GfxMaterialDesc>,
+    early: Vec<(Entity, EarlyDraw)>,
 }
 
 impl DrawList {
@@ -56,6 +73,12 @@ impl DrawList {
         self.items.clear();
         self.by_entity.clear();
         self.descs.clear();
+        self.early.clear();
+    }
+
+    /// Draws `draw` for `camera` before its opaque phase, after the early draws pushed before it.
+    pub fn push_early(&mut self, camera: Entity, draw: EarlyDraw) {
+        self.early.push((camera, draw));
     }
 
     pub fn push_desc(&mut self, desc: GfxMaterialDesc) -> u32 {
@@ -295,8 +318,130 @@ enum Cmd {
         draw_offset: u32,
         draw_size: u32,
         count: u32,
+        first: u32,
         indexed: bool,
     },
+}
+
+/// A draw's device state, resolved from its mesh and description.
+struct Resolved {
+    pipeline: ffi::GfxPipeline,
+    layout: ffi::GfxInputLayout,
+    attributes: ffi::GfxAttributesState,
+    textures: [GfxTexture; MAX_TEXTURES],
+    texture_count: u32,
+    count: u32,
+    indexed: bool,
+    /// The mask of program inputs the mesh has.
+    present: u32,
+}
+
+impl Resolved {
+    fn cmd(
+        &self,
+        view_offset: u32,
+        draw_offset: u32,
+        draw_size: u32,
+        indices: Option<&Range<u32>>,
+    ) -> Cmd {
+        let (count, first) = indices.map_or((self.count, 0), |r| (r.len() as u32, r.start));
+        Cmd::Draw {
+            pipeline: self.pipeline,
+            layout: self.layout,
+            attributes: self.attributes,
+            textures: self.textures,
+            texture_count: self.texture_count,
+            view_offset,
+            draw_offset,
+            draw_size,
+            count,
+            first,
+            indexed: self.indexed,
+        }
+    }
+}
+
+/// Resolves one draw of `mesh` with `desc` for `view`; `None`, and not drawn, while anything it
+/// needs is not on the device yet.
+#[allow(clippy::too_many_arguments)]
+fn resolve(
+    renderer: &mut GfxRenderer,
+    shaders: &mut ShaderLibrary,
+    framebuffer: ffi::GfxFramebuffer,
+    view: &View,
+    mesh_id: AssetId<Mesh>,
+    desc: &GfxMaterialDesc,
+    meshes: &Assets<Mesh>,
+    images: &Assets<Image>,
+) -> Option<Resolved> {
+    let device = renderer.device;
+    let mesh = meshes.get(mesh_id)?;
+    let gpu = renderer.meshes.get(mesh_id, mesh)?;
+    let primitive = gpu.primitive;
+    let (count, indexed) = (gpu.draw_count(), gpu.indexed());
+    let Ok(program) = shaders.get(desc.program.name) else {
+        renderer.skip_once("a material whose program failed to load");
+        return None;
+    };
+    let shader_state = program.state;
+    let (attributes, present) =
+        gpu.attributes_state(device, desc.program.name, desc.program.inputs)?;
+    let layout = renderer.pipelines.layout(&desc.program, shader_state)?;
+    let transparent_phase = desc.alpha.is_transparent();
+    let key = PipelineKey {
+        program: desc.program.name,
+        blend: desc.state.blend.unwrap_or(Blend::of(desc.alpha)),
+        color_write: desc.state.color_write,
+        cull: cull(desc.cull, view.invert_culling),
+        depth_write: desc.state.depth_write.unwrap_or(!transparent_phase),
+        depth_test: true,
+        depth_always: desc.state.depth_always,
+        primitive,
+    };
+    let Some(pipeline) = renderer
+        .pipelines
+        .get(key, shader_state, layout, framebuffer)
+    else {
+        renderer.skip_once("a pipeline gfx refused");
+        return None;
+    };
+    let mut textures = [ptr::null_mut(); MAX_TEXTURES];
+    for (slot, texture) in desc.textures.iter().zip(&mut textures) {
+        *texture = match *slot {
+            GfxTextureSlot::White => renderer.images.white,
+            // Bevy skips a material whose texture is not loaded yet.
+            GfxTextureSlot::Image(id) => renderer.images.get(id, images.get(id)?)?.texture,
+            GfxTextureSlot::ImageSampled(id, sampler) => {
+                renderer
+                    .images
+                    .get_sampled(id, images.get(id)?, sampler)?
+                    .texture
+            }
+            GfxTextureSlot::ImageSampledLike(id, like) => {
+                renderer
+                    .images
+                    .get_sampled_like(id, images.get(id)?, images.get(like)?)?
+                    .texture
+            }
+            GfxTextureSlot::Data(id) => match renderer.data.get(id) {
+                Some(t) => t,
+                None => {
+                    renderer.skip_once("a material whose data texture is not kept");
+                    return None;
+                }
+            },
+        };
+    }
+    Some(Resolved {
+        pipeline,
+        layout,
+        attributes,
+        textures,
+        texture_count: desc.program.samplers.min(MAX_TEXTURES) as u32,
+        count,
+        indexed,
+        present,
+    })
 }
 
 /// GL clips depth to [-1, 1] where Bevy's projections produce [0, 1]: `z' = 2z - w` puts Bevy's
@@ -438,6 +583,45 @@ pub(crate) fn draw_views(
             clear: view.clear,
         });
 
+        // The early draws, in the order pushed; draws sharing a description and world matrix
+        // share one block.
+        let mut early_blocks: HashMap<(u32, [u32; 16]), (u32, u32)> = HashMap::new();
+        for (camera, early) in &list.early {
+            if *camera != view.entity {
+                continue;
+            }
+            let desc = list.desc(early.desc);
+            let Some(r) = resolve(
+                renderer,
+                &mut ctx.shaders,
+                framebuffer,
+                view,
+                early.mesh,
+                desc,
+                &meshes,
+                &images,
+            ) else {
+                continue;
+            };
+            if !r.indexed {
+                continue;
+            }
+            let matrix = early.world_from_local.to_cols_array().map(f32::to_bits);
+            let (draw_offset, draw_size) =
+                *early_blocks.entry((early.desc, matrix)).or_insert_with(|| {
+                    let item = DrawItem {
+                        mesh: early.mesh,
+                        world_from_local: early.world_from_local,
+                        center: Vec3::ZERO,
+                        tag: 0,
+                        desc: early.desc,
+                    };
+                    let block = draw_block(&item, desc, r.present);
+                    (renderer.ring.push(&block), (block.len() * 4) as u32)
+                });
+            cmds.push(r.cmd(view_offset, draw_offset, draw_size, Some(&early.indices)));
+        }
+
         // Opaque and mask first (sorted by pipeline, texture, mesh, as bins batch), then
         // transparent back to front.
         let (mut opaque, mut transparent) = (Vec::new(), Vec::new());
@@ -446,88 +630,22 @@ pub(crate) fn draw_views(
                 continue;
             };
             let desc = list.desc(item.desc);
-            let Some(mesh) = meshes.get(item.mesh) else {
+            let Some(r) = resolve(
+                renderer,
+                &mut ctx.shaders,
+                framebuffer,
+                view,
+                item.mesh,
+                desc,
+                &meshes,
+                &images,
+            ) else {
                 continue;
             };
-            let Some(gpu) = renderer.meshes.get(item.mesh, mesh) else {
-                continue;
-            };
-            let primitive = gpu.primitive;
-            let (count, indexed) = (gpu.draw_count(), gpu.indexed());
-            let Ok(program) = ctx.shaders.get(desc.program.name) else {
-                renderer.skip_once("a material whose program failed to load");
-                continue;
-            };
-            let shader_state = program.state;
-            let Some((attributes, present)) =
-                gpu.attributes_state(device, desc.program.name, desc.program.inputs)
-            else {
-                continue;
-            };
-            let Some(layout) = renderer.pipelines.layout(&desc.program, shader_state) else {
-                continue;
-            };
-            let transparent_phase = desc.alpha.is_transparent();
-            let key = PipelineKey {
-                program: desc.program.name,
-                blend: desc.state.blend.unwrap_or(Blend::of(desc.alpha)),
-                color_write: desc.state.color_write,
-                cull: cull(desc.cull, view.invert_culling),
-                depth_write: desc.state.depth_write.unwrap_or(!transparent_phase),
-                depth_test: true,
-                depth_always: desc.state.depth_always,
-                primitive,
-            };
-            let Some(pipeline) = renderer
-                .pipelines
-                .get(key, shader_state, layout, framebuffer)
-            else {
-                renderer.skip_once("a pipeline gfx refused");
-                continue;
-            };
-            let mut textures = [ptr::null_mut(); MAX_TEXTURES];
-            let mut ready = true;
-            for (slot, texture) in desc.textures.iter().zip(&mut textures) {
-                *texture = match *slot {
-                    GfxTextureSlot::White => renderer.images.white,
-                    GfxTextureSlot::Image(id) => {
-                        match images.get(id).and_then(|i| renderer.images.get(id, i)) {
-                            Some(t) => t.texture,
-                            // Bevy skips a material whose texture is not loaded yet.
-                            None => {
-                                ready = false;
-                                break;
-                            }
-                        }
-                    }
-                    GfxTextureSlot::Data(id) => match renderer.data.get(id) {
-                        Some(t) => t,
-                        None => {
-                            renderer.skip_once("a material whose data texture is not kept");
-                            ready = false;
-                            break;
-                        }
-                    },
-                };
-            }
-            if !ready {
-                continue;
-            }
-            let block = draw_block(item, desc, present);
+            let block = draw_block(item, desc, r.present);
             let draw_offset = renderer.ring.push(&block);
-            let cmd = Cmd::Draw {
-                pipeline,
-                layout,
-                attributes,
-                textures,
-                texture_count: desc.program.samplers.min(MAX_TEXTURES) as u32,
-                view_offset,
-                draw_offset,
-                draw_size: (block.len() * 4) as u32,
-                count,
-                indexed,
-            };
-            if transparent_phase {
+            let cmd = r.cmd(view_offset, draw_offset, (block.len() * 4) as u32, None);
+            if desc.alpha.is_transparent() {
                 // bevy_pbr's `Transparent3d` distance: the view z of the AABB centre plus the
                 // material's depth bias, sorted ascending.
                 let z = view.view_from_world.transform_point3(item.center).z + desc.state.sort_bias;
@@ -538,7 +656,7 @@ pub(crate) fn draw_views(
                     _ => 0,
                 };
                 opaque.push((
-                    (rank, pipeline as usize, textures[0] as usize, item.mesh),
+                    (rank, r.pipeline as usize, r.textures[0] as usize, item.mesh),
                     cmd,
                 ));
             }
@@ -622,6 +740,7 @@ fn execute(
                 draw_offset,
                 draw_size,
                 count,
+                first,
                 indexed,
             } => {
                 // SAFETY: every handle is live and made on `device`; the ring holds both blocks.
@@ -635,9 +754,9 @@ fn execute(
                     ffi::gfx_dll_bind_constant(device, 1, ring, draw_size, draw_offset);
                     ffi::gfx_dll_bind_samplers(device, 0, texture_count, textures.as_mut_ptr());
                     if indexed {
-                        ffi::gfx_dll_draw_indexed(device, count, 0);
+                        ffi::gfx_dll_draw_indexed(device, count, first);
                     } else {
-                        ffi::gfx_dll_draw(device, count, 0);
+                        ffi::gfx_dll_draw(device, count, first);
                     }
                 }
             }
