@@ -1,0 +1,21 @@
+[package]
+name = "benilla-gfx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The gfx DLL backend behind the `gfx` feature: the window, input and every draw through the gfx library in place of winit and wgpu"
+
+[lints]
+workspace = true
+
+[features]
+# Everything here is behind `gfx`: without it the crate is empty, has no dependency and links
+# nothing, so a workspace build on a machine without the gfx library stays green.
+gfx = ["dep:bevy", "dep:include_dir", "dep:wgpu"]
+
+[dependencies]
+bevy = { workspace = true, optional = true }
+# The compiled `.gfx` shader families, embedded so no build-machine path reaches the binary.
+include_dir = { version = "0.7", optional = true }
+# Only its `noop` backend: the stand-in `RenderDevice` of `noop_device.rs`. No GPU, no surface.
+wgpu = { workspace = true, optional = true, features = ["noop"] }

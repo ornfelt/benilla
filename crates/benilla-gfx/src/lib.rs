@@ -1,0 +1,84 @@
+//! The gfx DLL backend, behind the `gfx` feature: the window, input and every draw go through the
+//! gfx library (`Code2/General/gfx/gfx_dll`) instead of winit and wgpu. [`swap_in`] takes the
+//! tuned `DefaultPlugins` and leaves out `WinitPlugin` and `RenderPlugin`, so neither opens a
+//! window or a device; the ECS types the game builds on (`Mesh`, `Image`, materials, UI nodes)
+//! stay, and the gfx renderer reads them from the main world.
+//!
+//! Backends: `WOW_GFX_WINDOW` (`x11`, `win32`, `glfw`, `sdl`) and `WOW_GFX_DEVICE` (`gl4`, `gl3`,
+//! `gles3`, `vk`, `d3d11`, `d3d12`), see [`backend`]. Shaders: `shaders/compile.sh`.
+//!
+//! Without the feature this crate is empty.
+
+#![cfg(feature = "gfx")]
+
+pub mod backend;
+pub mod context;
+pub mod events;
+pub mod ffi;
+pub mod noop_device;
+pub mod render;
+pub mod runner;
+pub mod shader_def;
+pub mod shader_loader;
+
+use bevy::app::PluginGroupBuilder;
+use bevy::prelude::*;
+
+pub use context::GfxContext;
+pub use render::{GfxRender, GfxRenderSystems};
+
+/// `group` (the `DefaultPlugins` set) with winit and wgpu swapped out for gfx.
+pub fn swap_in(group: PluginGroupBuilder) -> PluginGroupBuilder {
+    group
+        .disable::<bevy::winit::WinitPlugin>()
+        .disable::<bevy::render::RenderPlugin>()
+        .add_after::<bevy::render::RenderPlugin>(RenderMainWorldPlugin)
+        .add(GfxPlugin)
+}
+
+/// The gfx runner and frame schedule.
+pub struct GfxPlugin;
+
+impl Plugin for GfxPlugin {
+    fn build(&self, app: &mut App) {
+        render::build(app);
+        app.set_runner(runner::run);
+    }
+}
+
+/// The main-world half of `RenderPlugin` (bevy_render 0.18.1, `RenderPlugin::build`) with no
+/// render sub-app: the shader asset and the camera, view, mesh, texture and readback plugins,
+/// each of which registers its main-world types and systems and skips its render-world part when
+/// there is no `RenderApp`. The same set `RenderPlugin` adds when it creates no device; like that
+/// headless configuration, each `Extract*Plugin` among them logs that there is no render app.
+struct RenderMainWorldPlugin;
+
+impl Plugin for RenderMainWorldPlugin {
+    fn build(&self, app: &mut App) {
+        use bevy::render::*;
+        app.init_asset::<bevy::shader::Shader>()
+            .init_asset_loader::<bevy::shader::ShaderLoader>();
+        // What `RenderPlugin::finish` publishes from the device, read by `TexturePlugin::finish`
+        // and the BLP loader. None yet: BLPs decode to RGBA8 until the gfx texture path takes BC
+        // blocks (milestone 3).
+        app.insert_resource(bevy::image::CompressedImageFormatSupport(
+            bevy::image::CompressedImageFormats::NONE,
+        ));
+        app.add_plugins((
+            view::window::WindowRenderPlugin,
+            camera::CameraPlugin,
+            view::ViewPlugin,
+            mesh::MeshRenderAssetPlugin,
+            // `RenderPlugin` adds it under bevy_render's `morph`, which the workspace's bevy has.
+            mesh::MorphPlugin,
+            globals::GlobalsPlugin,
+            texture::TexturePlugin,
+            batching::gpu_preprocessing::BatchingPlugin::default(),
+            sync_world::SyncWorldPlugin,
+            storage::StoragePlugin,
+            gpu_readback::GpuReadbackPlugin::default(),
+            experimental::occlusion_culling::OcclusionCullingPlugin,
+        ));
+        app.init_resource::<render_asset::RenderAssetBytesPerFrame>();
+    }
+}

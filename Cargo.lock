@@ -601,6 +601,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "benilla-gfx"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+ "include_dir",
+ "wgpu",
+]
+
+[[package]]
 name = "benilla-m2"
 version = "0.2.0"
 dependencies = [
@@ -672,6 +681,7 @@ dependencies = [
  "avian3d",
  "benilla-assets",
  "benilla-formats",
+ "benilla-gfx",
  "benilla-wmo",
  "bevy",
  "bytemuck",

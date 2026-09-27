@@ -7,8 +7,10 @@ use bevy::prelude::*;
 use crate::thread_qos;
 
 /// `DefaultPlugins` with benilla's engine tuning applied, around the caller's primary window.
+// Without `gfx` the group is returned as built, through the binding the gfx swap rebinds.
+#[cfg_attr(not(feature = "gfx"), allow(clippy::let_and_return))]
 pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
-    DefaultPlugins
+    let plugins = DefaultPlugins
         .set(WindowPlugin {
             primary_window: Some(primary_window),
             ..default()
@@ -17,7 +19,12 @@ pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
         // machine. Every shader is embedded (`embedded://<crate>/shaders/…`), so no root is read.
         // Quiet wgpu/naga; the ring keeps the last stderr lines for the crash report (`log_ring`).
         .set(bevy::log::LogPlugin {
+            #[cfg(not(feature = "gfx"))]
             filter: "wgpu=error,naga=warn".into(),
+            // With `gfx`, bevy_egui's input looks for a winit window every frame and warns; the
+            // egui panel moves onto gfx with the dev tools.
+            #[cfg(feature = "gfx")]
+            filter: "wgpu=error,naga=warn,bevy_egui::input=error".into(),
             custom_layer: |_| Some(Box::new(crate::log_ring::LogRing)),
             ..default()
         })
@@ -68,5 +75,9 @@ pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
         // No bevy AA: no Fxaa/TAA/SMAA/CAS component anywhere (MSAA is core render, unaffected).
         .disable::<bevy::anti_alias::AntiAliasPlugin>()
         // No gamepad input; 1.12's bindings are keyboard/mouse.
-        .disable::<bevy::gilrs::GilrsPlugin>()
+        .disable::<bevy::gilrs::GilrsPlugin>();
+    // With `gfx`, the gfx DLL owns the window, input and rendering; winit and wgpu stay out.
+    #[cfg(feature = "gfx")]
+    let plugins = benilla_gfx::swap_in(plugins);
+    plugins
 }
