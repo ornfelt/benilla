@@ -882,6 +882,20 @@ unsafe extern "C" {
         size: u32,
         data: *const c_void,
     ) -> bool;
+    /// gfx_benilla: a `width` x `height` rect at (`x`, `y`) of one level and layer, rows tightly
+    /// packed; uncompressed formats only.
+    pub fn gfx_dll_set_texture_subdata(
+        device: GfxDevice,
+        texture: GfxTexture,
+        level: u8,
+        layer: u32,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        size: u32,
+        data: *const c_void,
+    ) -> bool;
     pub fn gfx_dll_delete_texture(device: GfxDevice, texture: GfxTexture);
 
     pub fn gfx_dll_create_input_layout(

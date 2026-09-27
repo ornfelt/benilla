@@ -66,6 +66,44 @@ impl SceneTarget {
     }
 }
 
+/// The UI lane's byte target: 8-bit sRGB, as the `Camera2d` main texture it stands for, so the
+/// lane's premultiplied gamma values blend as the wgpu path's do and store encoded. No depth: a
+/// `Mesh2d` draw's `GreaterEqual` test against the cleared 2D depth always passes.
+pub struct UiTarget {
+    device: GfxDevice,
+    pub color: GfxTexture,
+    pub framebuffer: GfxFramebuffer,
+}
+
+pub const UI_FORMAT: GfxFormat = GfxFormat::R8G8B8A8Srgb;
+
+impl UiTarget {
+    pub(crate) fn new(device: GfxDevice, size: UVec2) -> Result<Self, String> {
+        let color = render_texture(device, UI_FORMAT, size.max(UVec2::ONE))
+            .ok_or("UI colour texture creation failed")?;
+        let mut target = Self {
+            device,
+            color,
+            framebuffer: ptr::null_mut(),
+        };
+        target.framebuffer = framebuffer(device, color, ptr::null_mut(), size.max(UVec2::ONE))
+            .ok_or("UI framebuffer creation failed")?;
+        Ok(target)
+    }
+}
+
+impl Drop for UiTarget {
+    fn drop(&mut self) {
+        // SAFETY: each handle was made on `self.device` and belongs to this target alone.
+        unsafe {
+            if !self.framebuffer.is_null() {
+                ffi::gfx_dll_delete_framebuffer(self.device, self.framebuffer);
+            }
+            ffi::gfx_dll_delete_texture(self.device, self.color);
+        }
+    }
+}
+
 /// A framebuffer of one colour and an optional depth.
 pub(crate) fn framebuffer(
     device: GfxDevice,

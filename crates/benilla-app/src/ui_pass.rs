@@ -29,6 +29,9 @@ use bevy::shader::ShaderRef;
 use bevy::sprite_render::{Material2d, Material2dKey, Material2dPlugin};
 use bevy::window::PrimaryWindow;
 
+#[cfg(feature = "gfx")]
+mod gfx;
+
 /// One `(u, v)` per screen corner, in [`Run::push_quad`]'s winding (top-left, top-right,
 /// bottom-right, bottom-left), not a `(min, max)` rect: a `<TexCoords>` with `left > right` (the
 /// PlayerFrame ring) must stay mirrored, and a backdrop top or bottom edge maps atlas u to screen
@@ -360,6 +363,8 @@ pub(crate) struct PlayerUiPlugin;
 
 impl Plugin for PlayerUiPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(feature = "gfx")]
+        app.add_plugins(gfx::GfxPlayerUi);
         app.init_resource::<UiQuads>()
             .init_resource::<UiMeshCost>()
             .init_resource::<crate::ui_script::UiCostWanted>()

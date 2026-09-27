@@ -74,6 +74,12 @@ fn scene(
         Tonemapping::None,
         Msaa::Off,
         Transform::from_xyz(0.0, 2.2, 5.0).looking_at(Vec3::new(0.0, 0.4, 0.0), Vec3::Y),
+        // The lit shapes' only light, over the global one, bright enough to read at the default
+        // exposure.
+        AmbientLight {
+            brightness: 6000.0,
+            ..default()
+        },
     ));
 
     // A floor with a vertex-colour gradient.
@@ -183,6 +189,29 @@ fn scene(
             Transform::from_xyz(x, 0.0, 1.7).with_rotation(Quat::from_rotation_y(0.3)),
         ));
     }
+
+    // Lit under the ambient alone: a cube as `entities.rs`'s fallback, and a metallic sphere with
+    // an emissive, whose normals sweep N.V.
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(0.6, 0.6, 0.6))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::linear_rgb(0.1, 0.85, 0.9),
+            perceptual_roughness: 0.7,
+            ..default()
+        })),
+        Transform::from_xyz(1.3, 1.7, -1.0).with_rotation(Quat::from_rotation_y(0.7)),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(0.4).mesh().uv(32, 18))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.9, 0.5, 0.2),
+            metallic: 0.6,
+            perceptual_roughness: 0.3,
+            emissive: LinearRgba::rgb(0.05, 0.0, 0.1),
+            ..default()
+        })),
+        Transform::from_xyz(-1.7, 1.6, -1.0),
+    ));
 
     // Additive over the sky and the mask quad.
     commands.spawn((

@@ -36,6 +36,7 @@ pub(crate) fn build(app: &mut App) {
     app.add_schedule(schedule)
         .init_resource::<DrawList>()
         .init_resource::<crate::data::GfxDataTextures>()
+        .init_resource::<crate::images::GfxTextureWrites>()
         .configure_sets(
             GfxRender,
             (

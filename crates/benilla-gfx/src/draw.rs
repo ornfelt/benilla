@@ -23,8 +23,9 @@ use std::ptr;
 
 use bevy::asset::AssetId;
 use bevy::camera::visibility::VisibleEntities;
-use bevy::camera::{ClearColorConfig, RenderTarget};
+use bevy::camera::{ClearColorConfig, Exposure, RenderTarget};
 use bevy::ecs::entity::EntityHashMap;
+use bevy::light::{AmbientLight, GlobalAmbientLight};
 use bevy::prelude::*;
 use bevy::render::camera::MipBias;
 use bevy::render::render_resource::Face;
@@ -33,13 +34,14 @@ use bevy::window::PrimaryWindow;
 use crate::context::GfxContext;
 use crate::data::{GfxDataTextures, GpuDataTextures};
 use crate::ffi::{self, GfxBuffer, GfxDevice, GfxDeviceBackend, GfxTexture};
-use crate::images::GpuImages;
+use crate::images::{GfxTextureWrites, GpuImages};
 use crate::material::{GfxAlpha, GfxMaterialDesc, GfxTextureSlot, MAX_TEXTURES};
 use crate::meshes::GpuMeshes;
 use crate::pipelines::{Blend, PipelineKey, Pipelines};
 use crate::post::{FfxPost, GfxFfxGlow};
 use crate::shader_loader::ShaderLibrary;
-use crate::target::{Present, SceneTarget};
+use crate::target::{Present, SceneTarget, UiTarget};
+use crate::ui::GfxUiLane;
 
 /// One entity to draw: its mesh, its world matrix, the world point it sorts by, its `MeshTag`
 /// and its material description ([`DrawList::desc`]).
@@ -144,6 +146,8 @@ pub struct GfxRenderer {
     pub data: GpuDataTextures,
     pipelines: Pipelines,
     target: Option<SceneTarget>,
+    /// The UI lane's byte target, made at the scene target's size while a lane draws.
+    ui: Option<UiTarget>,
     present: Option<Present>,
     post: Option<FfxPost>,
     ring: UniformRing,
@@ -174,6 +178,7 @@ impl GfxRenderer {
             data: GpuDataTextures::new(device),
             pipelines: Pipelines::new(device),
             target: None,
+            ui: None,
             present,
             post: FfxPost::new(device, backend),
             ring: UniformRing::new(device),
@@ -198,6 +203,7 @@ impl GfxRenderer {
                 post.drop_targets();
             }
             self.target = None;
+            self.ui = None;
             match SceneTarget::new(self.device, size) {
                 Ok(t) => self.target = Some(t),
                 Err(e) => error!("gfx: {e}"),
@@ -210,22 +216,41 @@ impl GfxRenderer {
     }
 }
 
+impl GfxRenderer {
+    /// The UI lane's target at the scene target's `size`, made on first use.
+    fn ui_target(&mut self, size: UVec2) -> Option<&UiTarget> {
+        if self.ui.is_none() {
+            match UiTarget::new(self.device, size.max(UVec2::ONE)) {
+                Ok(t) => self.ui = Some(t),
+                Err(e) => {
+                    error!("gfx: {e}");
+                    return None;
+                }
+            }
+        }
+        self.ui.as_ref()
+    }
+}
+
 impl Drop for GfxRenderer {
     fn drop(&mut self) {
         // Pipelines before the target they were made for; the stores drop themselves.
         self.pipelines.clear();
         self.post = None;
         self.present = None;
+        self.ui = None;
         self.target = None;
     }
 }
 
 /// `std140` size of the view block every program declares: `clip_from_world`,
 /// `view_from_world`, `clip_from_view` (each GL-remapped where it reaches clip space), then
-/// `world_position`, `viewport` (x, y, width, height in pixels) and `misc` (x = the mip bias, y = 1
+/// `world_position`, `viewport` (x, y, width, height in pixels), `misc` (x = the mip bias, y = 1
 /// where the clip matrices carry the GL remap, z = the target height in pixels, w = bevy's
-/// `globals.time`, the wrapped elapsed seconds).
-const VIEW_BLOCK: usize = 240;
+/// `globals.time`, the wrapped elapsed seconds) and `ambient` (bevy_pbr's `lights.ambient_color`:
+/// the view's ambient colour times its brightness; w = the view's exposure). A program may declare
+/// the block without its trailing rows.
+const VIEW_BLOCK: usize = 256;
 /// The draw block's fixed head: `world_from_local` and the tag row (`uvec4`: x = the `MeshTag`,
 /// y = the mask of program inputs the mesh has); the parameter rows follow.
 const DRAW_HEAD: usize = 80;
@@ -322,6 +347,11 @@ struct View {
     target_height: u32,
     invert_culling: bool,
     glow: Option<GfxFfxGlow>,
+    /// A UI lane's display gamma: this 2D view draws into the lane's byte target and decodes.
+    ui_lane: Option<f32>,
+    /// A world view a UI lane claims: its combine grounds the lane.
+    claimed: bool,
+    ambient: [f32; 4],
     entity: Entity,
 }
 
@@ -331,8 +361,20 @@ enum Cmd {
         viewport: URect,
         clear: Option<LinearRgba>,
     },
-    /// The camera's FFXGlow chain, its four blocks at these ring offsets.
-    Glow { offsets: [u32; 4] },
+    /// The camera's FFXGlow chain, its four blocks at these ring offsets, and the wave LUT of an
+    /// armed underwater warp; `into_ui` clears the UI lane's target and combines into it.
+    Glow {
+        offsets: [u32; 4],
+        wave: Option<GfxTexture>,
+        into_ui: bool,
+    },
+    /// A UI lane view starts: its target bound, cleared unless a claimed combine grounded it.
+    UiBegin {
+        viewport: URect,
+        clear: Option<LinearRgba>,
+    },
+    /// The UI lane's decode into the scene target, its block at this ring offset.
+    UiDecode { offset: u32, viewport: URect },
     Draw {
         pipeline: ffi::GfxPipeline,
         layout: ffi::GfxInputLayout,
@@ -419,7 +461,7 @@ fn resolve(
         color_write: desc.state.color_write,
         cull: cull(desc.cull, view.invert_culling),
         depth_write: desc.state.depth_write.unwrap_or(!transparent_phase),
-        depth_test: true,
+        depth_test: desc.state.depth_test,
         depth_always: desc.state.depth_always,
         depth_bias: (desc.state.raster_bias, desc.state.raster_slope.to_bits()),
         primitive,
@@ -490,6 +532,8 @@ pub(crate) fn prepare(
     mut renderer: NonSendMut<GfxRenderer>,
     mut list: ResMut<DrawList>,
     mut data: ResMut<GfxDataTextures>,
+    mut writes: ResMut<GfxTextureWrites>,
+    images: Res<Assets<Image>>,
     mut mesh_events: MessageReader<AssetEvent<Mesh>>,
     mut image_events: MessageReader<AssetEvent<Image>>,
 ) {
@@ -508,6 +552,7 @@ pub(crate) fn prepare(
             _ => {}
         }
     }
+    renderer.images.write(&mut writes, &images);
     renderer.data.sync(&mut data);
 }
 
@@ -520,9 +565,14 @@ type CameraItem = (
     Has<Camera3d>,
     Option<&'static MipBias>,
     Option<&'static GfxFfxGlow>,
+    Option<&'static Exposure>,
+    Option<&'static AmbientLight>,
+    Option<&'static GfxUiLane>,
 );
 
-/// Draws every active 3D camera on the primary window into the scene target, in `order`.
+/// Draws every active 3D camera on the primary window into the scene target, in `order`, with
+/// the UI lane ([`crate::ui`]): its `Camera2d` draws into the lane's byte target over the combine
+/// of the world view it claims, wherever that view targets, and decodes into the scene target.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn draw_views(
     mut ctx: NonSendMut<GfxContext>,
@@ -531,30 +581,45 @@ pub(crate) fn draw_views(
     meshes: Res<Assets<Mesh>>,
     images: Res<Assets<Image>>,
     clear_color: Option<Res<ClearColor>>,
+    global_ambient: Option<Res<GlobalAmbientLight>>,
     time: Res<Time>,
     primary: Query<Entity, With<PrimaryWindow>>,
     cameras: Query<CameraItem>,
+    mut last_shape: Local<Vec<String>>,
 ) {
     let size = ctx.size();
     let default_clear = clear_color.map_or(Color::BLACK, |c| c.0).to_linear();
     let primary = primary.single().ok();
     let remap = clip_remap(renderer.backend);
 
+    let on_window = |target: &RenderTarget| {
+        matches!(
+            target.normalize(primary),
+            Some(bevy::camera::NormalizedRenderTarget::Window(w)) if Some(w.entity()) == primary
+        )
+    };
+    // The world views an active lane on the window claims.
+    let claimed: Vec<Entity> = cameras
+        .iter()
+        .filter(|c| c.1.is_active && on_window(c.2))
+        .filter_map(|c| c.10.and_then(|lane| lane.backdrop))
+        .collect();
+
     let mut views = Vec::new();
-    for (entity, camera, target, transform, _, is_3d, mip_bias, glow) in &cameras {
+    for (entity, camera, target, transform, _, is_3d, mip_bias, glow, exposure, ambient, lane) in
+        &cameras
+    {
         if !camera.is_active {
             continue;
         }
-        let on_window = matches!(
-            target.normalize(primary),
-            Some(bevy::camera::NormalizedRenderTarget::Window(w)) if Some(w.entity()) == primary
-        );
-        if !on_window {
+        let claimed = is_3d && claimed.contains(&entity);
+        if !on_window(target) && !claimed {
             renderer.skip_once("a camera on an image or other target");
             continue;
         }
-        if !is_3d {
-            renderer.skip_once("a 2D or UI camera");
+        let ui_lane = lane.filter(|_| !is_3d).map(|l| l.gamma);
+        if !is_3d && ui_lane.is_none() {
+            renderer.skip_once("a 2D camera outside the UI lane");
             continue;
         }
         let Some(viewport) = camera.physical_viewport_rect() else {
@@ -579,10 +644,50 @@ pub(crate) fn draw_views(
             target_height: size.y,
             invert_culling: camera.invert_culling,
             glow: glow.copied(),
+            ui_lane,
+            claimed,
+            ambient: ambient_row(
+                ambient.map_or_else(
+                    || {
+                        let g = global_ambient.as_deref().cloned().unwrap_or_default();
+                        (g.color, g.brightness)
+                    },
+                    |a| (a.color, a.brightness),
+                ),
+                exposure.copied().unwrap_or_default(),
+            ),
             entity,
         });
     }
     views.sort_by_key(|v| v.order);
+    // The frame's view set, logged whenever it changes.
+    let shape: Vec<String> = views
+        .iter()
+        .map(|v| {
+            let kind = match (v.ui_lane, v.claimed) {
+                (Some(_), _) => "UI lane",
+                (None, true) => "world, claimed",
+                (None, false) => "3D",
+            };
+            let glow = if v.glow.is_some() { ", glow" } else { "" };
+            let visible = cameras.get(v.entity).map_or(0, |c| {
+                c.4.iter(std::any::TypeId::of::<Mesh3d>()).count()
+                    + c.4.iter(std::any::TypeId::of::<Mesh2d>()).count()
+            });
+            let early = list.early.iter().filter(|(c, _)| *c == v.entity).count();
+            format!(
+                "{} {kind}{glow} {:?}, {} visible, {} early",
+                v.order,
+                v.viewport.size(),
+                visible / 64 * 64,
+                early / 64 * 64
+            )
+        })
+        .collect();
+    if *last_shape != shape {
+        info!("gfx: views [{}]", shape.join("; "));
+        *last_shape = shape;
+    }
 
     let renderer = &mut *renderer;
     let Some(framebuffer) = renderer.target(size).map(|t| t.framebuffers[0]) else {
@@ -599,13 +704,62 @@ pub(crate) fn draw_views(
         ffi::gfx_dll_clear_depth_stencil(device, framebuffer, 0.0, 0);
     }
 
+    let ui_framebuffer = if views.iter().any(|v| v.ui_lane.is_some()) {
+        renderer.ui_target(size).map(|t| t.framebuffer)
+    } else {
+        None
+    };
+
     renderer.ring.data.clear();
     let mut cmds = Vec::new();
+    // Whether a claimed combine has grounded the UI lane this frame.
+    let mut grounded = false;
     for view in &views {
         let Ok((_, _, _, _, visible, ..)) = cameras.get(view.entity) else {
             continue;
         };
         let view_offset = renderer.ring.push(&view_block(view));
+        if let Some(gamma) = view.ui_lane {
+            let Some(ui_framebuffer) = ui_framebuffer else {
+                continue;
+            };
+            cmds.push(Cmd::UiBegin {
+                viewport: view.viewport,
+                clear: if grounded { None } else { view.clear },
+            });
+            // `Transparent2d`: the mesh's world z ascending, stable over the visible order.
+            let mut sorted = Vec::new();
+            for entity in visible.iter(std::any::TypeId::of::<Mesh2d>()) {
+                let Some(item) = list.get(*entity) else {
+                    continue;
+                };
+                let desc = list.desc(item.desc);
+                let Some(r) = resolve(
+                    renderer,
+                    &mut ctx.shaders,
+                    ui_framebuffer,
+                    view,
+                    item.mesh,
+                    desc,
+                    &meshes,
+                    &images,
+                ) else {
+                    continue;
+                };
+                let block = draw_block(item, desc, r.present);
+                let draw_offset = renderer.ring.push(&block);
+                let cmd = r.cmd(view_offset, draw_offset, (block.len() * 4) as u32, None);
+                sorted.push((item.center.z, cmd));
+            }
+            sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+            cmds.extend(sorted.into_iter().map(|(_, c)| c));
+            let offset = renderer.ring.push(&FfxPost::decode_block(gamma));
+            cmds.push(Cmd::UiDecode {
+                offset,
+                viewport: view.viewport,
+            });
+            continue;
+        }
         cmds.push(Cmd::View {
             viewport: view.viewport,
             clear: view.clear,
@@ -736,9 +890,19 @@ pub(crate) fn draw_views(
         cmds.extend(transparent.into_iter().map(|(_, c)| c));
 
         if let (Some(glow), Some(post)) = (&view.glow, &renderer.post) {
-            let blocks = post.blocks(glow, size.max(UVec2::ONE));
+            let into_ui = view.claimed && ui_framebuffer.is_some();
+            let blocks = post.blocks(glow, size.max(UVec2::ONE), into_ui);
             let offsets = blocks.map(|b| renderer.ring.push(&b));
-            cmds.push(Cmd::Glow { offsets });
+            let wave = glow.wave_lut.and_then(|id| {
+                let image = images.get(id)?;
+                Some(renderer.images.get(id, image)?.texture)
+            });
+            cmds.push(Cmd::Glow {
+                offsets,
+                wave,
+                into_ui,
+            });
+            grounded |= into_ui;
         }
     }
 
@@ -747,15 +911,24 @@ pub(crate) fn draw_views(
         return;
     }
     let ring = renderer.ring.buffer;
-    let (Some(target), post) = (&mut renderer.target, &mut renderer.post) else {
+    let (Some(target), post, ui) = (&mut renderer.target, &mut renderer.post, &renderer.ui) else {
         return;
     };
-    execute(device, target, post.as_mut(), &mut ctx.shaders, ring, &cmds);
+    execute(
+        device,
+        target,
+        ui.as_ref(),
+        post.as_mut(),
+        &mut ctx.shaders,
+        ring,
+        &cmds,
+    );
 }
 
 fn execute(
     device: GfxDevice,
     target: &mut SceneTarget,
+    ui: Option<&UiTarget>,
     mut post: Option<&mut FfxPost>,
     shaders: &mut ShaderLibrary,
     ring: GfxBuffer,
@@ -764,9 +937,58 @@ fn execute(
     let mut bound = ptr::null_mut();
     for cmd in cmds {
         match *cmd {
-            Cmd::Glow { offsets } => {
+            Cmd::Glow {
+                offsets,
+                wave,
+                into_ui,
+            } => {
+                let into = ui.filter(|_| into_ui).map(|u| u.framebuffer);
+                if let Some(fb) = into {
+                    // Bound first: a clear lands in the bound pass on vk.
+                    // SAFETY: the live device and UI target, on the device's thread.
+                    unsafe {
+                        ffi::gfx_dll_bind_framebuffer(device, fb);
+                        ffi::gfx_dll_clear_color(device, fb, 0, &gfx_color(LinearRgba::NONE));
+                    }
+                }
                 if let Some(post) = post.as_deref_mut() {
-                    post.run(shaders, target, ring, offsets);
+                    post.run(shaders, target, ring, offsets, wave, into);
+                }
+                bound = ptr::null_mut();
+            }
+            Cmd::UiBegin { viewport, clear } => {
+                let Some(ui) = ui else {
+                    continue;
+                };
+                let size = viewport.size();
+                // SAFETY: the live device and UI target, on the device's thread.
+                unsafe {
+                    ffi::gfx_dll_bind_framebuffer(device, ui.framebuffer);
+                    ffi::gfx_dll_set_viewport(
+                        device,
+                        viewport.min.x as i32,
+                        viewport.min.y as i32,
+                        size.x,
+                        size.y,
+                        0.0,
+                        1.0,
+                    );
+                    ffi::gfx_dll_set_scissor(
+                        device,
+                        viewport.min.x as i32,
+                        viewport.min.y as i32,
+                        size.x,
+                        size.y,
+                    );
+                    if let Some(c) = clear {
+                        ffi::gfx_dll_clear_color(device, ui.framebuffer, 0, &gfx_color(c));
+                    }
+                }
+                bound = ptr::null_mut();
+            }
+            Cmd::UiDecode { offset, viewport } => {
+                if let (Some(ui), Some(post)) = (ui, post.as_deref_mut()) {
+                    post.decode(shaders, target, ui.color, ring, offset, viewport);
                 }
                 bound = ptr::null_mut();
             }
@@ -832,6 +1054,18 @@ fn execute(
     }
 }
 
+/// The view block's `ambient` row: a camera's own `AmbientLight` over the global one, as
+/// bevy_pbr's `prepare_lights` takes it, and the camera's exposure.
+fn ambient_row((color, brightness): (Color, f32), exposure: Exposure) -> [f32; 4] {
+    let c = LinearRgba::from(color);
+    [
+        c.red * brightness,
+        c.green * brightness,
+        c.blue * brightness,
+        exposure.exposure(),
+    ]
+}
+
 /// The view block (see [`VIEW_BLOCK`]).
 fn view_block(view: &View) -> [f32; VIEW_BLOCK / 4] {
     let mut b = [0.0f32; VIEW_BLOCK / 4];
@@ -845,6 +1079,7 @@ fn view_block(view: &View) -> [f32; VIEW_BLOCK / 4] {
     b[57] = if view.gl_remap { 1.0 } else { 0.0 };
     b[58] = view.target_height as f32;
     b[59] = view.time;
+    b[60..64].copy_from_slice(&view.ambient);
     b
 }
 
@@ -906,6 +1141,37 @@ pub(crate) fn log_stats(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ambient_row_is_bevys_lights_ambient_color_and_exposure() {
+        // bevy_pbr's defaults: white at 80, `Exposure::BLENDER` (ev100 9.7).
+        let row = ambient_row((Color::WHITE, 80.0), Exposure::default());
+        assert_eq!(&row[..3], &[80.0; 3]);
+        assert!((row[3] - 2f32.powf(-9.7) / 1.2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_view_block_ends_with_the_ambient_row() {
+        let view = View {
+            order: 0,
+            viewport: URect::new(0, 0, 4, 4),
+            clear: None,
+            clip_from_world: Mat4::IDENTITY,
+            clip_from_view: Mat4::IDENTITY,
+            view_from_world: Mat4::IDENTITY,
+            mip_bias: 0.0,
+            gl_remap: false,
+            time: 0.0,
+            target_height: 4,
+            invert_culling: false,
+            glow: None,
+            ui_lane: None,
+            claimed: false,
+            ambient: [1.0, 2.0, 3.0, 4.0],
+            entity: Entity::PLACEHOLDER,
+        };
+        assert_eq!(view_block(&view)[60..], [1.0, 2.0, 3.0, 4.0]);
+    }
 
     #[test]
     fn gl_remap_keeps_bevy_depth_values() {

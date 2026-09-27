@@ -200,12 +200,12 @@ pub struct FfxWave {
 const WAVE_PERIOD_MS: [u64; 2] = [3174, 2805];
 
 /// The wave LUT is 128×128 texels (`[0xce89a0]`'s descriptor).
-const WAVE_LUT_EDGE: u32 = 128;
+pub(crate) const WAVE_LUT_EDGE: u32 = 128;
 
 /// The reference's glow-wave LUT (`0x6cbea0`), a displacement map: `du = sin(2πx/128)`,
 /// `dv = sin(2πy/128)`, stored as the unsigned pack `(s·0.5 + 0.5)·255` that the default Direct3D
 /// path's `ps_2_0` permutation biases back; `as u8` truncates toward zero, as `__ftol` does.
-fn wave_lut_texels() -> Vec<u8> {
+pub(crate) fn wave_lut_texels() -> Vec<u8> {
     let pack = |s: f32| ((s * 0.5 + 0.5) * 255.0).clamp(0.0, 255.0) as u8;
     let sine = |i: u32| (std::f32::consts::TAU * i as f32 / WAVE_LUT_EDGE as f32).sin();
     let mut texels = Vec::with_capacity((WAVE_LUT_EDGE * WAVE_LUT_EDGE * 2) as usize);

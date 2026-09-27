@@ -1,5 +1,7 @@
 in 0 vec2 uv
 in 1 vec4 color
+in 2 vec3 world_normal
+in 3 vec3 world_pos
 
 out 0 vec4 color
 
@@ -11,6 +13,7 @@ constant 0 view_block
 	vec4 world_position
 	vec4 viewport
 	vec4 misc
+	vec4 ambient
 }
 
 constant 1 draw_block
@@ -21,9 +24,44 @@ constant 1 draw_block
 	vec4 uv_matrix
 	vec4 uv_offset_cutoff_mode
 	vec4 flags
+	vec4 reflectance
+	vec4 emissive
 }
 
 sampler 0 2d base_color_texture
+
+// Bevy's lit arm with no light but the ambient (benilla spawns no Bevy light): `ambient_light`
+// of `pbr_ambient.wgsl`, diffuse and specular through `EnvBRDFApprox`, times the view's ambient
+// colour, times exposure, plus the emissive. `flags` = (lit, perceptual roughness, metallic, the
+// emissive's exposure weight); `reflectance.rgb` = the specular tint times the reflectance;
+// `ambient` = the view's ambient colour times its brightness, w = the view's exposure.
+vec2 f_ab(float perceptual_roughness, float n_dot_v)
+{
+	vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+	vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+	vec4 r = perceptual_roughness * c0 + c1;
+	float a004 = min(r.x * r.x, exp2(-9.28 * n_dot_v)) * r.x + r.y;
+	return vec2(-1.04, 1.04) * a004 + r.zw;
+}
+
+vec3 ambient_lit(vec3 base, float alpha, vec3 world_normal, vec3 world_pos)
+{
+	float roughness = flags.y;
+	float metallic = flags.z;
+	vec3 n = normalize(world_normal);
+	vec3 v = normalize(world_position.xyz - world_pos);
+	float n_dot_v = max(dot(n, v), 0.0001);
+	vec3 diffuse_color = base * (1.0 - metallic);
+	vec3 f0 = 0.16 * reflectance.rgb * reflectance.rgb * (1.0 - metallic) + base * metallic;
+	vec2 fd = f_ab(1.0, n_dot_v);
+	vec2 fspec = f_ab(roughness, n_dot_v);
+	vec3 diffuse_ambient = diffuse_color * fd.x + fd.y;
+	vec3 specular_ambient = f0 * fspec.x + fspec.y;
+	float specular_occlusion = clamp(dot(f0, vec3(16.5, 16.5, 16.5)), 0.0, 1.0);
+	vec3 indirect = (diffuse_ambient + specular_ambient * specular_occlusion) * ambient.rgb;
+	vec3 emissive_light = emissive.rgb * alpha * mix(1.0, ambient.w, flags.w);
+	return ambient.w * indirect + emissive_light;
+}
 
 fs_output gfx_main(fs_input gfx_input)
 {
@@ -40,7 +78,9 @@ fs_output gfx_main(fs_input gfx_input)
 			discard;
 		c.w = 1.0;
 	}
-	else if (mode > 3.5 && mode < 4.5)
+	if (flags.x > 0.5)
+		c = vec4(ambient_lit(c.xyz, c.w, gfx_input.world_normal, gfx_input.world_pos), c.w);
+	if (mode > 3.5 && mode < 4.5)
 	{
 		c = vec4(c.xyz * c.w, 0.0);
 	}

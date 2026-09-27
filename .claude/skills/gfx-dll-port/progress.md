@@ -1,10 +1,9 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-3 done; milestone 4 (World shaders) nearly done:
-every world material has its WGSL ported (models, static-gx, terrain, WDL, liquid, the sky family),
-the effect lane (particles, ribbons, decals, foam, rain) draws through gfx, and gfx_benilla has a
-raster depth bias. Water, dawn, dusk and night views match wgpu to one level on vk. Left in 4: the
-underwater GlowWave warp, the UI camera's backdrop claim, a lit-StandardMaterial inventory.
+Branch: `gfx-dll-backend`. Status: milestones 1-4 done; milestone 5 (UI) in flight: the in-world
+player UI (the quad pass, the world backdrop claim, the gamma decode, text) draws through gfx and
+matches wgpu on vk (`ui-bag` capture: 0.103% >1, 0.002% >16). Left in 5: bevy_ui (the glue and
+loading screens), `AddUiMaterial`, gizmos, the UI's render-to-texture producers (milestone 6).
 
 ## Milestones
 
@@ -43,12 +42,14 @@ underwater GlowWave warp, the UI camera's backdrop claim, a lit-StandardMaterial
     before the opaque phase in push order, draws sharing (desc, matrix) share one ring block),
     opaque, mask, then transparent sorted by the AABB centre's view z + depth bias; reverse-Z; GL
     gets `z' = 2z - w`. `resolve` builds a draw's device state for both kinds.
-- [ ] 4. **World shaders.**
+- [x] 4. **World shaders.**
   - [x] `WowModelExt` (`wow_model.{vs,fs}.gfxs`, `benilla-world/src/gfx/model.rs`).
   - [x] The shared light buffer (`benilla-world/src/gfx/light.rs`); a test checks every ported
     shader's `#define` row bases (`wow_model`, `static_gx`, `terrain`).
-  - [x] FFXGlow (`post.rs`, `ffx_*.fs.gfxs`, `benilla-world/src/gfx/ffx.rs`). Not yet: the
-    underwater GlowWave warp, the UI camera's backdrop claim.
+  - [x] FFXGlow (`post.rs`, `ffx_*.fs.gfxs`, `benilla-world/src/gfx/ffx.rs`), and the underwater
+    GlowWave warp: `ffx_combine_wave` (its own program, as the WGSL's own pipeline), the 128x128
+    LUT an `Rg8Unorm` linear/repeat image (`GfxFfxGlow::wave_lut`), the warp computed on the
+    top-down UV and its v turned back on GL.
   - [x] static_gx (`static_gx.{vs,fs}.gfxs`, `benilla-world/src/static_gx/gfx.rs`): `pack`
     (`GfxRenderSystems::Pack`) assembles each visible region (per-item description by texture,
     sampler, cutout, two-sided; wrap bits read off the mesh's word at the item's first vertex) and
@@ -76,17 +77,35 @@ underwater GlowWave warp, the UI camera's backdrop claim, a lit-StandardMaterial
     `standard_rows` packs `depth_bias as i32` as bevy_pbr does, liquid, the sky family and the
     model far-side / skybox keys zero it as their `specialize`s do, the effect lane takes each
     record's. gfx_benilla `gfx_dll_create_rasterizer_state_biased`.
-  - [ ] The underwater GlowWave warp, the UI camera's backdrop claim (from the FFXGlow item).
-  - [ ] Lit `StandardMaterial`: `standard.fs.gfxs` is unlit only. Inventory the lit sites
-    (`model_render.rs` x3, `terrain_stream.rs` x2, `benilla-app/src/entities.rs`) before porting.
-- [ ] 5. **UI.** bevy_ui nodes (`Node`, `BackgroundColor`, `ImageNode` x69, borders, 9-slice),
-  text (`ui_text` shapes with cosmic-text into its own atlas: `ui_text/engine/gpu.rs`,
-  `ui_text/pack.rs`), `ui_pass.rs`, `ui_gamma.rs`, `opaque2d.rs`, the `AddUiMaterial`
-  (`glue/add_material.rs`), UI shaders `benilla-app/src/shaders/ui_{add,gamma,node_gamma,quad,
-  slice_gamma}.wgsl`, sprites (the FrameXML quad pass), gizmos (bowstring, fishing line), glue
-  screens, portraits / model frames (`ui_models`, `portrait/glue_booth.rs`: render-to-texture),
-  the FFX backdrop claim.
-- [ ] 6. **The rest.** Render-to-texture cameras (16 `RenderTarget::Image` sites) and their
+  - [x] Lit `StandardMaterial`. Inventory: every world material is an extension with its own
+    program; the plain ones are unlit (nameplates, raid marks, `waterfx`, the menagerie lanes)
+    but for `entities.rs`'s streaming fallback cube. `standard.fs.gfxs` now has bevy_pbr's lit arm
+    under ambient light alone (benilla spawns no Bevy light): `ambient_light` through
+    `EnvBRDFApprox`, times exposure, plus the emissive; the view block's new trailing row
+    `ambient` (colour x brightness of the camera's `AmbientLight` over `GlobalAmbientLight`,
+    w = `Exposure::exposure()`; `VIEW_BLOCK` 256, other programs declare the 240-byte prefix).
+    Not drawn: the metallic-roughness, emissive, occlusion and normal maps, transmission, and
+    `double_sided` back-face normal flip (the compiler has no front-facing input).
+- [ ] 5. **UI.**
+  - [x] The UI lane (`benilla-gfx/src/ui.rs`, `GfxUiLane`; `benilla-app/src/ui_pass/gfx.rs`): the
+    lane `Camera2d` draws into `UiTarget` (8-bit sRGB, as the `Camera2d` main texture, no depth)
+    - cleared, or grounded by the world view it claims (`FfxBackdrop::source`, drawn by gfx
+    though it targets the size-carrier image), whose combine then writes premultiplied gamma
+    there (`wave.z`, the `GAMMA_OUT` arm) - then its `Mesh2d` draws in `Transparent2d` order
+    (world z ascending, stable), then `ui_gamma` decodes into the scene target over its viewport.
+  - [x] `UiQuadMaterial` (`ui_quad.{vs,fs}.gfxs`) through `GfxMaterial2dPlugin` (a `Mesh2d`
+    collector); the run tint unpacked from the draw's tag in the fragment stage.
+  - [x] Text: `ui_text`'s glyph cells become `GfxTextureWrites` (sub-rect writes applied in
+    Prepare through gfx_benilla's `gfx_dll_set_texture_subdata`); a data-less image
+    (`Image::new_uninit`, a render target) is made zeroed.
+  - [ ] bevy_ui: the glue screens (login, realm, character select and create) and the loading
+    screen (`Node`, `BackgroundColor`, `ImageNode`, borders, 9-slice through
+    `ui_{node_gamma,slice_gamma}.wgsl` via `ui_gamma.rs::use_gamma_ui_shaders`), bevy_ui text,
+    `AddUiMaterial` (`glue/add_material.rs`, `ui_add.wgsl`). They land on the lane camera
+    (`IsDefaultUiCamera`) and are not drawn yet.
+  - [ ] Gizmos (bowstring, fishing line).
+- [ ] 6. **The rest.** Render-to-texture cameras (16 `RenderTarget::Image` sites: portraits,
+  the paper doll and model frames, the minimap composite, a `Camera2d` on an image) and their
   studio light buffers (`LightBlob` buffers written through the noop queue: mirror them into data
   textures), screenshots (`screenshot.rs`) and the capture harness (`capture/`, `depth_probe`,
   `phase_probe`; needs a gfx read-back call, which the API lacks), `WOW_GPU_MS`, `pipe_warm`,
@@ -110,7 +129,8 @@ vertex stage read an unwritten descriptor and looped on a garbage light count. S
 ## Parity instrument
 
 `crates/benilla-gfx/examples/parity.rs` (`--features gfx`): one scene through `wgpu` or `gfx` in
-the same binary. `OUT=<dir> .claude/skills/gfx-dll-port/tools/parity.sh x11:gl4 x11:vk ...`.
+the same binary; since this run it has a lit cube and a lit metallic, emissive sphere under a
+camera `AmbientLight` (6000). `OUT=<dir> .claude/skills/gfx-dll-port/tools/parity.sh x11:gl4 x11:vk ...`.
 
 The live world A/B: `.claude/skills/gfx-dll-port/tools/world_ab.sh <wgpu-bin> <gfx-bin> x11:vk
 ...` runs `benilla-worldview` (Northshire overview or `WOW_WORLDVIEW_AT`, `WOW_CLOCK` default 720,
@@ -128,36 +148,46 @@ stale copy there runs the old library). `target/ab/worldview-wgpu` is feature-of
 (this run's feature-off changes are visibility only: `CelestialExt`'s two fields `pub(crate)`). `validate_gfx.py crates/benilla-gfx/shaders`
 runs glslangValidator over every family's GL/GLES text and the d3d11 HLSL.
 
+The full client: `tools/client_shot.sh <bin> <out.png>` runs a capture scenario
+(`WOW_CAPTURE=ui-bag`, the in-world UI server-less) and imports the window when the log prints
+`capture: scene aged`, the moment the wgpu build writes its own `WOW_CAPTURE_OUT`; the gfx build
+has no read-back, so its capture fails and exits after that line (expected). Diff the wgpu
+capture against the gfx shot with `parity_diff.py`. A leftover `import` holding the X server
+blocks the next client's window: kill stray `import`s before a run. A phase-dependent effect
+(the underwater warp) needs the phase pinned in both builds for an A/B: a temporary, uncommitted
+pin in `ffx_glow.rs::sync_wave` served this run.
+
 ## Verified backend pairs
 
-Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug, no account (no
-`.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
-- Milestone 4, this run (liquid, sky family, effect lane, depth bias), `WOW_CAPTURE=1`:
-  lake noon/dawn/dusk/night and high dusk/night on x11/vk: max 1, 0.000% >1 each (final build:
-  lake max 4, 0.000% >1). GL (x11/gl4, x11/gl3, glfw/gles3): high dusk 0.005% >1, 0% >16; lake
-  night 0.065% >1, 0.026% >16: the foliage alpha-test speckle plus single pixels along the
-  waterline and some edges, absent on vk (GL depth precision, see open problems). Effect lane
-  coverage (Northshire, 5 shots): wgpu 1319..1738 px (mean 1514), gfx vk 1305..1818 (1499), gfx gl4
-  1301..1738 (1467); the plain overview A/B stays at 0.020% >1, 0% >16 on vk. Parity scene with
-  two coplanar depth-biased decals: vk max 1, 0% >1; gl3/gl4/gles3 0.001% (nine texel-edge pixels
-  on the checker, BC and gradient quads, none at the decals); the +bias decal wins and the -bias
-  one loses everywhere on every pair. Lavapipe (validation: only the known teardown leak) and
-  llvmpipe gl3/gl4/gles3 (no `GL_INVALID`) for every new program first. No GPU reset.
-- Milestone 4, the previous run, world A/B with the install and the default `WOW_STATIC_GX` (models,
-  static-gx, terrain, WDL ported), mask = the whole frame: x11/vk mean 0.154, 0.023% >1, 0.001%
-  >16; x11/gl3 mean 0.211, 0.168% >1, 0.072% >16; glfw/gles3 mean 0.429, 0.280% >1, 0.071% >16;
-  x11/gl4 (before the gl3/gles3 array fix, which gl4 does not need) mean 0.227, 0.085% >16. The GL
-  residue is isolated single-pixel alpha-test flips in the near cutout foliage, identical on gl4
-  and gles3 and absent on vk (the texel alpha landing a ULP apart at 224/255 on Mesa GL vs RADV).
-  Every run ~59 frames/s, `WORLDVIEW_CHECK ok`, exit 0; no GPU reset. Lavapipe (validation clean
-  but for a device-memory leak at teardown), llvmpipe gl3/gl4/gles3: exit 0, no GL errors.
+Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx `c8e0bec`), no
+account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
+- Milestone 5, this run, `WOW_CAPTURE=ui-bag` (Northshire, the unit frames, four bags, chat,
+  minimap, action bars) through the full client, wgpu capture vs gfx window: x11/vk 0.103% >1,
+  0.002% >16 (single pixels on world features, none on the UI); x11/gl4 2.714% >1, 0.029% >16:
+  2-level steps over the world backdrop, 63% of them in channel values >= 128 (21% of all
+  values), where one 8-bit sRGB store step spans two gamma levels: the GL driver's sRGB-encode
+  rounding into the UI target against RADV's (open problem). Before the vk clear fix the world
+  backdrop was black (see Build notes). Lavapipe (only the known teardown leak), llvmpipe
+  gl3/gles3 (no `GL_INVALID`, no refused sub-rect write) first.
+- Milestone 4 finish, this run: the underwater warp (`WOW_FORCE_SUB`, the lake view, particles
+  off, phases pinned 0.25/0.6 in both builds) x11/vk max 1, 0.000% >1; x11/gl4 and glfw/gles3
+  0.044% >1, 0% >16 (the GL foliage speckle); the same gfx shot unpinned differs 52.4% >1, so the
+  check sees the warp. With particles on the drift motes differ as wgpu against itself (0.47%
+  >1 floor, gfx 0.67%). The dry lake stays max 1 on vk; the overview 0.004% >1 against a
+  reproducible wgpu shot (one wgpu overview run landed on another camera: 69% edges, wgpu
+  against wgpu too). Parity scene with the lit shapes: x11/vk max 1, 0.000% >1; gl3/gl4/gles3
+  0.001% (the known texel-edge pixels).
+- Milestone 4, earlier: liquid, sky family, effect lane, depth bias: lake noon/dawn/dusk/night
+  and high dusk/night max 1 on x11/vk; GL 0.005-0.065% >1 (foliage alpha-test, waterline).
+  Models, static-gx, terrain, WDL: x11/vk 0.023% >1; x11/gl3, glfw/gles3, x11/gl4 up to 0.28%
+  >1 (the same GL foliage speckle).
 - Milestone 3: parity scene on all twelve Linux pairs (x11, glfw, sdl) x (gl3, gl4, gles3, vk).
 - Milestone 2 (input, grab, scale factor): see git `3db008e3`; not re-run.
 Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes glslang's parser.
-
+No GPU reset in any run (`dmesg` count 0).
 ## Build notes
 
-- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `cd838f2`). Differs from
+- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `c8e0bec`). Differs from
   `gfx_dll/gfx`: key events carry `physical` + `scancode`, `GFX_EVENT_RAW_MOTION`, per-window
   `scale_factor`, exported cursor / warp / icon / scale-factor calls, milestone-2 backend fixes,
   (milestone 3) the sRGB formats, GL depth attachment by format, `D32_SFLOAT` as float depth, and
@@ -167,7 +197,13 @@ Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes g
   binding; gl3/gles3: a 2D array keeps its layer count at every mip level (was halved as for 3D);
   and (this run) the rasterizer depth bias, `gfx_dll_create_rasterizer_state_biased` (GL polygon
   offset, vk pipeline bias, d3d11/d3d12 `DepthBias`; the d3d ones not built here, GL drops the
-  clamp).
+  clamp), and (this run) `gfx_dll_set_texture_subdata` (a sub-rect of one level and layer,
+  uncompressed formats; gl3/gl4/gles3 `Tex(ture)SubImage`, vk a buffer-to-image region, d3d11
+  `UpdateSubresource` with a box, d3d12 `CopyTextureRegion` at (x, y); d3d9/jkg refuse) and GL
+  sRGB writes: gl3/gl4 enable `GL_FRAMEBUFFER_SRGB` while a framebuffer with an sRGB colour
+  attachment is bound (`gl_bind_framebuffer`), so the UI target encodes as on vk/d3d/gles3.
+  A vk clear lands in the bound render pass: bind a framebuffer before `gfx_dll_clear_color` on
+  it (a clear of the UI target with the scene bound erased the world backdrop this run).
   Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build && cmake ..
   -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)` -> `bin/Debug_x64/libgfx.so`. `benilla-gfx/build.rs`
   takes `gfx_benilla` over `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it beside the binary.
@@ -175,7 +211,9 @@ Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes g
   sampler slots 0..3 are single samplers; slot 2 works through the fill.
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs` (`blit`, `present`,
   `standard`, `wow_model`, `static_gx`, `terrain`, `wdl`, `liquid`, `sky`, `celestial`, `star`,
-  `cloud`, `effect`, `ffx_downsample`, `ffx_gauss`, `ffx_combine`); `crates/benilla-gfx/shaders/compile.sh [names]` writes the four families. The
+  `cloud`, `effect`, `ffx_downsample`, `ffx_gauss`, `ffx_combine`, `ffx_combine_wave`,
+  `ui_quad`, `ui_gamma`); `WOW_GFX_SHADERS=<dir>` loads a family tree from disk, e.g. a probe
+  variant compiled into the scratchpad (`compile.sh` copied beside a `src/`); `crates/benilla-gfx/shaders/compile.sh [names]` writes the four families. The
   compiler prints samplers in fragment stages only: a vertex stage that fetches declares its
   sampler in the body per backend at the fragment stage's slot (vk `set = 1, binding = slot`).
   The compiler has no depth output (`wdl` clamps per vertex). Its `include` works only in the
@@ -187,16 +225,15 @@ Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes g
 
 ## Gates (this run)
 
-`CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=8 scripts/check.sh` (escalates to `gates.sh`): ALL GATES
-GREEN on the committed tree at the start of the run (1669 s) and again on this run's final tree
-(954 s): fmt, clippy, workspace tests (30 addon-corpus tests skip: no corpus here), no-install
-tests, doc links, pass-span lint, player build and tests, both enforcers. `cargo clippy
---workspace --all-targets --features benilla/gfx -- -D warnings` green; `cargo test -p benilla-gfx
---features gfx` 26 passed; `benilla-world --features gfx --lib gfx` 5 passed. No `smoke.sh`: no
-`.probe-identity`. Disk: the gate chain needs ~25 GB; delete `target/debug/deps` executables
-(`find target/debug/deps -maxdepth 1 -type f -executable ! -name '*.so' -delete`, plus
-`target/debug/examples`) before it: they are link outputs, ~35 GB here.
-
+`CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=8 scripts/check.sh` (escalates to `gates.sh`: a file under
+`.claude/` is outside the crate map): ALL GATES GREEN on this run's final tree (1511 s): fmt,
+clippy, workspace tests (30 addon-corpus tests skip: no corpus here), no-install tests, doc links,
+pass-span lint, player build and tests, both enforcers. `cargo clippy --workspace --all-targets
+--features benilla/gfx -- -D warnings` green; `cargo test -p benilla-gfx --features gfx` 30
+passed. No `smoke.sh`: no `.probe-identity`. Disk: the gate chain needs ~25 GB; delete
+`target/debug/deps` executables (`find target/debug/deps -maxdepth 1 -type f -executable ! -name
+'*.so' -delete`, plus `target/debug/examples`, `target/debug/incremental`) and the A/B binaries
+under `target/ab/` (2 GB each) before it.
 ## For the maintainer
 
 - Deferred (maintainer, 2026-09-27): mouselook's `CursorGrabMode::Locked` stays a real gfx grab.
@@ -224,6 +261,15 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
   cutout, two-sided) each frame; fine at 59 frames/s in Northshire, unmeasured in a city.
 - The UI tile cell clip (`anim_slots.w`) flips the fragment row on GL; untested until model tiles
   draw (milestone 6).
+- GL sRGB store rounding: the UI target on gl4 differs from vk/wgpu by 2 levels over 2.7% of a
+  frame (bright channels); measure gl3/gles3 and try `R8G8B8A8Unorm` storage with the encode in
+  the shaders if it matters.
+- The UI lane assumes the world renders at the window's size (`RenderScale` 1.0): the scene
+  target is window-sized, the size-carrier's scale is ignored (milestone 6).
+- `GpuImages` keys a sampled variant by (image, sampler): a sub-rect write lands in the image's
+  own texture only, so a glyph sheet sampled through another sampler would miss its cells.
+- A `Camera2d` outside the lane (the minimap composite on an image, the egui camera) is skipped.
+- The capture harness under gfx: the shutter fails for want of read-back and exits nonzero.
 - Log: each `Extract*Plugin` logs "Render app did not exist" once at build.
 - GL depth precision: the `2z - w` remap puts reverse-Z into GL's [-1, 1] clip range, so the
   float depth buffer keeps no reverse-Z advantage; coplanar intersections (the waterline, some
@@ -235,14 +281,15 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
   footprint in the client once a login exists.
 - The effect lane uploads the whole stream every frame into a mesh padded to a power of two; its
   cost in a busy scene (a city, a raid) is unmeasured.
-- The capture harness is untested under gfx and gfx has no read-back (milestone 6).
 - Disk: ~10-25 GB free; `target/debug/deps` collects stale builds of benilla's crates per feature
   set (1.5-3 GB each). Delete the ones older than the current round's.
 
 ## Next
 
-Milestone 4's rest: the underwater GlowWave warp (`ffx_glow.wgsl`'s wave arm, `post.rs`), then the
-lit-`StandardMaterial` inventory (grep the three sites above; port `pbr` lighting only where one is
-actually lit and visible). Then milestone 5 (UI): start from `ui_pass.rs` and the
-`ui_{quad,node_gamma,slice_gamma,gamma,add}.wgsl` programs, with a glue-screen A/B (the login
-screen needs no account). Lavapipe and llvmpipe first for every new program (GPU safety).
+Milestone 5's rest, starting with bevy_ui on the lane camera: the glue screens (the login screen
+needs no account: `WOW_CAPTURE` has `GLUE_SCENARIOS`, see `capture/scenarios.rs`) through ports of
+`ui_node_gamma.wgsl` (nodes, borders, images) and `ui_slice_gamma.wgsl` (9-slice), bevy_ui's
+extracted node data read from the main world (`ComputedNode`, `UiGlobalTransform`,
+`BackgroundColor`, `BorderColor`, `ImageNode`, `TextLayoutInfo` for bevy_ui text), drawn in the
+lane after the `Mesh2d` batches as bevy_ui's `NodeUi` pass does; then `AddUiMaterial`. A/B each
+with `client_shot.sh` against the wgpu capture. Lavapipe and llvmpipe first for every new program.

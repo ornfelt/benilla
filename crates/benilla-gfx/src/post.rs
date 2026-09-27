@@ -5,7 +5,10 @@
 //! frame's one gamma decode, so a camera without it hands on gamma values.
 //!
 //! A camera runs it when it carries [`GfxFfxGlow`], its combine uniform, which the owner of the
-//! pass writes each frame.
+//! pass writes each frame. With a wave LUT the combine is FFXGlowWave, the underwater warp. A
+//! world view a UI lane claims ([`crate::ui::GfxUiLane::backdrop`]) combines into the lane's byte
+//! target instead, as premultiplied gamma (`GAMMA_OUT`), and the lane's [`FfxPost::decode`] is
+//! the frame's decode.
 
 use std::collections::HashMap;
 use std::ptr;
@@ -22,17 +25,25 @@ use crate::shader_loader::ShaderLibrary;
 use crate::target::{self, SceneTarget, SCENE_FORMAT};
 
 /// A camera's FFXGlow combine uniform: `lane` = (the zone glow weight, the death gate, the haze
-/// mix, the dither arm), `wave` = the GlowWave phases (unused until the underwater warp lands).
+/// mix, the dither arm), `wave` = the GlowWave phases; `wave_lut`, the warp's 128x128 LUT (a
+/// linear, repeating `Rg8Unorm` image), arms the warped combine.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct GfxFfxGlow {
     pub lane: [f32; 4],
     pub wave: [f32; 4],
+    pub wave_lut: Option<AssetId<Image>>,
 }
 
 /// `std140` size of `post_block`: `lane`, `wave`, `texel`.
 pub(crate) const POST_BLOCK: usize = 48;
 
-const PROGRAMS: [&str; 3] = ["ffx_downsample", "ffx_gauss", "ffx_combine"];
+const PROGRAMS: [&str; 5] = [
+    "ffx_downsample",
+    "ffx_gauss",
+    "ffx_combine",
+    "ffx_combine_wave",
+    "ui_gamma",
+];
 
 /// One program drawing into one framebuffer.
 struct Pass {
@@ -106,17 +117,17 @@ impl FfxPost {
         })
     }
 
-    /// The four passes' blocks for a `size` target, in pass order.
-    pub(crate) fn blocks(&self, glow: &GfxFfxGlow, size: UVec2) -> [[f32; POST_BLOCK / 4]; 4] {
+    /// The four passes' blocks for a `size` target, in pass order; `gamma_out` arms the combine's
+    /// backdrop exit (`wave.z`).
+    pub(crate) fn blocks(
+        &self,
+        glow: &GfxFfxGlow,
+        size: UVec2,
+        gamma_out: bool,
+    ) -> [[f32; POST_BLOCK / 4]; 4] {
         let q = quarter_size(size).as_vec2();
         let full = size.as_vec2();
-        let block = |texel: [f32; 4]| {
-            let mut b = [0.0; POST_BLOCK / 4];
-            b[..4].copy_from_slice(&glow.lane);
-            b[4..8].copy_from_slice(&glow.wave);
-            b[8..].copy_from_slice(&texel);
-            b
-        };
+        let block = |texel: [f32; 4]| pass_block(glow, texel, gamma_out);
         [
             block([1.0 / full.x, 1.0 / full.y, self.y_sign, full.y]),
             block([1.0 / q.x, 0.0, self.y_sign, q.y]),
@@ -125,13 +136,65 @@ impl FfxPost {
         ]
     }
 
-    /// Runs the chain on `scene`'s current colour; `offsets` are the four blocks in `ring`.
+    /// The UI lane decode's block: `lane.x` = the display gamma.
+    pub(crate) fn decode_block(gamma: f32) -> [f32; POST_BLOCK / 4] {
+        let mut b = [0.0; POST_BLOCK / 4];
+        b[0] = gamma;
+        b
+    }
+
+    /// Decodes the UI lane's `ui` bytes over `viewport` of `scene`'s current colour, with the block
+    /// at `offset` in `ring` ([`Self::decode_block`]).
+    pub(crate) fn decode(
+        &mut self,
+        shaders: &mut ShaderLibrary,
+        scene: &SceneTarget,
+        ui: GfxTexture,
+        ring: GfxBuffer,
+        offset: u32,
+        viewport: bevy::math::URect,
+    ) {
+        let fb = scene.framebuffer();
+        let Some(pass) = self.pass(shaders, PROGRAMS[4], fb) else {
+            warn_once!("gfx: the UI lane's decode could not be made; the UI is not shown");
+            return;
+        };
+        let (pipeline, attributes, layout) = (pass.pipeline, pass.attributes, pass.layout);
+        let size = viewport.size();
+        let mut textures = [ui];
+        // SAFETY: every handle is live and made on this device, on its thread; the ring holds the
+        // block at `offset`.
+        unsafe {
+            ffi::gfx_dll_bind_framebuffer(self.device, fb);
+            ffi::gfx_dll_set_viewport(self.device, 0, 0, scene.size.x, scene.size.y, 0.0, 1.0);
+            ffi::gfx_dll_set_scissor(
+                self.device,
+                viewport.min.x as i32,
+                viewport.min.y as i32,
+                size.x,
+                size.y,
+            );
+            ffi::gfx_dll_bind_pipeline(self.device, pipeline);
+            ffi::gfx_dll_bind_attributes_state(self.device, attributes, layout);
+            ffi::gfx_dll_bind_constant(self.device, 0, ring, POST_BLOCK as u32, offset);
+            ffi::gfx_dll_bind_samplers(self.device, 0, 1, textures.as_mut_ptr());
+            ffi::gfx_dll_draw(self.device, 3, 0);
+        }
+    }
+
+    /// Runs the chain on `scene`'s current colour; `offsets` are the four blocks in `ring`, `wave`
+    /// the LUT of an armed warp, whose combine is its own program so a dry frame pays nothing.
+    /// With `into`, a UI lane's byte target, the combine lands there and the scene target keeps
+    /// its current colour.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn run(
         &mut self,
         shaders: &mut ShaderLibrary,
         scene: &mut SceneTarget,
         ring: GfxBuffer,
         offsets: [u32; 4],
+        wave: Option<GfxTexture>,
+        into: Option<GfxFramebuffer>,
     ) {
         let size = scene.size;
         let q = quarter_size(size);
@@ -144,16 +207,21 @@ impl FfxPost {
         };
         let (qc, qf) = (quarter.colors, quarter.framebuffers);
         let out = 1 - scene.current;
-        let steps: [(&'static str, GfxFramebuffer, UVec2, [GfxTexture; 2], u32); 4] = [
-            (PROGRAMS[0], qf[0], q, [scene.color(), ptr::null_mut()], 1),
-            (PROGRAMS[1], qf[1], q, [qc[0], ptr::null_mut()], 1),
-            (PROGRAMS[1], qf[0], q, [qc[1], ptr::null_mut()], 1),
+        let none = ptr::null_mut();
+        let combine = match wave {
+            Some(lut) => (PROGRAMS[3], [scene.color(), qc[0], lut], 3),
+            None => (PROGRAMS[2], [scene.color(), qc[0], none], 2),
+        };
+        let steps: [(&'static str, GfxFramebuffer, UVec2, [GfxTexture; 3], u32); 4] = [
+            (PROGRAMS[0], qf[0], q, [scene.color(), none, none], 1),
+            (PROGRAMS[1], qf[1], q, [qc[0], none, none], 1),
+            (PROGRAMS[1], qf[0], q, [qc[1], none, none], 1),
             (
-                PROGRAMS[2],
-                scene.framebuffers[out],
+                combine.0,
+                into.unwrap_or(scene.framebuffers[out]),
                 size,
-                [scene.color(), qc[0]],
-                2,
+                combine.1,
+                combine.2,
             ),
         ];
         for ((program, fb, extent, mut textures, count), offset) in steps.into_iter().zip(offsets) {
@@ -175,7 +243,9 @@ impl FfxPost {
                 ffi::gfx_dll_draw(self.device, 3, 0);
             }
         }
-        scene.current = out;
+        if into.is_none() {
+            scene.current = out;
+        }
     }
 
     fn pass(
@@ -291,6 +361,16 @@ impl Drop for FfxPost {
     }
 }
 
+/// One pass's block: the combine uniform, `wave.z` the gamma exit, then the pass's `texel` row.
+fn pass_block(glow: &GfxFfxGlow, texel: [f32; 4], gamma_out: bool) -> [f32; POST_BLOCK / 4] {
+    let mut b = [0.0; POST_BLOCK / 4];
+    b[..4].copy_from_slice(&glow.lane);
+    b[4..8].copy_from_slice(&glow.wave);
+    b[6] = if gamma_out { 1.0 } else { 0.0 };
+    b[8..].copy_from_slice(&texel);
+    b
+}
+
 /// A quarter of `size`, each side at least 8, as the reference sizes its targets (`0x6cdb40`).
 fn quarter_size(size: UVec2) -> UVec2 {
     (size / 4).max(UVec2::splat(8))
@@ -312,6 +392,22 @@ fn make_quarter(device: GfxDevice, size: UVec2) -> Option<Quarter> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_claimed_combine_arms_the_gamma_exit() {
+        let glow = GfxFfxGlow {
+            lane: [0.5, 0.0, 0.0, 0.0],
+            wave: [0.25, 0.6, 0.0, 0.0],
+            wave_lut: None,
+        };
+        let texel = [0.5, 0.25, 1.0, 4.0];
+        let plain = pass_block(&glow, texel, false);
+        let claimed = pass_block(&glow, texel, true);
+        assert_eq!((plain[6], claimed[6]), (0.0, 1.0));
+        assert_eq!(claimed[4..6], [0.25, 0.6]);
+        assert_eq!(claimed[8..], texel);
+        assert_eq!(FfxPost::decode_block(1.5)[0], 1.5);
+    }
 
     #[test]
     fn the_quarter_floors_at_eight() {

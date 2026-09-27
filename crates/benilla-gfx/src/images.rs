@@ -32,6 +32,64 @@ pub struct GpuImage {
     pub height: u32,
 }
 
+/// A sub-rect written into an image on the device, as `RenderQueue::write_texture` writes one
+/// into its `GpuImage`: level 0, layer 0, tightly packed rows of the image's format.
+pub struct GfxTextureWrite {
+    pub image: AssetId<Image>,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u8>,
+}
+
+/// The frame's [`GfxTextureWrite`]s, applied in `GfxRenderSystems::Prepare`; a write whose image
+/// is not in `Assets<Image>` yet waits.
+#[derive(bevy::prelude::Resource, Default)]
+pub struct GfxTextureWrites(pub Vec<GfxTextureWrite>);
+
+impl GpuImages {
+    /// Applies `writes`, keeping those whose image is not loaded yet.
+    pub fn write(&mut self, writes: &mut GfxTextureWrites, images: &bevy::asset::Assets<Image>) {
+        let device = self.device;
+        writes.0.retain_mut(|w| {
+            let Some(image) = images.get(w.image) else {
+                return true;
+            };
+            let Some(up) = upload_format(image.texture_descriptor.format) else {
+                return false;
+            };
+            let Some(gpu) = self.get(w.image, image) else {
+                return false;
+            };
+            if up.swizzle {
+                for texel in w.data.as_chunks_mut::<4>().0 {
+                    texel.swap(0, 2);
+                }
+            }
+            // SAFETY: `gpu.texture` is live on `device`; `w.data` outlives the call.
+            let ok = unsafe {
+                ffi::gfx_dll_set_texture_subdata(
+                    device,
+                    gpu.texture,
+                    0,
+                    0,
+                    w.x,
+                    w.y,
+                    w.width,
+                    w.height,
+                    w.data.len() as u32,
+                    w.data.as_ptr().cast(),
+                )
+            };
+            if !ok {
+                bevy::log::warn_once!("gfx: a texture sub-rect write was refused");
+            }
+            false
+        });
+    }
+}
+
 /// How an image format goes to gfx: the gfx format, and whether the texels are swizzled BGRA to
 /// RGBA on the way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -350,9 +408,19 @@ fn upload(
     ) {
         return Err("cube view".into());
     }
-    let data = image.data.as_deref().ok_or("no data")?;
     let (width, height) = (desc.size.width, desc.size.height);
     let levels = desc.mip_level_count.max(1);
+    // An image without data (`Image::new_uninit`, a render target) is made zeroed, so its first
+    // sample reads defined texels while [`GfxTextureWrites`] fill it.
+    let zeroed;
+    let data = match image.data.as_deref() {
+        Some(d) => d,
+        None => {
+            let chain: usize = (0..levels).map(|l| up.level_bytes(width, height, l)).sum();
+            zeroed = vec![0u8; chain * layers as usize];
+            &zeroed
+        }
+    };
     let sampler = match &image.sampler {
         _ if forced => default_sampler,
         ImageSampler::Default => default_sampler,

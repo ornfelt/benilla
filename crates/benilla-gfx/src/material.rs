@@ -5,11 +5,12 @@
 //!
 //! A description names its program, the textures bound to the program's sampler slots, the
 //! program's parameter rows (its draw block after the world matrix and the tag) and the fixed
-//! states. [`standard`] describes a `StandardMaterial` as its unlit form: the base colour times
-//! the base colour texture times the vertex colour, the alpha mode applied as bevy_pbr's
-//! `alpha_discard` and `premultiply_alpha` do. Lit shading, emissive and normal maps are not drawn
-//! yet; an `ExtendedMaterial` without a program of its own draws through its base
-//! ([`extended_base`]).
+//! states. [`standard`] describes a `StandardMaterial`: the base colour times the base colour
+//! texture times the vertex colour, the alpha mode applied as bevy_pbr's `alpha_discard` and
+//! `premultiply_alpha` do, and a lit one shaded as bevy_pbr shades it under the view's ambient
+//! light alone, with its emissive (benilla spawns no Bevy light). The metallic-roughness,
+//! emissive, occlusion and normal maps and transmission are not drawn; an `ExtendedMaterial`
+//! without a program of its own draws through its base ([`extended_base`]).
 
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -23,6 +24,7 @@ use bevy::pbr::{ExtendedMaterial, Material, MaterialExtension, MeshMaterial3d, S
 use bevy::prelude::*;
 use bevy::render::alpha::AlphaMode;
 use bevy::render::render_resource::{BufferId, Face};
+use bevy::sprite_render::{Material2d, MeshMaterial2d};
 
 use crate::draw::{DrawItem, DrawList};
 use crate::images::GfxSampler;
@@ -128,6 +130,8 @@ pub struct GfxDrawState {
     pub depth_write: Option<bool>,
     /// `CompareFunction::Always` in place of reverse-Z `GreaterEqual`.
     pub depth_always: bool,
+    /// Off for a draw into a colour-only target (the UI lane's byte target).
+    pub depth_test: bool,
     /// Colour writes on; off for a depth-only draw.
     pub color_write: bool,
     /// Added to the transparent phase's sort distance, as `StandardMaterial::depth_bias` is.
@@ -145,6 +149,7 @@ impl Default for GfxDrawState {
             blend: None,
             depth_write: None,
             depth_always: false,
+            depth_test: true,
             color_write: true,
             sort_bias: 0.0,
             raster_bias: 0,
@@ -175,7 +180,7 @@ pub const STANDARD: GfxProgram = GfxProgram {
         VertexInput::new(Mesh::ATTRIBUTE_UV_0, [0.0; 4]),
         VertexInput::new(Mesh::ATTRIBUTE_COLOR, [1.0; 4]),
     ],
-    params: 4,
+    params: 6,
     samplers: 1,
 };
 
@@ -218,11 +223,27 @@ fn uv_offset(t: Affine2, alpha: GfxAlpha) -> [f32; 4] {
     ]
 }
 
-/// A `StandardMaterial` as the standard program draws it.
+/// A `StandardMaterial` as the standard program draws it: rows 0-2 of [`standard_rows`], then row
+/// 3 = (lit, perceptual roughness, metallic, the emissive's exposure weight), row 4 = the specular
+/// tint times the reflectance (bevy_pbr's `reflectance`), row 5 = the linear emissive.
 pub fn standard(m: &StandardMaterial) -> GfxMaterialDesc {
     let (rows, texture, alpha, state) = standard_rows(m);
     let mut params = [[0.0; 4]; MAX_PARAMS];
     params[..3].copy_from_slice(&rows);
+    params[3] = [
+        if m.unlit { 0.0 } else { 1.0 },
+        m.perceptual_roughness,
+        m.metallic,
+        m.emissive_exposure_weight,
+    ];
+    let tint = LinearRgba::from(m.specular_tint);
+    params[4] = [
+        tint.red * m.reflectance,
+        tint.green * m.reflectance,
+        tint.blue * m.reflectance,
+        0.0,
+    ];
+    params[5] = m.emissive.to_f32_array();
     GfxMaterialDesc {
         program: STANDARD,
         textures: [
@@ -281,6 +302,92 @@ impl<M: Material> Plugin for GfxMaterialPlugin<M> {
     }
 }
 
+/// Draws every visible `MeshMaterial2d<M>` with the description `describe` gives its asset, in the
+/// camera's `Transparent2d` order (the mesh's world z, ascending).
+pub struct GfxMaterial2dPlugin<M: Material2d> {
+    describe: fn(&M) -> GfxMaterialDesc,
+    marker: PhantomData<M>,
+}
+
+impl<M: Material2d> GfxMaterial2dPlugin<M> {
+    pub fn new(describe: fn(&M) -> GfxMaterialDesc) -> Self {
+        Self {
+            describe,
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Resource)]
+struct Describe2d<M: Material2d>(fn(&M) -> GfxMaterialDesc);
+
+impl<M: Material2d> Plugin for GfxMaterial2dPlugin<M> {
+    fn build(&self, app: &mut App) {
+        if app.world().contains_resource::<Describe2d<M>>() {
+            return;
+        }
+        app.insert_resource(Describe2d::<M>(self.describe))
+            .add_systems(
+                crate::render::GfxRender,
+                collect_2d::<M>.in_set(GfxRenderSystems::Collect),
+            );
+    }
+
+    fn is_unique(&self) -> bool {
+        false
+    }
+}
+
+/// The visible entities carrying `M` become draw items, as [`collect`]; `center` is the mesh's
+/// translation, whose z is the `Transparent2d` sort key.
+#[allow(clippy::type_complexity)]
+fn collect_2d<M: Material2d>(
+    describe: Res<Describe2d<M>>,
+    materials: Option<Res<Assets<M>>>,
+    mut list: ResMut<DrawList>,
+    mut descs: Local<HashMap<AssetId<M>, u32>>,
+    items: Query<(
+        Entity,
+        &Mesh2d,
+        &MeshMaterial2d<M>,
+        &GlobalTransform,
+        &ViewVisibility,
+        Option<&MeshTag>,
+    )>,
+) {
+    descs.clear();
+    let Some(materials) = materials else {
+        return;
+    };
+    for (entity, mesh, material, transform, visibility, tag) in &items {
+        if !visibility.get() {
+            continue;
+        }
+        let id = material.0.id();
+        let desc = match descs.get(&id) {
+            Some(d) => *d,
+            None => {
+                let Some(m) = materials.get(id) else {
+                    continue;
+                };
+                let d = list.push_desc((describe.0)(m));
+                descs.insert(id, d);
+                d
+            }
+        };
+        list.push(
+            entity,
+            DrawItem {
+                mesh: mesh.0.id(),
+                world_from_local: transform.to_matrix(),
+                center: transform.translation(),
+                tag: tag.map_or(0, |t| t.0),
+                desc,
+            },
+        );
+    }
+}
+
 /// The visible entities carrying `M` become draw items, one description per material asset.
 #[allow(clippy::type_complexity)]
 fn collect<M: Material>(
@@ -334,5 +441,31 @@ fn collect<M: Material>(
                 desc,
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_lit_standard_material_packs_bevys_lighting_inputs() {
+        let lit = standard(&StandardMaterial {
+            perceptual_roughness: 0.7,
+            metallic: 0.25,
+            reflectance: 0.5,
+            emissive: LinearRgba::rgb(0.1, 0.2, 0.3),
+            ..default()
+        });
+        assert_eq!(lit.params[3], [1.0, 0.7, 0.25, 0.0]);
+        // White tint times the reflectance: `calculate_F0`'s 0.16 r^2 is 0.04.
+        assert_eq!(lit.params[4], [0.5, 0.5, 0.5, 0.0]);
+        assert_eq!(lit.params[5], [0.1, 0.2, 0.3, 1.0]);
+        let unlit = standard(&StandardMaterial {
+            unlit: true,
+            ..default()
+        });
+        assert_eq!(unlit.params[3][0], 0.0);
+        assert_eq!(STANDARD.params, 6);
     }
 }

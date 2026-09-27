@@ -15,7 +15,7 @@ default = ["dev"]
 dev = ["benilla-assets/dev", "benilla-formats/dev", "benilla-world/dev", "dep:bevy_egui"]
 tracy = ["bevy/trace_tracy"]
 # The window, input and rendering through the gfx DLL in place of winit and wgpu (`benilla-gfx`).
-gfx = ["benilla-world/gfx"]
+gfx = ["benilla-world/gfx", "dep:benilla-gfx", "benilla-gfx/gfx"]
 # Writes every system's per-run span to `trace-<ts>.json` in the cwd.
 trace_chrome = ["bevy/trace_chrome"]
 
@@ -23,6 +23,7 @@ trace_chrome = ["bevy/trace_chrome"]
 anyhow.workspace = true
 # The EditBox clipboard, on the main thread as NSPasteboard requires; bevy_egui's 3.x.
 arboard = "3"
+benilla-gfx = { path = "../benilla-gfx", optional = true }
 benilla-ui = { path = "../benilla-ui" }
 bevy.workspace = true
 wgpu.workspace = true

@@ -29,6 +29,7 @@ pub mod runner;
 pub mod shader_def;
 pub mod shader_loader;
 pub mod target;
+pub mod ui;
 pub mod window;
 
 use bevy::app::PluginGroupBuilder;
@@ -36,11 +37,14 @@ use bevy::prelude::*;
 
 pub use context::GfxContext;
 pub use data::{DataTexture, GfxDataTextures};
+pub use images::{GfxTextureWrite, GfxTextureWrites};
 pub use material::{
-    GfxAlpha, GfxDrawState, GfxMaterialDesc, GfxMaterialPlugin, GfxProgram, GfxTextureSlot,
+    GfxAlpha, GfxDrawState, GfxMaterial2dPlugin, GfxMaterialDesc, GfxMaterialPlugin, GfxProgram,
+    GfxTextureSlot,
 };
 pub use post::GfxFfxGlow;
 pub use render::{GfxRender, GfxRenderSystems};
+pub use ui::GfxUiLane;
 
 /// `group` (the `DefaultPlugins` set) with winit and wgpu swapped out for gfx.
 pub fn swap_in(group: PluginGroupBuilder) -> PluginGroupBuilder {

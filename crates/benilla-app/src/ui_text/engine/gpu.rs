@@ -39,6 +39,9 @@ impl Plugin for UiTextPlugin {
         app.init_resource::<GlyphUploadQueue>()
             .add_systems(Update, init)
             .add_systems(Last, publish_sheet);
+        // With `gfx` there is no render world: the cells go to the gfx device's sub-rect writes.
+        #[cfg(feature = "gfx")]
+        app.add_systems(Last, hand_cells_to_gfx.after(publish_sheet));
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -117,6 +120,25 @@ fn publish_sheet(
     }
     atlas.generation = generation;
     report_cache(&atlas);
+}
+
+/// With `gfx`: the frame's cells as sub-rect writes into the sheet on the gfx device, as
+/// [`upload_glyph_cells`] writes them into its `GpuImage`.
+#[cfg(feature = "gfx")]
+fn hand_cells_to_gfx(
+    mut queue: ResMut<GlyphUploadQueue>,
+    mut writes: ResMut<benilla_gfx::GfxTextureWrites>,
+) {
+    writes
+        .0
+        .extend(queue.0.drain(..).map(|u| benilla_gfx::GfxTextureWrite {
+            image: u.image,
+            x: u.x,
+            y: u.y,
+            width: u.w,
+            height: u.h,
+            data: u.rgba,
+        }));
 }
 
 /// Hand the frame's cells to the render world, appending to any a previous frame could not write.
