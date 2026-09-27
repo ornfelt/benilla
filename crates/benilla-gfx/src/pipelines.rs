@@ -29,6 +29,8 @@ pub enum Blend {
     Multiply,
     /// Colour `ONE, ONE`; alpha kept (`ZERO, ONE`): benilla's gamma-space additive.
     Add,
+    /// Colour `SRC_ALPHA, ONE`; alpha kept: FrameXML `alphaMode="ADD"` (`AddUiMaterial`).
+    AddAlpha,
     /// Colour `DST_COLOR, ZERO`; alpha kept: the M2/WMO Mod blend.
     Modulate,
     /// Colour `DST_COLOR, SRC_COLOR`; alpha kept: the Mod2x blend.
@@ -245,6 +247,7 @@ pub(crate) fn blend_state(
             F::OneMinusSrcAlpha,
         ),
         Blend::Add => (true, F::One, F::One, F::Zero, F::One),
+        Blend::AddAlpha => (true, F::SrcAlpha, F::One, F::Zero, F::One),
         Blend::Modulate => (true, F::DstColor, F::Zero, F::Zero, F::One),
         Blend::Modulate2x => (true, F::DstColor, F::SrcColor, F::Zero, F::One),
     };

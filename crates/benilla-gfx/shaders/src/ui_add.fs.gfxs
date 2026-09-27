@@ -1,0 +1,42 @@
+in 0 vec2 uv
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 rect
+}
+
+sampler 0 2d add_texture
+
+// `alphaMode="ADD"` for the glue highlight overlays (`ui_add.wgsl`): the sub-rect `rect` (uv min,
+// max) sampled and returned as gamma bytes, for the `SrcAlpha, One` blend.
+
+vec3 linear_to_srgb(vec3 c)
+{
+	vec3 cc = max(c, vec3(0.0, 0.0, 0.0));
+	vec3 higher = 1.055 * pow(cc, vec3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) - vec3(0.055, 0.055, 0.055);
+	vec3 lower = c * 12.92;
+	return mix(higher, lower, step(c, vec3(0.0031308, 0.0031308, 0.0031308)));
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec2 uv = mix(rect.xy, rect.zw, gfx_input.uv);
+	vec4 texel = gfx_sample(add_texture, uv);
+	gfx_output.color = vec4(linear_to_srgb(texel.rgb), texel.a);
+	return gfx_output;
+}

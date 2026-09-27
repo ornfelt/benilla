@@ -1,9 +1,9 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-4 done; milestone 5 (UI) in flight: the in-world
-player UI (the quad pass, the world backdrop claim, the gamma decode, text) draws through gfx and
-matches wgpu on vk (`ui-bag` capture: 0.103% >1, 0.002% >16). Left in 5: bevy_ui (the glue and
-loading screens), `AddUiMaterial`, gizmos, the UI's render-to-texture producers (milestone 6).
+Branch: `gfx-dll-backend`. Status: milestones 1-4 done; milestone 5 (UI) nearly done: the in-world
+player UI and (this run) bevy_ui, the glue and loading screens, with `AddUiMaterial`, draw through
+gfx and match wgpu (login and realm list: max 1 on vk and gl4). Left in 5: gizmos. The glue
+screens' 3D scenes (the login portal, the character booth) are image cameras: milestone 6.
 
 ## Milestones
 
@@ -98,11 +98,16 @@ loading screens), `AddUiMaterial`, gizmos, the UI's render-to-texture producers 
   - [x] Text: `ui_text`'s glyph cells become `GfxTextureWrites` (sub-rect writes applied in
     Prepare through gfx_benilla's `gfx_dll_set_texture_subdata`); a data-less image
     (`Image::new_uninit`, a render target) is made zeroed.
-  - [ ] bevy_ui: the glue screens (login, realm, character select and create) and the loading
-    screen (`Node`, `BackgroundColor`, `ImageNode`, borders, 9-slice through
-    `ui_{node_gamma,slice_gamma}.wgsl` via `ui_gamma.rs::use_gamma_ui_shaders`), bevy_ui text,
-    `AddUiMaterial` (`glue/add_material.rs`, `ui_add.wgsl`). They land on the lane camera
-    (`IsDefaultUiCamera`) and are not drawn yet.
+  - [x] bevy_ui (`benilla-gfx/src/bevy_ui.rs`, `GfxBevyUiPlugin`): bevy_ui_render 0.18.1's
+    extract / queue / prepare over the main world for nodes on a `GfxUiLane` camera: backgrounds,
+    images (atlas, rect, flip), borders, outlines, text and `TextShadow` through `ui_node_gamma`,
+    sliced / tiled images through `ui_slice_gamma`, `MaterialNode<M>` through
+    `GfxUiMaterialPlugin::<M>::new(describe)` (`AddUiMaterial` -> `ui_add`, `Blend::AddAlpha`).
+    Sorted by stack index + bevy's `stack_z_offsets` (stable), batched by image as bevy does,
+    written into two meshes rewritten in place (custom attributes `988_2xx`), drawn as the
+    lane's late draws (`DrawList::push_late`, after its `Mesh2d` draws, before the decode) through
+    bevy's UI view projection (a view block of its own). Not drawn (none in benilla): box
+    shadows, gradients, `ViewportNode`, text backgrounds, underline / strikethrough.
   - [ ] Gizmos (bowstring, fishing line).
 - [ ] 6. **The rest.** Render-to-texture cameras (16 `RenderTarget::Image` sites: portraits,
   the paper doll and model frames, the minimap composite, a `Camera2d` on an image) and their
@@ -161,7 +166,15 @@ pin in `ffx_glow.rs::sync_wave` served this run.
 
 Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx `c8e0bec`), no
 account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
-- Milestone 5, this run, `WOW_CAPTURE=ui-bag` (Northshire, the unit frames, four bags, chat,
+- Milestone 5 bevy_ui, this run: `WOW_CAPTURE=glue-login` and `glue-realmlist`, the login
+  portal scene pinned off in both builds (a temporary, uncommitted `preview.scene = None` in
+  `login/mod.rs::enter_login`: the scene is an image camera gfx does not draw yet), wgpu capture
+  vs gfx window. Login: x11/vk and x11/gl4 max 1 (0.000% >1; the background clear 1 level off in
+  blue, 22% of UI pixels 1 level); glfw/gles3 and sdl/vk the same but for the text caret, white
+  in those shots and hidden in wgpu's (blink phase, 0.016%). Realm list (tiled borders, header
+  tabs, the highlighted row, the dimming overlay): x11/vk and x11/gl4 max 1, mean 0.015. First
+  on lavapipe with validation (clean) and llvmpipe gl3 / gles3 (no `GL_INVALID`, max 3, 0.37% >1).
+- Milestone 5, the previous run, `WOW_CAPTURE=ui-bag` (Northshire, the unit frames, four bags, chat,
   minimap, action bars) through the full client, wgpu capture vs gfx window: x11/vk 0.103% >1,
   0.002% >16 (single pixels on world features, none on the UI); x11/gl4 2.714% >1, 0.029% >16:
   2-level steps over the world backdrop, 63% of them in channel values >= 128 (21% of all
@@ -212,7 +225,8 @@ No GPU reset in any run (`dmesg` count 0).
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs` (`blit`, `present`,
   `standard`, `wow_model`, `static_gx`, `terrain`, `wdl`, `liquid`, `sky`, `celestial`, `star`,
   `cloud`, `effect`, `ffx_downsample`, `ffx_gauss`, `ffx_combine`, `ffx_combine_wave`,
-  `ui_quad`, `ui_gamma`); `WOW_GFX_SHADERS=<dir>` loads a family tree from disk, e.g. a probe
+  `ui_quad`, `ui_gamma`, `ui_node_gamma`, `ui_slice_gamma`, `ui_add`); HLSL reserves `point`
+  (a geometry-stage keyword): no varying may be named so. `WOW_GFX_SHADERS=<dir>` loads a family tree from disk, e.g. a probe
   variant compiled into the scratchpad (`compile.sh` copied beside a `src/`); `crates/benilla-gfx/shaders/compile.sh [names]` writes the four families. The
   compiler prints samplers in fragment stages only: a vertex stage that fetches declares its
   sampler in the body per backend at the fragment stage's slot (vk `set = 1, binding = slot`).
@@ -226,14 +240,15 @@ No GPU reset in any run (`dmesg` count 0).
 ## Gates (this run)
 
 `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=8 scripts/check.sh` (escalates to `gates.sh`: a file under
-`.claude/` is outside the crate map): ALL GATES GREEN on this run's final tree (1511 s): fmt,
-clippy, workspace tests (30 addon-corpus tests skip: no corpus here), no-install tests, doc links,
-pass-span lint, player build and tests, both enforcers. `cargo clippy --workspace --all-targets
---features benilla/gfx -- -D warnings` green; `cargo test -p benilla-gfx --features gfx` 30
-passed. No `smoke.sh`: no `.probe-identity`. Disk: the gate chain needs ~25 GB; delete
-`target/debug/deps` executables (`find target/debug/deps -maxdepth 1 -type f -executable ! -name
-'*.so' -delete`, plus `target/debug/examples`, `target/debug/incremental`) and the A/B binaries
-under `target/ab/` (2 GB each) before it.
+`.claude/` is outside the crate map): ALL GATES GREEN on this run's final tree (1261 s): fmt,
+clippy, workspace tests, no-install tests, doc links, pass-span lint, player build and tests, both
+enforcers. The gate printed "install or addon corpus not found" (`WoW/Data` under the repo), so
+its data-gated tests skipped. `cargo clippy --workspace --all-targets --features benilla/gfx --
+-D warnings` green; `cargo test -p benilla-gfx --features gfx` 33 passed. No `smoke.sh`: no
+`.probe-identity`. Disk: the gate chain needs ~25 GB; delete `target/debug/deps` executables
+(`find target/debug/deps -maxdepth 1 -type f -executable ! -name '*.so' -delete`, plus
+`target/debug/examples`, `target/debug/incremental`) and the A/B binaries under `target/ab/`
+(2.8 GB each) before it.
 ## For the maintainer
 
 - Deferred (maintainer, 2026-09-27): mouselook's `CursorGrabMode::Locked` stays a real gfx grab.
@@ -268,7 +283,11 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
   target is window-sized, the size-carrier's scale is ignored (milestone 6).
 - `GpuImages` keys a sampled variant by (image, sampler): a sub-rect write lands in the image's
   own texture only, so a glyph sheet sampled through another sampler would miss its cells.
-- A `Camera2d` outside the lane (the minimap composite on an image, the egui camera) is skipped.
+- A `Camera2d` outside the lane (the minimap composite on an image, the egui camera) is skipped,
+  and bevy_ui on any camera but a lane is not drawn.
+- bevy_ui's font atlases are whole-image re-uploads on each `Modified` (a new glyph); cheap on the
+  glue screens, unmeasured under heavy bevy_ui text churn.
+- The char-create and char-select screens are not A/B'd: their booth scene is an image camera.
 - The capture harness under gfx: the shutter fails for want of read-back and exits nonzero.
 - Log: each `Extract*Plugin` logs "Render app did not exist" once at build.
 - GL depth precision: the `2z - w` remap puts reverse-Z into GL's [-1, 1] clip range, so the
@@ -286,10 +305,11 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
 
 ## Next
 
-Milestone 5's rest, starting with bevy_ui on the lane camera: the glue screens (the login screen
-needs no account: `WOW_CAPTURE` has `GLUE_SCENARIOS`, see `capture/scenarios.rs`) through ports of
-`ui_node_gamma.wgsl` (nodes, borders, images) and `ui_slice_gamma.wgsl` (9-slice), bevy_ui's
-extracted node data read from the main world (`ComputedNode`, `UiGlobalTransform`,
-`BackgroundColor`, `BorderColor`, `ImageNode`, `TextLayoutInfo` for bevy_ui text), drawn in the
-lane after the `Mesh2d` batches as bevy_ui's `NodeUi` pass does; then `AddUiMaterial`. A/B each
-with `client_shot.sh` against the wgpu capture. Lavapipe and llvmpipe first for every new program.
+Milestone 6's image cameras, which finish the glue screens: an active camera whose
+`RenderTarget::Image` no lane claims draws into a gfx render target of that image's size and
+format (colour + depth), and `GpuImages` hands that texture out for the image's id, so the
+`ImageNode` showing it (the login portal via `portrait/glue_booth.rs`, the character booth, the
+portraits, the paper doll, `ui_models`, the minimap composite) samples it. Their studio light
+buffers (`LightBlob` through the noop queue) need mirroring into data textures, as the world's
+shared light buffer is. A/B `glue-login` unpinned and `glue-charcreate` with `client_shot.sh`.
+Then gizmos (bowstring, fishing line). Lavapipe and llvmpipe first for every new program.

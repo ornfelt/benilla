@@ -1,18 +1,21 @@
 //! The player-UI lane on the gfx renderer (`benilla-gfx`, the `gfx` feature): [`UiQuadMaterial`]
 //! draws through a port of `ui_quad.wgsl` (`ui_quad.{vs,fs}.gfxs`), and the lane camera carries
-//! [`GfxUiLane`], its display gamma and the world view its backdrop claims.
+//! [`GfxUiLane`], its display gamma and the world view its backdrop claims. Bevy UI (the glue and
+//! loading screens) draws on the lane through ports of `ui_node_gamma.wgsl` and
+//! `ui_slice_gamma.wgsl` ([`GfxBevyUiPlugin`]), and [`AddUiMaterial`] through `ui_add.wgsl`.
 
 use bevy::prelude::*;
 
 use benilla_gfx::meshes::VertexInput;
 use benilla_gfx::pipelines::Blend;
 use benilla_gfx::{
-    GfxAlpha, GfxDrawState, GfxMaterial2dPlugin, GfxMaterialDesc, GfxProgram, GfxRender,
-    GfxRenderSystems, GfxTextureSlot, GfxUiLane,
+    GfxAlpha, GfxBevyUiPlugin, GfxDrawState, GfxMaterial2dPlugin, GfxMaterialDesc, GfxProgram,
+    GfxRender, GfxRenderSystems, GfxTextureSlot, GfxUiLane, GfxUiMaterialPlugin,
 };
 use benilla_world::ffx_glow::FfxBackdrop;
 
 use super::UiQuadMaterial;
+use crate::glue::add_material::AddUiMaterial;
 use crate::ui_gamma::UiGammaLane;
 
 /// `ui_quad.{vs,fs}.gfxs`: POSITION, UV 0 and COLOR at the Mesh2d locations; a mesh without UVs
@@ -74,6 +77,42 @@ fn describe(m: &UiQuadMaterial) -> GfxMaterialDesc {
     }
 }
 
+/// `ui_add.{vs,fs}.gfxs`: the UI material vertex's position and UV.
+const UI_ADD: GfxProgram = GfxProgram {
+    name: "ui_add",
+    inputs: &[
+        VertexInput::new(Mesh::ATTRIBUTE_POSITION, [0.0; 4]),
+        VertexInput::new(Mesh::ATTRIBUTE_UV_0, [0.0; 4]),
+    ],
+    params: 1,
+    samplers: 1,
+};
+
+/// [`AddUiMaterial`] as the program draws it: row `rect`, the texture through its own sampler,
+/// and the `SrcAlpha, One` blend with the destination's alpha kept ([`AddUiMaterial::specialize`]).
+fn describe_add(m: &AddUiMaterial) -> GfxMaterialDesc {
+    let mut params = [[0.0; 4]; benilla_gfx::material::MAX_PARAMS];
+    params[0] = m.rect.to_array();
+    GfxMaterialDesc {
+        program: UI_ADD,
+        textures: [
+            GfxTextureSlot::Image(m.texture.id()),
+            GfxTextureSlot::White,
+            GfxTextureSlot::White,
+            GfxTextureSlot::White,
+        ],
+        params,
+        alpha: GfxAlpha::Blend,
+        cull: None,
+        state: GfxDrawState {
+            blend: Some(Blend::AddAlpha),
+            depth_test: false,
+            depth_write: Some(false),
+            ..default()
+        },
+    }
+}
+
 /// `GfxRenderSystems::Pack`: the lane camera's [`GfxUiLane`] from its [`UiGammaLane`] and
 /// [`FfxBackdrop`].
 fn sync_lane(
@@ -95,7 +134,14 @@ pub(crate) struct GfxPlayerUi;
 
 impl Plugin for GfxPlayerUi {
     fn build(&self, app: &mut App) {
-        app.add_plugins(GfxMaterial2dPlugin::<UiQuadMaterial>::new(describe))
-            .add_systems(GfxRender, sync_lane.in_set(GfxRenderSystems::Pack));
+        app.add_plugins((
+            GfxMaterial2dPlugin::<UiQuadMaterial>::new(describe),
+            GfxBevyUiPlugin {
+                node: "ui_node_gamma",
+                slice: "ui_slice_gamma",
+            },
+            GfxUiMaterialPlugin::<AddUiMaterial>::new(describe_add),
+        ))
+        .add_systems(GfxRender, sync_lane.in_set(GfxRenderSystems::Pack));
     }
 }

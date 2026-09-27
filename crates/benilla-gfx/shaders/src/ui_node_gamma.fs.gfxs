@@ -1,0 +1,129 @@
+in 0 vec2 uv
+in 1 vec4 color
+in 2 vec2 size
+in 3 int flags
+in 4 vec4 radius
+in 5 vec4 border
+in 6 vec2 node_point
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 options
+}
+
+sampler 0 2d sprite_texture
+
+// The glue screens' Bevy UI node (`fragment` of `ui_node_gamma.wgsl`, bevy_ui_render 0.18.1
+// `ui.wgsl` with the tint and texel multiplied as gamma bytes): backgrounds, images, borders,
+// outlines and glyphs, each a rounded box by signed distance. `options.x` is `ANTI_ALIAS`.
+
+vec3 linear_to_srgb(vec3 c)
+{
+	vec3 cc = max(c, vec3(0.0, 0.0, 0.0));
+	vec3 higher = 1.055 * pow(cc, vec3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) - vec3(0.055, 0.055, 0.055);
+	vec3 lower = c * 12.92;
+	return mix(higher, lower, step(c, vec3(0.0031308, 0.0031308, 0.0031308)));
+}
+
+bool enabled(int f, int mask)
+{
+	return (f & mask) != 0;
+}
+
+float sd_rounded_box(vec2 p, vec2 box_size, vec4 corner_radii)
+{
+	vec2 rs = p.y > 0.0 ? corner_radii.wz : corner_radii.xy;
+	float r = p.x > 0.0 ? rs.y : rs.x;
+	vec2 corner_to_point = abs(p) - 0.5 * box_size;
+	vec2 q = corner_to_point + vec2(r, r);
+	float l = length(max(q, vec2(0.0, 0.0)));
+	float m = min(max(q.x, q.y), 0.0);
+	return l + m - r;
+}
+
+float sd_inset_rounded_box(vec2 p, vec2 box_size, vec4 r0, vec4 inset)
+{
+	vec2 inner_size = box_size - inset.xy - inset.zw;
+	vec2 inner_center = inset.xy + 0.5 * inner_size - 0.5 * box_size;
+	vec2 inner_point = p - inner_center;
+	vec4 r = r0;
+	r.x = r.x - max(inset.x, inset.y);
+	r.y = r.y - max(inset.z, inset.y);
+	r.z = r.z - max(inset.z, inset.w);
+	r.w = r.w - max(inset.x, inset.w);
+	vec2 half_size = inner_size * 0.5;
+	float min_size = min(half_size.x, half_size.y);
+	r = min(max(r, vec4(0.0, 0.0, 0.0, 0.0)), vec4(min_size, min_size, min_size, min_size));
+	return sd_rounded_box(inner_point, inner_size, r);
+}
+
+// BORDER_LEFT 256, BORDER_TOP 512, BORDER_RIGHT 1024, BORDER_BOTTOM 2048.
+bool nearest_border_active(vec2 point_vs_mid, vec2 box_size, vec4 width, int f)
+{
+	if ((f & 3840) == 3840)
+		return true;
+	vec2 p = clamp(point_vs_mid + box_size * 0.49999, vec2(0.0, 0.0), box_size);
+	float left = p.x / width.x;
+	float top = p.y / width.y;
+	float right = (box_size.x - p.x) / width.z;
+	float bottom = (box_size.y - p.y) / width.w;
+	float min_dist = min(min(left, top), min(right, bottom));
+	return (enabled(f, 256) && min_dist == left) ||
+		(enabled(f, 512) && min_dist == top) ||
+		(enabled(f, 1024) && min_dist == right) ||
+		(enabled(f, 2048) && min_dist == bottom);
+}
+
+float antialias(float distance)
+{
+	return clamp(0.5 - distance, 0.0, 1.0);
+}
+
+vec4 draw_uinode_border(vec4 c, vec2 p, vec2 box_size, vec4 r, vec4 b, int f)
+{
+	float external_distance = sd_rounded_box(p, box_size, r);
+	float internal_distance = sd_inset_rounded_box(p, box_size, r, b);
+	float border_distance = max(external_distance, -internal_distance);
+	float nearest_border = nearest_border_active(p, box_size, b, f) ? 1.0 : 0.0;
+	float hard = 1.0 - step(0.0, border_distance);
+	float t = hard;
+	if (options.x != 0.0 && external_distance < internal_distance)
+		t = antialias(border_distance);
+	return vec4(c.rgb, clamp(c.a * t * nearest_border, 0.0, 1.0));
+}
+
+vec4 draw_uinode_background(vec4 c, vec2 p, vec2 box_size, vec4 r, vec4 b)
+{
+	float internal_distance = sd_inset_rounded_box(p, box_size, r, b);
+	float t = options.x != 0.0 ? antialias(internal_distance) : 1.0 - step(0.0, internal_distance);
+	return vec4(c.rgb, clamp(c.a * t, 0.0, 1.0));
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec4 texture_color = gfx_sample(sprite_texture, gfx_input.uv);
+	bool textured = enabled(gfx_input.flags, 1);
+	vec3 tint = linear_to_srgb(gfx_input.color.rgb);
+	vec3 texel = linear_to_srgb(texture_color.rgb);
+	vec4 c = vec4(textured ? tint * texel : tint, textured ? gfx_input.color.a * texture_color.a : gfx_input.color.a);
+	if (enabled(gfx_input.flags, 3840))
+		gfx_output.color = draw_uinode_border(c, gfx_input.node_point, gfx_input.size, gfx_input.radius, gfx_input.border, gfx_input.flags);
+	else
+		gfx_output.color = draw_uinode_background(c, gfx_input.node_point, gfx_input.size, gfx_input.radius, gfx_input.border);
+	return gfx_output;
+}

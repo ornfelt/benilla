@@ -12,6 +12,7 @@
 #![cfg(feature = "gfx")]
 
 pub mod backend;
+pub mod bevy_ui;
 pub mod context;
 pub mod data;
 pub mod draw;
@@ -35,6 +36,7 @@ pub mod window;
 use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
 
+pub use bevy_ui::{GfxBevyUiPlugin, GfxUiMaterialPlugin};
 pub use context::GfxContext;
 pub use data::{DataTexture, GfxDataTextures};
 pub use images::{GfxTextureWrite, GfxTextureWrites};

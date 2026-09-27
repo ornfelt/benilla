@@ -1,0 +1,67 @@
+in 0 vec2 uv
+in 1 vec4 color
+in 2 vec4 texture_slices
+in 3 vec4 target_slices
+in 4 vec4 repeat
+in 5 vec4 atlas_rect
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+}
+
+sampler 0 2d sprite_texture
+
+// The glue screens' Bevy UI nine-patch and tiling (`fragment` of `ui_slice_gamma.wgsl`,
+// bevy_ui_render 0.18.1 `ui_texture_slice.wgsl` with the tint and texel multiplied as gamma
+// bytes): the node's UV mapped into the atlas rect's corner, side and centre slices.
+
+vec3 linear_to_srgb(vec3 c)
+{
+	vec3 cc = max(c, vec3(0.0, 0.0, 0.0));
+	vec3 higher = 1.055 * pow(cc, vec3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) - vec3(0.055, 0.055, 0.055);
+	vec3 lower = c * 12.92;
+	return mix(higher, lower, step(c, vec3(0.0031308, 0.0031308, 0.0031308)));
+}
+
+float map_axis_with_repeat(float p, float il, float ih, float tl, float th, float r)
+{
+	if (p < il)
+		return (p / il) * tl;
+	if (ih < p)
+		return th + ((p - ih) / (1.0 - ih)) * (1.0 - th);
+	return tl + fract((r * (p - il)) / (ih - il)) * (th - tl);
+}
+
+vec2 map_uvs_to_slice(vec2 uv, vec4 ts, vec4 xs, vec4 rep)
+{
+	vec2 r = rep.xy;
+	if (ts.x <= uv.x && uv.x <= ts.z && ts.y <= uv.y && uv.y <= ts.w)
+		r = rep.zw;
+	float x = map_axis_with_repeat(uv.x, ts.x, ts.z, xs.x, xs.z, r.x);
+	float y = map_axis_with_repeat(uv.y, ts.y, ts.w, xs.y, xs.w, r.y);
+	return vec2(x, y);
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec2 uv = map_uvs_to_slice(gfx_input.uv, gfx_input.target_slices, gfx_input.texture_slices, gfx_input.repeat);
+	vec2 atlas_uv = gfx_input.atlas_rect.xy + uv * (gfx_input.atlas_rect.zw - gfx_input.atlas_rect.xy);
+	vec4 texel = gfx_sample(sprite_texture, atlas_uv);
+	gfx_output.color = vec4(linear_to_srgb(gfx_input.color.rgb) * linear_to_srgb(texel.rgb), gfx_input.color.a * texel.a);
+	return gfx_output;
+}

@@ -11,7 +11,9 @@
 //! graph node between bevy's `StartMainPass` and `MainOpaquePass` draws (benilla's static-gx pass).
 //! [`DrawList::push_sorted`] places one in the camera's transparent phase instead, sorted with the
 //! entities by its own point and bias, as a render-world lane queues its own `Transparent3d`
-//! items (benilla's effect lane).
+//! items (benilla's effect lane). [`DrawList::push_late`] places one after a UI lane's `Mesh2d`
+//! draws, in the order pushed, through a projection of its own: bevy_ui's pass, which runs after
+//! the 2D main pass on its own UI view ([`crate::bevy_ui`]).
 //!
 //! Every draw's constants go into one uniform ring written once per frame, before the first
 //! draw, and bound per draw by offset: the view block (bevy_render's `View` fields the programs
@@ -77,6 +79,17 @@ pub struct SortedDraw {
     pub bias: f32,
 }
 
+/// A draw placed after a UI lane camera's `Mesh2d` draws ([`DrawList::push_late`]): `indices` of
+/// an indexed mesh with a description, its positions through `clip_from_world` in place of the
+/// camera's (the GL depth remap is the renderer's to add).
+#[derive(Debug, Clone)]
+pub struct LateDraw {
+    pub mesh: AssetId<Mesh>,
+    pub indices: Range<u32>,
+    pub clip_from_world: Mat4,
+    pub desc: u32,
+}
+
 /// This frame's draw items by entity, rebuilt each frame by the material collectors.
 #[derive(Resource, Default)]
 pub struct DrawList {
@@ -85,6 +98,7 @@ pub struct DrawList {
     descs: Vec<GfxMaterialDesc>,
     early: Vec<(Entity, EarlyDraw)>,
     sorted: Vec<(Entity, SortedDraw)>,
+    late: Vec<(Entity, LateDraw)>,
 }
 
 impl DrawList {
@@ -94,6 +108,7 @@ impl DrawList {
         self.descs.clear();
         self.early.clear();
         self.sorted.clear();
+        self.late.clear();
     }
 
     /// Draws `draw` for `camera` before its opaque phase, after the early draws pushed before it.
@@ -104,6 +119,11 @@ impl DrawList {
     /// Draws `draw` in `camera`'s transparent phase, sorted with its entities.
     pub fn push_sorted(&mut self, camera: Entity, draw: SortedDraw) {
         self.sorted.push((camera, draw));
+    }
+
+    /// Draws `draw` after UI lane `camera`'s `Mesh2d` draws, after the late draws pushed before it.
+    pub fn push_late(&mut self, camera: Entity, draw: LateDraw) {
+        self.late.push((camera, draw));
     }
 
     pub fn push_desc(&mut self, desc: GfxMaterialDesc) -> u32 {
@@ -334,6 +354,7 @@ impl Drop for UniformRing {
 }
 
 /// A camera drawing this frame, as the draw needs it.
+#[derive(Clone)]
 struct View {
     order: isize,
     viewport: URect,
@@ -753,6 +774,50 @@ pub(crate) fn draw_views(
             }
             sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
             cmds.extend(sorted.into_iter().map(|(_, c)| c));
+            // The late draws, each projection's view block pushed once.
+            let mut late_views: HashMap<[u32; 16], u32> = HashMap::new();
+            for (camera, late) in &list.late {
+                if *camera != view.entity {
+                    continue;
+                }
+                let desc = list.desc(late.desc);
+                let Some(r) = resolve(
+                    renderer,
+                    &mut ctx.shaders,
+                    ui_framebuffer,
+                    view,
+                    late.mesh,
+                    desc,
+                    &meshes,
+                    &images,
+                ) else {
+                    continue;
+                };
+                if !r.indexed {
+                    continue;
+                }
+                let key = late.clip_from_world.to_cols_array().map(f32::to_bits);
+                let late_view = *late_views.entry(key).or_insert_with(|| {
+                    let mut v = view.clone();
+                    v.clip_from_world = remap * late.clip_from_world;
+                    renderer.ring.push(&view_block(&v))
+                });
+                let item = DrawItem {
+                    mesh: late.mesh,
+                    world_from_local: Mat4::IDENTITY,
+                    center: Vec3::ZERO,
+                    tag: 0,
+                    desc: late.desc,
+                };
+                let block = draw_block(&item, desc, r.present);
+                let draw_offset = renderer.ring.push(&block);
+                cmds.push(r.cmd(
+                    late_view,
+                    draw_offset,
+                    (block.len() * 4) as u32,
+                    Some(&late.indices),
+                ));
+            }
             let offset = renderer.ring.push(&FfxPost::decode_block(gamma));
             cmds.push(Cmd::UiDecode {
                 offset,

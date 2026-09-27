@@ -1,0 +1,32 @@
+in 0 vec3 position
+in 1 vec2 uv
+
+out 0 vec2 uv
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 rect
+}
+
+// bevy_ui_render 0.18.1 `ui_material.wgsl`'s vertex stage for `ui_add.wgsl`, which reads only
+// the UV of the material vertex (size, border and radius go unused).
+
+vs_output gfx_main(vs_input gfx_input)
+{
+	vs_output gfx_output;
+	gfx_output.gfx_position = mul(vec4(gfx_input.position, 1.0), clip_from_world);
+	gfx_output.uv = gfx_input.uv;
+	return gfx_output;
+}
