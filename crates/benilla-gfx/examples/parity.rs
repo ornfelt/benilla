@@ -5,6 +5,13 @@
 //! sRGB texture sampled nearest and linear, BC1 blocks, vertex colours, back-face culling, depth,
 //! alpha mask, alpha blend, additive blend, the rasterizer depth bias and gizmo lines (a list and a
 //! strip through the default config: depth-tested, translucent, one clipped by the near plane).
+//! Built with `--features egui`, `PARITY_EGUI=1` adds benilla's debug-panel overlay: an egui
+//! context on a `Camera2d` above the scene, set up as `debug_panel::spawn_egui_camera` does, with
+//! a panel of text, widgets, a filled rect and a clipped scroll area.
+//!
+//! `PARITY_WINDOW` sets the window's frame, sizing and place, for a window-manager A/B of both
+//! paths (`xprop`, `xwininfo`): a comma list of `nodeco`, `fixed`, `center` and `at=<x>:<y>`,
+//! applied at creation, or after 1.5 s with a leading `later,`.
 //!
 //! The window prints `parity: ready` once the scene has been on screen for a second and exits
 //! two seconds later (with `WOW_GPU_MS=1` under gfx, also the gfx GPU meter's frame time then); `.claude/skills/gfx-dll-port/tools/parity.sh` captures it in between and
@@ -28,14 +35,20 @@ fn main() -> AppExit {
             return AppExit::error();
         }
     };
+    let spec = std::env::var("PARITY_WINDOW").unwrap_or_default();
+    let later = spec.starts_with("later,");
+    let mut window = Window {
+        title: format!("benilla parity {path}"),
+        // Resizable, as benilla's window is: a tiling window manager then gives both paths the
+        // same slot.
+        resolution: WindowResolution::new(640, 400).with_scale_factor_override(1.0),
+        ..default()
+    };
+    if !later {
+        window_spec(&mut window, &spec);
+    }
     let plugins = DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: format!("benilla parity {path}"),
-            // Resizable, as benilla's window is: a tiling window manager then gives both paths the
-            // same slot (gfx does not apply `resizable: false` yet).
-            resolution: WindowResolution::new(640, 400).with_scale_factor_override(1.0),
-            ..default()
-        }),
+        primary_window: Some(window),
         ..default()
     });
     let plugins = if gfx {
@@ -48,10 +61,47 @@ fn main() -> AppExit {
     if gfx && std::env::var("WOW_GPU_MS").as_deref() == Ok("1") {
         app.insert_resource(benilla_gfx::GfxGpuMeter(Default::default()));
     }
+    #[cfg(feature = "egui")]
+    if std::env::var("PARITY_EGUI").as_deref() == Ok("1") {
+        panel::add(&mut app, gfx);
+    }
+    #[cfg(not(feature = "egui"))]
+    let _ = gfx;
     app.insert_resource(ClearColor(Color::srgb(0.2, 0.3, 0.45)))
         .add_systems(Startup, scene)
         .add_systems(Update, (clock, lines))
+        .add_systems(Update, window_later.run_if(move || later))
         .run()
+}
+
+/// `PARITY_WINDOW`'s settings onto `window`.
+fn window_spec(window: &mut Window, spec: &str) {
+    for part in spec.split(',') {
+        match part {
+            "nodeco" => window.decorations = false,
+            "fixed" => window.resizable = false,
+            "center" => window.position = WindowPosition::Centered(MonitorSelection::Current),
+            _ => {
+                if let Some((x, y)) = part.strip_prefix("at=").and_then(|p| p.split_once(':')) {
+                    if let (Ok(x), Ok(y)) = (x.parse(), y.parse()) {
+                        window.position = WindowPosition::At(IVec2::new(x, y));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// `PARITY_WINDOW=later,...`: the settings applied once, 1.5 s in.
+fn window_later(time: Res<Time<Real>>, mut windows: Query<&mut Window>, mut done: Local<bool>) {
+    if *done || time.elapsed_secs() < 1.5 {
+        return;
+    }
+    *done = true;
+    let spec = std::env::var("PARITY_WINDOW").unwrap_or_default();
+    for mut window in &mut windows {
+        window_spec(&mut window, &spec);
+    }
 }
 
 fn clock(
@@ -333,4 +383,90 @@ fn bc1_quadrants() -> Image {
     );
     image.sampler = ImageSampler::nearest();
     image
+}
+
+/// benilla's egui overlay over the scene (`PARITY_EGUI=1`).
+#[cfg(feature = "egui")]
+mod panel {
+    use bevy::camera::visibility::RenderLayers;
+    use bevy::camera::{CameraOutputMode, ClearColorConfig};
+    use bevy::prelude::*;
+    use bevy::render::render_resource::BlendState;
+    use bevy_egui::PrimaryEguiContext;
+    use bevy_egui::{egui, EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass};
+
+    pub(super) fn add(app: &mut App, gfx: bool) {
+        app.add_plugins(EguiPlugin::default());
+        app.world_mut()
+            .resource_mut::<EguiGlobalSettings>()
+            .auto_create_primary_context = false;
+        if gfx {
+            app.add_plugins(benilla_gfx::GfxEguiPlugin);
+        }
+        app.add_systems(Startup, camera)
+            .add_systems(EguiPrimaryContextPass, ui);
+    }
+
+    /// `debug_panel::spawn_egui_camera`'s camera, at order 1 over the scene's.
+    fn camera(mut commands: Commands) {
+        commands.spawn((
+            PrimaryEguiContext,
+            Camera2d,
+            bevy::render::view::Msaa::Off,
+            RenderLayers::none(),
+            Camera {
+                order: 1,
+                output_mode: CameraOutputMode::Write {
+                    blend_state: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    clear_color: ClearColorConfig::None,
+                },
+                clear_color: ClearColorConfig::Custom(Color::NONE),
+                msaa_writeback: bevy::camera::MsaaWriteback::Off,
+                ..default()
+            },
+        ));
+    }
+
+    fn ui(mut contexts: EguiContexts, mut value: Local<f32>) -> Result {
+        let ctx = contexts.ctx_mut()?;
+        *value = 0.35;
+        egui::Window::new("parity")
+            .title_bar(false)
+            .resizable(false)
+            .movable(false)
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-8.0, 8.0))
+            .frame(
+                egui::Frame::NONE
+                    .fill(egui::Color32::from_black_alpha(224))
+                    .corner_radius(4)
+                    .inner_margin(egui::Margin::symmetric(10, 8)),
+            )
+            .show(ctx, |ui| {
+                ui.label(egui::RichText::new("benilla parity").strong());
+                ui.label(
+                    egui::RichText::new("dim text 0123456789").color(egui::Color32::from_gray(180)),
+                );
+                ui.label(egui::RichText::new("monospace 1.5  -2.25").monospace());
+                ui.add(egui::Slider::new(&mut *value, 0.0..=1.0).text("grade"));
+                let mut on = true;
+                ui.checkbox(&mut on, "a checkbox");
+                let (rect, _) =
+                    ui.allocate_exact_size(egui::vec2(120.0, 16.0), egui::Sense::hover());
+                ui.painter()
+                    .rect_filled(rect, 2.0, egui::Color32::from_rgb(200, 120, 40));
+                ui.painter().rect_filled(
+                    rect.shrink(4.0),
+                    0.0,
+                    egui::Color32::from_rgba_premultiplied(0, 80, 160, 128),
+                );
+                egui::ScrollArea::vertical()
+                    .max_height(60.0)
+                    .show(ui, |ui| {
+                        for i in 0..12 {
+                            ui.label(format!("clipped row {i}"));
+                        }
+                    });
+            });
+        Ok(())
+    }
 }

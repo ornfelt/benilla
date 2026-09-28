@@ -511,6 +511,23 @@ pub(crate) fn gfx_level(level: WindowLevel) -> ffi::GfxWindowLevel {
     }
 }
 
+/// A `WindowPosition` to the gfx window: `At` the outer top-left in physical pixels, `Centered`
+/// on the window's own monitor (bevy_winit centres on the selected one; gfx has no monitor
+/// list), `Automatic` left to the window manager.
+///
+/// # Safety
+/// `window` is the live gfx window, on its thread.
+pub(crate) unsafe fn apply_position(window: ffi::GfxWindow, position: WindowPosition) {
+    // SAFETY: the caller's.
+    unsafe {
+        match position {
+            WindowPosition::At(p) => ffi::gfx_dll_window_set_position(window, p.x, p.y),
+            WindowPosition::Centered(_) => ffi::gfx_dll_window_center(window),
+            WindowPosition::Automatic => {}
+        }
+    }
+}
+
 /// `Window` changes to the gfx window (bevy_winit's `changed_windows`). What gfx has no call for
 /// is named once in the log.
 fn sync_windows(
@@ -578,18 +595,23 @@ fn sync_windows(
                 }
             }
         }
-        for (field, changed) in [
-            ("position", window.position != cache.0.position),
-            ("decorations", window.decorations != cache.0.decorations),
-            ("resizable", window.resizable != cache.0.resizable),
-            (
-                "focus request",
-                window.focused != cache.0.focused && window.focused,
-            ),
-        ] {
-            if changed && unsupported.insert(field) {
-                info!("gfx: Window {field} is not applied to the gfx window yet");
-            }
+        if window.decorations != cache.0.decorations {
+            // SAFETY: the live window.
+            unsafe { ffi::gfx_dll_window_set_decorations(gfx, window.decorations) };
+            trace.line(format_args!("gfx set_decorations {}", window.decorations));
+        }
+        if window.resizable != cache.0.resizable {
+            // SAFETY: the live window.
+            unsafe { ffi::gfx_dll_window_set_resizable(gfx, window.resizable) };
+            trace.line(format_args!("gfx set_resizable {}", window.resizable));
+        }
+        if window.position != cache.0.position {
+            // SAFETY: the live window.
+            unsafe { apply_position(gfx, window.position) };
+            trace.line(format_args!("gfx set_position {:?}", window.position));
+        }
+        if window.focused != cache.0.focused && window.focused && unsupported.insert("focus") {
+            info!("gfx: a Window focus request is not applied to the gfx window yet");
         }
         cache.0 = window.clone();
     }

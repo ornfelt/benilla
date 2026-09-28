@@ -123,6 +123,9 @@ impl Plugin for DebugPanelPlugin {
             // The player hides the OS cursor and draws `Point.blp`, so egui must not drive it.
             egui.enable_cursor_icon_updates = false;
         }
+        // With `gfx`, the contexts draw through the gfx DLL (`benilla-gfx`'s `egui.rs`).
+        #[cfg(feature = "gfx")]
+        app.add_plugins(benilla_gfx::GfxEguiPlugin);
 
         // The inspector, its mouseover pick and the cast journal. `DebugState`, `InspectMode` and
         // `EguiPointerOver` are inited by their owners.

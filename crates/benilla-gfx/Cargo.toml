@@ -12,9 +12,12 @@ workspace = true
 # Everything here is behind `gfx`: without it the crate is empty, has no dependency and links
 # nothing, so a workspace build on a machine without the gfx library stays green.
 gfx = ["dep:bevy", "dep:include_dir", "dep:wgpu"]
+# bevy_egui's contexts drawn through gfx (`egui.rs`): the `dev` debug panel's.
+egui = ["gfx", "dep:bevy_egui"]
 
 [dependencies]
 bevy = { workspace = true, optional = true }
+bevy_egui = { version = "0.39", optional = true }
 # The compiled `.gfx` shader families, embedded so no build-machine path reaches the binary.
 include_dir = { version = "0.7", optional = true }
 # Only its `noop` backend: the stand-in `RenderDevice` of `noop_device.rs`. No GPU, no surface.

@@ -19,12 +19,7 @@ pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
         // machine. Every shader is embedded (`embedded://<crate>/shaders/…`), so no root is read.
         // Quiet wgpu/naga; the ring keeps the last stderr lines for the crash report (`log_ring`).
         .set(bevy::log::LogPlugin {
-            #[cfg(not(feature = "gfx"))]
             filter: "wgpu=error,naga=warn".into(),
-            // With `gfx`, bevy_egui's input looks for a winit window every frame and warns; the
-            // egui panel moves onto gfx with the dev tools.
-            #[cfg(feature = "gfx")]
-            filter: "wgpu=error,naga=warn,bevy_egui::input=error".into(),
             custom_layer: |_| Some(Box::new(crate::log_ring::LogRing)),
             ..default()
         })

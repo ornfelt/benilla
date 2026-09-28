@@ -13,7 +13,9 @@
 //! entities by its own point and bias, as a render-world lane queues its own `Transparent3d`
 //! items (benilla's effect lane). [`DrawList::push_late`] places one after a UI lane's `Mesh2d`
 //! draws, in the order pushed, through a projection of its own: bevy_ui's pass, which runs after
-//! the 2D main pass on its own UI view ([`crate::bevy_ui`]).
+//! the 2D main pass on its own UI view ([`crate::bevy_ui`]). A 2D camera on the window with a
+//! [`GfxOverlays`] frame draws that into its own target and blends it over the scene through its
+//! output blend ([`crate::overlay`], bevy_egui's pass).
 //!
 //! A camera on an image draws into that image's [`crate::target::ImageTarget`]: its main pair, shared by every
 //! camera on the image as bevy shares main textures per target, cleared whole, drawn over the
@@ -48,6 +50,7 @@ use crate::ffi::{self, GfxBuffer, GfxDevice, GfxDeviceBackend, GfxTexture};
 use crate::images::{GfxTextureWrites, GpuImages};
 use crate::material::{GfxAlpha, GfxMaterialDesc, GfxTextureSlot, MAX_TEXTURES};
 use crate::meshes::GpuMeshes;
+use crate::overlay::{GfxOverlays, OverlayPass};
 use crate::pipelines::{Blend, PipelineKey, Pipelines};
 use crate::post::{FfxPost, GfxFfxGlow};
 use crate::shader_loader::ShaderLibrary;
@@ -177,6 +180,8 @@ pub struct GfxRenderer {
     target: Option<SceneTarget>,
     /// The UI lane's byte target, made at the scene target's size while a lane draws.
     ui: Option<UiTarget>,
+    /// The overlay cameras' pass and target ([`crate::overlay`]).
+    overlay: OverlayPass,
     pub(crate) present: Option<Present>,
     /// The screenshot capture texture ([`crate::screenshot`]).
     pub(crate) capture: Option<crate::screenshot::CaptureTarget>,
@@ -210,6 +215,7 @@ impl GfxRenderer {
             pipelines: Pipelines::new(device),
             target: None,
             ui: None,
+            overlay: OverlayPass::new(device),
             present,
             capture: None,
             post: FfxPost::new(device, backend),
@@ -249,6 +255,7 @@ impl GfxRenderer {
             }
             self.target = None;
             self.ui = None;
+            self.overlay.drop_target();
             match SceneTarget::new(self.device, size) {
                 Ok(t) => self.target = Some(t),
                 Err(e) => error!("gfx: {e}"),
@@ -285,6 +292,7 @@ impl Drop for GfxRenderer {
         self.capture = None;
         self.present = None;
         self.ui = None;
+        self.overlay.drop_target();
         self.target = None;
     }
 }
@@ -416,6 +424,10 @@ struct View {
     /// The camera's `Msaa` sample count: above 1, a 3D view draws into its target's multisampled
     /// pair and resolves.
     samples: u32,
+    /// A 2D window camera drawing its [`GfxOverlays`] frame.
+    overlay: bool,
+    /// A window camera's output blend (bevy's `upscaling` over the window).
+    output_blend: Blend,
 }
 
 /// A view's destination.
@@ -483,6 +495,15 @@ enum Cmd {
     },
     /// The UI lane's decode into the scene target, its block at this ring offset.
     UiDecode { offset: u32, viewport: URect },
+    /// An overlay camera: the staged draws `draws` (start, end) into the overlay target, cleared
+    /// with `clear`, through the transform block at `offset`; then its `upscaling` over the frame,
+    /// its block at `composite`.
+    Overlay {
+        draws: (usize, usize),
+        offset: u32,
+        clear: Option<LinearRgba>,
+        composite: u32,
+    },
     Draw {
         pipeline: ffi::GfxPipeline,
         layout: ffi::GfxInputLayout,
@@ -698,6 +719,7 @@ pub(crate) fn draw_views(
     time: Res<Time>,
     primary: Query<Entity, With<PrimaryWindow>>,
     cameras: Query<CameraItem>,
+    overlays: Res<GfxOverlays>,
     mut last_shape: Local<Vec<String>>,
 ) {
     let size = ctx.size();
@@ -749,7 +771,9 @@ pub(crate) fn draw_views(
             continue;
         }
         let ui_lane = lane.filter(|_| !is_3d && image.is_none()).map(|l| l.gamma);
-        if !is_3d && ui_lane.is_none() && image.is_none() {
+        let overlay =
+            !is_3d && ui_lane.is_none() && image.is_none() && overlays.0.contains_key(&entity);
+        if !is_3d && ui_lane.is_none() && image.is_none() && !overlay {
             renderer.skip_once("a 2D camera outside the UI lane");
             continue;
         }
@@ -762,6 +786,18 @@ pub(crate) fn draw_views(
                 (Dest::Image(id), UVec2::new(d.width, d.height), gl)
             }
             None => (Dest::Scene, size, false),
+        };
+        let output_blend = match &camera.output_mode {
+            CameraOutputMode::Write {
+                blend_state: Some(b),
+                ..
+            } => Blend::of_state(b).unwrap_or_else(|| {
+                renderer.skip_once(
+                    "a window camera's output blend other than bevy's (as premultiplied)",
+                );
+                Blend::Premultiplied
+            }),
+            _ => Blend::Replace,
         };
         let output_clear = match &camera.output_mode {
             CameraOutputMode::Write {
@@ -835,6 +871,8 @@ pub(crate) fn draw_views(
             output_clear,
             has_viewport: camera.viewport.is_some(),
             samples: msaa.map_or(1, |m| m.samples()),
+            overlay,
+            output_blend,
         });
     }
     views.sort_by_key(|v| v.order);
@@ -843,6 +881,7 @@ pub(crate) fn draw_views(
         .iter()
         .map(|v| {
             let kind = match (v.ui_lane, v.claimed, v.dest, v.is_3d) {
+                _ if v.overlay => "overlay",
                 (Some(_), ..) => "UI lane",
                 (None, true, ..) => "world, claimed",
                 (None, false, Dest::Image(_), true) => "3D on an image",
@@ -879,6 +918,7 @@ pub(crate) fn draw_views(
         return;
     };
     renderer.images.begin_frame();
+    renderer.overlay.begin_frame();
     let device = renderer.device;
     // SAFETY: the live device and scene target, on the device's thread.
     unsafe {
@@ -910,6 +950,43 @@ pub(crate) fn draw_views(
             continue;
         };
         let view_offset = renderer.ring.push(&view_block(view));
+        if view.overlay {
+            let Some(frame) = overlays.0.get(&view.entity) else {
+                continue;
+            };
+            if renderer.overlay.target(size).is_none() {
+                continue;
+            }
+            let GfxRenderer {
+                overlay,
+                images: gpu_images,
+                ..
+            } = &mut *renderer;
+            let draws = overlay.stage(frame, size.y, |id| {
+                Some(gpu_images.get(id, images.get(id)?)?.texture)
+            });
+            // Nothing drawn composites nothing: the overlay's clear is transparent under a
+            // blending output (egui's camera). Anything else would still clear and composite.
+            if draws.is_empty()
+                && view.output_blend != Blend::Replace
+                && view.output_clear.is_none()
+                && view.clear.is_none_or(|c| c.alpha == 0.0)
+            {
+                continue;
+            }
+            let offset = renderer.ring.push(&frame.transform);
+            let composite = renderer.ring.push(&FfxPost::composite_block(
+                view.output_blend,
+                view.output_clear,
+            ));
+            cmds.push(Cmd::Overlay {
+                draws: (draws.start, draws.end),
+                offset,
+                clear: view.clear,
+                composite,
+            });
+            continue;
+        }
         if let Some(gamma) = view.ui_lane {
             let Some(ui_framebuffer) = ui_framebuffer else {
                 continue;
@@ -1086,6 +1163,8 @@ pub(crate) fn draw_views(
         return;
     }
     let ring = renderer.ring.buffer;
+    let overlay_ready = cmds.iter().any(|c| matches!(c, Cmd::Overlay { .. }))
+        && renderer.overlay.upload(&mut ctx.shaders);
     // A target re-made while recording took its framebuffers with it.
     if let Some(post) = &mut renderer.post {
         for fb in renderer.images.take_dropped() {
@@ -1097,6 +1176,7 @@ pub(crate) fn draw_views(
         post,
         ui,
         images,
+        overlay,
         ..
     } = renderer;
     let Some(target) = target else {
@@ -1108,6 +1188,7 @@ pub(crate) fn draw_views(
         ui.as_ref(),
         images,
         post.as_mut(),
+        overlay_ready.then_some(overlay),
         &mut ctx.shaders,
         ring,
         &cmds,
@@ -1280,6 +1361,7 @@ fn execute(
     ui: Option<&UiTarget>,
     images: &mut GpuImages,
     mut post: Option<&mut FfxPost>,
+    mut overlay: Option<&mut OverlayPass>,
     shaders: &mut ShaderLibrary,
     ring: GfxBuffer,
     cmds: &[Cmd],
@@ -1389,6 +1471,21 @@ fn execute(
                     if let Some(c) = clear {
                         ffi::gfx_dll_clear_color(device, ui.framebuffer, 0, &gfx_color(c));
                     }
+                }
+                bound = ptr::null_mut();
+            }
+            Cmd::Overlay {
+                draws,
+                offset,
+                clear,
+                composite,
+            } => {
+                let Some(overlay) = overlay.as_deref_mut() else {
+                    continue;
+                };
+                let color = overlay.draw(shaders, ring, offset, clear, draws.0..draws.1);
+                if let (Some(color), Some(post)) = (color, post.as_deref_mut()) {
+                    post.composite(shaders, target, color, ring, composite);
                 }
                 bound = ptr::null_mut();
             }
@@ -1631,6 +1728,8 @@ mod tests {
             output_clear: None,
             has_viewport: false,
             samples: 1,
+            overlay: false,
+            output_blend: Blend::Replace,
         };
         assert_eq!(view_block(&view)[60..], [1.0, 2.0, 3.0, 4.0]);
     }

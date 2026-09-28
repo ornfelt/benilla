@@ -12,7 +12,8 @@
 //!
 //! The quarter targets are a quarter of the camera's viewport, as `ffx_glow::prepare_textures`
 //! sizes them, kept per size. [`FfxPost::blit`] is bevy's `upscaling` pass, which copies an image
-//! camera's finished main texture into its image.
+//! camera's finished main texture into its image; [`FfxPost::composite`] is the same pass of a
+//! window camera drawn over the frame (the overlay, [`crate::overlay`]).
 
 use std::collections::HashMap;
 use std::ptr;
@@ -41,13 +42,17 @@ pub struct GfxFfxGlow {
 /// `std140` size of `post_block`: `lane`, `wave`, `texel`.
 pub(crate) const POST_BLOCK: usize = 48;
 
-const PROGRAMS: [&str; 6] = [
+/// `std140` size of `composite_block`: `mode`, `clear`.
+pub(crate) const COMPOSITE_BLOCK: usize = 32;
+
+const PROGRAMS: [&str; 7] = [
     "ffx_downsample",
     "ffx_gauss",
     "ffx_combine",
     "ffx_combine_wave",
     "ui_gamma",
     "blit",
+    "overlay_composite",
 ];
 
 /// One program drawing into one framebuffer.
@@ -185,6 +190,63 @@ impl FfxPost {
             ffi::gfx_dll_bind_samplers(self.device, 0, 1, textures.as_mut_ptr());
             ffi::gfx_dll_draw(self.device, 3, 0);
         }
+    }
+
+    /// The composite's block: `mode.x` the output blend (0 replace, 1 alpha, 2 premultiplied),
+    /// `mode.y` whether the output clear colour `clear` replaces the frame first.
+    pub(crate) fn composite_block(blend: Blend, clear: Option<LinearRgba>) -> [f32; 8] {
+        let mode = match blend {
+            Blend::Replace => 0.0,
+            Blend::Alpha => 1.0,
+            _ => 2.0,
+        };
+        let c = clear.unwrap_or(LinearRgba::NONE);
+        [
+            mode,
+            if clear.is_some() { 1.0 } else { 0.0 },
+            0.0,
+            0.0,
+            c.red,
+            c.green,
+            c.blue,
+            c.alpha,
+        ]
+    }
+
+    /// Bevy's `upscaling` of a window camera: `overlay`, its finished main texture, over the frame
+    /// as the window holds it (clamped and stored as sRGB bytes, as wgpu's swapchain would),
+    /// through the block at `offset` in `ring` ([`Self::composite_block`]), into the scene
+    /// target's other colour, which becomes current.
+    pub(crate) fn composite(
+        &mut self,
+        shaders: &mut ShaderLibrary,
+        scene: &mut SceneTarget,
+        overlay: GfxTexture,
+        ring: GfxBuffer,
+        offset: u32,
+    ) {
+        let out = 1 - scene.current;
+        let fb = scene.framebuffers[out];
+        let Some(pass) = self.pass(shaders, PROGRAMS[6], fb) else {
+            warn_once!("gfx: the overlay composite could not be made; overlays are not shown");
+            return;
+        };
+        let (pipeline, attributes, layout) = (pass.pipeline, pass.attributes, pass.layout);
+        let mut textures = [scene.color(), overlay];
+        let size = scene.size;
+        // SAFETY: every handle is live and made on this device, on its thread; the ring holds the
+        // block at `offset`.
+        unsafe {
+            ffi::gfx_dll_bind_framebuffer(self.device, fb);
+            ffi::gfx_dll_set_viewport(self.device, 0, 0, size.x, size.y, 0.0, 1.0);
+            ffi::gfx_dll_set_scissor(self.device, 0, 0, size.x, size.y);
+            ffi::gfx_dll_bind_pipeline(self.device, pipeline);
+            ffi::gfx_dll_bind_attributes_state(self.device, attributes, layout);
+            ffi::gfx_dll_bind_constant(self.device, 0, ring, COMPOSITE_BLOCK as u32, offset);
+            ffi::gfx_dll_bind_samplers(self.device, 0, 2, textures.as_mut_ptr());
+            ffi::gfx_dll_draw(self.device, 3, 0);
+        }
+        scene.current = out;
     }
 
     /// The UI lane decode's block: `lane.x` = the display gamma.

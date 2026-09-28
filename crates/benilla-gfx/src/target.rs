@@ -283,6 +283,7 @@ pub struct UiTarget {
     device: GfxDevice,
     pub color: GfxTexture,
     pub framebuffer: GfxFramebuffer,
+    pub size: UVec2,
 }
 
 pub const UI_FORMAT: GfxFormat = GfxFormat::R8G8B8A8Srgb;
@@ -295,6 +296,7 @@ impl UiTarget {
             device,
             color,
             framebuffer: ptr::null_mut(),
+            size: size.max(UVec2::ONE),
         };
         target.framebuffer = framebuffer(device, color, ptr::null_mut(), size.max(UVec2::ONE))
             .ok_or("UI framebuffer creation failed")?;

@@ -1,9 +1,9 @@
 # gfx DLL port - progress
 
 Branch: `gfx-dll-backend`. Status: milestones 1-5 done; 6 in flight: image cameras, `Screenshot`
-(the capture harness), window modes and level, the `WOW_GPU_MS` meter and (this run) MSAA run
-through gfx. Left in 6: the `dev` egui panel, `depth_probe` / `phase_probe`, and the window's
-position / decorations / resizable.
+(the capture harness), window modes and level, the `WOW_GPU_MS` meter, MSAA and (this run) the
+`dev` egui panel and the window's position / decorations / resizable run through gfx. Left in 6:
+the `depth_probe` / `phase_probe` instruments.
 
 ## Milestones
 
@@ -15,14 +15,13 @@ position / decorations / resizable.
   `WinitPlugin` + `RenderPlugin`, adds `RenderMainWorldPlugin` and `GfxPlugin`; hooked in
   `benilla-world/src/boot.rs`. Features `benilla/gfx -> benilla-app/gfx -> benilla-world/gfx`, and
   `benilla-worldview/gfx`. `noop_device.rs`: a wgpu `noop` `RenderDevice`/`RenderQueue` for
-  main-world startup code (settled with the maintainer, 2026-09-27). With `gfx`, `boot.rs` raises
-  `bevy_egui::input` to error until milestone 6.
+  main-world startup code (settled with the maintainer, 2026-09-27).
 - [x] 2. **Window and input.** `window.rs` is bevy_winit 0.18.1's window half (keys, text,
   buttons, motion, wheel, cursor, focus, size, scale factor; `Window`, `CursorOptions`,
   `CursorIcon` sync). `WOW_GFX_INPUT_TRACE=<path>` logs every message and window call. Not applied
-  yet, each logged once: `WindowMode` (milestone 6), `window_level`, `position`, `decorations`,
-  `resizable`, focus requests; no runtime scale-factor change, no IME. (`WindowMode` and
-  `window_level` are applied since milestone 6.) `cover_input_wall` skips
+  yet: focus requests (logged once); no runtime scale-factor change, no IME (bevy_egui's IME system
+  is off under gfx, `GfxEguiPlugin`). Mode, level, position, decorations and resizable are applied
+  since milestone 6. `cover_input_wall` skips
   `benilla-gfx/src/{window,input}.rs`: they send the channels, as bevy_winit does.
 - [x] 3. **GPU resources.** `GfxRender` sets: `Pack` (main-world data into data textures),
   `Prepare` (asset and data-texture changes -> device stores, draw list reset), `Collect`
@@ -161,8 +160,25 @@ position / decorations / resizable.
     `view::grant_gfx_msaa` in `PreStartup`, the wgpu `finish` path's `grant`). Not done: bevy's
     `MsaaWriteback` (an MSAA camera that does not clear draws over an empty MS target; logged
     once, none in benilla), and 2D cameras stay single-sampled (none multisamples).
-  - [ ] `depth_probe`, `phase_probe` (render-graph nodes), the `dev` egui panel, the window's
-    `position` / `decorations` / `resizable` (benilla sets none of them away from the default).
+  - [x] The `dev` egui panel (`overlay.rs`, `egui.rs`, `egui.fs/vs.gfxs`,
+    `overlay_composite.fs/vs.gfxs`): a 2D window camera with a `GfxOverlays` frame is an overlay
+    view: its draws (one vertex + index stream, per draw an image, an index range and a scissor)
+    go into the overlay target (8-bit sRGB, the `Camera2d` main texture), cleared with the camera's
+    clear, through a port of bevy_egui 0.39.1's `egui.wgsl` (premultiplied blend); then bevy's
+    `upscaling` over the frame through the camera's output blend, as `overlay_composite`: the
+    scene is read as the sRGB swapchain would hold it (clamped, stored as bytes) and the blend done
+    in the shader into the other ping-pong colour (a hardware blend over the float scene brightened
+    everything above 1.0 under the panel's 12% see-through). `egui.rs` (feature `benilla-gfx/egui`,
+    on from `benilla-app`'s `dev` when `gfx` is on: `benilla-gfx?/egui`) fills the frames from
+    each context camera's `EguiRenderOutput` and `EguiManagedTextures` (already `Assets<Image>`),
+    as bevy_egui's `prepare_egui_render_target_data_system`; paint callbacks and user textures are
+    not drawn (benilla has neither, logged once). `boot.rs`'s gfx-only log filter is gone.
+  - [x] Window position / decorations / resizable (`window.rs::apply_position`, `context.rs`):
+    at creation before the first show and on change, through gfx_benilla's
+    `gfx_dll_window_set_position` / `_center` / `_set_decorations` / `_set_resizable`.
+    `Centered` centres on the window's own monitor (x11: the root window). benilla keeps all three
+    at their defaults; measured on the parity window (`PARITY_WINDOW`, `tools/window_props.sh`).
+  - [ ] `depth_probe`, `phase_probe` (render-graph nodes).
 - [ ] 7. **Backend matrix and `GFX.md`.**
 
 ## GPU safety (read before any live vk or GL run)
@@ -183,7 +199,10 @@ vertex stage read an unwritten descriptor and looped on a garbage light count. S
 
 `crates/benilla-gfx/examples/parity.rs` (`--features gfx`): one scene through `wgpu` or `gfx` in
 the same binary, with a lit cube and a lit metallic, emissive sphere under a camera
-`AmbientLight` (6000); `PARITY_MSAA=2|4|8` multisamples its camera in both paths.
+`AmbientLight` (6000); `PARITY_MSAA=2|4|8` multisamples its camera in both paths. Built with
+`--features egui`, `PARITY_EGUI=1` adds the debug panel's overlay camera and a panel;
+`PARITY_WINDOW=[later,]nodeco,fixed,center,at=<x>:<y>` sets the window's frame, sizing and place
+(`tools/window_props.sh` samples what the WM made of it).
 `OUT=<dir> .claude/skills/gfx-dll-port/tools/parity.sh x11:gl4 x11:vk ...`. Waiting on a build in
 a shell loop: never `pgrep -f` / `pkill -f` a pattern that the waiting command's own line contains
 (it matches itself and never ends, or kills itself).
@@ -219,7 +238,26 @@ a temporary, uncommitted pin in `ffx_glow.rs::sync_wave` served before.
 ## Verified backend pairs
 
 Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx
-`8ecf4eb`), no account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
+`d98d2c0`), no account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
+- This run, egui: the parity scene with `PARITY_EGUI=1` (a debug-panel-styled window: text,
+  monospace, a slider, a checkbox, filled rects, a scroll area clipped by its scissor) against
+  wgpu in the same binary: x11/vk and sdl/vk max 1 (0.000% >1); x11/gl4, x11/gl3, glfw/gles3
+  0.001% >16, none in the panel (the known scene texel-edge pixels). Lavapipe with validation
+  first (only the known teardown leak), llvmpipe gl3 / gles3 no `GL_INVALID`. The full client,
+  `WOW_PANEL=1 WOW_CAPTURE=glue-login` (the panel open over the login portal), both builds' own
+  PNGs: x11/vk, sdl/vk, glfw/vk 0.001% >4 (max 12, the portal's), the panel region max 1;
+  x11/gl4, x11/gl3, sdl/gl4, glfw/gles3 0.002% >4. Input: one synthetic click (`xsend`) on the
+  panel's "Models" header under x11/vk expands it (trace: 2 `MouseButtonInput`); wgpu not driven
+  (winit reads XI2, not the core events `xsend` sends). No GPU reset.
+- This run, window properties (`tools/window_props.sh`, geometry + `_MOTIF_WM_HINTS` +
+  `WM_NORMAL_HINTS` at 1.2 s, or after a change at 1.5 s): native x11 (vk, gl4) matches winit for
+  the default, `nodeco`, `fixed` (the WM floats a min = max window: 640x400+0+22 on both),
+  `nodeco,fixed,at=300:120` (640x400+300+120 on both) and the same applied later (both stay
+  tiled, frame off, min = max the tiled size). `center`: gfx centres (640x400+640+340); winit's
+  window lands where the WM puts it (+0+22). sdl and glfw float, frame and position as asked, but
+  at gfx's grown size (1641x1026, `pick_window_size`) and with the client, not the frame, at the
+  position (see Open problems). Before this run the vk x11, sdl and glfw windows mapped inside
+  `gfx_dll_create_window`, so nothing set "before the first show" reached the WM's first look.
 - This run, MSAA: the parity scene at `PARITY_MSAA=4` against wgpu's 4x: x11/vk and sdl/vk max 1
   (0.000% >1); x11/gl4, x11/gl3, glfw/gles3 0.39% >1: every GL device multisamples (gl4 4x against
   its own 1x 0.93%, wgpu's 0.98%) but on edges wgpu does not match, 53% of diagonal edge pixels
@@ -350,13 +388,28 @@ No GPU reset in any run (`dmesg` count 0).
   colour-and-depth limits, others every power of two up to `max_msaa`, d3d11/d3d12 4). d3d11 and
   d3d12 already created MS textures, keyed PSOs on samples and resolved with
   `ResolveSubresource`: unchanged, not built here.
+  This run: `gfx_dll_window_set_position` / `gfx_dll_window_center` /
+  `gfx_dll_window_set_decorations` / `gfx_dll_window_set_resizable` (optional `gfx_window_def`
+  entries on the x11, sdl, glfw and win32 defs): x11 `WM_NORMAL_HINTS` (USPosition | PPosition,
+  NorthWest gravity; a fixed size as min = max, rewritten on resize), `XMoveWindow` (now loaded),
+  `_MOTIF_WM_HINTS`; sdl `SDL_SetWindowPosition` / `SDL_WINDOWPOS_CENTERED_DISPLAY` /
+  `SDL_SetWindowBordered` / `SDL_SetWindowResizable`; glfw `glfwSetWindowPos` (centre from
+  `window_monitor`'s mode) and the `GLFW_DECORATED` / `GLFW_RESIZABLE` attributes; win32
+  `SetWindowPos` and the caption / sizing style bits around the kept client rect (`restyle`; only
+  the saved windowed style while fullscreen; not built). The vk x11 window is no longer mapped in
+  its create, and sdl (`SDL_WINDOW_HIDDEN`) and glfw (`GLFW_VISIBLE` false) create hidden: all
+  map at `show`, as gl x11 always did.
   Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build && cmake ..
   -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)` -> `bin/Debug_x64/libgfx.so`. `benilla-gfx/build.rs`
-  takes `gfx_benilla` over `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it beside the binary.
+  takes `gfx_benilla` over `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it to `target/debug/`
+  at build time only: after a library rebuild, copy it there by hand. A binary's RUNPATH is
+  `$ORIGIN/..` for an example (`target/debug/examples/parity` loads `target/debug/libgfx.so`);
+  check which copy loads with `ldd`. A stale copy cost this run one wrong measurement.
 - gfx's vk layout keeps its binding-2-is-14 hack (the original C apps' array): a benilla program's
   sampler slots 0..3 are single samplers; slot 2 works through the fill.
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs` (`blit` (the image targets'
-  `upscaling`), `present`, `gizmo_line`,
+  `upscaling`), `present`, `gizmo_line`, `egui`, `overlay_composite` (a window camera's
+  `upscaling`),
   `standard`, `wow_model`, `static_gx`, `terrain`, `wdl`, `liquid`, `sky`, `celestial`, `star`,
   `cloud`, `effect`, `ffx_downsample`, `ffx_gauss`, `ffx_combine`, `ffx_combine_wave`,
   `ui_quad`, `ui_gamma`, `ui_node_gamma`, `ui_slice_gamma`, `ui_add`); HLSL reserves `point`
@@ -374,16 +427,14 @@ No GPU reset in any run (`dmesg` count 0).
 ## Gates (this run)
 
 `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=8 scripts/check.sh` (escalates to `gates.sh`: files under
-`.claude/` are outside the crate map): ALL GATES GREEN on this run's code (1486 s): fmt, clippy,
+`.claude/` are outside the crate map): ALL GATES GREEN on this run's code (1543 s): fmt, clippy,
 workspace tests, no-install tests, doc links, pass-span lint, player build and tests, both
-enforcers; "install or addon corpus not found" (`WoW/Data` under the repo), so data-gated tests
-skipped (30, no addon corpus). `cargo clippy --workspace --all-targets --features benilla/gfx --
--D warnings` green; `cargo test -p benilla-gfx --features gfx` 38 passed, `benilla-world
---features gfx` `view::` 12 passed. (This file's text was edited while the chain ran; the code
-it gated is the code committed.) No `smoke.sh`: no `.probe-identity`. Disk: the gate chain needs
-~25 GB; delete `target/debug/deps` executables (`find target/debug/deps -maxdepth 1 -type f
--executable ! -name '*.so' -delete`, plus `target/debug/examples`) and the A/B binaries under
-`target/ab/` (copies of `target/debug/benilla`, 2.8 GB each) before it.
+enforcers; the install is not under the repo's `WoW/Data` for the gates, so the 30 data-gated
+tests (no addon corpus) skipped. `cargo clippy --workspace --all-targets --features benilla/gfx
+-- -D warnings` green; `cargo test -p benilla-gfx --features egui` 39 passed. No `smoke.sh`: no
+`.probe-identity`. Disk: the gate chain needs ~25 GB; delete `target/debug/deps` executables
+(`find target/debug/deps -maxdepth 1 -type f -executable ! -name '*.so' -delete`, plus
+`target/debug/examples`) and the A/B binaries under `target/ab/` (2.8 GB each) before it.
 
 ## For the maintainer
 
@@ -422,8 +473,19 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
   target is window-sized, the size-carrier's scale is ignored (milestone 6).
 - `GpuImages` keys a sampled variant by (image, sampler): a sub-rect write lands in the image's
   own texture only, so a glyph sheet sampled through another sampler would miss its cells.
-- A `Camera2d` on the window outside the lane (the egui camera) is skipped, and bevy_ui on any
-  camera but a lane is not drawn. A `Screenshot` of anything but the primary window is not taken.
+- A `Camera2d` on the window outside the lane without a `GfxOverlays` frame is skipped (the egui
+  camera is an overlay), and bevy_ui on any camera but a lane is not drawn. A `Screenshot` of
+  anything but the primary window is not taken.
+- egui under gfx: paint callbacks and user textures are not drawn (none in benilla), no IME; a
+  partial font-atlas update re-uploads the whole atlas; the overlay's composite runs a full-window
+  pass whenever the panel is open.
+- sdl, glfw (and win32) grow a new window to 95% of the monitor's work area
+  (`pick_window_size`, the original gfx's choice) where winit creates it at the asked size, so a
+  fixed-size window there is the grown size (1641x1026 for 640x400 here); and they place the client
+  area, not the frame, at a `WindowPosition::At` (the WM shifted `at=300:120` to +279+54). Window
+  size is not a parity target (maintainer); raise it if a fixed window ever matters.
+- `WindowPosition::Centered` ignores its `MonitorSelection` (the window's own monitor; x11 native:
+  the root window, so a multi-monitor desktop centres across all of them).
 - bevy_ui's font atlases are whole-image re-uploads on each `Modified` (a new glyph); cheap on the
   glue screens, unmeasured under heavy bevy_ui text churn.
 - `ui-unitframes`: the chat frame and a small bar sit ~50 px lower in the gfx build (both devices;
@@ -470,12 +532,11 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
 
 ## Next
 
-Milestone 6's rest, in this order: the `dev` egui panel (bevy_egui's output drawn through gfx: its
-meshes and textures from the main world, or `gfx_imgui`); the `depth_probe` / `phase_probe`
-instruments (read-back exists; the depth needs a copy into a colour texture, and under MSAA a
-depth resolve, which vk refuses today); the window's position / decorations / resizable. Then
-milestone 7: every Linux window/device pair to the character screen and into the world, and
-`GFX.md`. With a `.probe-identity` account: A/B the bowstring or fishing line in the client, the
+Milestone 6's last item: the `depth_probe` / `phase_probe` instruments
+(`crates/benilla-app/src/capture/{depth_probe,phase_probe}.rs`, render-graph nodes; read-back
+exists; the depth needs a copy into a colour texture, and under MSAA a depth resolve, which vk
+refuses today). Then milestone 7: every Linux window/device pair to the character screen and into
+the world, and `GFX.md`. With a `.probe-identity` account: A/B the bowstring or fishing line in the client, the
 client at `gxMultisample 4` (the Video dropdown's list against wgpu's), `WOW_LIVE_FPS` with
 `WOW_GPU_MS=1` on both builds, and watch the warm pass on world entry. Lavapipe and llvmpipe first
 for every new program.

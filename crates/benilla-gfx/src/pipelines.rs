@@ -38,6 +38,18 @@ pub enum Blend {
 }
 
 impl Blend {
+    /// The blend of a wgpu `state` this renderer draws: replace, `ALPHA_BLENDING` or
+    /// `PREMULTIPLIED_ALPHA_BLENDING` (a camera's output blend).
+    pub fn of_state(state: &bevy::render::render_resource::BlendState) -> Option<Self> {
+        use bevy::render::render_resource::BlendState;
+        match *state {
+            BlendState::REPLACE => Some(Self::Replace),
+            BlendState::ALPHA_BLENDING => Some(Self::Alpha),
+            BlendState::PREMULTIPLIED_ALPHA_BLENDING => Some(Self::Premultiplied),
+            _ => None,
+        }
+    }
+
     pub fn of(alpha: GfxAlpha) -> Self {
         match alpha {
             GfxAlpha::Opaque | GfxAlpha::Mask(_) => Self::Replace,

@@ -99,6 +99,9 @@ fn open(world: &mut World) -> Result<GfxContext, String> {
         vsync: crate::window::swap_interval(window.present_mode) != 0,
         mode: window.mode,
         level: window.window_level,
+        position: window.position,
+        decorations: window.decorations,
+        resizable: window.resizable,
     };
     GfxContext::open(&spec, backends)
 }

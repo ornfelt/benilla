@@ -1,0 +1,52 @@
+in 0 vec2 uv
+
+out 0 vec4 color
+
+constant 0 composite_block
+{
+	vec4 mode
+	vec4 clear
+}
+
+sampler 0 2d scene_texture
+sampler 1 2d overlay_texture
+
+// Bevy's `upscaling` of a window camera over the window (the overlay, `overlay.rs`): the window
+// holds the frame as the sRGB swapchain would, clamped and stored as bytes, so the scene is read
+// that way (or `clear` where `mode.y` is set, the camera's output clear), and the overlay's
+// finished main texture blended over it as `mode.x` says: 0 replace, 1 `ALPHA_BLENDING`,
+// 2 `PREMULTIPLIED_ALPHA_BLENDING`.
+
+vec3 linear_to_srgb(vec3 c)
+{
+	vec3 cc = max(c, vec3(0.0, 0.0, 0.0));
+	vec3 higher = 1.055 * pow(cc, vec3(1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4)) - vec3(0.055, 0.055, 0.055);
+	vec3 lower = c * 12.92;
+	return mix(higher, lower, step(c, vec3(0.0031308, 0.0031308, 0.0031308)));
+}
+
+vec3 srgb_to_linear(vec3 c)
+{
+	vec3 cc = max(c, vec3(0.0, 0.0, 0.0));
+	vec3 higher = pow((cc + vec3(0.055, 0.055, 0.055)) / 1.055, vec3(2.4, 2.4, 2.4));
+	vec3 lower = c / 12.92;
+	return mix(higher, lower, step(c, vec3(0.04045, 0.04045, 0.04045)));
+}
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	vec4 dst = gfx_sample(scene_texture, gfx_input.uv);
+	if (mode.y != 0.0)
+		dst = clear;
+	vec3 bytes = floor(linear_to_srgb(clamp(dst.rgb, 0.0, 1.0)) * 255.0 + 0.5) / 255.0;
+	dst = vec4(srgb_to_linear(bytes), clamp(dst.a, 0.0, 1.0));
+	vec4 src = gfx_sample(overlay_texture, gfx_input.uv);
+	vec4 outc = src;
+	if (mode.x == 1.0)
+		outc = vec4(src.rgb * src.a + dst.rgb * (1.0 - src.a), src.a + dst.a * (1.0 - src.a));
+	else if (mode.x == 2.0)
+		outc = src + dst * (1.0 - src.a);
+	gfx_output.color = outc;
+	return gfx_output;
+}

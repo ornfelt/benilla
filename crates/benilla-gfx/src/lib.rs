@@ -16,6 +16,8 @@ pub mod bevy_ui;
 pub mod context;
 pub mod data;
 pub mod draw;
+#[cfg(feature = "egui")]
+pub mod egui;
 pub mod events;
 pub mod ffi;
 pub mod gizmos;
@@ -24,6 +26,7 @@ pub mod input;
 pub mod material;
 pub mod meshes;
 pub mod noop_device;
+pub mod overlay;
 pub mod pipelines;
 pub mod post;
 pub mod render;
@@ -42,11 +45,14 @@ use bevy::prelude::*;
 pub use bevy_ui::{GfxBevyUiPlugin, GfxUiMaterialPlugin};
 pub use context::GfxContext;
 pub use data::{DataTexture, GfxDataTextures};
+#[cfg(feature = "egui")]
+pub use egui::GfxEguiPlugin;
 pub use images::{GfxTextureWrite, GfxTextureWrites};
 pub use material::{
     GfxAlpha, GfxDrawState, GfxMaterial2dPlugin, GfxMaterialDesc, GfxMaterialPlugin, GfxProgram,
     GfxTextureSlot,
 };
+pub use overlay::{GfxOverlayDraw, GfxOverlayFrame, GfxOverlays};
 pub use post::GfxFfxGlow;
 pub use render::{GfxRender, GfxRenderSystems};
 pub use runner::GfxMsaaCounts;

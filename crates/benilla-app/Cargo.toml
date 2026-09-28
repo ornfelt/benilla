@@ -12,7 +12,13 @@ workspace = true
 # `dev` compiles in the instruments; the player build (`scripts/gates.sh`) has no defaults.
 default = ["dev"]
 # The asset, format and world crates default `dev` on, so they come in without it, forwarded here.
-dev = ["benilla-assets/dev", "benilla-formats/dev", "benilla-world/dev", "dep:bevy_egui"]
+dev = [
+    "benilla-assets/dev",
+    "benilla-formats/dev",
+    "benilla-world/dev",
+    "dep:bevy_egui",
+    "benilla-gfx?/egui",
+]
 tracy = ["bevy/trace_tracy"]
 # The window, input and rendering through the gfx DLL in place of winit and wgpu (`benilla-gfx`).
 gfx = ["benilla-world/gfx", "dep:benilla-gfx", "benilla-gfx/gfx"]

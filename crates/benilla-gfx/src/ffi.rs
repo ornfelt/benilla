@@ -844,6 +844,14 @@ unsafe extern "C" {
     pub fn gfx_dll_window_set_mode(window: GfxWindow, mode: GfxWindowMode);
     /// gfx_benilla: the window's stacking level.
     pub fn gfx_dll_window_set_level(window: GfxWindow, level: GfxWindowLevel);
+    /// gfx_benilla: the window's outer top-left on the desktop, in physical pixels.
+    pub fn gfx_dll_window_set_position(window: GfxWindow, x: i32, y: i32);
+    /// gfx_benilla: the window centred on its monitor.
+    pub fn gfx_dll_window_center(window: GfxWindow);
+    /// gfx_benilla: the window's frame on or off.
+    pub fn gfx_dll_window_set_decorations(window: GfxWindow, decorations: bool);
+    /// gfx_benilla: whether the user may resize the window.
+    pub fn gfx_dll_window_set_resizable(window: GfxWindow, resizable: bool);
     /// `cursor`: a [`native_cursor`] value.
     pub fn gfx_dll_create_native_cursor(window: GfxWindow, cursor: u32) -> GfxCursor;
     /// RGBA8, top row first.

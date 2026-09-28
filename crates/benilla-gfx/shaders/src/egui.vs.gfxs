@@ -1,0 +1,25 @@
+in 0 vec2 position
+in 1 vec2 uv
+in 2 vec4 tint
+
+out 0 vec4 tint
+out 1 vec2 uv
+
+constant 0 egui_block
+{
+	vec4 transform
+}
+
+// `vs_main` of bevy_egui 0.39.1's `egui.wgsl`: egui's logical-point position through the
+// context's `EguiTransform` (`transform.xy` the scale, `zw` the translation); the colour stays
+// sRGB-encoded premultiplied bytes, interpolated as egui does.
+
+vs_output gfx_main(vs_input gfx_input)
+{
+	vs_output gfx_output;
+	vec2 position = gfx_input.position * transform.xy + transform.zw;
+	gfx_output.gfx_position = vec4(position, 0.0, 1.0);
+	gfx_output.tint = gfx_input.tint;
+	gfx_output.uv = gfx_input.uv;
+	return gfx_output;
+}
