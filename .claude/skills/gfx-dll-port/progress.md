@@ -75,6 +75,15 @@ file is the current state only.
     made after writes warns once (none is today: variants are static-gx and terrain BLPs). The UI
     decode takes the scissored rasterizer on GL.
   - [ ] With a `.probe-identity` account: every pair to the character screen and into the world.
+    A local server now runs on this machine (realm 3724, world 8085, 2026-09-28). The maintainer
+    logged in by hand on the gfx build (`WOW_DATA=$wow_classic_dir/Data cargo run --release -p
+    benilla --features gfx`, gl4): login, the character screen and most of the game work.
+  - [ ] In-game model portraits are not shown with gfx (maintainer, 2026-09-28, gl4, live): the
+    unit-frame portraits the booths render (`benilla-app/src/portrait`, image cameras on the
+    booth layers, the booth light buffers). The glue booth draws, and `ui-*` captures show the
+    player portrait in `ui-questlog`, so compare a live wgpu and gfx session first: which
+    portraits are missing, on which pairs, and what the `gfx: views` line lists for the booth
+    cameras.
   - [ ] Windows: build win32 / d3d11 / d3d12 and run the matrix there.
 
 ## GPU safety (read before any live vk or GL run)
@@ -260,6 +269,10 @@ after player-build and rerun. `cargo clippy --workspace --all-targets --features
 - Log: each `Extract*Plugin` logs "Render app did not exist" once.
 
 ## Next
+
+First: the in-game portraits (milestone 7 above), reproduced live at the reported spot. The
+server is up; that needs a `.probe-identity` account for scripted runs (ask the maintainer if it
+is still missing; never log in as another account).
 
 Milestone 7 continues; what is left needs what this machine lacks. With a `.probe-identity`
 account: `scripts/smoke.sh` on the gfx build, then login to the character screen and into the

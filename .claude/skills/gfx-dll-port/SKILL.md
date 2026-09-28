@@ -128,6 +128,14 @@ The first run writes these into `progress.md` as a checklist, refined by an inve
 - `cargo build -p benilla --features gfx` and a live boot on at least one backend pair
   (`WOW_UNATTENDED=1 WOW_NOSOUND=1`, the account in `.probe-identity`), plus one other pair when
   the run touched backend code. Read the preflight banner first.
+- Check for a local server at the start of each run: `WOW_HOST` (default `localhost`), realm port
+  3724 and world port 8085 (`timeout 2 bash -c 'echo > /dev/tcp/localhost/3724'`). When it is up
+  and `.probe-identity` exists, the live path is the test for anything a capture cannot reach:
+  `scripts/smoke.sh` on the gfx build, login to the character screen and into the world on the
+  pairs the run touched, and the in-game checks `progress.md` lists (portraits, char-select,
+  live frame cost). When it is up and there is no `.probe-identity`, never log in as another
+  account (a login kicks a player, and the client refuses a scripted login on an undeclared
+  account): say so in the status report and ask the maintainer for a probe account.
 - Say in the commit and in `progress.md` what was verified, how the result was judged, and which
   platforms and backends were built and run.
 
