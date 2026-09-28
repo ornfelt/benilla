@@ -203,7 +203,13 @@ fn dropdown_bit_depths() -> (u32, u32) {
 pub struct MsaaSupportPlugin;
 
 impl Plugin for MsaaSupportPlugin {
+    #[cfg(not(feature = "gfx"))]
     fn build(&self, _app: &mut App) {}
+
+    #[cfg(feature = "gfx")]
+    fn build(&self, app: &mut App) {
+        app.add_systems(PreStartup, grant_gfx_msaa);
+    }
 
     fn finish(&self, app: &mut App) {
         // Scoped so the adapter borrow ends before the resource is written.
@@ -214,29 +220,45 @@ impl Plugin for MsaaSupportPlugin {
             Some(adapter) => supported_sample_counts(adapter),
             None => return,
         };
-        // Published whether or not anything clamps: it is the dropdown's whole menu.
-        let (color_bits, depth_bits) = dropdown_bit_depths();
-        app.insert_resource(MsaaFormats {
-            formats: supported
-                .iter()
-                .map(|&s| (color_bits, depth_bits, s))
-                .collect(),
-        });
-        let Some(requested) = app.world().get_resource::<MsaaSetting>().map(|m| m.samples) else {
-            return;
-        };
-        // Through `MsaaFormats::clamp`, the same rule as the app's per-write `gxMultisample`
-        // clamp (`video::on_cvar`).
-        let granted = app.world().resource::<MsaaFormats>().clamp(requested);
-        if granted == requested {
-            debug!("msaa: {requested}x accepted (this GPU offers {supported:?})");
-            return;
-        }
-        warn!(
-            "msaa: this GPU does not offer {requested}x — using {granted}x (it offers {supported:?})"
-        );
-        app.world_mut().resource_mut::<MsaaSetting>().samples = granted;
+        grant(app.world_mut(), &supported);
     }
+}
+
+/// Publishes [`MsaaFormats`] for the counts this GPU offers and clamps [`MsaaSetting`] to them.
+fn grant(world: &mut World, supported: &[u32]) {
+    // Published whether or not anything clamps: it is the dropdown's whole menu.
+    let (color_bits, depth_bits) = dropdown_bit_depths();
+    world.insert_resource(MsaaFormats {
+        formats: supported
+            .iter()
+            .map(|&s| (color_bits, depth_bits, s))
+            .collect(),
+    });
+    let Some(requested) = world.get_resource::<MsaaSetting>().map(|m| m.samples) else {
+        return;
+    };
+    // Through `MsaaFormats::clamp`, the same rule as the app's per-write `gxMultisample`
+    // clamp (`video::on_cvar`).
+    let granted = world.resource::<MsaaFormats>().clamp(requested);
+    if granted == requested {
+        debug!("msaa: {requested}x accepted (this GPU offers {supported:?})");
+        return;
+    }
+    warn!(
+        "msaa: this GPU does not offer {requested}x — using {granted}x (it offers {supported:?})"
+    );
+    world.resource_mut::<MsaaSetting>().samples = granted;
+}
+
+/// [`MsaaSupportPlugin`]'s work under gfx, whose device opens after `finish`: the counts the gfx
+/// device offers, published by its runner before the first update, in `PreStartup`, still before
+/// the CVar load and any camera.
+#[cfg(feature = "gfx")]
+pub fn grant_gfx_msaa(world: &mut World) {
+    let Some(counts) = world.get_resource::<benilla_gfx::GfxMsaaCounts>().cloned() else {
+        return;
+    };
+    grant(world, &counts.0);
 }
 
 /// The world camera's projection far plane in yards. Deviation: the reference projects the

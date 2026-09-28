@@ -1,8 +1,8 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-5 done (gizmos this run); 6 in flight: image
-cameras, `Screenshot` (the capture harness), window modes and level, and the `WOW_GPU_MS` meter run
-through gfx. Left in 6: MSAA, the `dev` egui panel, `depth_probe` / `phase_probe`, and the window's
+Branch: `gfx-dll-backend`. Status: milestones 1-5 done; 6 in flight: image cameras, `Screenshot`
+(the capture harness), window modes and level, the `WOW_GPU_MS` meter and (this run) MSAA run
+through gfx. Left in 6: the `dev` egui panel, `depth_probe` / `phase_probe`, and the window's
 position / decorations / resizable.
 
 ## Milestones
@@ -150,10 +150,17 @@ position / decorations / resizable.
   - [x] `pipe_warm`: nothing to port. Under gfx `PipeWatch` counts 0 created / 0 settled, so the
     cover never waits on it, and the menagerie drawn behind the cover makes gfx's own pipelines
     (made on first draw) as a side effect. Not seen live: it runs only on world entry (a login).
-  - [ ] MSAA: gfx has no multisampled offscreen targets (only the swapchain's `samples`); needs a
-    gfx_benilla multisample texture + resolve on every device. The reference default
-    `gxMultisample` 1 is what gfx draws; `MsaaSupportPlugin` finds no `RenderAdapter` under gfx,
-    so `MsaaFormats` is empty and a requested count passes through unclamped (and undrawn).
+  - [x] MSAA (`target::MsaaTarget`, `draw.rs`): a 3D camera whose `Msaa` is above 1 draws its
+    phases into its target's multisampled colour and depth (`Texture2DMs`, made on first use per
+    `SceneTarget`: the window's scene and every image's main pair), cleared there, then
+    `Cmd::Resolve` resolves the colour into the pair's current colour (bevy's `resolve_target`),
+    which FFXGlow, the blit and the present read; depth is not resolved, as bevy's is not.
+    `TargetClass.samples` keys the pipelines, whose rasterizer multisamples on an MS class.
+    `MsaaFormats` and the `gxMultisample` clamp come from the gfx device's counts
+    (`gfx_dll_get_msaa_counts` -> `GfxMsaaCounts`, inserted by the runner before the first update;
+    `view::grant_gfx_msaa` in `PreStartup`, the wgpu `finish` path's `grant`). Not done: bevy's
+    `MsaaWriteback` (an MSAA camera that does not clear draws over an empty MS target; logged
+    once, none in benilla), and 2D cameras stay single-sampled (none multisamples).
   - [ ] `depth_probe`, `phase_probe` (render-graph nodes), the `dev` egui panel, the window's
     `position` / `decorations` / `resizable` (benilla sets none of them away from the default).
 - [ ] 7. **Backend matrix and `GFX.md`.**
@@ -175,8 +182,11 @@ vertex stage read an unwritten descriptor and looped on a garbage light count. S
 ## Parity instrument
 
 `crates/benilla-gfx/examples/parity.rs` (`--features gfx`): one scene through `wgpu` or `gfx` in
-the same binary; since this run it has a lit cube and a lit metallic, emissive sphere under a
-camera `AmbientLight` (6000). `OUT=<dir> .claude/skills/gfx-dll-port/tools/parity.sh x11:gl4 x11:vk ...`.
+the same binary, with a lit cube and a lit metallic, emissive sphere under a camera
+`AmbientLight` (6000); `PARITY_MSAA=2|4|8` multisamples its camera in both paths.
+`OUT=<dir> .claude/skills/gfx-dll-port/tools/parity.sh x11:gl4 x11:vk ...`. Waiting on a build in
+a shell loop: never `pgrep -f` / `pkill -f` a pattern that the waiting command's own line contains
+(it matches itself and never ends, or kills itself).
 
 The live world A/B: `.claude/skills/gfx-dll-port/tools/world_ab.sh <wgpu-bin> <gfx-bin> x11:vk
 ...` runs `benilla-worldview` (Northshire overview or `WOW_WORLDVIEW_AT`, `WOW_CLOCK` default 720,
@@ -190,8 +200,8 @@ Particles are not deterministic: `fx_series.sh` counts flat-magenta coverage ove
 a backend matches when its counts fall in wgpu's own spread (a second wgpu run as the "gfx" binary
 gives the noise floor in `world_ab.sh` too). Keep the binaries in `target/ab/` (the gfx
 one beside a copy of the current `libgfx.so`: it loads the library from its own directory, so a
-stale copy there runs the old library). `target/ab/worldview-wgpu` is feature-off and still valid
-(this run's feature-off changes are visibility only: `CelestialExt`'s two fields `pub(crate)`). `validate_gfx.py crates/benilla-gfx/shaders`
+stale copy there runs the old library). `target/ab/worldview-wgpu` was deleted for disk at the end of this run: rebuild both binaries
+(feature off, then gfx) before an A/B. `validate_gfx.py crates/benilla-gfx/shaders`
 runs glslangValidator over every family's GL/GLES text and the d3d11 HLSL.
 
 The full client: since this run both builds write their own `WOW_CAPTURE_OUT` (the gfx build
@@ -208,8 +218,20 @@ a temporary, uncommitted pin in `ffx_glow.rs::sync_wave` served before.
 
 ## Verified backend pairs
 
-Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx `ac87edd`), no
-account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
+Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx
+`8ecf4eb`), no account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
+- This run, MSAA: the parity scene at `PARITY_MSAA=4` against wgpu's 4x: x11/vk and sdl/vk max 1
+  (0.000% >1); x11/gl4, x11/gl3, glfw/gles3 0.39% >1: every GL device multisamples (gl4 4x against
+  its own 1x 0.93%, wgpu's 0.98%) but on edges wgpu does not match, 53% of diagonal edge pixels
+  >16 against 10% of axis-aligned ones: GL draws the scene bottom-up, so the standard sample
+  pattern is mirrored in y against the image (open problem). The world (`benilla-worldview`,
+  the Northshire overview, `WOW_MSAA=4`, both builds): x11/vk and sdl/vk 0.017% >1, 0% >16,
+  against a wgpu-vs-wgpu floor of 0.009% and gfx-vs-wgpu at 1x of 0.010%; 4x against 1x changes
+  1.766% (gfx) / 1.771% (wgpu) of the frame, 0.294% / 0.295% >16. x11/gl4 0.93% >1 (the mirrored
+  pattern). Both builds log `msaa: 4x accepted (this GPU offers [1, 2, 4, 8])` (so `MsaaFormats`
+  matches wgpu's on RADV); lavapipe offers `[1, 4]` and runs the world at 4x clean under
+  validation (only the known teardown leak); llvmpipe gl3 / gles3 `[1, 2, 4]`, no `GL_INVALID`.
+  The view log line now names the count (`gfx: views [0 3D, glow, 4x ...]`). No GPU reset.
 - This run, gizmos: the parity scene with gizmo lines (a bowstring-like pair, the fishing line's
   64-segment sagging strip, a translucent line, a gradient line clipped by the near plane) against
   wgpu's capture of the same binary: x11/vk and sdl/vk max 1 (0.000% >1); x11/gl4 and glfw/gles3
@@ -272,7 +294,7 @@ Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes g
 No GPU reset in any run (`dmesg` count 0).
 ## Build notes
 
-- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `ac87edd`). Differs from
+- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `8ecf4eb`). Differs from
   `gfx_dll/gfx`: key events carry `physical` + `scancode`, `GFX_EVENT_RAW_MOTION`, per-window
   `scale_factor`, exported cursor / warp / icon / scale-factor calls, milestone-2 backend fixes,
   (milestone 3) the sRGB formats, GL depth attachment by format, `D32_SFLOAT` as float depth, and
@@ -314,6 +336,20 @@ No GPU reset in any run (`dmesg` count 0).
   and reset before its first render pass (a reset may not sit inside one), d3d11 a timestamp and
   a disjoint query per slot, d3d12 a query heap resolved into a readback buffer, read once the
   writing frame's fence passed (d3d ones not built).
+  This run (MSAA): vk multisampled images (`GFX_TEXTURE_2D_MS`, `levels` the sample count, one
+  mip; `gfx_texture.samples`), a framebuffer's sample count from its attachments, a pipeline made
+  for a target framebuffer rasterizing at that count, and `vk_resolve_framebuffer` for real
+  (colour only: the pass ends, `vkCmdResolveImage`, the destination left shader-readable, the
+  bound framebuffer resumes; `vk_bind_framebuffer` split into `vk_end_render_pass` /
+  `vk_begin_render_pass`; an MS attachment is not handed to `SHADER_READ_ONLY` at a pass end);
+  GL resolves lift the scissor test and open the write masks (`gl_blit_open` / `gl_blit_close`)
+  and gl3/gles3 rebind the framebuffer the device's cache names (their blit bound read/draw
+  itself, so the next `gl_bind_framebuffer` of the cached one was skipped); `GL_MULTISAMPLE` only
+  on desktop GL (`multisample_control`; GLES has no such enum); GL `max_msaa` also bounded by
+  `GL_MAX_DEPTH_TEXTURE_SAMPLES`; `gfx_dll_get_msaa_counts` (a mask of counts; vk from its
+  colour-and-depth limits, others every power of two up to `max_msaa`, d3d11/d3d12 4). d3d11 and
+  d3d12 already created MS textures, keyed PSOs on samples and resolved with
+  `ResolveSubresource`: unchanged, not built here.
   Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build && cmake ..
   -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)` -> `bin/Debug_x64/libgfx.so`. `benilla-gfx/build.rs`
   takes `gfx_benilla` over `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it beside the binary.
@@ -338,12 +374,13 @@ No GPU reset in any run (`dmesg` count 0).
 ## Gates (this run)
 
 `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=8 scripts/check.sh` (escalates to `gates.sh`: files under
-`.claude/` are outside the crate map): ALL GATES GREEN on this run's code (1089 s): fmt, clippy,
+`.claude/` are outside the crate map): ALL GATES GREEN on this run's code (1486 s): fmt, clippy,
 workspace tests, no-install tests, doc links, pass-span lint, player build and tests, both
 enforcers; "install or addon corpus not found" (`WoW/Data` under the repo), so data-gated tests
 skipped (30, no addon corpus). `cargo clippy --workspace --all-targets --features benilla/gfx --
--D warnings` green; `cargo test -p benilla-gfx --features gfx` 37 passed, `benilla-world
---features gfx` `gfx::` 5 passed. No `smoke.sh`: no `.probe-identity`. Disk: the gate chain needs
+-D warnings` green; `cargo test -p benilla-gfx --features gfx` 38 passed, `benilla-world
+--features gfx` `view::` 12 passed. (This file's text was edited while the chain ran; the code
+it gated is the code committed.) No `smoke.sh`: no `.probe-identity`. Disk: the gate chain needs
 ~25 GB; delete `target/debug/deps` executables (`find target/debug/deps -maxdepth 1 -type f
 -executable ! -name '*.so' -delete`, plus `target/debug/examples`) and the A/B binaries under
 `target/ab/` (copies of `target/debug/benilla`, 2.8 GB each) before it.
@@ -404,6 +441,14 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
   off); only a lane viewport smaller than the window would show it.
 - Char-select (a ghost, a pet) is not A/B'd: it needs a login.
 - Log: each `Extract*Plugin` logs "Render app did not exist" once at build.
+- GL MSAA sample pattern: GL draws the scene target bottom-up (the present flips it), so the
+  standard 4x pattern is mirrored in y against the image and diagonal edges resolve differently
+  from vk/wgpu (0.39% of the parity scene, 0.93% of the world overview >1). The same
+  `glClipControl` change as below (drawing top-down on GL) would remove it; gles3 has no clip
+  control.
+- Image-camera MSAA (`Cmd::ImageView` on an image's MS target, the resolve into its main pair)
+  is written and runs through the same code as the window's, but no benilla image camera
+  multisamples (the booths are `Msaa::Off`), so it has not been exercised.
 - GL depth precision: the `2z - w` remap puts reverse-Z into GL's [-1, 1] clip range, so the
   float depth buffer keeps no reverse-Z advantage; coplanar intersections (the waterline, some
   terrain edges) flip single pixels on GL that vk holds. `glClipControl(GL_LOWER_LEFT,
@@ -425,12 +470,12 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
 
 ## Next
 
-Milestone 6's rest, in this order: MSAA (a gfx_benilla multisampled texture and a resolve on every
-device, then `Msaa` on the scene and image targets, the pipelines keyed on the sample count, and
-`MsaaFormats` published from the gfx device so the Video dropdown lists what gfx offers); the `dev`
-egui panel (bevy_egui's output drawn through gfx: its meshes and textures from the main world, or
-`gfx_imgui`); the `depth_probe` / `phase_probe` instruments (read-back exists; the depth needs a
-copy into a colour texture). Then milestone 7: every Linux window/device pair to the character
-screen and into the world, and `GFX.md`. With a `.probe-identity` account: A/B the bowstring or
-fishing line in the client, `WOW_LIVE_FPS` with `WOW_GPU_MS=1` on both builds, and watch the warm
-pass on world entry. Lavapipe and llvmpipe first for every new program.
+Milestone 6's rest, in this order: the `dev` egui panel (bevy_egui's output drawn through gfx: its
+meshes and textures from the main world, or `gfx_imgui`); the `depth_probe` / `phase_probe`
+instruments (read-back exists; the depth needs a copy into a colour texture, and under MSAA a
+depth resolve, which vk refuses today); the window's position / decorations / resizable. Then
+milestone 7: every Linux window/device pair to the character screen and into the world, and
+`GFX.md`. With a `.probe-identity` account: A/B the bowstring or fishing line in the client, the
+client at `gxMultisample 4` (the Video dropdown's list against wgpu's), `WOW_LIVE_FPS` with
+`WOW_GPU_MS=1` on both builds, and watch the warm pass on world entry. Lavapipe and llvmpipe first
+for every new program.

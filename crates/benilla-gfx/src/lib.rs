@@ -49,6 +49,7 @@ pub use material::{
 };
 pub use post::GfxFfxGlow;
 pub use render::{GfxRender, GfxRenderSystems};
+pub use runner::GfxMsaaCounts;
 pub use timer::GfxGpuMeter;
 pub use ui::GfxUiLane;
 

@@ -33,6 +33,62 @@ pub struct SceneTarget {
     pub current: usize,
     pub size: UVec2,
     pub format: GfxFormat,
+    /// The multisampled colour and depth a camera with `Msaa` draws into, made on first use.
+    pub msaa: Option<MsaaTarget>,
+}
+
+/// Bevy's `ViewTarget` sampled texture and its multisampled depth: a camera with `Msaa` draws its
+/// phases here, then resolves the colour into the pair's current colour (`resolve_target`), which
+/// the post passes read. Depth is not resolved, as bevy's is not.
+pub struct MsaaTarget {
+    device: GfxDevice,
+    pub color: GfxTexture,
+    pub depth: GfxTexture,
+    pub framebuffer: GfxFramebuffer,
+    pub samples: u32,
+}
+
+impl MsaaTarget {
+    fn new(
+        device: GfxDevice,
+        format: GfxFormat,
+        depth: bool,
+        size: UVec2,
+        samples: u32,
+    ) -> Result<Self, String> {
+        let mut target = Self {
+            device,
+            color: ptr::null_mut(),
+            depth: ptr::null_mut(),
+            framebuffer: ptr::null_mut(),
+            samples,
+        };
+        target.color = multisample_texture(device, format, size, samples)
+            .ok_or("multisampled colour texture creation failed")?;
+        if depth {
+            target.depth = multisample_texture(device, DEPTH_FORMAT, size, samples)
+                .ok_or("multisampled depth texture creation failed")?;
+        }
+        target.framebuffer = framebuffer(device, target.color, target.depth, size)
+            .ok_or("multisampled framebuffer creation failed")?;
+        Ok(target)
+    }
+}
+
+impl Drop for MsaaTarget {
+    fn drop(&mut self) {
+        // SAFETY: each handle was made on `self.device` and belongs to this target alone.
+        unsafe {
+            if !self.framebuffer.is_null() {
+                ffi::gfx_dll_delete_framebuffer(self.device, self.framebuffer);
+            }
+            for t in [self.color, self.depth] {
+                if !t.is_null() {
+                    ffi::gfx_dll_delete_texture(self.device, t);
+                }
+            }
+        }
+    }
 }
 
 impl SceneTarget {
@@ -57,6 +113,7 @@ impl SceneTarget {
             current: 0,
             size,
             format,
+            msaa: None,
         };
         if depth {
             target.depth = render_texture(device, DEPTH_FORMAT, size)
@@ -85,16 +142,68 @@ impl SceneTarget {
         TargetClass {
             format: self.format,
             depth: !self.depth.is_null(),
+            samples: 1,
+        }
+    }
+
+    /// The multisampled target of `samples` (> 1), re-made when the count changed; `None` when
+    /// gfx refused it. Returns whether a target was re-made, which takes its pipelines' framebuffer.
+    pub(crate) fn ensure_msaa(&mut self, samples: u32) -> (Option<&MsaaTarget>, bool) {
+        let mut made = false;
+        if self.msaa.as_ref().is_none_or(|m| m.samples != samples) {
+            self.msaa = None;
+            made = true;
+            match MsaaTarget::new(
+                self.device,
+                self.format,
+                !self.depth.is_null(),
+                self.size,
+                samples,
+            ) {
+                Ok(m) => self.msaa = Some(m),
+                Err(e) => bevy::log::error!("gfx: {e} ({samples}x)"),
+            }
+        }
+        (self.msaa.as_ref(), made)
+    }
+
+    /// The pipeline class of a draw into the multisampled target of `samples`.
+    pub fn msaa_class(&self, samples: u32) -> TargetClass {
+        TargetClass {
+            samples,
+            ..self.class()
+        }
+    }
+
+    /// Resolves the multisampled colour into the current colour, as bevy's main passes store
+    /// into their `resolve_target`.
+    pub(crate) fn resolve(&self) -> bool {
+        let Some(msaa) = &self.msaa else {
+            return false;
+        };
+        // SAFETY: both framebuffers are live, made on this device, of this target's size and
+        // colour format.
+        unsafe {
+            ffi::gfx_dll_resolve_framebuffer(
+                self.device,
+                msaa.framebuffer,
+                self.framebuffer(),
+                ffi::buffer_bit::COLOR,
+                0,
+                0,
+            )
         }
     }
 }
 
 /// What a pipeline is made against: a vk pipeline is only valid in a render pass of the same
-/// attachment formats, so pipelines are kept per class, never per framebuffer.
+/// attachment formats and sample count, so pipelines are kept per class, never per framebuffer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TargetClass {
     pub format: GfxFormat,
     pub depth: bool,
+    /// 1, or the multisampled target's sample count.
+    pub samples: u32,
 }
 
 /// A camera's `RenderTarget::Image`: the main pair every camera on the image draws into, and the
@@ -228,6 +337,7 @@ pub(crate) fn framebuffer(
 
 impl Drop for SceneTarget {
     fn drop(&mut self) {
+        self.msaa = None;
         // SAFETY: each handle was made on `self.device` and belongs to this target alone.
         unsafe {
             for fb in self.framebuffers {
@@ -276,6 +386,52 @@ pub(crate) fn render_texture(
     let mut texture: GfxTexture = ptr::null_mut();
     // SAFETY: `info` is live for the call.
     unsafe { ffi::gfx_dll_create_texture(device, &info, &mut texture) }.then_some(texture)
+}
+
+/// A multisampled render target of `samples`: never sampled, only drawn and resolved.
+fn multisample_texture(
+    device: GfxDevice,
+    format: GfxFormat,
+    size: UVec2,
+    samples: u32,
+) -> Option<GfxTexture> {
+    let info = ffi::GfxTextureCreateInfo {
+        texture_type: GfxTextureType::Texture2DMs,
+        usage: texture_usage::RENDER_TARGET,
+        format,
+        // gfx's convention: a multisampled texture's `levels` is its sample count.
+        levels: samples as u8,
+        width: size.x,
+        height: size.y,
+        depth: 1,
+        addressing_s: GfxTextureAddressing::Clamp,
+        addressing_t: GfxTextureAddressing::Clamp,
+        addressing_r: GfxTextureAddressing::Clamp,
+        min_filtering: GfxFiltering::Nearest,
+        mag_filtering: GfxFiltering::Nearest,
+        mip_filtering: GfxFiltering::None,
+        anisotropy: 0,
+        border_color: [0.0; 4],
+    };
+    let mut texture: GfxTexture = ptr::null_mut();
+    // SAFETY: `info` is live for the call.
+    unsafe { ffi::gfx_dll_create_texture(device, &info, &mut texture) }.then_some(texture)
+}
+
+/// The sample counts gfx offers a multisampled colour and depth target on `device`, ascending, in
+/// `1..=16` (the `gxMultisample` range).
+pub(crate) fn supported_sample_counts(device: GfxDevice) -> Vec<u32> {
+    // SAFETY: a plain query of the device's capabilities.
+    counts_of(unsafe { ffi::gfx_dll_get_msaa_counts(device) })
+}
+
+/// The counts in a mask of bit `n` for count `n`, within `1..=16`; 1 whatever the mask, as no
+/// device refuses it.
+fn counts_of(mask: u32) -> Vec<u32> {
+    [1, 2, 4, 8, 16]
+        .into_iter()
+        .filter(|&n| n == 1 || mask & n != 0)
+        .collect()
 }
 
 /// `present.{vs,fs}.gfxs` over one screen-covering triangle.
@@ -464,5 +620,20 @@ impl Drop for Present {
                 ffi::gfx_dll_delete_rasterizer_state(device, raster);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sample_counts_are_the_masks_bits_within_the_cvar_range() {
+        // RADV's colour-and-depth mask, then lavapipe's, which skips 2.
+        assert_eq!(counts_of(0b1111), [1, 2, 4, 8]);
+        assert_eq!(counts_of(0b0101), [1, 4]);
+        assert_eq!(counts_of(0x7f), [1, 2, 4, 8, 16]);
+        // A device that reports none still draws single-sampled.
+        assert_eq!(counts_of(0), [1]);
     }
 }

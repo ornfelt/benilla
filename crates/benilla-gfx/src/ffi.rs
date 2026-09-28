@@ -862,6 +862,9 @@ unsafe extern "C" {
     pub fn gfx_dll_set_mouse_position(window: GfxWindow, x: i32, y: i32);
 
     pub fn gfx_dll_get_uniform_buffer_size(device: GfxDevice, buffer_size: u32) -> u32;
+    /// gfx_benilla: the sample counts a `Texture2DMs` colour and depth target takes, bit `n` for
+    /// count `n` (1 always); a `Texture2DMs`'s `levels` is its sample count.
+    pub fn gfx_dll_get_msaa_counts(device: GfxDevice) -> u32;
 
     pub fn gfx_dll_create_shader(
         device: GfxDevice,

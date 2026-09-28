@@ -1,7 +1,7 @@
 //! One fixed scene drawn through either path, for a numeric A/B of the gfx renderer against
 //! wgpu: `parity wgpu` runs Bevy's own winit + wgpu renderer, `parity gfx` swaps in the gfx
 //! DLL as benilla does. The camera is set up as benilla's world camera (`Hdr`,
-//! `Tonemapping::None`), with MSAA off. The scene covers what the gfx renderer draws so far: an
+//! `Tonemapping::None`), with MSAA off (`PARITY_MSAA=2|4|8` turns it on). The scene covers what the gfx renderer draws so far: an
 //! sRGB texture sampled nearest and linear, BC1 blocks, vertex colours, back-face culling, depth,
 //! alpha mask, alpha blend, additive blend, the rasterizer depth bias and gizmo lines (a list and a
 //! strip through the default config: depth-tested, translucent, one clipped by the near plane).
@@ -114,7 +114,12 @@ fn scene(
         Camera3d::default(),
         Hdr,
         Tonemapping::None,
-        Msaa::Off,
+        match std::env::var("PARITY_MSAA").as_deref() {
+            Ok("2") => Msaa::Sample2,
+            Ok("4") => Msaa::Sample4,
+            Ok("8") => Msaa::Sample8,
+            _ => Msaa::Off,
+        },
         Transform::from_xyz(0.0, 2.2, 5.0).looking_at(Vec3::new(0.0, 0.4, 0.0), Vec3::Y),
         // The lit shapes' only light, over the global one, bright enough to read at the default
         // exposure.

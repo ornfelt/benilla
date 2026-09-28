@@ -39,6 +39,7 @@ use bevy::light::{AmbientLight, GlobalAmbientLight};
 use bevy::prelude::*;
 use bevy::render::camera::MipBias;
 use bevy::render::render_resource::Face;
+use bevy::render::view::Msaa;
 use bevy::window::PrimaryWindow;
 
 use crate::context::GfxContext;
@@ -412,6 +413,9 @@ struct View {
     /// An image camera's `upscaling` clear, and whether it set a viewport (the blit's scissor).
     output_clear: Option<LinearRgba>,
     has_viewport: bool,
+    /// The camera's `Msaa` sample count: above 1, a 3D view draws into its target's multisampled
+    /// pair and resolves.
+    samples: u32,
 }
 
 /// A view's destination.
@@ -438,17 +442,23 @@ fn gfx_rect(rect: URect, height: u32, top_down: bool) -> GfxRect {
 
 /// One recorded command, executed after the ring is uploaded.
 enum Cmd {
+    /// A window camera starts on the scene target, or its multisampled target when `msaa`.
     View {
         viewport: URect,
         clear: Option<LinearRgba>,
+        msaa: bool,
     },
-    /// An image camera starts: its main pair bound over `rect`, cleared whole as a wgpu clear op
-    /// clears its attachment (colour when `clear`, depth when the pair has one).
+    /// An image camera starts: its main pair (or its multisampled target when `msaa`) bound over
+    /// `rect`, cleared whole as a wgpu clear op clears its attachment (colour when `clear`, depth
+    /// when the pair has one).
     ImageView {
         image: AssetId<Image>,
         rect: GfxRect,
         clear: Option<LinearRgba>,
+        msaa: bool,
     },
+    /// A multisampled view's end: its colour resolved into `dest`'s current colour.
+    Resolve { dest: Dest },
     /// The camera's FFXGlow chain, its four blocks at these ring offsets, and the wave LUT of an
     /// armed underwater warp; `into_ui` clears the UI lane's target and combines into it. Run on
     /// `dest`'s colour, its quarter targets a quarter of `viewport`.
@@ -669,6 +679,7 @@ type CameraItem = (
     Option<&'static AmbientLight>,
     Option<&'static GfxUiLane>,
     Has<bevy::render::view::Hdr>,
+    Option<&'static Msaa>,
 );
 
 /// Draws every active camera in `order`: the 3D cameras on the primary window into the scene
@@ -722,6 +733,7 @@ pub(crate) fn draw_views(
         ambient,
         lane,
         hdr,
+        msaa,
     ) in &cameras
     {
         if !camera.is_active {
@@ -822,6 +834,7 @@ pub(crate) fn draw_views(
             hdr,
             output_clear,
             has_viewport: camera.viewport.is_some(),
+            samples: msaa.map_or(1, |m| m.samples()),
         });
     }
     views.sort_by_key(|v| v.order);
@@ -837,13 +850,18 @@ pub(crate) fn draw_views(
                 (None, false, Dest::Scene, _) => "3D",
             };
             let glow = if v.glow.is_some() { ", glow" } else { "" };
+            let msaa = if v.is_3d && v.samples > 1 {
+                format!(", {}x", v.samples)
+            } else {
+                String::new()
+            };
             let visible = cameras.get(v.entity).map_or(0, |c| {
                 c.4.iter(std::any::TypeId::of::<Mesh3d>()).count()
                     + c.4.iter(std::any::TypeId::of::<Mesh2d>()).count()
             });
             let early = list.early.iter().filter(|(c, _)| *c == v.entity).count();
             format!(
-                "{} {kind}{glow} {:?}, {} visible, {} early",
+                "{} {kind}{glow}{msaa} {:?}, {} visible, {} early",
                 v.order,
                 v.viewport.size(),
                 visible / 64 * 64,
@@ -857,10 +875,7 @@ pub(crate) fn draw_views(
     }
 
     let renderer = &mut *renderer;
-    let Some((framebuffer, scene_class)) = renderer
-        .target(size)
-        .map(|t| (t.framebuffers[0], t.class()))
-    else {
+    let Some(framebuffer) = renderer.target(size).map(|t| t.framebuffers[0]) else {
         return;
     };
     renderer.images.begin_frame();
@@ -883,6 +898,7 @@ pub(crate) fn draw_views(
     let ui_class = TargetClass {
         format: UI_FORMAT,
         depth: false,
+        samples: 1,
     };
 
     renderer.ring.data.clear();
@@ -964,13 +980,23 @@ pub(crate) fn draw_views(
             });
             continue;
         }
-        let target = match view.dest {
+        // A 2D view keeps to its target's own samples: no 2D camera here multisamples.
+        let samples = if view.is_3d { view.samples } else { 1 };
+        if samples > 1 && view.clear.is_none() {
+            renderer.skip_once("an MSAA camera's writeback of an unclear target (drawn over none)");
+        }
+        let (target, msaa) = match view.dest {
             Dest::Scene => {
+                let Some(scene) = renderer.target.as_mut() else {
+                    continue;
+                };
+                let (target, msaa) = msaa_or_main(scene, samples);
                 cmds.push(Cmd::View {
                     viewport: view.viewport,
                     clear: view.clear,
+                    msaa,
                 });
-                (framebuffer, scene_class)
+                (target, msaa)
             }
             Dest::Image(id) => {
                 let Some(image) = images.get(id) else {
@@ -979,13 +1005,14 @@ pub(crate) fn draw_views(
                 let Some(t) = renderer.images.target(id, image, view.hdr, view.is_3d) else {
                     continue;
                 };
-                let target = (t.main.framebuffers[0], t.main.class());
+                let (target, msaa) = msaa_or_main(&mut t.main, samples);
                 cmds.push(Cmd::ImageView {
                     image: id,
                     rect: gfx_rect(view.viewport, view.target_size.y, view.top_down),
                     clear: view.clear,
+                    msaa,
                 });
-                target
+                (target, msaa)
             }
         };
 
@@ -1014,6 +1041,9 @@ pub(crate) fn draw_views(
                 &images,
                 &mut cmds,
             );
+            if msaa {
+                cmds.push(Cmd::Resolve { dest: view.dest });
+            }
             if let (Some(glow), Some(post)) = (&view.glow, &renderer.post) {
                 let into_ui = view.claimed && ui_framebuffer.is_some();
                 // The scene target's views keep the window's size for their quarter targets.
@@ -1284,11 +1314,19 @@ fn execute(
                 }
                 bound = ptr::null_mut();
             }
-            Cmd::ImageView { image, rect, clear } => {
+            Cmd::ImageView {
+                image,
+                rect,
+                clear,
+                msaa,
+            } => {
                 let Some(t) = images.image_target(image) else {
                     continue;
                 };
-                let (fb, full) = (t.main.framebuffer(), t.main.size);
+                let Some(fb) = bound_framebuffer(&t.main, msaa) else {
+                    continue;
+                };
+                let full = t.main.size;
                 let depth = !t.main.depth.is_null();
                 let (x, y, size) = rect;
                 // SAFETY: the live device and image target, on the device's thread.
@@ -1360,9 +1398,28 @@ fn execute(
                 }
                 bound = ptr::null_mut();
             }
-            Cmd::View { viewport, clear } => {
+            Cmd::Resolve { dest } => {
+                let scene = match dest {
+                    Dest::Scene => Some(&*target),
+                    Dest::Image(id) => images.image_target(id).map(|t| &t.main),
+                };
+                if let Some(scene) = scene {
+                    if !scene.resolve() {
+                        error!("gfx: a multisampled view's resolve failed");
+                    }
+                }
+                // vk resolves between render passes: the pass resumed after it binds nothing.
+                bound = ptr::null_mut();
+            }
+            Cmd::View {
+                viewport,
+                clear,
+                msaa,
+            } => {
                 let size = viewport.size();
-                let framebuffer = target.framebuffer();
+                let Some(framebuffer) = bound_framebuffer(target, msaa) else {
+                    continue;
+                };
                 // SAFETY: the live device and scene target, on the device's thread.
                 unsafe {
                     ffi::gfx_dll_bind_framebuffer(device, framebuffer);
@@ -1419,6 +1476,31 @@ fn execute(
                 }
             }
         }
+    }
+}
+
+/// The framebuffer and class a view of `samples` draws into on `target`: its multisampled target
+/// (made on first use) when `samples` > 1 and gfx made it, else its current colour; and whether it
+/// is the multisampled one.
+fn msaa_or_main(
+    target: &mut SceneTarget,
+    samples: u32,
+) -> ((ffi::GfxFramebuffer, TargetClass), bool) {
+    if samples > 1 {
+        if let (Some(m), _) = target.ensure_msaa(samples) {
+            let fb = m.framebuffer;
+            return ((fb, target.msaa_class(samples)), true);
+        }
+    }
+    ((target.framebuffers[0], target.class()), false)
+}
+
+/// The framebuffer a view starting on `target` binds: its multisampled one when `msaa`.
+fn bound_framebuffer(target: &SceneTarget, msaa: bool) -> Option<ffi::GfxFramebuffer> {
+    if msaa {
+        target.msaa.as_ref().map(|m| m.framebuffer)
+    } else {
+        Some(target.framebuffer())
     }
 }
 
@@ -1548,6 +1630,7 @@ mod tests {
             hdr: true,
             output_clear: None,
             has_viewport: false,
+            samples: 1,
         };
         assert_eq!(view_block(&view)[60..], [1.0, 2.0, 3.0, 4.0]);
     }

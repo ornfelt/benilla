@@ -69,6 +69,9 @@ pub struct PipelineKey {
     pub target: crate::target::TargetClass,
 }
 
+/// A rasterizer state's key: the culled face, the depth bias and whether it multisamples.
+type RasterKey = (Option<Face>, (i32, u32), bool);
+
 /// A program's input layout: stream `i` of the attribute state is input `i`.
 struct Layout {
     layout: GfxInputLayout,
@@ -80,7 +83,7 @@ pub struct Pipelines {
     layouts: HashMap<&'static str, Layout>,
     blend: HashMap<(Blend, bool), ffi::GfxBlendState>,
     depth: HashMap<(bool, bool, GfxCompareFunction), ffi::GfxDepthStencilState>,
-    raster: HashMap<(Option<Face>, (i32, u32)), ffi::GfxRasterizerState>,
+    raster: HashMap<RasterKey, ffi::GfxRasterizerState>,
 }
 
 impl Pipelines {
@@ -146,12 +149,20 @@ impl Pipelines {
             .depth
             .entry((key.depth_test, key.depth_write, compare))
             .or_insert_with(|| depth_state(device, key.depth_test, key.depth_write, compare));
+        // A multisampled target rasterizes per sample, as wgpu's `MultisampleState` of its count.
+        let multisample = key.target.samples > 1;
         let raster = *self
             .raster
-            .entry((key.cull, key.depth_bias))
+            .entry((key.cull, key.depth_bias, multisample))
             .or_insert_with(|| {
                 let (constant, slope) = key.depth_bias;
-                raster_state_biased(device, key.cull, constant, f32::from_bits(slope))
+                raster_state_biased(
+                    device,
+                    key.cull,
+                    constant,
+                    f32::from_bits(slope),
+                    multisample,
+                )
             });
         if blend.is_null() || depth.is_null() || raster.is_null() {
             return None;
@@ -310,7 +321,7 @@ pub(crate) fn depth_state(
 }
 
 pub(crate) fn raster_state(device: GfxDevice, cull: Option<Face>) -> ffi::GfxRasterizerState {
-    raster_state_biased(device, cull, 0, 0.0)
+    raster_state_biased(device, cull, 0, 0.0, false)
 }
 
 /// No culling, the scissor test on: a pass clipped to a rect on every device.
@@ -330,12 +341,14 @@ pub(crate) fn raster_state_scissored(device: GfxDevice) -> ffi::GfxRasterizerSta
 }
 
 /// A rasterizer state with wgpu's depth bias (`DepthBiasState`, unclamped): `constant` in the
-/// depth format's minimal resolvable difference, as wgpu passes it to every backend.
+/// depth format's minimal resolvable difference, as wgpu passes it to every backend; `multisample`
+/// for a multisampled target.
 pub(crate) fn raster_state_biased(
     device: GfxDevice,
     cull: Option<Face>,
     constant: i32,
     slope: f32,
+    multisample: bool,
 ) -> ffi::GfxRasterizerState {
     let info = ffi::GfxRasterizerStateCreateInfo {
         fill_mode: GfxFillMode::Solid,
@@ -347,7 +360,7 @@ pub(crate) fn raster_state_biased(
         front_face: GfxFrontFace::Ccw,
         scissor: false,
         depth_clamp: false,
-        multisample: false,
+        multisample,
     };
     let mut state = ptr::null_mut();
     // SAFETY: `info` is live for the call.
