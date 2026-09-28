@@ -14,7 +14,7 @@ sampler 1 2d blur_tex
 
 // FFXGlow's combine (`fs_combine` of `ffx_glow.wgsl`): lerp(screen, blur, z) + w blur^2 on gamma
 // values, or the FFXDeath grey while a ghost, then the frame's one gamma decode. `lane` = (w, the
-// death gate, the haze z, the dither arm); `texel.w` = the target height, for the top-down pixel
+// death gate, the haze z, the dither arm); `wave.w` = the output's height, for the top-down pixel
 // row the dither hash takes.
 
 vec3 srgb_to_linear(vec3 c)
@@ -47,7 +47,7 @@ fs_output gfx_main(fs_input gfx_input)
 	vec2 uv = gfx_input.uv;
 	vec2 frag = gfx_input.gfx_position.xy;
 	if (texel.z < 0.0)
-		frag.y = texel.w - frag.y;
+		frag.y = wave.w - frag.y;
 	vec4 scene = gfx_sample(in_tex, uv);
 	vec3 sg = clamp(scene.rgb, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
 	vec3 bg = max(gfx_sample(blur_tex, uv).rgb, vec3(0.0, 0.0, 0.0));

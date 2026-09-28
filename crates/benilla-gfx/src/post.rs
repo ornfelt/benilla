@@ -45,7 +45,7 @@ pub(crate) const POST_BLOCK: usize = 48;
 /// `std140` size of `composite_block`: `mode`, `clear`.
 pub(crate) const COMPOSITE_BLOCK: usize = 32;
 
-const PROGRAMS: [&str; 7] = [
+const PROGRAMS: [&str; 8] = [
     "ffx_downsample",
     "ffx_gauss",
     "ffx_combine",
@@ -53,6 +53,7 @@ const PROGRAMS: [&str; 7] = [
     "ui_gamma",
     "blit",
     "overlay_composite",
+    "depth_pack",
 ];
 
 /// One program drawing into one framebuffer.
@@ -66,7 +67,12 @@ struct Pass {
 struct Quarter {
     colors: [GfxTexture; 2],
     framebuffers: [GfxFramebuffer; 2],
+    /// The [`FfxPost::frame`] it last ran in.
+    used: u64,
 }
+
+/// Frames a quarter pair is kept unused before it goes: a viewport or render size left behind.
+const QUARTER_IDLE_FRAMES: u64 = 120;
 
 pub struct FfxPost {
     device: GfxDevice,
@@ -74,10 +80,12 @@ pub struct FfxPost {
     y_sign: f32,
     triangle: GfxBuffer,
     /// Blend, depth, rasterizer; and a rasterizer with the scissor test on (GL tests it only
-    /// where the state says so), for the blit.
+    /// where the state says so), for the blit and the UI decode.
     states: [*mut std::ffi::c_void; 4],
     quarters: HashMap<UVec2, Quarter>,
     passes: HashMap<(&'static str, usize), Pass>,
+    /// Counts [`Self::begin_frame`]s.
+    frame: u64,
 }
 
 impl FfxPost {
@@ -132,12 +140,15 @@ impl FfxPost {
             ],
             quarters: HashMap::new(),
             passes: HashMap::new(),
+            frame: 0,
         })
     }
 
     /// The four passes' blocks for a `size` target whose camera's viewport is `viewport` pixels,
     /// in pass order; `gamma_out` arms the combine's backdrop exit (`wave.z`); `top_down`, a
-    /// target stored top-down on every device (an image target), drops GL's image-down sign.
+    /// target stored top-down on every device (an image target), drops GL's image-down sign;
+    /// `out_height`, the combine's output height (`wave.w`, the dither's top-down row), is the UI
+    /// lane's where the combine grounds it at another render size.
     pub(crate) fn blocks(
         &self,
         glow: &GfxFfxGlow,
@@ -145,16 +156,19 @@ impl FfxPost {
         viewport: UVec2,
         gamma_out: bool,
         top_down: bool,
+        out_height: u32,
     ) -> [[f32; POST_BLOCK / 4]; 4] {
         let q = quarter_size(viewport).as_vec2();
         let full = size.as_vec2();
         let y = if top_down { 1.0 } else { self.y_sign };
         let block = |texel: [f32; 4]| pass_block(glow, texel, gamma_out);
+        let mut combine = block([1.0 / full.x, 1.0 / full.y, y, full.y]);
+        combine[7] = out_height as f32;
         [
             block([1.0 / full.x, 1.0 / full.y, y, full.y]),
             block([1.0 / q.x, 0.0, y, q.y]),
             block([0.0, 1.0 / q.y, y, q.y]),
-            block([1.0 / full.x, 1.0 / full.y, y, full.y]),
+            combine,
         ]
     }
 
@@ -196,6 +210,33 @@ impl FfxPost {
             ffi::gfx_dll_bind_samplers(self.device, 0, 1, textures.as_mut_ptr());
             ffi::gfx_dll_draw(self.device, 3, 0);
         }
+    }
+
+    /// The depth probe's readback on gles3: `depth`'s texels as their float bits into `target`,
+    /// an RGBA8 framebuffer of the same `size`, pixel for pixel.
+    pub(crate) fn pack_depth(
+        &mut self,
+        shaders: &mut ShaderLibrary,
+        depth: GfxTexture,
+        target: GfxFramebuffer,
+        size: UVec2,
+    ) -> bool {
+        let Some(pass) = self.pass(shaders, PROGRAMS[7], target) else {
+            return false;
+        };
+        let (pipeline, attributes, layout) = (pass.pipeline, pass.attributes, pass.layout);
+        let mut textures = [depth];
+        // SAFETY: every handle is live and made on this device, on its thread.
+        unsafe {
+            ffi::gfx_dll_bind_framebuffer(self.device, target);
+            ffi::gfx_dll_set_viewport(self.device, 0, 0, size.x, size.y, 0.0, 1.0);
+            ffi::gfx_dll_set_scissor(self.device, 0, 0, size.x, size.y);
+            ffi::gfx_dll_bind_pipeline(self.device, pipeline);
+            ffi::gfx_dll_bind_attributes_state(self.device, attributes, layout);
+            ffi::gfx_dll_bind_samplers(self.device, 0, 1, textures.as_mut_ptr());
+            ffi::gfx_dll_draw(self.device, 3, 0);
+        }
+        true
     }
 
     /// The composite's block: `mode.x` the output blend (0 replace, 1 alpha, 2 premultiplied),
@@ -297,8 +338,10 @@ impl FfxPost {
 
     /// Runs the chain on `scene`'s current colour; `offsets` are the four blocks in `ring`, `wave`
     /// the LUT of an armed warp, whose combine is its own program so a dry frame pays nothing.
-    /// With `into`, a UI lane's byte target, the combine lands there and the scene target keeps
-    /// its current colour. The quarter targets are a quarter of `viewport`.
+    /// With `into`, a UI lane's byte target and its size, the combine resamples the scene over
+    /// the whole of it (bilinear, as bevy's combine reads a main texture of another render size)
+    /// and the scene target keeps its current colour. The quarter targets are a quarter of
+    /// `viewport`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn run(
         &mut self,
@@ -308,20 +351,21 @@ impl FfxPost {
         ring: GfxBuffer,
         offsets: [u32; 4],
         wave: Option<GfxTexture>,
-        into: Option<GfxFramebuffer>,
+        into: Option<(GfxFramebuffer, UVec2)>,
     ) {
         let size = scene.size;
         let q = quarter_size(viewport);
         if !self.quarters.contains_key(&q) {
-            let Some(quarter) = make_quarter(self.device, q) else {
+            let Some(quarter) = make_quarter(self.device, q, self.frame) else {
                 warn_once!("gfx: an FFXGlow quarter target could not be made");
                 return;
             };
             self.quarters.insert(q, quarter);
         }
-        let Some(quarter) = self.quarters.get(&q) else {
+        let Some(quarter) = self.quarters.get_mut(&q) else {
             return;
         };
+        quarter.used = self.frame;
         let (qc, qf) = (quarter.colors, quarter.framebuffers);
         let out = 1 - scene.current;
         let none = ptr::null_mut();
@@ -335,8 +379,8 @@ impl FfxPost {
             (PROGRAMS[1], qf[0], q, [qc[1], none, none], 1),
             (
                 combine.0,
-                into.unwrap_or(scene.framebuffers[out]),
-                size,
+                into.map_or(scene.framebuffers[out], |(fb, _)| fb),
+                into.map_or(size, |(_, extent)| extent),
                 combine.1,
                 combine.2,
             ),
@@ -371,7 +415,8 @@ impl FfxPost {
         program: &'static str,
         fb: GfxFramebuffer,
     ) -> Option<&Pass> {
-        let scissored = program == PROGRAMS[5];
+        // The blit and the UI decode clip to a viewport; GL tests the scissor only where asked.
+        let scissored = program == PROGRAMS[5] || program == PROGRAMS[4];
         let key = (program, fb as usize);
         if !self.passes.contains_key(&key) {
             let state = shaders.get(program).ok()?.state;
@@ -438,6 +483,43 @@ impl FfxPost {
         }
     }
 
+    /// Starts a frame: the quarter pairs no chain ran in for [`QUARTER_IDLE_FRAMES`] go, with
+    /// their passes.
+    pub(crate) fn begin_frame(&mut self) {
+        self.frame += 1;
+        let frame = self.frame;
+        let idle: Vec<UVec2> = self
+            .quarters
+            .iter()
+            .filter(|(_, q)| frame - q.used > QUARTER_IDLE_FRAMES)
+            .map(|(size, _)| *size)
+            .collect();
+        for size in idle {
+            if let Some(q) = self.quarters.remove(&size) {
+                info!(
+                    "gfx: the FFXGlow quarter pair at {}x{} dropped",
+                    size.x, size.y
+                );
+                for fb in q.framebuffers {
+                    self.forget_framebuffer(fb);
+                }
+                self.delete_quarter(q);
+            }
+        }
+    }
+
+    fn delete_quarter(&self, q: Quarter) {
+        // SAFETY: made on this device, owned by this pass alone.
+        unsafe {
+            for fb in q.framebuffers {
+                ffi::gfx_dll_delete_framebuffer(self.device, fb);
+            }
+            for t in q.colors {
+                ffi::gfx_dll_delete_texture(self.device, t);
+            }
+        }
+    }
+
     /// Drops the passes made for framebuffer `fb`, which is about to go.
     pub(crate) fn forget_framebuffer(&mut self, fb: GfxFramebuffer) {
         let gone: Vec<_> = self
@@ -460,15 +542,7 @@ impl FfxPost {
             self.delete_pass(pass);
         }
         for (_, q) in std::mem::take(&mut self.quarters) {
-            // SAFETY: made on this device, owned by this pass alone.
-            unsafe {
-                for fb in q.framebuffers {
-                    ffi::gfx_dll_delete_framebuffer(self.device, fb);
-                }
-                for t in q.colors {
-                    ffi::gfx_dll_delete_texture(self.device, t);
-                }
-            }
+            self.delete_quarter(q);
         }
     }
 }
@@ -511,10 +585,11 @@ fn quarter_size(size: UVec2) -> UVec2 {
     (size / 4).max(UVec2::splat(8))
 }
 
-fn make_quarter(device: GfxDevice, size: UVec2) -> Option<Quarter> {
+fn make_quarter(device: GfxDevice, size: UVec2, frame: u64) -> Option<Quarter> {
     let mut q = Quarter {
         colors: [ptr::null_mut(); 2],
         framebuffers: [ptr::null_mut(); 2],
+        used: frame,
     };
     for i in 0..2 {
         q.colors[i] = target::render_texture(device, SCENE_FORMAT, size)?;

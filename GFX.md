@@ -83,7 +83,7 @@ WOW_GFX_WINDOW=sdl WOW_GFX_DEVICE=vk cargo run --release -p benilla --features g
 
 | Platform | Window | Device | State |
 |---|---|---|---|
-| Linux (X11) | x11, sdl, glfw | gl3, gl4, gles3, vk | built and run: every pair through the capture scenarios (the login screen, character creation, the Northshire UI scenes) and the worldview against the wgpu build; no live server login yet |
+| Linux (X11) | x11, sdl, glfw | gl3, gl4, gles3, vk | built and run: every pair through the capture scenarios (the login screen, character creation, the Northshire UI scenes), vk and gl4 through every capture scenario, renderScale 0.5 and 2 and the worldview against the wgpu build; no live server login yet |
 | Windows | win32, sdl, glfw | gl3, gl4, gles3, vk; d3d11, d3d12 on win32 | written, not built yet |
 | macOS | | | not built: gfx has no Metal device |
 
@@ -120,8 +120,10 @@ copies, to iterate without a rebuild.
 - Mesa's radeonsi GL rounds the UI target's 8-bit sRGB stores one step differently from RADV and
   wgpu on about 5% of bright values: 1-2 levels over about 2.6% of a frame where the UI lane
   carries the world.
-- The depth probe reads no depth on gles3.
+- On GL, about 100 isolated pixels of a world frame (0.01%) take the other side of a foliage
+  alpha-test edge (leaf against sky) from wgpu and vk.
 - A tiling window manager: winit runs frames at the asked size before the tile arrives, while a
   gfx window is shown at its tile. benilla re-lays out the interface on a size change, so a
   layout that depends on that late pass (the chat dock over the bottom-left action bar) can end
-  in a different place.
+  in a different place, and with it the frames anchored above the bottom bars (bags, the default
+  tooltip).

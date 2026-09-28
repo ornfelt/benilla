@@ -187,6 +187,9 @@ pub struct GfxRenderer {
     pub data: GpuDataTextures,
     pipelines: Pipelines,
     target: Option<SceneTarget>,
+    /// A claimed world view's own target at its render size (`renderScale`), made while one draws
+    /// at a size other than the window's; at the window's size it draws into the scene target.
+    backdrop: Option<SceneTarget>,
     /// The UI lane's byte target, made at the scene target's size while a lane draws.
     ui: Option<UiTarget>,
     /// The overlay cameras' pass and target ([`crate::overlay`]).
@@ -194,7 +197,7 @@ pub struct GfxRenderer {
     pub(crate) present: Option<Present>,
     /// The screenshot capture texture ([`crate::screenshot`]).
     pub(crate) capture: Option<crate::screenshot::CaptureTarget>,
-    post: Option<FfxPost>,
+    pub(crate) post: Option<FfxPost>,
     /// The depth probe's copy target ([`crate::probe`]).
     pub(crate) depth_copy: Option<DepthCopy>,
     ring: UniformRing,
@@ -247,6 +250,7 @@ impl GfxRenderer {
             data: GpuDataTextures::new(device),
             pipelines: Pipelines::new(device),
             target: None,
+            backdrop: None,
             ui: None,
             overlay: OverlayPass::new(device),
             present,
@@ -305,6 +309,38 @@ impl GfxRenderer {
         }
         self.target.as_ref()
     }
+
+    /// The claimed world view's target at `size`, re-made when the render size moved; each frame
+    /// starts on its first colour.
+    fn backdrop_target(&mut self, size: UVec2) -> Option<&mut SceneTarget> {
+        let size = size.max(UVec2::ONE);
+        if self.backdrop.as_ref().is_none_or(|t| t.size != size) {
+            self.drop_backdrop();
+            match SceneTarget::new(self.device, size) {
+                Ok(t) => {
+                    info!("gfx: the world backdrop target at {}x{}", size.x, size.y);
+                    self.backdrop = Some(t);
+                }
+                Err(e) => error!("gfx: the world backdrop target: {e}"),
+            }
+        }
+        let t = self.backdrop.as_mut()?;
+        t.current = 0;
+        Some(t)
+    }
+
+    /// Drops the backdrop target and the post passes made for its framebuffers.
+    fn drop_backdrop(&mut self) {
+        let Some(t) = self.backdrop.take() else {
+            return;
+        };
+        info!("gfx: the world backdrop target dropped");
+        if let Some(post) = &mut self.post {
+            for fb in t.framebuffers {
+                post.forget_framebuffer(fb);
+            }
+        }
+    }
 }
 
 impl GfxRenderer {
@@ -328,6 +364,7 @@ impl Drop for GfxRenderer {
         // Pipelines before the target they were made for; the stores drop themselves.
         self.pipelines.clear();
         self.post = None;
+        self.backdrop = None;
         self.capture = None;
         self.depth_copy = None;
         self.present = None;
@@ -476,6 +513,9 @@ struct View {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Dest {
     Scene,
+    /// The renderer's backdrop target: a claimed world view at a render size other than the
+    /// window's, as bevy sizes its main texture from the size-carrier it targets.
+    Backdrop,
     Image(AssetId<Image>),
 }
 
@@ -497,8 +537,10 @@ pub(crate) fn gfx_rect(rect: URect, height: u32, top_down: bool) -> GfxRect {
 
 /// One recorded command, executed after the ring is uploaded.
 enum Cmd {
-    /// A window camera starts on the scene target, or its multisampled target when `msaa`.
+    /// A window camera starts on `dest` (the scene or the backdrop target), or its multisampled
+    /// target when `msaa`.
     View {
+        dest: Dest,
         viewport: GfxRect,
         clear: Option<LinearRgba>,
         msaa: bool,
@@ -827,7 +869,14 @@ pub(crate) fn draw_views(
                 let d = img.texture_descriptor.size;
                 (Dest::Image(id), UVec2::new(d.width, d.height), gl)
             }
-            None => (Dest::Scene, size, renderer.upper_left),
+            // A claimed world view targets the backdrop's size-carrier: at the window's size it
+            // draws into the scene target, at any other render size into its own.
+            None => match camera.physical_target_size() {
+                Some(render) if claimed && render != size.max(UVec2::ONE) => {
+                    (Dest::Backdrop, render, renderer.upper_left)
+                }
+                _ => (Dest::Scene, size, renderer.upper_left),
+            },
         };
         let output_blend = match &camera.output_mode {
             CameraOutputMode::Write {
@@ -930,7 +979,7 @@ pub(crate) fn draw_views(
                 (None, true, ..) => "world, claimed",
                 (None, false, Dest::Image(_), true) => "3D on an image",
                 (None, false, Dest::Image(_), false) => "2D on an image",
-                (None, false, Dest::Scene, _) => "3D",
+                (None, false, Dest::Scene | Dest::Backdrop, _) => "3D",
             };
             let glow = if v.glow.is_some() { ", glow" } else { "" };
             let msaa = if v.is_3d && v.samples > 1 {
@@ -963,6 +1012,9 @@ pub(crate) fn draw_views(
     };
     renderer.images.begin_frame();
     renderer.overlay.begin_frame();
+    if let Some(post) = &mut renderer.post {
+        post.begin_frame();
+    }
     let device = renderer.device;
     // SAFETY: the live device and scene target, on the device's thread.
     unsafe {
@@ -1107,12 +1159,18 @@ pub(crate) fn draw_views(
             renderer.skip_once("an MSAA camera's writeback of an unclear target (drawn over none)");
         }
         let (target, msaa) = match view.dest {
-            Dest::Scene => {
-                let Some(scene) = renderer.target.as_mut() else {
+            Dest::Scene | Dest::Backdrop => {
+                let scene = if view.dest == Dest::Backdrop {
+                    renderer.backdrop_target(view.target_size)
+                } else {
+                    renderer.target.as_mut()
+                };
+                let Some(scene) = scene else {
                     continue;
                 };
                 let (target, msaa) = msaa_or_main(scene, samples);
                 cmds.push(Cmd::View {
+                    dest: view.dest,
                     viewport: gfx_rect(view.viewport, view.target_size.y, view.top_down),
                     clear: view.clear,
                     msaa,
@@ -1182,12 +1240,15 @@ pub(crate) fn draw_views(
                 // The scene target's views keep the window's size for their quarter targets.
                 let (full, quarter_of) = match view.dest {
                     Dest::Scene => (size.max(UVec2::ONE), size.max(UVec2::ONE)),
-                    Dest::Image(_) => (
+                    Dest::Backdrop | Dest::Image(_) => (
                         view.target_size.max(UVec2::ONE),
                         view.viewport.size().max(UVec2::ONE),
                     ),
                 };
-                let blocks = post.blocks(glow, full, quarter_of, into_ui, view.top_down);
+                // The combine writes the UI lane's target, the window's size, when it grounds it.
+                let out_height = if into_ui { size.y.max(1) } else { full.y };
+                let blocks =
+                    post.blocks(glow, full, quarter_of, into_ui, view.top_down, out_height);
                 let offsets = blocks.map(|b| renderer.ring.push(&b));
                 let wave = glow.wave_lut.and_then(|id| {
                     let image = images.get(id)?;
@@ -1214,6 +1275,10 @@ pub(crate) fn draw_views(
         }
     }
 
+    // Back at the window's size (or no world), the backdrop target goes.
+    if !views.iter().any(|v| v.dest == Dest::Backdrop) {
+        renderer.drop_backdrop();
+    }
     if !renderer.ring.upload() {
         error!("gfx: the uniform ring could not be uploaded");
         return;
@@ -1229,6 +1294,7 @@ pub(crate) fn draw_views(
     }
     let GfxRenderer {
         target,
+        backdrop,
         post,
         ui,
         images,
@@ -1241,9 +1307,12 @@ pub(crate) fn draw_views(
     };
     execute(
         device,
-        target,
+        Targets {
+            scene: target,
+            backdrop: backdrop.as_mut(),
+            images,
+        },
         ui.as_ref(),
-        images,
         post.as_mut(),
         overlay_ready.then_some(overlay),
         depth_copy.as_mut(),
@@ -1451,11 +1520,28 @@ fn view_3d_cmds(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// The targets a view's [`Dest`] names, for the execute.
+struct Targets<'a> {
+    scene: &'a mut SceneTarget,
+    backdrop: Option<&'a mut SceneTarget>,
+    images: &'a mut GpuImages,
+}
+
+impl Targets<'_> {
+    /// `dest`'s main pair: the scene target, the backdrop target, or an image camera's.
+    fn get(&mut self, dest: Dest) -> Option<&mut SceneTarget> {
+        match dest {
+            Dest::Scene => Some(&mut *self.scene),
+            Dest::Backdrop => self.backdrop.as_deref_mut(),
+            Dest::Image(id) => self.images.image_target(id).map(|t| &mut t.main),
+        }
+    }
+}
+
 fn execute(
     device: GfxDevice,
-    target: &mut SceneTarget,
+    mut targets: Targets,
     ui: Option<&UiTarget>,
-    images: &mut GpuImages,
     mut post: Option<&mut FfxPost>,
     mut overlay: Option<&mut OverlayPass>,
     mut depth_copy: Option<&mut DepthCopy>,
@@ -1467,12 +1553,7 @@ fn execute(
     for cmd in cmds {
         match *cmd {
             Cmd::DepthCopy { dest, tag } => {
-                let src = match dest {
-                    Dest::Scene => target.depth,
-                    Dest::Image(id) => images
-                        .image_target(id)
-                        .map_or(ptr::null_mut(), |t| t.main.depth),
-                };
+                let src = targets.get(dest).map_or(ptr::null_mut(), |t| t.depth);
                 let Some(copy) = depth_copy.as_deref_mut().filter(|_| !src.is_null()) else {
                     continue;
                 };
@@ -1492,8 +1573,8 @@ fn execute(
                 wave,
                 into_ui,
             } => {
-                let into = ui.filter(|_| into_ui).map(|u| u.framebuffer);
-                if let Some(fb) = into {
+                let into = ui.filter(|_| into_ui).map(|u| (u.framebuffer, u.size));
+                if let Some((fb, _)) = into {
                     // Bound first: a clear lands in the bound pass on vk.
                     // SAFETY: the live device and UI target, on the device's thread.
                     unsafe {
@@ -1502,11 +1583,7 @@ fn execute(
                     }
                 }
                 if let Some(post) = post.as_deref_mut() {
-                    let scene = match dest {
-                        Dest::Scene => Some(&mut *target),
-                        Dest::Image(id) => images.image_target(id).map(|t| &mut t.main),
-                    };
-                    if let Some(scene) = scene {
+                    if let Some(scene) = targets.get(dest) {
                         post.run(shaders, scene, viewport, ring, offsets, wave, into);
                     }
                 }
@@ -1518,7 +1595,7 @@ fn execute(
                 clear,
                 msaa,
             } => {
-                let Some(t) = images.image_target(image) else {
+                let Some(t) = targets.images.image_target(image) else {
                     continue;
                 };
                 let Some(fb) = bound_framebuffer(&t.main, msaa) else {
@@ -1549,7 +1626,7 @@ fn execute(
                 scissor,
                 clear,
             } => {
-                let Some(t) = images.image_target(image) else {
+                let Some(t) = targets.images.image_target(image) else {
                     continue;
                 };
                 let clear = if t.written { None } else { clear };
@@ -1587,22 +1664,18 @@ fn execute(
                 };
                 let color = overlay.draw(shaders, ring, offset, clear, draws.0..draws.1);
                 if let (Some(color), Some(post)) = (color, post.as_deref_mut()) {
-                    post.composite(shaders, target, color, ring, composite);
+                    post.composite(shaders, targets.scene, color, ring, composite);
                 }
                 bound = ptr::null_mut();
             }
             Cmd::UiDecode { offset, viewport } => {
                 if let (Some(ui), Some(post)) = (ui, post.as_deref_mut()) {
-                    post.decode(shaders, target, ui.color, ring, offset, viewport);
+                    post.decode(shaders, targets.scene, ui.color, ring, offset, viewport);
                 }
                 bound = ptr::null_mut();
             }
             Cmd::Resolve { dest } => {
-                let scene = match dest {
-                    Dest::Scene => Some(&*target),
-                    Dest::Image(id) => images.image_target(id).map(|t| &t.main),
-                };
-                if let Some(scene) = scene {
+                if let Some(scene) = targets.get(dest) {
                     if !scene.resolve() {
                         error!("gfx: a multisampled view's resolve failed");
                     }
@@ -1611,12 +1684,14 @@ fn execute(
                 bound = ptr::null_mut();
             }
             Cmd::View {
+                dest,
                 viewport,
                 clear,
                 msaa,
             } => {
                 let (x, y, size) = viewport;
-                let Some(framebuffer) = bound_framebuffer(target, msaa) else {
+                let Some(framebuffer) = targets.get(dest).and_then(|t| bound_framebuffer(t, msaa))
+                else {
                     continue;
                 };
                 // SAFETY: the live device and scene target, on the device's thread.

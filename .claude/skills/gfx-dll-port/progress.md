@@ -1,9 +1,9 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-6 done; milestone 7 in flight (this run: GL
-draws top-down through clip control's upper-left origin, vk offscreen passes load their
-attachments, the vk teardown leak, the worldview A/B on every Linux pair). The history of each piece is in
-`git log main..HEAD`; this file is the current state only.
+Branch: `gfx-dll-backend`. Status: milestones 1-6 done; milestone 7 in flight (this run: the
+world at `renderScale` other than 1, the capture sweep of every scenario, the gles3 depth probe,
+a refused window size reconciled). The history of each piece is in `git log main..HEAD`; this
+file is the current state only.
 
 ## Milestones
 
@@ -57,6 +57,23 @@ attachments, the vk teardown leak, the worldview A/B on every Linux pair). The h
     `CompressedImageFormatSupport`; gles3 had decoded BLPs on the CPU (`texpresso`), 5.7% of
     pixels 2 levels off.
   - [x] `GFX.md`; refresh its pair table when Windows is built.
+  - [x] `renderScale` (this run): a claimed world view whose target (the backdrop size-carrier,
+    `camera.physical_target_size()`) is not the window's size draws into `GfxRenderer::backdrop`,
+    a scene target at the render size (`Dest::Backdrop`), made, re-made and dropped with the
+    size; its glow runs at that size and the combine resamples it over the whole UI lane
+    (bilinear, as bevy's combine reads the other-size main texture), the combine's output height
+    in `wave.w` for the dither row. At the window's size the claimed view draws into the scene
+    target as before (vk images byte-identical to the last run). FFXGlow quarter pairs idle for
+    120 frames are dropped (`FfxPost::begin_frame`).
+  - [x] Every capture scenario A/B'd (this run, table below).
+  - [x] The depth probe on gles3 (this run): `depth_pack.{vs,fs}.gfxs` writes each depth texel's
+    float bits into RGBA8 (`FfxPost::pack_depth`), which gles3 reads; `probe::read_packed`.
+  - [x] A window size the WM refuses (this run): a size request with no resize back in 30
+    frames sets `Window` to the size the window kept, with `WindowResized`
+    (`window::kept_size`); `Window` had kept the refused size and the UI laid out for it.
+  - [x] Sub-rect writes reach every sampler variant of the image (`GpuImages::write`); a variant
+    made after writes warns once (none is today: variants are static-gx and terrain BLPs). The UI
+    decode takes the scissored rasterizer on GL.
   - [ ] With a `.probe-identity` account: every pair to the character screen and into the world.
   - [ ] Windows: build win32 / d3d11 / d3d12 and run the matrix there.
 
@@ -90,44 +107,55 @@ killed the maintainer's X session (a gfx vk descriptor bug, fixed). Since then:
   the current `libgfx.so` (it loads the one in its own directory). Both builds write
   `target/debug/benilla`: build one, copy it, build the other. Kill stray `import`s before a run;
   never `pkill -f` a pattern the killing command's own line contains.
+- `tools/sweep.sh` (`WGPU`, `GFX`, `SCEN`; pairs as `probe_ab.sh`): every capture scenario, each
+  diff also masked to outside the chat dock (`tools/rectmask.py`), validation / GL / panic lines
+  counted. `tools/type_run.sh`: console lines typed into benilla's own window mid-capture
+  (`xsend`; this Swedish layout's shifted `/`); both builds at one `WOW_CAPTURE_AGE`. Never run
+  two windowed captures at once: the tiling WM splits the screen and the sizes stop matching.
 
 ## Verified this run
 
-Client matrix (`OUT=target/ab/ul-<scenario>` GL, `ld-<scenario>` vk; wgpu vs gfx, % of pixels
-off by >1 / >4; x11, sdl and glfw identical per device):
+- `renderScale`, reproduced first: `ui-bag` with `WOW_RENDER_SCALE=0.5` had the world in the
+  top-left quarter (68% of pixels off by >1 against wgpu), 2.0 a quarter of it (68%). After (% of
+  pixels off by >1 / >4; world at 510x507 or 2038x2028 in a 1019x1014 window, from the views
+  line): 0.5 x11 vk 0.050 / 0.009, x11 gl4 1.97 / 0.005, lavapipe 15.0 / 0.125 (its usual level),
+  llvmpipe gl3 15.0 / 0.126, the bottom-up fallback (`WOW_GFX_DEPTH_REMAP=1`) gl4 2.85 / 0.009;
+  2.0 x11 vk 0.041 / 0.011, x11 gl4, sdl gl3, glfw gles3 2.84 / 0.010. Scale 1: vk identical to
+  the last run's image (max 0), gl4 2.577 / 0.004 as before. Live: `/console renderScale 1` then
+  `2` typed into benilla's own window (`xsend`) from 0.5 on both builds (`WOW_CAPTURE_AGE=1200`):
+  the backdrop made at 510x507, dropped at 1, made at 2038x2028, the 127x126 / 254x253 quarter
+  pairs dropped; the final frame vk 0.041 / 0.011, gl4 2.843 / 0.010 against wgpu's; lavapipe
+  with validation silent through the switches.
+- The capture sweep: all 34 other scenarios (`WOW_CAPTURE=list`'s four world ones, glue-realmlist
+  and every `ui-*` fixture) on lavapipe with validation (no message), then x11 vk and x11 gl4 (no
+  GPU reset). Outside the chat dock (a rect mask 0,680-600,960): every scenario <= 0.02% >4 on vk
+  and gl4, but three whose frames anchor to the moved dock (bags in `ui-cooldown`, the "Chat
+  Options" tooltip in `ui-chat-tabhover`, the default tooltip in `ui-tooltip-world`), and
+  `ui-questlog` (below). Inside the dock, ~6.1% of pixels >16 in most `ui-*` fixtures: the known
+  late-WM-resize layout (wgpu logs the late `render scale ... 1019x1014` resize, gfx none).
+- `ui-questlog`: 0.705% >4, only the two quest title rows (41-384 x 225-274): wgpu draws the
+  difficulty colours and the selection highlight, gfx both titles grey ("trivial"). Deterministic
+  per build (repeat runs 0.000%), identical on x11, sdl and glfw; not drawing but Lua state
+  (`QuestLog_Update`'s colours). A typed `/script QuestLog_Update()` did not change it, but the
+  line was not shown to run. Open.
+- gles3 depth probe (`ui-bag`, five pixels): llvmpipe and radeonsi within 4e-6 relative of wgpu
+  at every pixel (as gl4 was), no `GL_INVALID`.
+- Refused size: `WOW_RESIZE=640x480` on the gfx build logs `the window kept 1019x1014 against a
+  request for 1066x800`, and the frame is at its no-resize numbers (it had laid the UI out for
+  1066x800 in a 1019x1014 window). winit's window got 1066x800 under the same request.
+- GL worldview seam pixels, characterised: the ~100 GL-only pixels >16 are isolated foliage
+  alpha-test edges over sky (leaf on one path, sky on the other); vk matches wgpu there.
+- FPS journal with `WOW_NOVSYNC=1` in `water-noon`: the capture paces both builds at 16.67 ms, so
+  no frame-cost comparison came of it.
 
-| scenario | vk | gl4 = gl3 = gles3 | lavapipe vk |
-|---|---|---|---|
-| glue-login | 0.007 / 0.002 | 0.078 / 0.003 (was 0.076) | 6.46 / 0.024 |
-| glue-charcreate | 0.412 / 0.013 | 0.492 / 0.013 (was 0.491) | 16.3 / 0.119 |
-| ui-bag | 0.048 / 0.003 | 2.577 / 0.004 (was 2.600) | 18.7 / 0.317 |
-| ui-char | 0.065 / 0.002 | 2.615 / 0.003 (was 2.642) | 20.0 / 0.553 |
+Linux (Debian 13, X11 :0, awesome, Radeon 680M / Mesa 25.0.7), `gfx_benilla` unchanged this run
+(`1cde22d`), no account (no `.probe-identity`, no realm on :3724), `WOW_UNATTENDED=1
+WOW_NOSOUND=1`. No GPU reset (dmesg count 0).
 
-- vk after the load-op change: every image identical to the run before it (0.000% differ) on x11,
-  sdl, glfw and lavapipe; validation clean, the teardown leak gone after the allocator fix
-  (`lk-ui-bag`, parity 4x on lavapipe: 0 messages).
-- GL upper-left on llvmpipe gl3 / gles3 (`glue-login` 6.49% / 0.024%, as before) and radeonsi;
-  no `GL_INVALID`. `WOW_GFX_DEPTH_REMAP=1` (the bottom-up fallback) on the parity scene
-  and `ui-bag` gl3 at the old numbers (0.002% >1; 2.60% / 0.005%).
-- Parity scene (`PARITY_MSAA=4`): x11 gl4 0.004% >1 against wgpu (was 0.39%, the mirrored
-  sample pattern); vk 0.000%; no MSAA gl4 0.002%.
-- Worldview (`tools/world_ab.sh`, Northshire overview, noon, 1019x1014, `target/ab/wv`): every
-  pair; vk x11 / sdl / glfw 0.010 / 0.017 / 0.012% >1, <= 0.004% >4; every GL pair 0.033-0.037%
-  >1, 0.018-0.020% >4, 0.010% >16 (about 100 isolated pixels, some sky through a seam); the
-  bottom-up fallback was worse there (0.015% >16); wgpu against itself 2 pixels >16.
-- The GL `ui-bag` 2.6%: exactly +-2 in one channel (15934 at -2, 11938 at +2), none below 64,
-  about 5% of values 128-224: one step of the UI lane's 8-bit sRGB store (a step is ~2 output
-  levels there, ~1 at 64). Not the combine's dither (its arm is 0 in these scenes: the image did
-  not change with it forced off). RADV rounds as wgpu; radeonsi GL does not. Driver rounding.
-
-Linux (Debian 13, X11 :0, awesome, Radeon 680M / Mesa 25.0.7), `gfx_benilla` Debug, no account
-(no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`. No GPU reset (dmesg count 0).
-
-Earlier runs (git): the `ui-unitframes` dock is benilla re-laying out on a late WM resize
-(`WOW_RESIZE`), not gfx; gles3 BC from the device's format query; GL clip depth within 4e-6 of
-vk in the client's `WOW_DEPTH` lines; all twelve Linux pairs on the parity scene; every world
-material and the UI at max 1 on vk; MSAA, egui, window modes and properties, `WOW_GPU_MS`.
-Windows (win32, d3d11, d3d12) never built; the d3d11 HLSL of every shader passes glslang.
+Earlier runs (git): GL top-down through clip control; vk passes load their attachments; every
+Linux pair through glue-login, glue-charcreate, ui-bag, ui-char, ui-unitframes and the worldview;
+gles3 BC; GL clip depth; MSAA, egui, window modes and properties, `WOW_GPU_MS`. Windows (win32,
+d3d11, d3d12) never built; the d3d11 HLSL of every shader passes glslang.
 
 ## Build notes
 
@@ -147,7 +175,7 @@ Windows (win32, d3d11, d3d12) never built; the d3d11 HLSL of every shader passes
   version or extension says it exists; vk, d3d11, d3d12 already [0, 1]; d3d ones not built);
   `gfx_dll_device_supports_format` (GL / GLES by the S3TC, S3TC-sRGB, `EXT_texture_sRGB` and RGTC
   extensions, vk by `vkGetPhysicalDeviceFormatProperties`, d3d11 / d3d12 true; d3d not built);
-  and (this run) `gfx_dll_set_clip_upper_left` (gl3/gl4/gles3 only, the same lookup with
+  and `gfx_dll_set_clip_upper_left` (gl3/gl4/gles3 only, the same lookup with
   `GL_UPPER_LEFT`; NULL elsewhere, so false), vk offscreen render passes loading from the
   attachment layouts with the hand-over in `vk_begin_render_pass`, and `vmaDestroyAllocator` in
   `vk_dtr` (gfx repo `git log` for the hashes).
@@ -159,16 +187,18 @@ Windows (win32, d3d11, d3d12) never built; the d3d11 HLSL of every shader passes
   output, and `include` works only in the header (programs sharing a stage carry copies:
   `device_clip` is in every 3D vertex program).
 - Build: `CARGO_INCREMENTAL=0 cargo build -p benilla --features gfx`; incremental caches filled the
-  disk before. Disk: ~15-35 GB free; delete `target/debug/deps` files older than the round
+  disk before. Old test executables in `target/debug/deps` (any executable file without an
+  extension) are safe to delete for space: this run freed 48 GB that way. Disk: ~15-35 GB free; delete `target/debug/deps` files older than the round
   (`find target/debug/deps -maxdepth 1 -type f -mmin +180 -delete`) before the gates.
 
 ## Gates (this run)
 
-`CARGO_INCREMENTAL=0 scripts/check.sh` (escalates to `gates.sh`: `.claude/` is outside the crate
-map; all gates ok, ~2280 s; the first try ran out of disk), `cargo clippy --workspace
---all-targets --features benilla/gfx -- -D warnings`, `cargo test -p benilla-gfx --features egui`
-(40 passed). No `smoke.sh`: no `.probe-identity`. Disk after the gates: 5.9 GB free (the
-workspace `target/` is ~95 GB; `target/debug/deps` holds stale hashes of earlier runs).
+`CARGO_INCREMENTAL=0 scripts/check.sh` (escalates to `gates.sh`): all gates ok (fmt, clippy,
+test 161 s, test-no-install, doc-links, pass-span-lint, player-build, player-tests 287 s,
+enforcer, enforcer-no-install); the first try was stopped by Claude Code under memory pressure
+after player-build and rerun. `cargo clippy --workspace --all-targets --features benilla/gfx --
+-D warnings` clean; `cargo test -p benilla-gfx --features gfx` 41 passed. No `smoke.sh`: no
+`.probe-identity`. Install found, addon corpus absent (corpus tests skip).
 
 ## For the maintainer
 
@@ -178,7 +208,9 @@ workspace `target/` is ~95 GB; `target/debug/deps` holds stale hashes of earlier
   an early one (gfx) end 40 UI units apart; on a non-tiling WM wgpu would land where gfx does.
   Measured under "Verified this run". A benilla UI question (1.12 re-docks from the bars'
   OnShow / OnHide), not a gfx one.
-- Window size is not a parity target: the WM may tile a gfx window.
+- Window size is not a parity target: the WM may tile a gfx window. Under a size request this WM
+  let winit's window take 1066x800 and kept the gfx window at its tile; gfx now tells bevy the
+  size it kept (it had kept the refused size).
 - Upstream candidates in `gfx_benilla` that are gfx bugs, not benilla needs: the x11 raw event
   twice under a grab, the x11 release-as-repeat heuristic, glfw's no-op `set_mouse_position`,
   sdl's late X1/X2, win32's screen-coordinate `set_mouse_position`, the GL depth attachment and
@@ -186,6 +218,9 @@ workspace `target/` is ~95 GB; `target/debug/deps` holds stale hashes of earlier
   under the write masks, the vk depth barriers, vk passes loading their attachments, the VMA
   allocator never destroyed; API additions: depth bias, `read_texture`, `copy_texture`,
   `set_depth_zero_to_one`, `set_clip_upper_left`.
+- The chat frame is a near-white opaque box (255,250,255) in every `ui-*` capture, on wgpu and
+  gfx alike; live benilla draws it dark and translucent (the stock look is black, alpha 0). A
+  capture-fixture question, not gfx; not traced.
 - The `shaders_gles3_dark` family is compiled without the Windows-only gamma hack.
 - The install: `$wow_classic_dir` = `/home/jonas/Downloads/wow_classic` (build 5875), through the
   gitignored `WoW` link or `WOW_DATA`; read-only.
@@ -200,21 +235,26 @@ workspace `target/` is ~95 GB; `target/debug/deps` holds stale hashes of earlier
 - radeonsi GL's sRGB store rounding in the UI lane (measured, above): 1-2 levels over ~2.6% of a
   frame where the lane carries the world. Driver behaviour; matching it would mean encoding in
   the shader into a UNORM target, which breaks the lane's linear blending.
-- About 100 isolated GL pixels in the worldview differ by >16 (some sky through a seam), 0.010%
-  of the frame against vk's 0.001%; not traced.
-- The depth probe reads no depth on gles3 (a copy into colour through a shader would).
+- About 100 isolated GL pixels in the worldview differ by >16 (0.010% against vk's 0.001%):
+  foliage alpha-test edges over sky decided the other way (radeonsi's GL compile at the
+  threshold); not traced further.
+- `ui-questlog`'s title colours (above): Lua state that differs per build; next, log
+  `UnitLevel("player")` and the quest levels at each `QuestLog_Update` in both builds.
 - The vk swapchain pass loads `DONT_CARE`: the present covers it whole, but a second pass on the
   window in one frame would lose the first.
-- Not A/B'd for want of a scenario or a login: the UI model tiles, the minimap composite, the
-  tile cell clip, char-select, depth-biased decals in the client, image-camera MSAA, `WOW_GPU_MS`
-  against the wgpu meter, `AlwaysOnBottom` (awesome keeps no BELOW for either build).
+- Not A/B'd for want of a login: char-select, depth-biased decals in the client, image-camera
+  MSAA, `WOW_GPU_MS` against the wgpu meter, `AlwaysOnBottom` (awesome keeps no BELOW for either
+  build).
 - Costs unmeasured in a busy scene: static-gx's per-run early draws, the effect lane's whole
-  stream upload, bevy_ui atlas re-uploads, egui's whole-atlas re-upload.
-- Filler streams are per mesh; booth data textures and FFXGlow quarter targets are never dropped.
-- The effect lane's clip has no `MAX_CLIP_ROWS` cap; the UI lane's decode scissor is not applied
-  on GL; the UI lane assumes `RenderScale` 1.0; a sampled image variant misses sub-rect writes;
-  a `Camera2d` on the window outside the lane without overlays and bevy_ui on a non-lane camera
-  are skipped; a `Screenshot` of anything but the primary window is not taken.
+  stream upload, bevy_ui atlas re-uploads, egui's whole-atlas re-upload. The capture paces its
+  frames, so it cannot measure them; it takes a live run with `WOW_NOVSYNC=1`.
+- Filler streams are per mesh. (The booth data textures are not a leak: both booth light
+  buffers are made once and kept for the session on wgpu too.)
+- Latent, unreached in benilla today (no log of any in 34 scenarios): a `Camera2d` on the window
+  outside the lane without overlays and bevy_ui on a non-lane camera are skipped; a `Screenshot`
+  of anything but the primary window is not taken.
+- Deliberate: the effect lane clips every pane; wgpu's `MAX_CLIP_ROWS` (64) draws a pane past it
+  unclipped, an overflow limit rather than behaviour.
 - sdl and glfw grow a new window to 95% of the work area (`pick_window_size`) and clamp or place
   the client, not the frame; `WindowPosition::Centered` ignores its `MonitorSelection`.
 - Log: each `Extract*Plugin` logs "Render app did not exist" once.
@@ -224,8 +264,9 @@ workspace `target/` is ~95 GB; `target/debug/deps` holds stale hashes of earlier
 Milestone 7 continues; what is left needs what this machine lacks. With a `.probe-identity`
 account: `scripts/smoke.sh` on the gfx build, then login to the character screen and into the
 world on every Linux pair, the bowstring or fishing line, `gxMultisample 4`, `WOW_LIVE_FPS` with
-`WOW_GPU_MS=1` on both builds, the warm pass on world entry, `WOW_PHASE=<uniqueId>` on a WMO. On
-Windows: build `gfx_benilla` (MSVC, `GFX.md`) and benilla with `--features gfx`, fix what does not
-compile in the win32 / d3d11 / d3d12 code written blind (d3d leaves the clip-origin op NULL: its
-targets run top-down already), and run the capture matrix there. Without either: the GL
-worldview seam pixels, or the gles3 depth probe, from Open problems. Then mark the project done.
+`WOW_GPU_MS=1` and `WOW_NOVSYNC=1` on both builds, the warm pass on world entry,
+`WOW_PHASE=<uniqueId>` on a WMO. On Windows: build `gfx_benilla` (MSVC, `GFX.md`) and benilla with
+`--features gfx`, fix what does not compile in the win32 / d3d11 / d3d12 code written blind (d3d
+leaves the clip-origin op NULL: its targets run top-down already), and run the capture matrix
+there. Without either: the `ui-questlog` title colours (log the levels `QuestLog_Update` sees in
+both builds). Then mark the project done.

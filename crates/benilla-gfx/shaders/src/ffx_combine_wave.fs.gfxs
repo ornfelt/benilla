@@ -15,9 +15,10 @@ sampler 2 2d wave_tex
 
 // FFXGlowWave (`fs_combine_wave` of `ffx_glow.wgsl`): FFXGlow's combine at a UV displaced by the
 // 128x128 sine LUT, the warp the reference runs while the eye is in any liquid. `lane` = (w, the
-// death gate, the haze z, the dither arm); `wave.xy` = the phases; `texel` = (1 / target width, 1 / height,
-// -1 on GL whose rows run bottom-up, the target height). The warp is computed on the top-down UV
-// the WGSL sees and its v offset turned back on GL.
+// death gate, the haze z, the dither arm); `wave.xy` = the phases, `wave.w` = the output's height
+// (the dither's top-down row); `texel` = (1 / source width, 1 / height, -1 on GL whose rows run
+// bottom-up, the source height). The warp is computed on the top-down UV the WGSL sees and its v
+// offset turned back on GL.
 
 vec3 srgb_to_linear(vec3 c)
 {
@@ -63,7 +64,7 @@ fs_output gfx_main(fs_input gfx_input)
 	vec2 top_down = gfx_input.uv;
 	if (texel.z < 0.0)
 	{
-		frag.y = texel.w - frag.y;
+		frag.y = wave.w - frag.y;
 		top_down.y = 1.0 - top_down.y;
 	}
 	vec2 offset = wave_offset(top_down, vec2(1.0 / texel.x, texel.w));

@@ -66,28 +66,38 @@ impl GpuImages {
             let Some(gpu) = self.get(w.image, image) else {
                 return false;
             };
+            let own = gpu.texture;
+            self.written.insert(w.image);
             if up.swizzle {
                 for texel in w.data.as_chunks_mut::<4>().0 {
                     texel.swap(0, 2);
                 }
             }
-            // SAFETY: `gpu.texture` is live on `device`; `w.data` outlives the call.
-            let ok = unsafe {
-                ffi::gfx_dll_set_texture_subdata(
-                    device,
-                    gpu.texture,
-                    0,
-                    0,
-                    w.x,
-                    w.y,
-                    w.width,
-                    w.height,
-                    w.data.len() as u32,
-                    w.data.as_ptr().cast(),
-                )
-            };
-            if !ok {
-                bevy::log::warn_once!("gfx: a texture sub-rect write was refused");
+            // The image's own texture and every sampler variant of it: each holds the texels.
+            let variants = self
+                .variants
+                .iter()
+                .filter(|((id, _), _)| *id == w.image)
+                .map(|(_, v)| v.texture);
+            for texture in std::iter::once(own).chain(variants) {
+                // SAFETY: `texture` is live on `device`; `w.data` outlives the call.
+                let ok = unsafe {
+                    ffi::gfx_dll_set_texture_subdata(
+                        device,
+                        texture,
+                        0,
+                        0,
+                        w.x,
+                        w.y,
+                        w.width,
+                        w.height,
+                        w.data.len() as u32,
+                        w.data.as_ptr().cast(),
+                    )
+                };
+                if !ok {
+                    bevy::log::warn_once!("gfx: a texture sub-rect write was refused");
+                }
             }
             false
         });
@@ -245,6 +255,8 @@ pub struct GpuImages {
     images: HashMap<AssetId<Image>, GpuImage>,
     /// Images uploaded again under a sampler other than their own.
     variants: HashMap<(AssetId<Image>, GfxSampler), GpuImage>,
+    /// Images with sub-rect writes, whose texels the CPU copy does not hold.
+    written: std::collections::HashSet<AssetId<Image>>,
     stale: HashMap<AssetId<Image>, ()>,
     /// Images cameras render into, and their textures as a [`GpuImage`].
     targets: HashMap<AssetId<Image>, (ImageTarget, GpuImage)>,
@@ -264,6 +276,7 @@ impl GpuImages {
             device,
             images: HashMap::new(),
             variants: HashMap::new(),
+            written: Default::default(),
             stale: HashMap::new(),
             targets: HashMap::new(),
             dropped: Vec::new(),
@@ -284,6 +297,7 @@ impl GpuImages {
 
     pub fn removed(&mut self, id: AssetId<Image>) {
         self.stale.remove(&id);
+        self.written.remove(&id);
         if let Some((t, _)) = self.targets.remove(&id) {
             self.dropped.extend(t.main.framebuffers);
             self.dropped.push(t.output_framebuffer);
@@ -369,6 +383,11 @@ impl GpuImages {
             self.removed(id);
         }
         if !self.variants.contains_key(&(id, sampler)) {
+            if self.written.contains(&id) {
+                bevy::log::warn_once!(
+                    "gfx: a sampler variant of an image with sub-rect writes misses the earlier ones"
+                );
+            }
             match upload(self.device, image, &descriptor, true) {
                 Ok(gpu) => {
                     self.variants.insert((id, sampler), gpu);

@@ -84,7 +84,14 @@ impl Default for CursorState {
 pub struct Reported {
     pub size: UVec2,
     pub focus: Option<bool>,
+    /// Frames since a size request the window has not answered with a resize.
+    pub resize_wait: Option<u32>,
 }
+
+/// Frames a size request waits for its resize before the window is taken to have kept its size:
+/// a tiling window manager answers a refused request with the geometry the window already has,
+/// which no backend reports, where winit's window would carry on at the size it got.
+const RESIZE_ANSWER_FRAMES: u32 = 30;
 
 /// A cursor worth keeping: an image (with the part of it shown), a system shape, or the hidden one.
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -411,6 +418,7 @@ pub(crate) fn pump(world: &mut World, events: &[GfxEvent]) {
                 {
                     let size = UVec2::new(r.width, r.height);
                     let mut ctx = world.non_send_resource_mut::<GfxContext>();
+                    ctx.reported.resize_wait = None;
                     if ctx.reported.size == size {
                         continue;
                     }
@@ -451,6 +459,7 @@ pub(crate) fn pump(world: &mut World, events: &[GfxEvent]) {
             _ => {}
         }
     }
+    touched |= kept_size(world, entity);
     // What the window reported is not the app's change to send back (bevy_winit refreshes its
     // `CachedWindow` after each event).
     if touched {
@@ -459,6 +468,47 @@ pub(crate) fn pump(world: &mut World, events: &[GfxEvent]) {
             cache.0 = current;
         }
     }
+}
+
+/// A size request unanswered for [`RESIZE_ANSWER_FRAMES`]: the `Window` takes the size the window
+/// kept, with the `WindowResized` bevy_winit sends for a size the window got; whether it did.
+fn kept_size(world: &mut World, entity: Entity) -> bool {
+    let size = {
+        let mut ctx = world.non_send_resource_mut::<GfxContext>();
+        match ctx.reported.resize_wait {
+            Some(n) if n >= RESIZE_ANSWER_FRAMES => {
+                ctx.reported.resize_wait = None;
+                ctx.size()
+            }
+            Some(n) => {
+                ctx.reported.resize_wait = Some(n + 1);
+                return false;
+            }
+            None => return false,
+        }
+    };
+    let Some(mut window) = world.get_mut::<Window>(entity) else {
+        return false;
+    };
+    let asked = window.resolution.physical_size();
+    if asked == size || size.x == 0 || size.y == 0 {
+        return false;
+    }
+    info!(
+        "gfx: the window kept {}x{} against a request for {}x{}",
+        size.x, size.y, asked.x, asked.y
+    );
+    window.resolution.set_physical_resolution(size.x, size.y);
+    let (width, height) = (window.width(), window.height());
+    send(
+        world,
+        WindowResized {
+            window: entity,
+            width,
+            height,
+        },
+    );
+    true
 }
 
 /// A pointer at `(x, y)` physical: `CursorMoved` with the logical position and the delta from the
@@ -531,7 +581,7 @@ pub(crate) unsafe fn apply_position(window: ffi::GfxWindow, position: WindowPosi
 /// `Window` changes to the gfx window (bevy_winit's `changed_windows`). What gfx has no call for
 /// is named once in the log.
 fn sync_windows(
-    ctx: NonSend<GfxContext>,
+    mut ctx: NonSendMut<GfxContext>,
     mut windows: Query<(&Window, &mut CachedWindow), Changed<Window>>,
     mut trace: ResMut<InputTrace>,
     mut unsupported: Local<HashSet<&'static str>>,
@@ -570,6 +620,7 @@ fn sync_windows(
             // SAFETY: the live window.
             unsafe { ffi::gfx_dll_window_resize(gfx, size.x, size.y) };
             trace.line(format_args!("gfx resize {}x{}", size.x, size.y));
+            ctx.reported.resize_wait = Some(0);
         }
         if window.physical_cursor_position() != cache.0.physical_cursor_position() {
             if let Some(p) = window.physical_cursor_position() {
