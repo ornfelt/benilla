@@ -51,6 +51,15 @@ vec4 light_row(int i)
 #endif
 }
 
+// Bevy's clip z, in [0, 1], into [-1, 1] where the device clips depth there (`misc.y` 2 or 3: a
+// GL without clip control), as naga's GL writer does.
+vec4 device_clip(vec4 clip)
+{
+	if (misc.y > 1.5)
+		clip.z = 2.0 * clip.z - clip.w;
+	return clip;
+}
+
 vs_output gfx_main(vs_input gfx_input)
 {
 	vs_output gfx_output;
@@ -60,15 +69,11 @@ vs_output gfx_main(vs_input gfx_input)
 	float farclip = light_row(5).w;
 	if (farclip > 0.0 && clip.w > 0.0)
 	{
-		// `view_z_to_depth_ndc(-farclip)`, in Bevy's [0, 1] depth: under the GL remap
-		// (z' = 2z - w) Bevy's z is (z' + w) / 2.
+		// `view_z_to_depth_ndc(-farclip)`, in Bevy's [0, 1] depth.
 		vec4 wall = mul(vec4(0.0, 0.0, -farclip, 1.0), clip_from_view);
-		float wall_z = misc.y > 0.5 ? (wall.z + wall.w) * 0.5 : wall.z;
-		float limit = wall_z / wall.w * WDL_DEPTH_PUSH;
-		float z = misc.y > 0.5 ? (clip.z + clip.w) * 0.5 : clip.z;
-		z = min(z, limit * clip.w);
-		clip.z = misc.y > 0.5 ? 2.0 * z - clip.w : z;
+		float limit = wall.z / wall.w * WDL_DEPTH_PUSH;
+		clip.z = min(clip.z, limit * clip.w);
 	}
-	gfx_output.gfx_position = clip;
+	gfx_output.gfx_position = device_clip(clip);
 	return gfx_output;
 }

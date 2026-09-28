@@ -1288,7 +1288,7 @@ mod tests {
         let br = m * Vec4::new(800.0, 600.0, 0.0, 1.0);
         assert!((tl.x + 1.0).abs() < 1e-6 && (tl.y - 1.0).abs() < 1e-6);
         assert!((br.x - 1.0).abs() < 1e-6 && (br.y + 1.0).abs() < 1e-6);
-        // Inside the depth range, for the GL remap as for vk.
+        // Inside [0, 1], the clip depth range on every device.
         assert!(tl.z > 0.0 && tl.z < 1.0);
     }
 

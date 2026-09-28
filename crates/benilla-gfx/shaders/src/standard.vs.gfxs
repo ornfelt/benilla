@@ -47,11 +47,20 @@ vec3 normal_to_world(vec3 n)
 	return normalize((x * n.x + y * n.y + z * n.z) / det);
 }
 
+// Bevy's clip z, in [0, 1], into [-1, 1] where the device clips depth there (`misc.y` 2 or 3: a
+// GL without clip control), as naga's GL writer does.
+vec4 device_clip(vec4 clip)
+{
+	if (misc.y > 1.5)
+		clip.z = 2.0 * clip.z - clip.w;
+	return clip;
+}
+
 vs_output gfx_main(vs_input gfx_input)
 {
 	vs_output gfx_output;
 	vec4 world = mul(vec4(gfx_input.position, 1.0), world_from_local);
-	gfx_output.gfx_position = mul(world, clip_from_world);
+	gfx_output.gfx_position = device_clip(mul(world, clip_from_world));
 	vec2 uv = gfx_input.uv;
 	gfx_output.uv = vec2(uv_matrix.x * uv.x + uv_matrix.z * uv.y, uv_matrix.y * uv.x + uv_matrix.w * uv.y) + uv_offset_cutoff_mode.xy;
 	gfx_output.color = gfx_input.color;

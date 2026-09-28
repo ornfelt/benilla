@@ -132,6 +132,15 @@ vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 	return sum;
 }
 
+// Bevy's clip z, in [0, 1], into [-1, 1] where the device clips depth there (`misc.y` 2 or 3: a
+// GL without clip control), as naga's GL writer does.
+vec4 device_clip(vec4 clip)
+{
+	if (misc.y > 1.5)
+		clip.z = 2.0 * clip.z - clip.w;
+	return clip;
+}
+
 vs_output gfx_main(vs_input gfx_input)
 {
 	vs_output gfx_output;
@@ -156,14 +165,9 @@ vs_output gfx_main(vs_input gfx_input)
 	gfx_output.world_position = vec4(world, 1.0);
 	vec3 p_view = mul(vec4(p_cam, 0.0), view_from_world).xyz;
 	vec4 clip = mul(vec4(p_view, 1.0), clip_from_view);
-	// The authored MOBA batch order on Bevy's clip z, (1 + n 2^-23); under the GL remap
-	// (z' = 2z - w) the same z is (z' + w) / 2.
-	float nudge = 1.0 + rec.y * 1.1920929e-7;
-	if (misc.y > 0.5)
-		clip.z = (clip.z + clip.w) * nudge - clip.w;
-	else
-		clip.z = clip.z * nudge;
-	gfx_output.gfx_position = clip;
+	// The authored MOBA batch order on Bevy's clip z, (1 + n 2^-23).
+	clip.z = clip.z * (1.0 + rec.y * 1.1920929e-7);
+	gfx_output.gfx_position = device_clip(clip);
 	gfx_output.world_normal = gfx_input.normal;
 	gfx_output.uv = gfx_input.uv;
 	gfx_output.color = gfx_input.color;

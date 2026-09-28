@@ -85,10 +85,10 @@ fs_output gfx_main(fs_input gfx_input)
 		k *= 1.0 - smoothstep(0.48, 0.5, distance(gfx_input.uv, vec2(0.5, 0.5)));
 	if (mask_rect.z > mask_rect.x)
 	{
-		// The physical pixel, top-down: GL's window rows run bottom-up, but for a target drawn
-		// top-down (`misc.y` 2).
+		// The physical pixel, top-down: the rows run bottom-up where `misc.y` is 1 or 3 (GL, but
+		// for a target drawn top-down).
 		vec2 frag = gfx_input.gfx_position.xy;
-		if (misc.y > 0.5 && misc.y < 1.5)
+		if ((misc.y > 0.5 && misc.y < 1.5) || misc.y > 2.5)
 			frag.y = misc.z - frag.y;
 		vec2 muv = (frag - mask_rect.xy) / (mask_rect.zw - mask_rect.xy);
 		float inside = (muv.x >= 0.0 && muv.y >= 0.0 && muv.x <= 1.0 && muv.y <= 1.0) ? 1.0 : 0.0;

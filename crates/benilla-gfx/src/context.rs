@@ -15,8 +15,11 @@ use crate::window::{CursorState, Reported};
 /// What the window opens with, read off the primary `Window`.
 pub struct WindowSpec {
     pub title: String,
-    pub width: u32,
-    pub height: u32,
+    /// The size in logical pixels (bevy's `Window::width` / `height`).
+    pub width: f32,
+    pub height: f32,
+    /// `WindowResolution::scale_factor_override`: the size's scale in place of the display's.
+    pub scale_factor_override: Option<f32>,
     pub vsync: bool,
     pub mode: bevy::window::WindowMode,
     pub level: bevy::window::WindowLevel,
@@ -58,15 +61,14 @@ impl GfxContext {
         props.depth_stencil_format = GfxFormat::D24UnormS8Uint;
 
         let title = CString::new(spec.title.replace('\0', "")).unwrap_or_default();
+        let asked = physical_size(
+            spec.width,
+            spec.height,
+            spec.scale_factor_override.unwrap_or(1.0),
+        );
         // SAFETY: `title` and `props` are live for the call.
-        let window = unsafe {
-            ffi::gfx_dll_create_window(
-                title.as_ptr(),
-                spec.width.max(1),
-                spec.height.max(1),
-                &props,
-            )
-        };
+        let window =
+            unsafe { ffi::gfx_dll_create_window(title.as_ptr(), asked.x, asked.y, &props) };
         if window.is_null() {
             return Err(format!(
                 "gfx_dll_create_window failed ({} / {})",
@@ -77,6 +79,18 @@ impl GfxContext {
         // SAFETY: `window` is the live window just created, on this thread.
         let device = unsafe {
             ffi::gfx_dll_window_set_event_handler(window, events::on_event);
+            // bevy_winit asks winit for the logical size, which winit scales by the display's
+            // factor (or bevy's override) before it creates the window; the display's factor is
+            // known once the window is.
+            if spec.scale_factor_override.is_none() {
+                let scale = ffi::gfx_dll_window_get_scale_factor(window);
+                if scale.is_finite() && scale > 0.0 {
+                    let size = physical_size(spec.width, spec.height, scale);
+                    if size != asked {
+                        ffi::gfx_dll_window_resize(window, size.x, size.y);
+                    }
+                }
+            }
             // Before the map, as winit builds the window in its mode, level, frame, sizing and
             // place.
             ffi::gfx_dll_window_set_mode(window, crate::window::gfx_mode(spec.mode));
@@ -107,7 +121,7 @@ impl GfxContext {
         }
         let size = ctx.size();
         info!(
-            "gfx: window {} / device {} ({}), {}x{} (asked {}x{}), shaders {}: {} program(s) loaded",
+            "gfx: window {} / device {} ({}), {}x{} (asked {}x{} logical), shaders {}: {} program(s) loaded",
             backends.window_name(),
             backends.device_name(),
             backends.device_label(),
@@ -185,4 +199,26 @@ unsafe extern "C" fn on_error(msg: *const c_char) {
     // SAFETY: the library passes a NUL-terminated message, live for the call.
     let msg = unsafe { CStr::from_ptr(msg) }.to_string_lossy();
     error!("gfx: {msg}");
+}
+
+/// A logical size in physical pixels at `scale`, rounded as winit's `LogicalSize::to_physical`.
+fn physical_size(width: f32, height: f32, scale: f32) -> UVec2 {
+    let px = |v: f32| ((f64::from(v) * f64::from(scale)).round() as u32).max(1);
+    UVec2::new(px(width), px(height))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_logical_size_scales_and_rounds_as_winit() {
+        // benilla's 640x700 on a 1.667 display (Xft.dpi 160): winit's 1066.7 x 1166.7.
+        assert_eq!(
+            physical_size(640.0, 700.0, 160.0 / 96.0),
+            UVec2::new(1067, 1167)
+        );
+        assert_eq!(physical_size(640.0, 700.0, 1.0), UVec2::new(640, 700));
+        assert_eq!(physical_size(0.0, 0.0, 2.0), UVec2::ONE);
+    }
 }

@@ -94,8 +94,9 @@ fn open(world: &mut World) -> Result<GfxContext, String> {
         .map_err(|_| "the app has no primary window to open".to_string())?;
     let spec = WindowSpec {
         title: window.title.clone(),
-        width: window.resolution.physical_width(),
-        height: window.resolution.physical_height(),
+        width: window.width(),
+        height: window.height(),
+        scale_factor_override: window.resolution.scale_factor_override(),
         vsync: crate::window::swap_interval(window.present_mode) != 0,
         mode: window.mode,
         level: window.window_level,

@@ -949,6 +949,10 @@ unsafe extern "C" {
     /// single-sampled, colour or depth) at this point of the frame's work, the bound framebuffer
     /// kept bound; false where the device cannot (d3d9, jkg).
     pub fn gfx_dll_copy_texture(device: GfxDevice, src: GfxTexture, dst: GfxTexture) -> bool;
+    /// gfx_benilla: clip depth runs [0, 1] from here on, as on vk and d3d: true where it now does
+    /// (GL through clip control: GL 4.5, `GL_ARB_clip_control`, GLES `GL_EXT_clip_control`),
+    /// false where it stays [-1, 1]. Once, after the device is made.
+    pub fn gfx_dll_set_depth_zero_to_one(device: GfxDevice) -> bool;
     pub fn gfx_dll_delete_texture(device: GfxDevice, texture: GfxTexture);
     /// gfx_benilla: records the GPU's time at this point of the frame's work in `slot` (of
     /// [`TIMESTAMP_SLOTS`]); false without timestamps. At most once a frame per slot.

@@ -67,12 +67,12 @@ fs_output gfx_main(fs_input gfx_input)
 		return gfx_output;
 	}
 	float vz = gfx_input.view_z;
-	// The target-rect clip on the framebuffer pixel, top-down: GL's fragment rows count bottom-up,
-	// but for a target drawn top-down (`misc.y` 2).
+	// The target-rect clip on the framebuffer pixel, top-down: the fragment rows count bottom-up
+	// where `misc.y` is 1 or 3 (GL, but for a target drawn top-down).
 	if (clip.z > clip.x)
 	{
 		vec2 p = gfx_input.gfx_position.xy;
-		if (misc.y > 0.5 && misc.y < 1.5)
+		if ((misc.y > 0.5 && misc.y < 1.5) || misc.y > 2.5)
 			p.y = misc.z - p.y;
 		if (p.x < clip.x || p.y < clip.y || p.x > clip.z || p.y > clip.w)
 			discard;

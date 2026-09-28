@@ -96,7 +96,7 @@ pub struct SortedDraw {
 
 /// A draw placed after a UI lane camera's `Mesh2d` draws ([`DrawList::push_late`]): `indices` of
 /// an indexed mesh with a description, its positions through `clip_from_world` in place of the
-/// camera's (the GL depth remap is the renderer's to add).
+/// camera's.
 #[derive(Debug, Clone)]
 pub struct LateDraw {
     pub mesh: AssetId<Mesh>,
@@ -176,6 +176,9 @@ impl DrawList {
 pub struct GfxRenderer {
     device: GfxDevice,
     backend: GfxDeviceBackend,
+    /// The device clips depth to [-1, 1] (a GL without clip control): every 3D vertex program
+    /// maps Bevy's [0, 1] clip z there itself (`misc.y` bit 2).
+    depth_remap: bool,
     pub meshes: GpuMeshes,
     pub images: GpuImages,
     pub data: GpuDataTextures,
@@ -200,6 +203,18 @@ impl GfxRenderer {
     pub fn new(ctx: &mut GfxContext, default_sampler: bevy::image::ImageSamplerDescriptor) -> Self {
         let device = ctx.device;
         let backend = ctx.backends.device;
+        // Bevy's projections put clip z in [0, 1], vk's and d3d's range; GL takes it through
+        // clip control where it has one. `WOW_GFX_DEPTH_REMAP=1` keeps GL at [-1, 1], to measure
+        // the remap a device without clip control draws through.
+        let force_remap = std::env::var_os("WOW_GFX_DEPTH_REMAP").is_some_and(|v| v == "1");
+        let depth_remap = if force_remap && is_gl(backend) {
+            true
+        } else {
+            !unsafe { ffi::gfx_dll_set_depth_zero_to_one(device) }
+        };
+        if depth_remap {
+            warn!("gfx: the device clips depth to [-1, 1]; the vertex programs remap it");
+        }
         let present = match ctx
             .shaders
             .get("present")
@@ -214,6 +229,7 @@ impl GfxRenderer {
         Self {
             device,
             backend,
+            depth_remap,
             meshes: GpuMeshes::new(device),
             images: GpuImages::new(device, default_sampler),
             data: GpuDataTextures::new(device),
@@ -305,12 +321,10 @@ impl Drop for GfxRenderer {
 }
 
 /// `std140` size of the view block every program declares: `clip_from_world`,
-/// `view_from_world`, `clip_from_view` (each GL-remapped where it reaches clip space), then
-/// `world_position`, `viewport` (x, y, width, height in pixels), `misc` (x = the mip bias, y = 1
-/// where the clip matrices carry the GL remap and the target's rows run bottom-up, 2 where they
-/// carry it over a target drawn top-down (an image target on GL), z = the target height in pixels,
-/// w = bevy's
-/// `globals.time`, the wrapped elapsed seconds) and `ambient` (bevy_pbr's `lights.ambient_color`:
+/// `view_from_world`, `clip_from_view` (Bevy's, clip z in [0, 1]), then `world_position`,
+/// `viewport` (x, y, width, height in pixels), `misc` (x = the mip bias, y = the flags of
+/// [`misc_flags`], z = the target height in pixels, w = bevy's `globals.time`, the wrapped
+/// elapsed seconds) and `ambient` (bevy_pbr's `lights.ambient_color`:
 /// the view's ambient colour times its brightness; w = the view's exposure). A program may declare
 /// the block without its trailing rows.
 const VIEW_BLOCK: usize = 256;
@@ -406,7 +420,10 @@ struct View {
     clip_from_view: Mat4,
     view_from_world: Mat4,
     mip_bias: f32,
-    gl_remap: bool,
+    /// The target's rows run bottom-up (GL's, but for a target drawn top-down).
+    rows_bottom_up: bool,
+    /// The vertex programs remap clip z to [-1, 1] ([`GfxRenderer::depth_remap`]).
+    depth_remap: bool,
     time: f32,
     target_height: u32,
     invert_culling: bool,
@@ -652,18 +669,12 @@ fn resolve(
     })
 }
 
-/// GL clips depth to [-1, 1] where Bevy's projections produce [0, 1]: `z' = 2z - w` puts Bevy's
-/// reverse-Z range where GL's window transform maps it back to the same [0, 1] depth values.
-fn clip_remap(backend: GfxDeviceBackend) -> Mat4 {
-    match backend {
-        GfxDeviceBackend::Gl3 | GfxDeviceBackend::Gl4 | GfxDeviceBackend::Gles3 => Mat4::from_cols(
-            Vec4::X,
-            Vec4::Y,
-            Vec4::new(0.0, 0.0, 2.0, 0.0),
-            Vec4::new(0.0, 0.0, -1.0, 1.0),
-        ),
-        _ => Mat4::IDENTITY,
-    }
+/// GL's targets count their rows bottom-up.
+fn is_gl(backend: GfxDeviceBackend) -> bool {
+    matches!(
+        backend,
+        GfxDeviceBackend::Gl3 | GfxDeviceBackend::Gl4 | GfxDeviceBackend::Gles3
+    )
 }
 
 /// Resets the draw list and applies this frame's asset and data-texture changes to the device
@@ -738,8 +749,7 @@ pub(crate) fn draw_views(
     let record = phases.enabled;
     let default_clear = clear_color.map_or(Color::BLACK, |c| c.0).to_linear();
     let primary = primary.single().ok();
-    let remap = clip_remap(renderer.backend);
-    let gl = remap != Mat4::IDENTITY;
+    let gl = is_gl(renderer.backend);
 
     let on_window = |target: &RenderTarget| {
         matches!(
@@ -845,7 +855,7 @@ pub(crate) fn draw_views(
         } else {
             Mat4::IDENTITY
         };
-        let clip_from_view = flip * remap * camera.clip_from_view();
+        let clip_from_view = flip * camera.clip_from_view();
         views.push(View {
             order: camera.order,
             viewport,
@@ -858,7 +868,8 @@ pub(crate) fn draw_views(
             clip_from_view,
             view_from_world,
             mip_bias: mip_bias.map_or(0.0, |b| b.0),
-            gl_remap: gl,
+            rows_bottom_up: gl && !top_down,
+            depth_remap: renderer.depth_remap,
             time: time.elapsed_secs_wrapped(),
             target_height: target_size.y,
             invert_culling: camera.invert_culling != top_down,
@@ -1044,7 +1055,7 @@ pub(crate) fn draw_views(
                 let key = late.clip_from_world.to_cols_array().map(f32::to_bits);
                 let late_view = *late_views.entry(key).or_insert_with(|| {
                     let mut v = view.clone();
-                    v.clip_from_world = remap * late.clip_from_world;
+                    v.clip_from_world = late.clip_from_world;
                     renderer.ring.push(&view_block(&v))
                 });
                 let item = DrawItem {
@@ -1698,6 +1709,12 @@ fn ambient_row((color, brightness): (Color, f32), exposure: Exposure) -> [f32; 4
     ]
 }
 
+/// The view block's `misc.y`: 1 where the target's rows run bottom-up, plus 2 where the vertex
+/// programs remap clip z to [-1, 1].
+fn misc_flags(rows_bottom_up: bool, depth_remap: bool) -> f32 {
+    f32::from(u8::from(rows_bottom_up) + 2 * u8::from(depth_remap))
+}
+
 /// The view block (see [`VIEW_BLOCK`]).
 fn view_block(view: &View) -> [f32; VIEW_BLOCK / 4] {
     let mut b = [0.0f32; VIEW_BLOCK / 4];
@@ -1708,11 +1725,7 @@ fn view_block(view: &View) -> [f32; VIEW_BLOCK / 4] {
     let (min, size) = (view.viewport.min.as_vec2(), view.viewport.size().as_vec2());
     b[52..56].copy_from_slice(&[min.x, min.y, size.x, size.y]);
     b[56] = view.mip_bias;
-    b[57] = match (view.gl_remap, view.top_down) {
-        (false, _) => 0.0,
-        (true, false) => 1.0,
-        (true, true) => 2.0,
-    };
+    b[57] = misc_flags(view.rows_bottom_up, view.depth_remap);
     b[58] = view.target_height as f32;
     b[59] = view.time;
     b[60..64].copy_from_slice(&view.ambient);
@@ -1796,7 +1809,8 @@ mod tests {
             clip_from_view: Mat4::IDENTITY,
             view_from_world: Mat4::IDENTITY,
             mip_bias: 0.0,
-            gl_remap: false,
+            rows_bottom_up: false,
+            depth_remap: false,
             time: 0.0,
             target_height: 4,
             invert_culling: false,
@@ -1828,15 +1842,15 @@ mod tests {
     }
 
     #[test]
-    fn gl_remap_keeps_bevy_depth_values() {
-        let remap = clip_remap(GfxDeviceBackend::Gl4);
-        for z in [0.0f32, 0.25, 1.0] {
-            let clip = remap * Vec4::new(0.0, 0.0, z * 2.0, 2.0);
-            // GL window depth = (ndc + 1) / 2.
-            let depth = (clip.z / clip.w + 1.0) / 2.0;
-            assert!((depth - z).abs() < 1e-6, "{z} -> {depth}");
+    fn the_misc_flags_tell_rows_and_remap_apart() {
+        // The shaders' tests: rows bottom-up is 1 or 3, the remap 2 or 3.
+        let flags = [(false, false), (true, false), (false, true), (true, true)]
+            .map(|(rows, remap)| misc_flags(rows, remap));
+        assert_eq!(flags, [0.0, 1.0, 2.0, 3.0]);
+        for (i, f) in flags.into_iter().enumerate() {
+            let rows = (f > 0.5 && f < 1.5) || f > 2.5;
+            assert_eq!((rows, f > 1.5), (i % 2 == 1, i >= 2));
         }
-        assert_eq!(clip_remap(GfxDeviceBackend::Vk), Mat4::IDENTITY);
     }
 
     #[test]

@@ -100,13 +100,13 @@ fs_output gfx_main(fs_input gfx_input)
 	float eye_z = -mul(vec4(wp, 1.0), view_from_world).z;
 
 	// The UI model tile's cell clip (`anim_slots.w`): a mat-anim row holding the cell in atlas
-	// texels, top-down; GL's fragment rows count bottom-up, but for a target drawn top-down
-	// (`misc.y` 2).
+	// texels, top-down; the fragment rows count bottom-up where `misc.y` is 1 or 3 (GL, but for a
+	// target drawn top-down).
 	if (anim_slots.w > 0.5)
 	{
 		vec4 r = light_row(WOW_MATANIM_BASE + int(anim_slots.w));
 		vec2 px = gfx_input.gfx_position.xy;
-		if (misc.y > 0.5 && misc.y < 1.5)
+		if ((misc.y > 0.5 && misc.y < 1.5) || misc.y > 2.5)
 			px.y = misc.z - px.y;
 		if (px.x < r.x || px.y < r.y || px.x > r.z || px.y > r.w)
 			discard;

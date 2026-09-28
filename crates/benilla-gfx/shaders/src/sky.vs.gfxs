@@ -25,17 +25,25 @@ constant 1 draw_block
 	vec4 warp
 }
 
+// Bevy's clip z, in [0, 1], into [-1, 1] where the device clips depth there (`misc.y` 2 or 3: a
+// GL without clip control), as naga's GL writer does.
+vec4 device_clip(vec4 clip)
+{
+	if (misc.y > 1.5)
+		clip.z = 2.0 * clip.z - clip.w;
+	return clip;
+}
+
 // The vertex stage of `benilla-world/src/shaders/sky_vertex.wgsl` under `sky.wgsl`: bevy's
 // mesh vertex with clip z pinned to the far plane (reverse-Z 0, `SKY_FAR_CLIP_Z`), so a sky
-// fragment passes only where the depth buffer still holds its clear. Under the GL remap
-// (`misc.y`) that plane is clip z = -w.
+// fragment passes only where the depth buffer still holds its clear.
 vs_output gfx_main(vs_input gfx_input)
 {
 	vs_output gfx_output;
 	vec4 world = mul(vec4(gfx_input.position, 1.0), world_from_local);
 	vec4 clip = mul(world, clip_from_world);
-	clip.z = misc.y > 0.5 ? -clip.w : 0.0;
-	gfx_output.gfx_position = clip;
+	clip.z = 0.0;
+	gfx_output.gfx_position = device_clip(clip);
 	gfx_output.world_position = world;
 	return gfx_output;
 }

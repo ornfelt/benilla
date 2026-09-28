@@ -26,9 +26,7 @@ constant 1 draw_block
 // bevy_gizmos_render 0.18.1 `lines.wgsl`'s vertex stage, solid lines: the segment a-b as a
 // screen-space quad `stroke.x` pixels wide (divided by clip w where `stroke.z`, the perspective
 // flag), near-plane clipped by hand, its depth pulled toward the camera by `stroke.y`, the depth
-// bias. The quad corner is an input in place of the WGSL's `vertex_index` table. Under the GL
-// clip remap (`misc.y`) the bias applies to the unremapped depth; the near-plane test
-// `z > w` holds either way.
+// bias. The quad corner is an input in place of the WGSL's `vertex_index` table.
 
 vec4 clip_near_plane(vec4 a, vec4 b)
 {
@@ -40,6 +38,15 @@ vec4 clip_near_plane(vec4 a, vec4 b)
 		return mix(a, b, vec4(t, t, t, t));
 	}
 	return a;
+}
+
+// Bevy's clip z, in [0, 1], into [-1, 1] where the device clips depth there (`misc.y` 2 or 3: a
+// GL without clip control), as naga's GL writer does.
+vec4 device_clip(vec4 clip)
+{
+	if (misc.y > 1.5)
+		clip.z = 2.0 * clip.z - clip.w;
+	return clip;
 }
 
 vs_output gfx_main(vs_input gfx_input)
@@ -75,20 +82,12 @@ vs_output gfx_main(vs_input gfx_input)
 	vec2 screen = mix(screen_a, screen_b, vec2(along, along)) + (line_width * gfx_input.corner.x) * x_basis;
 
 	float z = clip.z;
-	if (misc.y > 0.5)
-	{
-		z = 0.5 * (clip.z + clip.w);
-	}
 	float depth = z * (1.0 - stroke.y);
 	if (stroke.y < 0.0)
 	{
 		depth = z * exp2(-stroke.y * log2(clip.w / z - 0.000488));
 	}
-	if (misc.y > 0.5)
-	{
-		depth = 2.0 * depth - clip.w;
-	}
-	gfx_output.gfx_position = vec4(clip.w * ((2.0 * screen) / resolution - vec2(1.0, 1.0)), depth, clip.w);
+	gfx_output.gfx_position = device_clip(vec4(clip.w * ((2.0 * screen) / resolution - vec2(1.0, 1.0)), depth, clip.w));
 	gfx_output.color = color;
 	return gfx_output;
 }

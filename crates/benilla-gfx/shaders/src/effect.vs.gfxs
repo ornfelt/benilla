@@ -30,20 +30,29 @@ constant 1 draw_block
 // `DECAL_WORLD_CLIP`), absolute ones through `clip_from_world`; the planar eye-Z rides along for
 // fog and the far-clip wall.
 
+// Bevy's clip z, in [0, 1], into [-1, 1] where the device clips depth there (`misc.y` 2 or 3: a
+// GL without clip control), as naga's GL writer does.
+vec4 device_clip(vec4 clip)
+{
+	if (misc.y > 1.5)
+		clip.z = 2.0 * clip.z - clip.w;
+	return clip;
+}
+
 vs_output gfx_main(vs_input gfx_input)
 {
 	vs_output gfx_output;
 	vec3 p = gfx_input.position;
 	if (mode.z > 0.5)
 	{
-		gfx_output.gfx_position = mul(vec4(p, 1.0), clip_from_world);
+		gfx_output.gfx_position = device_clip(mul(vec4(p, 1.0), clip_from_world));
 		gfx_output.view_z = -mul(vec4(p, 1.0), view_from_world).z;
 	}
 	else
 	{
 		// The rebase already took the camera off, so only the rotation applies.
 		vec3 view_pos = view_from_world[0].xyz * p.x + view_from_world[1].xyz * p.y + view_from_world[2].xyz * p.z;
-		gfx_output.gfx_position = mul(vec4(view_pos, 1.0), clip_from_view);
+		gfx_output.gfx_position = device_clip(mul(vec4(view_pos, 1.0), clip_from_view));
 		gfx_output.view_z = -view_pos.z;
 	}
 	gfx_output.uv = gfx_input.uv;
