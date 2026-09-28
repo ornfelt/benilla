@@ -47,7 +47,7 @@ pub enum GfxWindowBackend {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GfxFormat {
     Unknown,
     R8Uint,
@@ -895,6 +895,20 @@ unsafe extern "C" {
         height: u32,
         size: u32,
         data: *const c_void,
+    ) -> bool;
+    /// gfx_benilla: reads a `width` x `height` rect at (`x`, `y`) of level 0 of a 2D texture, rows
+    /// tightly packed in texel-row order (row 0 the bottom of an image drawn on GL, its top on vk
+    /// and d3d), once the frames already submitted have drawn it; uncompressed formats only
+    /// (gles3: 8-bit RGBA).
+    pub fn gfx_dll_read_texture(
+        device: GfxDevice,
+        texture: GfxTexture,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        size: u32,
+        data: *mut c_void,
     ) -> bool;
     pub fn gfx_dll_delete_texture(device: GfxDevice, texture: GfxTexture);
 

@@ -22,6 +22,7 @@ constant 1 draw_block
 	uvec4 tag
 	vec4 fog
 	vec4 mode
+	vec4 clip
 }
 
 // The vertex stage of `benilla-world/src/shaders/wow_effect.wgsl`: camera-relative vertices through

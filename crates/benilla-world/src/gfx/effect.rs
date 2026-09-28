@@ -25,7 +25,7 @@ pub const EFFECT: GfxProgram = GfxProgram {
         VertexInput::new(Mesh::ATTRIBUTE_UV_0, [0.0; 4]),
         VertexInput::new(Mesh::ATTRIBUTE_COLOR, [1.0; 4]),
     ],
-    params: 2,
+    params: 3,
     samplers: 2,
 };
 
@@ -186,13 +186,13 @@ pub(crate) fn collect(
             if draw.raster_bias != 0 { 1.0 } else { 0.0 },
             flat,
         ];
+        params[2] = draw.clip.map_or([0.0; 4], |c| c.to_array());
         let desc = list.push_desc(GfxMaterialDesc {
             program: EFFECT,
-            // A booth's own light buffer (`draw.light`) and a UI pane's clip (`draw.clip`) belong to
-            // image cameras, which gfx does not draw yet; every drawn record reads the world's.
+            // A booth's record reads the booth's own light buffer.
             textures: [
                 GfxTextureSlot::Image(draw.texture),
-                GfxTextureSlot::Data(light),
+                GfxTextureSlot::Data(draw.light.as_ref().map_or(light, |b| b.id())),
                 GfxTextureSlot::White,
                 GfxTextureSlot::White,
             ],

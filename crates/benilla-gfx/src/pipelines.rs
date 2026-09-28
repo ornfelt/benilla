@@ -63,6 +63,8 @@ pub struct PipelineKey {
     /// bits (`f32` is not `Hash`).
     pub depth_bias: (i32, u32),
     pub primitive: GfxPrimitiveType,
+    /// The attachments it draws into.
+    pub target: crate::target::TargetClass,
 }
 
 /// A program's input layout: stream `i` of the attribute state is input `i`.
@@ -116,7 +118,8 @@ impl Pipelines {
         Some(layout)
     }
 
-    /// The pipeline of `key` drawing into `target` (null: the window).
+    /// The pipeline of `key`, made against `target` (null: the window), a framebuffer of
+    /// `key.target`'s class.
     pub fn get(
         &mut self,
         key: PipelineKey,
@@ -307,6 +310,22 @@ pub(crate) fn depth_state(
 
 pub(crate) fn raster_state(device: GfxDevice, cull: Option<Face>) -> ffi::GfxRasterizerState {
     raster_state_biased(device, cull, 0, 0.0)
+}
+
+/// No culling, the scissor test on: a pass clipped to a rect on every device.
+pub(crate) fn raster_state_scissored(device: GfxDevice) -> ffi::GfxRasterizerState {
+    let info = ffi::GfxRasterizerStateCreateInfo {
+        fill_mode: GfxFillMode::Solid,
+        cull_mode: GfxCullMode::None,
+        front_face: GfxFrontFace::Ccw,
+        scissor: true,
+        depth_clamp: false,
+        multisample: false,
+    };
+    let mut state = ptr::null_mut();
+    // SAFETY: `info` is live for the call.
+    unsafe { ffi::gfx_dll_create_rasterizer_state(device, &info, &mut state) };
+    state
 }
 
 /// A rasterizer state with wgpu's depth bias (`DepthBiasState`, unclamped): `constant` in the

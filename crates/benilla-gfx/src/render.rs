@@ -51,9 +51,11 @@ pub(crate) fn build(app: &mut App) {
         .add_systems(
             GfxRender,
             (
-                draw::prepare.in_set(GfxRenderSystems::Prepare),
+                (crate::screenshot::collect, draw::prepare)
+                    .chain()
+                    .in_set(GfxRenderSystems::Prepare),
                 draw::draw_views.in_set(GfxRenderSystems::Draw),
-                (draw::present, draw::log_stats)
+                (draw::present, crate::screenshot::capture, draw::log_stats)
                     .chain()
                     .in_set(GfxRenderSystems::Present),
             ),

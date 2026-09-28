@@ -5,7 +5,7 @@
 
 mod effect;
 mod ffx;
-mod light;
+pub(crate) mod light;
 pub mod liquid;
 pub mod model;
 pub mod sky;

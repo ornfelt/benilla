@@ -10,6 +10,9 @@
 //! `ImagePlugin` default for `ImageSampler::Default`. A draw that samples an image through a
 //! sampler of its own, as wgpu binds one beside a texture, takes a [`GfxSampler`] variant: the
 //! same texels uploaded again with that state, unless it is the image's own.
+//!
+//! An image a camera renders into is an [`ImageTarget`] instead ([`GpuImages::target`]): its
+//! texture is the one the cameras' blits write, and every draw sampling the image reads it.
 
 use std::collections::HashMap;
 use std::ptr;
@@ -24,6 +27,7 @@ use crate::ffi::{
     self, texture_usage, GfxDevice, GfxFiltering, GfxFormat, GfxTexture, GfxTextureAddressing,
     GfxTextureType,
 };
+use crate::target::ImageTarget;
 
 /// An image on the device.
 pub struct GpuImage {
@@ -217,6 +221,10 @@ pub struct GpuImages {
     /// Images uploaded again under a sampler other than their own.
     variants: HashMap<(AssetId<Image>, GfxSampler), GpuImage>,
     stale: HashMap<AssetId<Image>, ()>,
+    /// Images cameras render into, and their textures as a [`GpuImage`].
+    targets: HashMap<AssetId<Image>, (ImageTarget, GpuImage)>,
+    /// Framebuffers of targets dropped since [`Self::take_dropped`], whose passes must go too.
+    dropped: Vec<crate::ffi::GfxFramebuffer>,
     /// Opaque white, 1x1: the texture a material without one samples.
     pub white: GfxTexture,
     default_sampler: ImageSamplerDescriptor,
@@ -232,6 +240,8 @@ impl GpuImages {
             images: HashMap::new(),
             variants: HashMap::new(),
             stale: HashMap::new(),
+            targets: HashMap::new(),
+            dropped: Vec::new(),
             white,
             default_sampler,
             refused: Vec::new(),
@@ -239,13 +249,20 @@ impl GpuImages {
     }
 
     pub fn modified(&mut self, id: AssetId<Image>) {
-        if self.images.contains_key(&id) || self.variants.keys().any(|(v, _)| *v == id) {
+        if self.images.contains_key(&id)
+            || self.targets.contains_key(&id)
+            || self.variants.keys().any(|(v, _)| *v == id)
+        {
             self.stale.insert(id, ());
         }
     }
 
     pub fn removed(&mut self, id: AssetId<Image>) {
         self.stale.remove(&id);
+        if let Some((t, _)) = self.targets.remove(&id) {
+            self.dropped.extend(t.main.framebuffers);
+            self.dropped.push(t.output_framebuffer);
+        }
         let device = self.device;
         if let Some(i) = self.images.remove(&id) {
             // SAFETY: made on this device, owned by this entry alone.
@@ -275,6 +292,9 @@ impl GpuImages {
         if self.stale.remove(&id).is_some() {
             self.removed(id);
         }
+        if self.targets.contains_key(&id) {
+            return self.targets.get(&id).map(|t| &t.1);
+        }
         if !self.images.contains_key(&id) {
             match upload(self.device, image, &self.default_sampler, false) {
                 Ok(gpu) => {
@@ -300,6 +320,11 @@ impl GpuImages {
         image: &Image,
         sampler: GfxSampler,
     ) -> Option<&GpuImage> {
+        if self.targets.contains_key(&id) {
+            // A rendered image has one texture, and so the image's own sampler.
+            bevy::log::warn_once!("gfx: a rendered image is sampled through its own sampler");
+            return self.get(id, image);
+        }
         let descriptor = sampler.descriptor();
         let own = match &image.sampler {
             ImageSampler::Default => &self.default_sampler,
@@ -336,6 +361,9 @@ impl GpuImages {
         image: &Image,
         like: &Image,
     ) -> Option<&GpuImage> {
+        if self.targets.contains_key(&id) {
+            return self.get(id, image);
+        }
         let own = |i: &Image| match &i.sampler {
             ImageSampler::Default => self.default_sampler.clone(),
             ImageSampler::Descriptor(d) => d.clone(),
@@ -357,8 +385,75 @@ impl GpuImages {
         }
     }
 
+    /// The render target of image `id`, made (and its texture cleared to zero, the image's data
+    /// as the wgpu path uploads it) when it has none or its image changed: a camera's main pair,
+    /// `hdr` float or else 8-bit sRGB, with a depth when `depth`. `None` for an image gfx cannot
+    /// render into.
+    pub fn target(
+        &mut self,
+        id: AssetId<Image>,
+        image: &Image,
+        hdr: bool,
+        depth: bool,
+    ) -> Option<&mut ImageTarget> {
+        if self.stale.remove(&id).is_some() {
+            self.removed(id);
+        }
+        let desc = &image.texture_descriptor;
+        let size = bevy::math::UVec2::new(desc.size.width, desc.size.height);
+        let same = self.targets.get(&id).is_some_and(|(t, _)| {
+            t.size == size && t.image_format == desc.format && t.hdr == hdr && t.depth == depth
+        });
+        if !same {
+            self.removed(id);
+            match output_texture(self.device, image, &self.default_sampler) {
+                Ok(texture) => {
+                    match ImageTarget::new(self.device, texture, size, desc.format, hdr, depth) {
+                        Ok(t) => {
+                            clear_target(self.device, &t);
+                            let gpu = GpuImage {
+                                texture,
+                                width: size.x,
+                                height: size.y,
+                            };
+                            self.targets.insert(id, (t, gpu));
+                        }
+                        Err(why) => self.refuse(why),
+                    }
+                }
+                Err(why) => self.refuse(why),
+            }
+        }
+        self.targets.get_mut(&id).map(|t| &mut t.0)
+    }
+
+    /// Image `id`'s render target, when it has one.
+    pub fn image_target(&mut self, id: AssetId<Image>) -> Option<&mut ImageTarget> {
+        self.targets.get_mut(&id).map(|t| &mut t.0)
+    }
+
+    /// Starts a frame: no image target has been blitted into yet.
+    pub(crate) fn begin_frame(&mut self) {
+        for (t, _) in self.targets.values_mut() {
+            t.written = false;
+        }
+    }
+
+    /// The framebuffers of the targets dropped since the last call.
+    pub(crate) fn take_dropped(&mut self) -> Vec<crate::ffi::GfxFramebuffer> {
+        std::mem::take(&mut self.dropped)
+    }
+
+    fn refuse(&mut self, why: String) {
+        if !self.refused.contains(&why) {
+            bevy::log::warn!("gfx: an image is not rendered into: {why}");
+            self.refused.push(why);
+        }
+    }
+
     /// Deletes every texture; the device must still be alive.
     pub fn clear(&mut self) {
+        self.targets.clear();
         // SAFETY: every texture was made on this device and is dropped from the store here.
         unsafe {
             for (_, i) in self.images.drain() {
@@ -502,6 +597,68 @@ fn upload(
         width,
         height,
     })
+}
+
+/// The texture of an image cameras render into: one level, its format, sampled as the image
+/// says.
+fn output_texture(
+    device: GfxDevice,
+    image: &Image,
+    default_sampler: &ImageSamplerDescriptor,
+) -> Result<GfxTexture, String> {
+    let desc = &image.texture_descriptor;
+    let format = desc.format;
+    let up = upload_format(format)
+        .filter(|u| u.block.0 == 1 && !u.swizzle)
+        .ok_or_else(|| format!("render target format {format:?}"))?;
+    if desc.dimension != TextureDimension::D2 || desc.size.depth_or_array_layers > 1 {
+        return Err(format!("render target shape {:?}", desc.size));
+    }
+    let sampler = match &image.sampler {
+        ImageSampler::Default => default_sampler,
+        ImageSampler::Descriptor(d) => d,
+    };
+    let info = ffi::GfxTextureCreateInfo {
+        texture_type: GfxTextureType::Texture2D,
+        usage: texture_usage::RENDER_TARGET | texture_usage::SAMPLED,
+        format: up.format,
+        levels: 1,
+        width: desc.size.width.max(1),
+        height: desc.size.height.max(1),
+        depth: 1,
+        addressing_s: addressing(sampler.address_mode_u),
+        addressing_t: addressing(sampler.address_mode_v),
+        addressing_r: addressing(sampler.address_mode_w),
+        min_filtering: filtering(sampler.min_filter),
+        mag_filtering: filtering(sampler.mag_filter),
+        mip_filtering: GfxFiltering::None,
+        anisotropy: 0,
+        border_color: [0.0; 4],
+    };
+    let mut texture: GfxTexture = ptr::null_mut();
+    // SAFETY: `info` is live for the call.
+    if !unsafe { ffi::gfx_dll_create_texture(device, &info, &mut texture) } {
+        return Err(format!("render target creation failed ({format:?})"));
+    }
+    Ok(texture)
+}
+
+/// Clears a new target's texture to zero, the zeroed data a render-target image carries.
+fn clear_target(device: GfxDevice, t: &ImageTarget) {
+    let fb = t.output_framebuffer;
+    let zero = ffi::GfxClearColor {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
+    // SAFETY: the live device and framebuffer, on the device's thread; bound first, as a vk
+    // clear lands in the bound pass.
+    unsafe {
+        ffi::gfx_dll_bind_framebuffer(device, fb);
+        ffi::gfx_dll_set_scissor(device, 0, 0, t.size.x.max(1), t.size.y.max(1));
+        ffi::gfx_dll_clear_color(device, fb, 0, &zero);
+    }
 }
 
 /// Every layer of mip `level`, layer after layer, from Bevy's layout of `data` (layer-major by

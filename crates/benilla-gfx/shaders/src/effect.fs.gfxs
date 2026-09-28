@@ -20,6 +20,7 @@ constant 1 draw_block
 	uvec4 tag
 	vec4 fog
 	vec4 mode
+	vec4 clip
 }
 
 sampler 0 2d effect_texture
@@ -30,7 +31,8 @@ sampler 1 2d_array wow_light
 // per-blend fog colour and rain's forced fog, and the output each blend expects. `fog` is the
 // WGSL's `wow_params.fog`; `mode.x` the blend (0 add, 1 alpha, 2 opaque, 3 alpha key, 4 multiply,
 // 5 mod2x, the WGSL's `BLEND_*` defs), `mode.y` `EFFECT_LIT`, `mode.z` `DECAL_WORLD_CLIP`, `mode.w`
-// the `$WOW_PARTICLE_FLAT` instrument.
+// the `$WOW_PARTICLE_FLAT` instrument; `clip` the WGSL's `wow_params.clip`, the target rect in
+// pixels (min.xy, max.xy), none when z <= x.
 
 // The rain pass's forced fog colour: 0x80808080 -> grey (render-state 0x0d).
 #define RAIN_FOG_GREY 0.50196078
@@ -65,6 +67,16 @@ fs_output gfx_main(fs_input gfx_input)
 		return gfx_output;
 	}
 	float vz = gfx_input.view_z;
+	// The target-rect clip on the framebuffer pixel, top-down: GL's fragment rows count bottom-up,
+	// but for a target drawn top-down (`misc.y` 2).
+	if (clip.z > clip.x)
+	{
+		vec2 p = gfx_input.gfx_position.xy;
+		if (misc.y > 0.5 && misc.y < 1.5)
+			p.y = misc.z - p.y;
+		if (p.x < clip.x || p.y < clip.y || p.x > clip.z || p.y > clip.w)
+			discard;
+	}
 	// The hard far-clip wall (the live `farclip`): every world shader discards past it.
 	vec4 fog_params = light_row(5);
 	if (fog_params.w > 0.0 && vz > fog_params.w)

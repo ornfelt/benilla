@@ -32,10 +32,22 @@ pub struct SceneTarget {
     pub framebuffers: [GfxFramebuffer; 2],
     pub current: usize,
     pub size: UVec2,
+    pub format: GfxFormat,
 }
 
 impl SceneTarget {
     pub(crate) fn new(device: GfxDevice, size: UVec2) -> Result<Self, String> {
+        Self::with_format(device, size, SCENE_FORMAT, true)
+    }
+
+    /// A pair of `format` colours, sharing a depth when `depth`: a camera's main textures, as
+    /// bevy makes them per render target (`prepare_view_targets`), `Hdr` float or else 8-bit sRGB.
+    pub(crate) fn with_format(
+        device: GfxDevice,
+        size: UVec2,
+        format: GfxFormat,
+        depth: bool,
+    ) -> Result<Self, String> {
         let size = size.max(UVec2::ONE);
         let mut target = Self {
             device,
@@ -44,11 +56,14 @@ impl SceneTarget {
             framebuffers: [ptr::null_mut(); 2],
             current: 0,
             size,
+            format,
         };
-        target.depth = render_texture(device, DEPTH_FORMAT, size)
-            .ok_or("scene depth texture creation failed")?;
+        if depth {
+            target.depth = render_texture(device, DEPTH_FORMAT, size)
+                .ok_or("scene depth texture creation failed")?;
+        }
         for i in 0..2 {
-            target.colors[i] = render_texture(device, SCENE_FORMAT, size)
+            target.colors[i] = render_texture(device, format, size)
                 .ok_or("scene colour texture creation failed")?;
             target.framebuffers[i] = framebuffer(device, target.colors[i], target.depth, size)
                 .ok_or("scene framebuffer creation failed")?;
@@ -63,6 +78,92 @@ impl SceneTarget {
 
     pub fn framebuffer(&self) -> GfxFramebuffer {
         self.framebuffers[self.current]
+    }
+
+    /// The pipeline class of a draw into this target: its colour format and whether it has depth.
+    pub fn class(&self) -> TargetClass {
+        TargetClass {
+            format: self.format,
+            depth: !self.depth.is_null(),
+        }
+    }
+}
+
+/// What a pipeline is made against: a vk pipeline is only valid in a render pass of the same
+/// attachment formats, so pipelines are kept per class, never per framebuffer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TargetClass {
+    pub format: GfxFormat,
+    pub depth: bool,
+}
+
+/// A camera's `RenderTarget::Image`: the main pair every camera on the image draws into, and the
+/// image's own texture, which bevy's `upscaling` blit writes over each camera's viewport and which
+/// every draw sampling the image reads ([`crate::images::GpuImages`]).
+///
+/// On GL the cameras draw it upside down (a clip-space Y flip), so its rows run top-down like an
+/// uploaded image's and every sampler reads it unchanged.
+pub struct ImageTarget {
+    device: GfxDevice,
+    pub main: SceneTarget,
+    pub output: GfxTexture,
+    pub output_framebuffer: GfxFramebuffer,
+    /// The image's size and format when the target was made.
+    pub size: UVec2,
+    pub image_format: bevy::render::render_resource::TextureFormat,
+    pub hdr: bool,
+    pub depth: bool,
+    /// Set by the first blit of a frame, which clears the output as bevy's `OutputColorAttachment`
+    /// does on its first use.
+    pub written: bool,
+}
+
+impl ImageTarget {
+    /// `output` is the image's texture, made by the caller with the image's sampler; the target
+    /// owns it from here.
+    pub(crate) fn new(
+        device: GfxDevice,
+        output: GfxTexture,
+        size: UVec2,
+        image_format: bevy::render::render_resource::TextureFormat,
+        hdr: bool,
+        depth: bool,
+    ) -> Result<Self, String> {
+        let format = if hdr { SCENE_FORMAT } else { UI_FORMAT };
+        let main = match SceneTarget::with_format(device, size, format, depth) {
+            Ok(m) => m,
+            Err(e) => {
+                // SAFETY: made on `device` by the caller and handed to this target.
+                unsafe { ffi::gfx_dll_delete_texture(device, output) };
+                return Err(e);
+            }
+        };
+        let mut target = Self {
+            device,
+            main,
+            output,
+            output_framebuffer: ptr::null_mut(),
+            size,
+            image_format,
+            hdr,
+            depth,
+            written: false,
+        };
+        target.output_framebuffer = framebuffer(device, output, ptr::null_mut(), size)
+            .ok_or("image target framebuffer creation failed")?;
+        Ok(target)
+    }
+}
+
+impl Drop for ImageTarget {
+    fn drop(&mut self) {
+        // SAFETY: each handle was made on `self.device` and belongs to this target alone.
+        unsafe {
+            if !self.output_framebuffer.is_null() {
+                ffi::gfx_dll_delete_framebuffer(self.device, self.output_framebuffer);
+            }
+            ffi::gfx_dll_delete_texture(self.device, self.output);
+        }
     }
 }
 
@@ -185,7 +286,13 @@ pub struct Present {
     attributes: GfxAttributesState,
     pipeline: GfxPipeline,
     states: [*mut std::ffi::c_void; 3],
+    shader_state: GfxShaderState,
+    /// The pipeline drawing into a [`CAPTURE_FORMAT`] framebuffer, made on first use.
+    offscreen: GfxPipeline,
 }
+
+/// The window's pixels as a screenshot reads them: the present's output, stored in a texture.
+pub const CAPTURE_FORMAT: GfxFormat = GfxFormat::R8G8B8A8Unorm;
 
 impl Present {
     pub(crate) fn new(
@@ -227,6 +334,8 @@ impl Present {
             attributes: ptr::null_mut(),
             pipeline: ptr::null_mut(),
             states: [ptr::null_mut(); 3],
+            shader_state,
+            offscreen: ptr::null_mut(),
         };
         // SAFETY: `info.data` points at `bytes`, live for the call.
         if !unsafe { ffi::gfx_dll_create_buffer(device, &info, &mut present.vertices) } {
@@ -277,14 +386,47 @@ impl Present {
 
     /// Draws `scene` over the whole window, `size` pixels.
     pub(crate) fn draw(&self, scene: GfxTexture, size: UVec2) {
+        self.draw_with(self.pipeline, ptr::null_mut(), scene, size);
+    }
+
+    /// Draws `scene` into `target`, a [`CAPTURE_FORMAT`] framebuffer of `size` pixels, as it
+    /// draws the window: its rows run as the window's on vk and d3d, bottom-up on GL.
+    pub(crate) fn draw_into(&mut self, target: GfxFramebuffer, scene: GfxTexture, size: UVec2) {
+        if self.offscreen.is_null() {
+            let [blend, depth, raster] = self.states;
+            let info = ffi::GfxPipelineCreateInfo {
+                shader_state: self.shader_state,
+                rasterizer_state: raster,
+                depth_stencil_state: depth,
+                blend_state: blend,
+                input_layout: self.layout,
+                primitive: GfxPrimitiveType::Triangles,
+                target_framebuffer: target,
+            };
+            // SAFETY: every state in `info` is live and made on this device.
+            if !unsafe { ffi::gfx_dll_create_pipeline(self.device, &info, &mut self.offscreen) } {
+                self.offscreen = ptr::null_mut();
+                return;
+            }
+        }
+        self.draw_with(self.offscreen, target, scene, size);
+    }
+
+    fn draw_with(
+        &self,
+        pipeline: GfxPipeline,
+        target: GfxFramebuffer,
+        scene: GfxTexture,
+        size: UVec2,
+    ) {
         let device = self.device;
         let mut textures = [scene];
         // SAFETY: every handle is live and made on `device`, on its thread.
         unsafe {
-            ffi::gfx_dll_bind_framebuffer(device, ptr::null_mut());
+            ffi::gfx_dll_bind_framebuffer(device, target);
             ffi::gfx_dll_set_viewport(device, 0, 0, size.x, size.y, 0.0, 1.0);
             ffi::gfx_dll_set_scissor(device, 0, 0, size.x, size.y);
-            ffi::gfx_dll_bind_pipeline(device, self.pipeline);
+            ffi::gfx_dll_bind_pipeline(device, pipeline);
             ffi::gfx_dll_bind_attributes_state(device, self.attributes, self.layout);
             ffi::gfx_dll_bind_samplers(device, 0, 1, textures.as_mut_ptr());
             ffi::gfx_dll_draw(device, 3, 0);
@@ -297,8 +439,10 @@ impl Drop for Present {
         let device = self.device;
         // SAFETY: each handle was made on `device` and belongs to this pass alone.
         unsafe {
-            if !self.pipeline.is_null() {
-                ffi::gfx_dll_delete_pipeline(device, self.pipeline);
+            for p in [self.pipeline, self.offscreen] {
+                if !p.is_null() {
+                    ffi::gfx_dll_delete_pipeline(device, p);
+                }
             }
             if !self.attributes.is_null() {
                 ffi::gfx_dll_delete_attributes_state(device, self.attributes);

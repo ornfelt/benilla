@@ -27,6 +27,7 @@ pub mod pipelines;
 pub mod post;
 pub mod render;
 pub mod runner;
+pub mod screenshot;
 pub mod shader_def;
 pub mod shader_loader;
 pub mod target;
@@ -78,6 +79,7 @@ impl Plugin for GfxPlugin {
             .map(|p| p.default_sampler.clone())
             .unwrap_or_default();
         app.insert_resource(runner::DefaultSampler(sampler));
+        screenshot::finish(app);
     }
 }
 

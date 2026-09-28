@@ -15,6 +15,12 @@
 //! draws, in the order pushed, through a projection of its own: bevy_ui's pass, which runs after
 //! the 2D main pass on its own UI view ([`crate::bevy_ui`]).
 //!
+//! A camera on an image draws into that image's [`crate::target::ImageTarget`]: its main pair, shared by every
+//! camera on the image as bevy shares main textures per target, cleared whole, drawn over the
+//! camera's viewport, glowed, then copied into the image over the viewport by bevy's `upscaling`
+//! blit, the image's first blit of the frame clearing it with the camera's output clear colour. A
+//! 3D camera draws its phases there, a 2D one its `Mesh2d` items as a UI lane does.
+//!
 //! Every draw's constants go into one uniform ring written once per frame, before the first
 //! draw, and bound per draw by offset: the view block (bevy_render's `View` fields the programs
 //! read) and a draw block of the world matrix, the tag row and the program's parameter rows.
@@ -25,7 +31,9 @@ use std::ptr;
 
 use bevy::asset::AssetId;
 use bevy::camera::visibility::VisibleEntities;
-use bevy::camera::{ClearColorConfig, Exposure, RenderTarget};
+use bevy::camera::{
+    CameraOutputMode, ClearColorConfig, Exposure, NormalizedRenderTarget, RenderTarget,
+};
 use bevy::ecs::entity::EntityHashMap;
 use bevy::light::{AmbientLight, GlobalAmbientLight};
 use bevy::prelude::*;
@@ -42,7 +50,7 @@ use crate::meshes::GpuMeshes;
 use crate::pipelines::{Blend, PipelineKey, Pipelines};
 use crate::post::{FfxPost, GfxFfxGlow};
 use crate::shader_loader::ShaderLibrary;
-use crate::target::{Present, SceneTarget, UiTarget};
+use crate::target::{Present, SceneTarget, TargetClass, UiTarget, UI_FORMAT};
 use crate::ui::GfxUiLane;
 
 /// One entity to draw: its mesh, its world matrix, the world point it sorts by, its `MeshTag`
@@ -168,7 +176,9 @@ pub struct GfxRenderer {
     target: Option<SceneTarget>,
     /// The UI lane's byte target, made at the scene target's size while a lane draws.
     ui: Option<UiTarget>,
-    present: Option<Present>,
+    pub(crate) present: Option<Present>,
+    /// The screenshot capture texture ([`crate::screenshot`]).
+    pub(crate) capture: Option<crate::screenshot::CaptureTarget>,
     post: Option<FfxPost>,
     ring: UniformRing,
     /// Camera kinds not drawn yet, logged once each.
@@ -200,10 +210,24 @@ impl GfxRenderer {
             target: None,
             ui: None,
             present,
+            capture: None,
             post: FfxPost::new(device, backend),
             ring: UniformRing::new(device),
             skipped: Vec::new(),
         }
+    }
+
+    pub(crate) fn device(&self) -> GfxDevice {
+        self.device
+    }
+
+    pub(crate) fn backend(&self) -> GfxDeviceBackend {
+        self.backend
+    }
+
+    /// The scene target's finished colour, the one the present encodes.
+    pub(crate) fn scene_color(&self) -> Option<GfxTexture> {
+        self.target.as_ref().map(|t| t.color())
     }
 
     fn skip_once(&mut self, what: &'static str) {
@@ -257,6 +281,7 @@ impl Drop for GfxRenderer {
         // Pipelines before the target they were made for; the stores drop themselves.
         self.pipelines.clear();
         self.post = None;
+        self.capture = None;
         self.present = None;
         self.ui = None;
         self.target = None;
@@ -266,7 +291,9 @@ impl Drop for GfxRenderer {
 /// `std140` size of the view block every program declares: `clip_from_world`,
 /// `view_from_world`, `clip_from_view` (each GL-remapped where it reaches clip space), then
 /// `world_position`, `viewport` (x, y, width, height in pixels), `misc` (x = the mip bias, y = 1
-/// where the clip matrices carry the GL remap, z = the target height in pixels, w = bevy's
+/// where the clip matrices carry the GL remap and the target's rows run bottom-up, 2 where they
+/// carry it over a target drawn top-down (an image target on GL), z = the target height in pixels,
+/// w = bevy's
 /// `globals.time`, the wrapped elapsed seconds) and `ambient` (bevy_pbr's `lights.ambient_color`:
 /// the view's ambient colour times its brightness; w = the view's exposure). A program may declare
 /// the block without its trailing rows.
@@ -374,6 +401,39 @@ struct View {
     claimed: bool,
     ambient: [f32; 4],
     entity: Entity,
+    /// Where it draws: the scene target, or the image of a `RenderTarget::Image` camera.
+    dest: Dest,
+    /// Drawn upside down, so the target's rows run top-down on GL (`ImageTarget`).
+    top_down: bool,
+    /// The target's size in pixels.
+    target_size: UVec2,
+    is_3d: bool,
+    hdr: bool,
+    /// An image camera's `upscaling` clear, and whether it set a viewport (the blit's scissor).
+    output_clear: Option<LinearRgba>,
+    has_viewport: bool,
+}
+
+/// A view's destination.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Dest {
+    Scene,
+    Image(AssetId<Image>),
+}
+
+/// A pixel rect in gfx's convention, y counted from the bottom of the target.
+type GfxRect = (i32, i32, UVec2);
+
+/// `rect` (bevy's, top-down) on a `height` target as gfx counts it: from the bottom, except on a
+/// target drawn top-down, whose rows already run as bevy's.
+fn gfx_rect(rect: URect, height: u32, top_down: bool) -> GfxRect {
+    let size = rect.size();
+    let y = if top_down {
+        rect.min.y as i32
+    } else {
+        height as i32 - rect.max.y as i32
+    };
+    (rect.min.x as i32, y, size)
 }
 
 /// One recorded command, executed after the ring is uploaded.
@@ -382,12 +442,29 @@ enum Cmd {
         viewport: URect,
         clear: Option<LinearRgba>,
     },
+    /// An image camera starts: its main pair bound over `rect`, cleared whole as a wgpu clear op
+    /// clears its attachment (colour when `clear`, depth when the pair has one).
+    ImageView {
+        image: AssetId<Image>,
+        rect: GfxRect,
+        clear: Option<LinearRgba>,
+    },
     /// The camera's FFXGlow chain, its four blocks at these ring offsets, and the wave LUT of an
-    /// armed underwater warp; `into_ui` clears the UI lane's target and combines into it.
+    /// armed underwater warp; `into_ui` clears the UI lane's target and combines into it. Run on
+    /// `dest`'s colour, its quarter targets a quarter of `viewport`.
     Glow {
+        dest: Dest,
+        viewport: UVec2,
         offsets: [u32; 4],
         wave: Option<GfxTexture>,
         into_ui: bool,
+    },
+    /// Bevy's `upscaling` of an image camera: its finished main colour into the image, over
+    /// `scissor` (none: the whole image), the image's first blit of the frame clearing it first.
+    Blit {
+        image: AssetId<Image>,
+        scissor: Option<GfxRect>,
+        clear: Option<LinearRgba>,
     },
     /// A UI lane view starts: its target bound, cleared unless a claimed combine grounded it.
     UiBegin {
@@ -455,7 +532,7 @@ impl Resolved {
 fn resolve(
     renderer: &mut GfxRenderer,
     shaders: &mut ShaderLibrary,
-    framebuffer: ffi::GfxFramebuffer,
+    (framebuffer, class): (ffi::GfxFramebuffer, TargetClass),
     view: &View,
     mesh_id: AssetId<Mesh>,
     desc: &GfxMaterialDesc,
@@ -486,6 +563,7 @@ fn resolve(
         depth_always: desc.state.depth_always,
         depth_bias: (desc.state.raster_bias, desc.state.raster_slope.to_bits()),
         primitive,
+        target: class,
     };
     let Some(pipeline) = renderer
         .pipelines
@@ -589,11 +667,13 @@ type CameraItem = (
     Option<&'static Exposure>,
     Option<&'static AmbientLight>,
     Option<&'static GfxUiLane>,
+    Has<bevy::render::view::Hdr>,
 );
 
-/// Draws every active 3D camera on the primary window into the scene target, in `order`, with
-/// the UI lane ([`crate::ui`]): its `Camera2d` draws into the lane's byte target over the combine
-/// of the world view it claims, wherever that view targets, and decodes into the scene target.
+/// Draws every active camera in `order`: the 3D cameras on the primary window into the scene
+/// target, with the UI lane ([`crate::ui`]): its `Camera2d` draws into the lane's byte target over
+/// the combine of the world view it claims, wherever that view targets, and decodes into the scene
+/// target; and every camera on an image into that image's target.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn draw_views(
     mut ctx: NonSendMut<GfxContext>,
@@ -612,11 +692,12 @@ pub(crate) fn draw_views(
     let default_clear = clear_color.map_or(Color::BLACK, |c| c.0).to_linear();
     let primary = primary.single().ok();
     let remap = clip_remap(renderer.backend);
+    let gl = remap != Mat4::IDENTITY;
 
     let on_window = |target: &RenderTarget| {
         matches!(
             target.normalize(primary),
-            Some(bevy::camera::NormalizedRenderTarget::Window(w)) if Some(w.entity()) == primary
+            Some(NormalizedRenderTarget::Window(w)) if Some(w.entity()) == primary
         )
     };
     // The world views an active lane on the window claims.
@@ -627,27 +708,82 @@ pub(crate) fn draw_views(
         .collect();
 
     let mut views = Vec::new();
-    for (entity, camera, target, transform, _, is_3d, mip_bias, glow, exposure, ambient, lane) in
-        &cameras
+    for (
+        entity,
+        camera,
+        target,
+        transform,
+        _,
+        is_3d,
+        mip_bias,
+        glow,
+        exposure,
+        ambient,
+        lane,
+        hdr,
+    ) in &cameras
     {
         if !camera.is_active {
             continue;
         }
         let claimed = is_3d && claimed.contains(&entity);
-        if !on_window(target) && !claimed {
-            renderer.skip_once("a camera on an image or other target");
+        let image = match target.normalize(primary) {
+            Some(NormalizedRenderTarget::Image(t)) if !claimed => Some(t.handle.id()),
+            _ => None,
+        };
+        if !on_window(target) && !claimed && image.is_none() {
+            renderer.skip_once("a camera on a texture view or another window");
             continue;
         }
-        let ui_lane = lane.filter(|_| !is_3d).map(|l| l.gamma);
-        if !is_3d && ui_lane.is_none() {
+        let ui_lane = lane.filter(|_| !is_3d && image.is_none()).map(|l| l.gamma);
+        if !is_3d && ui_lane.is_none() && image.is_none() {
             renderer.skip_once("a 2D camera outside the UI lane");
             continue;
         }
+        let (dest, target_size, top_down) = match image {
+            Some(id) => {
+                let Some(img) = images.get(id) else {
+                    continue;
+                };
+                let d = img.texture_descriptor.size;
+                (Dest::Image(id), UVec2::new(d.width, d.height), gl)
+            }
+            None => (Dest::Scene, size, false),
+        };
+        let output_clear = match &camera.output_mode {
+            CameraOutputMode::Write {
+                blend_state,
+                clear_color,
+            } => {
+                if blend_state.is_some() && image.is_some() {
+                    renderer.skip_once("an image camera's output blend (blitted as a replace)");
+                }
+                match clear_color {
+                    ClearColorConfig::Default => Some(default_clear),
+                    ClearColorConfig::Custom(c) => Some(c.to_linear()),
+                    ClearColorConfig::None => None,
+                }
+            }
+            CameraOutputMode::Skip => {
+                if image.is_some() {
+                    renderer.skip_once("an image camera whose output mode is Skip");
+                    continue;
+                }
+                None
+            }
+        };
         let Some(viewport) = camera.physical_viewport_rect() else {
             continue;
         };
         let view_from_world = transform.to_matrix().inverse();
-        let clip_from_view = remap * camera.clip_from_view();
+        // An image target on GL is drawn upside down so its rows run top-down (`ImageTarget`);
+        // the flip turns the winding over too.
+        let flip = if top_down {
+            Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0))
+        } else {
+            Mat4::IDENTITY
+        };
+        let clip_from_view = flip * remap * camera.clip_from_view();
         views.push(View {
             order: camera.order,
             viewport,
@@ -660,10 +796,10 @@ pub(crate) fn draw_views(
             clip_from_view,
             view_from_world,
             mip_bias: mip_bias.map_or(0.0, |b| b.0),
-            gl_remap: remap != Mat4::IDENTITY,
+            gl_remap: gl,
             time: time.elapsed_secs_wrapped(),
-            target_height: size.y,
-            invert_culling: camera.invert_culling,
+            target_height: target_size.y,
+            invert_culling: camera.invert_culling != top_down,
             glow: glow.copied(),
             ui_lane,
             claimed,
@@ -678,6 +814,13 @@ pub(crate) fn draw_views(
                 exposure.copied().unwrap_or_default(),
             ),
             entity,
+            dest,
+            top_down,
+            target_size,
+            is_3d,
+            hdr,
+            output_clear,
+            has_viewport: camera.viewport.is_some(),
         });
     }
     views.sort_by_key(|v| v.order);
@@ -685,10 +828,12 @@ pub(crate) fn draw_views(
     let shape: Vec<String> = views
         .iter()
         .map(|v| {
-            let kind = match (v.ui_lane, v.claimed) {
-                (Some(_), _) => "UI lane",
-                (None, true) => "world, claimed",
-                (None, false) => "3D",
+            let kind = match (v.ui_lane, v.claimed, v.dest, v.is_3d) {
+                (Some(_), ..) => "UI lane",
+                (None, true, ..) => "world, claimed",
+                (None, false, Dest::Image(_), true) => "3D on an image",
+                (None, false, Dest::Image(_), false) => "2D on an image",
+                (None, false, Dest::Scene, _) => "3D",
             };
             let glow = if v.glow.is_some() { ", glow" } else { "" };
             let visible = cameras.get(v.entity).map_or(0, |c| {
@@ -711,9 +856,13 @@ pub(crate) fn draw_views(
     }
 
     let renderer = &mut *renderer;
-    let Some(framebuffer) = renderer.target(size).map(|t| t.framebuffers[0]) else {
+    let Some((framebuffer, scene_class)) = renderer
+        .target(size)
+        .map(|t| (t.framebuffers[0], t.class()))
+    else {
         return;
     };
+    renderer.images.begin_frame();
     let device = renderer.device;
     // SAFETY: the live device and scene target, on the device's thread.
     unsafe {
@@ -729,6 +878,10 @@ pub(crate) fn draw_views(
         renderer.ui_target(size).map(|t| t.framebuffer)
     } else {
         None
+    };
+    let ui_class = TargetClass {
+        format: UI_FORMAT,
+        depth: false,
     };
 
     renderer.ring.data.clear();
@@ -748,32 +901,17 @@ pub(crate) fn draw_views(
                 viewport: view.viewport,
                 clear: if grounded { None } else { view.clear },
             });
-            // `Transparent2d`: the mesh's world z ascending, stable over the visible order.
-            let mut sorted = Vec::new();
-            for entity in visible.iter(std::any::TypeId::of::<Mesh2d>()) {
-                let Some(item) = list.get(*entity) else {
-                    continue;
-                };
-                let desc = list.desc(item.desc);
-                let Some(r) = resolve(
-                    renderer,
-                    &mut ctx.shaders,
-                    ui_framebuffer,
-                    view,
-                    item.mesh,
-                    desc,
-                    &meshes,
-                    &images,
-                ) else {
-                    continue;
-                };
-                let block = draw_block(item, desc, r.present);
-                let draw_offset = renderer.ring.push(&block);
-                let cmd = r.cmd(view_offset, draw_offset, (block.len() * 4) as u32, None);
-                sorted.push((item.center.z, cmd));
-            }
-            sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
-            cmds.extend(sorted.into_iter().map(|(_, c)| c));
+            cmds.extend(mesh2d_cmds(
+                renderer,
+                &mut ctx.shaders,
+                (ui_framebuffer, ui_class),
+                view,
+                view_offset,
+                visible,
+                &list,
+                &meshes,
+                &images,
+            ));
             // The late draws, each projection's view block pushed once.
             let mut late_views: HashMap<[u32; 16], u32> = HashMap::new();
             for (camera, late) in &list.late {
@@ -784,7 +922,7 @@ pub(crate) fn draw_views(
                 let Some(r) = resolve(
                     renderer,
                     &mut ctx.shaders,
-                    ui_framebuffer,
+                    (ui_framebuffer, ui_class),
                     view,
                     late.mesh,
                     desc,
@@ -825,149 +963,90 @@ pub(crate) fn draw_views(
             });
             continue;
         }
-        cmds.push(Cmd::View {
-            viewport: view.viewport,
-            clear: view.clear,
-        });
-
-        // The early draws, in the order pushed; draws sharing a description and world matrix
-        // share one block.
-        let mut early_blocks: HashMap<(u32, [u32; 16]), (u32, u32)> = HashMap::new();
-        for (camera, early) in &list.early {
-            if *camera != view.entity {
-                continue;
-            }
-            let desc = list.desc(early.desc);
-            let Some(r) = resolve(
-                renderer,
-                &mut ctx.shaders,
-                framebuffer,
-                view,
-                early.mesh,
-                desc,
-                &meshes,
-                &images,
-            ) else {
-                continue;
-            };
-            if !r.indexed {
-                continue;
-            }
-            let matrix = early.world_from_local.to_cols_array().map(f32::to_bits);
-            let (draw_offset, draw_size) =
-                *early_blocks.entry((early.desc, matrix)).or_insert_with(|| {
-                    let item = DrawItem {
-                        mesh: early.mesh,
-                        world_from_local: early.world_from_local,
-                        center: Vec3::ZERO,
-                        tag: 0,
-                        desc: early.desc,
-                    };
-                    let block = draw_block(&item, desc, r.present);
-                    (renderer.ring.push(&block), (block.len() * 4) as u32)
+        let target = match view.dest {
+            Dest::Scene => {
+                cmds.push(Cmd::View {
+                    viewport: view.viewport,
+                    clear: view.clear,
                 });
-            cmds.push(r.cmd(view_offset, draw_offset, draw_size, Some(&early.indices)));
-        }
-
-        // Opaque and mask first (sorted by pipeline, texture, mesh, as bins batch), then
-        // transparent back to front.
-        let (mut opaque, mut transparent) = (Vec::new(), Vec::new());
-        for entity in visible.iter(std::any::TypeId::of::<Mesh3d>()) {
-            let Some(item) = list.get(*entity) else {
-                continue;
-            };
-            let desc = list.desc(item.desc);
-            let Some(r) = resolve(
-                renderer,
-                &mut ctx.shaders,
-                framebuffer,
-                view,
-                item.mesh,
-                desc,
-                &meshes,
-                &images,
-            ) else {
-                continue;
-            };
-            let block = draw_block(item, desc, r.present);
-            let draw_offset = renderer.ring.push(&block);
-            let cmd = r.cmd(view_offset, draw_offset, (block.len() * 4) as u32, None);
-            if desc.alpha.is_transparent() {
-                // bevy_pbr's `Transparent3d` distance: the view z of the AABB centre plus the
-                // material's depth bias, sorted ascending.
-                let z = view.view_from_world.transform_point3(item.center).z + desc.state.sort_bias;
-                transparent.push((z, cmd));
-            } else {
-                let rank = match desc.alpha {
-                    GfxAlpha::Mask(_) => 1u8,
-                    _ => 0,
+                (framebuffer, scene_class)
+            }
+            Dest::Image(id) => {
+                let Some(image) = images.get(id) else {
+                    continue;
                 };
-                opaque.push((
-                    (rank, r.pipeline as usize, r.textures[0] as usize, item.mesh),
-                    cmd,
-                ));
+                let Some(t) = renderer.images.target(id, image, view.hdr, view.is_3d) else {
+                    continue;
+                };
+                let target = (t.main.framebuffers[0], t.main.class());
+                cmds.push(Cmd::ImageView {
+                    image: id,
+                    rect: gfx_rect(view.viewport, view.target_size.y, view.top_down),
+                    clear: view.clear,
+                });
+                target
             }
-        }
-        // The placed transparent draws, after the entities, as a lane's queue system runs after
-        // bevy_pbr's; the sort is stable.
-        for (camera, sorted) in &list.sorted {
-            if *camera != view.entity {
-                continue;
-            }
-            let desc = list.desc(sorted.desc);
-            let Some(r) = resolve(
+        };
+
+        if !view.is_3d {
+            cmds.extend(mesh2d_cmds(
                 renderer,
                 &mut ctx.shaders,
-                framebuffer,
+                target,
                 view,
-                sorted.mesh,
-                desc,
+                view_offset,
+                visible,
+                &list,
                 &meshes,
                 &images,
-            ) else {
-                continue;
-            };
-            if !r.indexed {
-                continue;
-            }
-            let item = DrawItem {
-                mesh: sorted.mesh,
-                world_from_local: sorted.world_from_local,
-                center: sorted.anchor,
-                tag: 0,
-                desc: sorted.desc,
-            };
-            let block = draw_block(&item, desc, r.present);
-            let draw_offset = renderer.ring.push(&block);
-            let cmd = r.cmd(
+            ));
+        } else {
+            view_3d_cmds(
+                renderer,
+                &mut ctx.shaders,
+                target,
+                view,
                 view_offset,
-                draw_offset,
-                (block.len() * 4) as u32,
-                Some(&sorted.indices),
+                visible,
+                &list,
+                &meshes,
+                &images,
+                &mut cmds,
             );
-            let z = view.view_from_world.transform_point3(sorted.anchor).z + sorted.bias;
-            transparent.push((z, cmd));
+            if let (Some(glow), Some(post)) = (&view.glow, &renderer.post) {
+                let into_ui = view.claimed && ui_framebuffer.is_some();
+                // The scene target's views keep the window's size for their quarter targets.
+                let (full, quarter_of) = match view.dest {
+                    Dest::Scene => (size.max(UVec2::ONE), size.max(UVec2::ONE)),
+                    Dest::Image(_) => (
+                        view.target_size.max(UVec2::ONE),
+                        view.viewport.size().max(UVec2::ONE),
+                    ),
+                };
+                let blocks = post.blocks(glow, full, quarter_of, into_ui, view.top_down);
+                let offsets = blocks.map(|b| renderer.ring.push(&b));
+                let wave = glow.wave_lut.and_then(|id| {
+                    let image = images.get(id)?;
+                    Some(renderer.images.get(id, image)?.texture)
+                });
+                cmds.push(Cmd::Glow {
+                    dest: view.dest,
+                    viewport: quarter_of,
+                    offsets,
+                    wave,
+                    into_ui,
+                });
+                grounded |= into_ui;
+            }
         }
-        opaque.sort_by_key(|(key, _)| *key);
-        cmds.extend(opaque.into_iter().map(|(_, c)| c));
-        // Farthest first: the most negative view-space z.
-        transparent.sort_by(|a, b| a.0.total_cmp(&b.0));
-        cmds.extend(transparent.into_iter().map(|(_, c)| c));
-
-        if let (Some(glow), Some(post)) = (&view.glow, &renderer.post) {
-            let into_ui = view.claimed && ui_framebuffer.is_some();
-            let blocks = post.blocks(glow, size.max(UVec2::ONE), into_ui);
-            let offsets = blocks.map(|b| renderer.ring.push(&b));
-            let wave = glow.wave_lut.and_then(|id| {
-                let image = images.get(id)?;
-                Some(renderer.images.get(id, image)?.texture)
+        if let Dest::Image(image) = view.dest {
+            cmds.push(Cmd::Blit {
+                image,
+                scissor: view
+                    .has_viewport
+                    .then(|| gfx_rect(view.viewport, view.target_size.y, view.top_down)),
+                clear: view.output_clear,
             });
-            cmds.push(Cmd::Glow {
-                offsets,
-                wave,
-                into_ui,
-            });
-            grounded |= into_ui;
         }
     }
 
@@ -976,13 +1055,27 @@ pub(crate) fn draw_views(
         return;
     }
     let ring = renderer.ring.buffer;
-    let (Some(target), post, ui) = (&mut renderer.target, &mut renderer.post, &renderer.ui) else {
+    // A target re-made while recording took its framebuffers with it.
+    if let Some(post) = &mut renderer.post {
+        for fb in renderer.images.take_dropped() {
+            post.forget_framebuffer(fb);
+        }
+    }
+    let GfxRenderer {
+        target,
+        post,
+        ui,
+        images,
+        ..
+    } = renderer;
+    let Some(target) = target else {
         return;
     };
     execute(
         device,
         target,
         ui.as_ref(),
+        images,
         post.as_mut(),
         &mut ctx.shaders,
         ring,
@@ -990,10 +1083,171 @@ pub(crate) fn draw_views(
     );
 }
 
+/// A 2D view's `Mesh2d` draws in `Transparent2d` order: the mesh's world z ascending, stable over
+/// the visible order.
+#[allow(clippy::too_many_arguments)]
+fn mesh2d_cmds(
+    renderer: &mut GfxRenderer,
+    shaders: &mut ShaderLibrary,
+    target: (ffi::GfxFramebuffer, TargetClass),
+    view: &View,
+    view_offset: u32,
+    visible: &VisibleEntities,
+    list: &DrawList,
+    meshes: &Assets<Mesh>,
+    images: &Assets<Image>,
+) -> Vec<Cmd> {
+    let mut sorted = Vec::new();
+    for entity in visible.iter(std::any::TypeId::of::<Mesh2d>()) {
+        let Some(item) = list.get(*entity) else {
+            continue;
+        };
+        let desc = list.desc(item.desc);
+        let Some(r) = resolve(
+            renderer, shaders, target, view, item.mesh, desc, meshes, images,
+        ) else {
+            continue;
+        };
+        let block = draw_block(item, desc, r.present);
+        let draw_offset = renderer.ring.push(&block);
+        let cmd = r.cmd(view_offset, draw_offset, (block.len() * 4) as u32, None);
+        sorted.push((item.center.z, cmd));
+    }
+    sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+    sorted.into_iter().map(|(_, c)| c).collect()
+}
+
+/// A 3D view's draws: the early draws, then opaque and mask, then transparent.
+#[allow(clippy::too_many_arguments)]
+fn view_3d_cmds(
+    renderer: &mut GfxRenderer,
+    shaders: &mut ShaderLibrary,
+    target: (ffi::GfxFramebuffer, TargetClass),
+    view: &View,
+    view_offset: u32,
+    visible: &VisibleEntities,
+    list: &DrawList,
+    meshes: &Assets<Mesh>,
+    images: &Assets<Image>,
+    cmds: &mut Vec<Cmd>,
+) {
+    // The early draws, in the order pushed; draws sharing a description and world matrix
+    // share one block.
+    let mut early_blocks: HashMap<(u32, [u32; 16]), (u32, u32)> = HashMap::new();
+    for (camera, early) in &list.early {
+        if *camera != view.entity {
+            continue;
+        }
+        let desc = list.desc(early.desc);
+        let Some(r) = resolve(
+            renderer, shaders, target, view, early.mesh, desc, meshes, images,
+        ) else {
+            continue;
+        };
+        if !r.indexed {
+            continue;
+        }
+        let matrix = early.world_from_local.to_cols_array().map(f32::to_bits);
+        let (draw_offset, draw_size) =
+            *early_blocks.entry((early.desc, matrix)).or_insert_with(|| {
+                let item = DrawItem {
+                    mesh: early.mesh,
+                    world_from_local: early.world_from_local,
+                    center: Vec3::ZERO,
+                    tag: 0,
+                    desc: early.desc,
+                };
+                let block = draw_block(&item, desc, r.present);
+                (renderer.ring.push(&block), (block.len() * 4) as u32)
+            });
+        cmds.push(r.cmd(view_offset, draw_offset, draw_size, Some(&early.indices)));
+    }
+
+    // Opaque and mask first (sorted by pipeline, texture, mesh, as bins batch), then
+    // transparent back to front.
+    let (mut opaque, mut transparent) = (Vec::new(), Vec::new());
+    for entity in visible.iter(std::any::TypeId::of::<Mesh3d>()) {
+        let Some(item) = list.get(*entity) else {
+            continue;
+        };
+        let desc = list.desc(item.desc);
+        let Some(r) = resolve(
+            renderer, shaders, target, view, item.mesh, desc, meshes, images,
+        ) else {
+            continue;
+        };
+        let block = draw_block(item, desc, r.present);
+        let draw_offset = renderer.ring.push(&block);
+        let cmd = r.cmd(view_offset, draw_offset, (block.len() * 4) as u32, None);
+        if desc.alpha.is_transparent() {
+            // bevy_pbr's `Transparent3d` distance: the view z of the AABB centre plus the
+            // material's depth bias, sorted ascending.
+            let z = view.view_from_world.transform_point3(item.center).z + desc.state.sort_bias;
+            transparent.push((z, cmd));
+        } else {
+            let rank = match desc.alpha {
+                GfxAlpha::Mask(_) => 1u8,
+                _ => 0,
+            };
+            opaque.push((
+                (rank, r.pipeline as usize, r.textures[0] as usize, item.mesh),
+                cmd,
+            ));
+        }
+    }
+    // The placed transparent draws, after the entities, as a lane's queue system runs after
+    // bevy_pbr's; the sort is stable.
+    for (camera, sorted) in &list.sorted {
+        if *camera != view.entity {
+            continue;
+        }
+        let desc = list.desc(sorted.desc);
+        let Some(r) = resolve(
+            renderer,
+            shaders,
+            target,
+            view,
+            sorted.mesh,
+            desc,
+            meshes,
+            images,
+        ) else {
+            continue;
+        };
+        if !r.indexed {
+            continue;
+        }
+        let item = DrawItem {
+            mesh: sorted.mesh,
+            world_from_local: sorted.world_from_local,
+            center: sorted.anchor,
+            tag: 0,
+            desc: sorted.desc,
+        };
+        let block = draw_block(&item, desc, r.present);
+        let draw_offset = renderer.ring.push(&block);
+        let cmd = r.cmd(
+            view_offset,
+            draw_offset,
+            (block.len() * 4) as u32,
+            Some(&sorted.indices),
+        );
+        let z = view.view_from_world.transform_point3(sorted.anchor).z + sorted.bias;
+        transparent.push((z, cmd));
+    }
+    opaque.sort_by_key(|(key, _)| *key);
+    cmds.extend(opaque.into_iter().map(|(_, c)| c));
+    // Farthest first: the most negative view-space z.
+    transparent.sort_by(|a, b| a.0.total_cmp(&b.0));
+    cmds.extend(transparent.into_iter().map(|(_, c)| c));
+}
+
+#[allow(clippy::too_many_arguments)]
 fn execute(
     device: GfxDevice,
     target: &mut SceneTarget,
     ui: Option<&UiTarget>,
+    images: &mut GpuImages,
     mut post: Option<&mut FfxPost>,
     shaders: &mut ShaderLibrary,
     ring: GfxBuffer,
@@ -1003,6 +1257,8 @@ fn execute(
     for cmd in cmds {
         match *cmd {
             Cmd::Glow {
+                dest,
+                viewport,
                 offsets,
                 wave,
                 into_ui,
@@ -1017,7 +1273,53 @@ fn execute(
                     }
                 }
                 if let Some(post) = post.as_deref_mut() {
-                    post.run(shaders, target, ring, offsets, wave, into);
+                    let scene = match dest {
+                        Dest::Scene => Some(&mut *target),
+                        Dest::Image(id) => images.image_target(id).map(|t| &mut t.main),
+                    };
+                    if let Some(scene) = scene {
+                        post.run(shaders, scene, viewport, ring, offsets, wave, into);
+                    }
+                }
+                bound = ptr::null_mut();
+            }
+            Cmd::ImageView { image, rect, clear } => {
+                let Some(t) = images.image_target(image) else {
+                    continue;
+                };
+                let (fb, full) = (t.main.framebuffer(), t.main.size);
+                let depth = !t.main.depth.is_null();
+                let (x, y, size) = rect;
+                // SAFETY: the live device and image target, on the device's thread.
+                unsafe {
+                    ffi::gfx_dll_bind_framebuffer(device, fb);
+                    // A wgpu clear op clears the whole attachment, whatever the viewport.
+                    ffi::gfx_dll_set_viewport(device, 0, 0, full.x, full.y, 0.0, 1.0);
+                    ffi::gfx_dll_set_scissor(device, 0, 0, full.x, full.y);
+                    if let Some(c) = clear {
+                        ffi::gfx_dll_clear_color(device, fb, 0, &gfx_color(c));
+                    }
+                    if depth {
+                        ffi::gfx_dll_clear_depth_stencil(device, fb, 0.0, 0);
+                    }
+                    ffi::gfx_dll_set_viewport(device, x, y, size.x, size.y, 0.0, 1.0);
+                    ffi::gfx_dll_set_scissor(device, x, y, size.x, size.y);
+                }
+                bound = ptr::null_mut();
+            }
+            Cmd::Blit {
+                image,
+                scissor,
+                clear,
+            } => {
+                let Some(t) = images.image_target(image) else {
+                    continue;
+                };
+                let clear = if t.written { None } else { clear };
+                t.written = true;
+                let (source, fb, size) = (t.main.color(), t.output_framebuffer, t.size);
+                if let Some(post) = post.as_deref_mut() {
+                    post.blit(shaders, source, fb, size.max(UVec2::ONE), scissor, clear);
                 }
                 bound = ptr::null_mut();
             }
@@ -1141,7 +1443,11 @@ fn view_block(view: &View) -> [f32; VIEW_BLOCK / 4] {
     let (min, size) = (view.viewport.min.as_vec2(), view.viewport.size().as_vec2());
     b[52..56].copy_from_slice(&[min.x, min.y, size.x, size.y]);
     b[56] = view.mip_bias;
-    b[57] = if view.gl_remap { 1.0 } else { 0.0 };
+    b[57] = match (view.gl_remap, view.top_down) {
+        (false, _) => 0.0,
+        (true, false) => 1.0,
+        (true, true) => 2.0,
+    };
     b[58] = view.target_height as f32;
     b[59] = view.time;
     b[60..64].copy_from_slice(&view.ambient);
@@ -1234,8 +1540,23 @@ mod tests {
             claimed: false,
             ambient: [1.0, 2.0, 3.0, 4.0],
             entity: Entity::PLACEHOLDER,
+            dest: Dest::Scene,
+            top_down: false,
+            target_size: UVec2::splat(4),
+            is_3d: true,
+            hdr: true,
+            output_clear: None,
+            has_viewport: false,
         };
         assert_eq!(view_block(&view)[60..], [1.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn a_rect_counts_from_the_bottom_unless_the_target_runs_top_down() {
+        // A 10x20 cell 5 px from the top of a 100 px target.
+        let cell = URect::new(3, 5, 13, 25);
+        assert_eq!(gfx_rect(cell, 100, false), (3, 75, UVec2::new(10, 20)));
+        assert_eq!(gfx_rect(cell, 100, true), (3, 5, UVec2::new(10, 20)));
     }
 
     #[test]

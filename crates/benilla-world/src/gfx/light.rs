@@ -5,13 +5,23 @@
 //! the per-frame blob, the prop probes, the rig slot, tint and origin tables, the mat-anim rows,
 //! the straddle clips and the palette's dirty bone ranges.
 //!
+//! The booths' own buffers (the studio and pane lights, the glue rig, the UI model tiles') are
+//! data textures too: each [`crate::lighting::LightBlob`] write lands in its buffer's texture at
+//! the next pack, and the regions the render world mirrors into them (the rig palette and tables,
+//! the tints, the mat-anim rows) are copied from the shared texture.
+//!
 //! The `u32` regions hold floats here, since a float texel is not a safe carrier for arbitrary
 //! bits: the rig slot table its base bone indices (exact below 2^24), and the tint table
 //! `word & 0xFFFFFF`, with `-1` for the identity word 0 (a black tint is `0xFF000000`, so 0).
 
-use bevy::prelude::*;
+use std::collections::HashMap;
+use std::ops::Range;
+use std::sync::Mutex;
 
-use benilla_gfx::GfxDataTextures;
+use bevy::prelude::*;
+use bevy::render::render_resource::BufferId;
+
+use benilla_gfx::{DataTexture, GfxDataTextures};
 
 use crate::lighting::SharedLightBuffer;
 
@@ -59,92 +69,213 @@ pub(crate) struct Seen {
     tints: Option<u64>,
     matanim: Option<u64>,
     clips: Option<u64>,
+    /// Each mirror buffer and the regions it has been filled with ([`Mirror`]).
+    mirrors: HashMap<BufferId, u8>,
 }
 
-/// `GfxRenderSystems::Pack`: writes what changed into the shared buffer's data texture.
+/// The regions a mirror buffer carries, by the list it is on: the rig palette's
+/// ([`crate::rig_palette::RigPaletteMirrors`]: the slot table, origins and palette), the tints'
+/// ([`crate::instance_tint::InstanceTintMirrors`]) and the mat-anim table's
+/// ([`crate::mat_anim_table::MatAnimMirrors`]).
+struct Mirror;
+
+impl Mirror {
+    const RIG: u8 = 1;
+    const TINT: u8 = 2;
+    const MATANIM: u8 = 4;
+}
+
+/// The shared regions a pack rewrote: rows `ranges` of the shared texture.
+#[derive(Default)]
+struct Changed {
+    table: bool,
+    origin: bool,
+    tint: bool,
+    matanim: bool,
+    palette: Vec<Range<usize>>,
+}
+
+/// With `gfx`: every [`crate::lighting::LightBlob::write`] since the last pack, as (buffer, first
+/// row, rows); the booths write their studio blobs where no pack runs.
+static BLOB_WRITES: Mutex<Vec<BlobWrite>> = Mutex::new(Vec::new());
+
+/// One queued blob write: the buffer, the first row, the rows.
+type BlobWrite = (BufferId, usize, Vec<[f32; 4]>);
+
+/// Queues `rows` for buffer `id`'s data texture from row `at`, for the next [`pack`].
+pub(crate) fn record_blob_write(id: BufferId, at: usize, rows: Vec<[f32; 4]>) {
+    if let Ok(mut writes) = BLOB_WRITES.lock() {
+        writes.push((id, at, rows));
+    }
+}
+
+/// Every mirror buffer and the lists it is on.
+fn mirrors(world: &World) -> HashMap<BufferId, u8> {
+    let mut out: HashMap<BufferId, u8> = HashMap::new();
+    let mut add = |buffers: Option<Vec<BufferId>>, kind: u8| {
+        for id in buffers.unwrap_or_default() {
+            *out.entry(id).or_default() |= kind;
+        }
+    };
+    add(
+        world
+            .get_resource::<crate::rig_palette::RigPaletteMirrors>()
+            .map(|m| m.0.values().map(|b| b.id()).collect()),
+        Mirror::RIG,
+    );
+    add(
+        world
+            .get_resource::<crate::instance_tint::InstanceTintMirrors>()
+            .map(|m| m.0.values().map(|b| b.id()).collect()),
+        Mirror::TINT,
+    );
+    add(
+        world
+            .get_resource::<crate::mat_anim_table::MatAnimMirrors>()
+            .map(|m| m.0.values().map(|b| b.id()).collect()),
+        Mirror::MATANIM,
+    );
+    out
+}
+
+/// `GfxRenderSystems::Pack`: writes what changed into the shared buffer's data texture, the
+/// queued off-world blobs into theirs, and the mirrored regions into every mirror's, as the
+/// render-world uploads write the shared buffer and each mirror.
 pub(crate) fn pack(world: &mut World, mut seen: Local<Seen>) {
     let Some(id) = world.get_resource::<SharedLightBuffer>().map(|b| b.0.id()) else {
         return;
     };
+    let blobs = BLOB_WRITES
+        .lock()
+        .map(|mut w| std::mem::take(&mut *w))
+        .unwrap_or_default();
+    let mirrors = mirrors(world);
     world.resource_scope(|world, mut textures: Mut<GfxDataTextures>| {
         let b = bases();
-        let tex = textures.get_or_insert(id, b.end);
         let seen = &mut *seen;
+        let changed = pack_shared(world, textures.get_or_insert(id, b.end), &b, seen);
 
-        if let Some(rows) = crate::lighting::gfx_light_rows(world) {
-            tex.write(0, rows);
+        for (buffer, at, rows) in blobs {
+            textures.get_or_insert(buffer, b.end).write(at, &rows);
         }
 
-        if let Some((rows, high, generation, dirty)) = crate::lighting::gfx_prop_probes(world) {
-            if seen.probes != Some(generation) {
-                let high = high.min(rows.len());
-                let consecutive = seen.probes.is_some_and(|s| s.wrapping_add(1) == generation);
-                let (lo, hi) = match dirty {
-                    Some((lo, hi)) if consecutive => (lo.min(high), hi.min(high)),
-                    _ => (0, high),
-                };
-                seen.probes = Some(generation);
-                let flat: Vec<[f32; 4]> = rows[lo..hi].iter().flatten().copied().collect();
-                tex.write(b.probes + 7 * lo, &flat);
-            }
-        }
-
-        if let Some(p) = crate::rig_palette::gfx_palettes(world) {
-            if seen.rig_table != Some(p.table_generation) && !p.table.is_empty() {
-                seen.rig_table = Some(p.table_generation);
-                tex.write(b.rig_table, &pack4(p.table.iter().map(|&base| base as f32)));
-            }
-            if seen.rig_origin != Some(p.origin_generation) && !p.origins.is_empty() {
-                seen.rig_origin = Some(p.origin_generation);
-                tex.write(b.rig_origin, p.origins);
-            }
-            if !seen.palette_primed && !p.rows.is_empty() {
-                // The first sight writes every row; after it only the published dirty ranges.
-                seen.palette_primed = true;
-                seen.palette_dirty = p.dirty_id;
-                tex.write(b.palette, p.rows);
-            } else if seen.palette_dirty != p.dirty_id && !p.dirty.is_empty() {
-                seen.palette_dirty = p.dirty_id;
-                for &(base, len, _) in p.dirty {
-                    let (lo, hi) = (3 * base as usize, 3 * (base + len) as usize);
-                    if let Some(rows) = p.rows.get(lo..hi) {
-                        tex.write(b.palette + lo, rows);
-                    }
+        // A mirror takes its regions whole on first sight, then what the shared pack rewrote;
+        // a superset of the render world's mirrored ranges, which only the booth rigs read.
+        for (mirror, kinds) in mirrors {
+            let had = seen.mirrors.get(&mirror).copied().unwrap_or(0);
+            seen.mirrors.insert(mirror, kinds);
+            let fresh = kinds & !had;
+            let mut ranges: Vec<Range<usize>> = Vec::new();
+            let mut region = |kind: u8, dirty: bool, range: Range<usize>| {
+                if kinds & kind != 0 && (fresh & kind != 0 || dirty) {
+                    ranges.push(range);
                 }
+            };
+            region(Mirror::RIG, changed.table, b.rig_table..b.rig_tint);
+            region(Mirror::RIG, changed.origin, b.rig_origin..b.matanim);
+            region(Mirror::TINT, changed.tint, b.rig_tint..b.rig_origin);
+            region(Mirror::MATANIM, changed.matanim, b.matanim..b.water_clip);
+            if fresh & Mirror::RIG != 0 {
+                ranges.push(b.palette..b.end);
+            } else if kinds & Mirror::RIG != 0 {
+                ranges.extend(changed.palette.iter().cloned());
             }
-        }
-
-        if let Some(tints) = world.get_resource::<crate::instance_tint::InstanceTints>() {
-            let (slots, generation) = tints.gfx_slots();
-            if seen.tints != Some(generation) {
-                seen.tints = Some(generation);
-                tex.write(b.rig_tint, &pack4(slots.iter().map(|&w| tint_value(w))));
-            }
-        }
-
-        if let Some(table) = world.get_resource::<crate::mat_anim_table::MatAnimTable>() {
-            let (rows, generation) = table.gfx_rows();
-            if seen.matanim != Some(generation) {
-                seen.matanim = Some(generation);
-                tex.write(b.matanim, rows);
-            }
-        }
-
-        if let Some(clips) = world.get_resource::<crate::straddle::WaterClips>() {
-            let (slots, generation) = clips.gfx_slots();
-            if seen.clips != Some(generation) {
-                seen.clips = Some(generation);
-                let rows: Vec<[f32; 4]> = slots
-                    .chunks(2)
-                    .map(|c| {
-                        let hi = c.get(1).copied().unwrap_or([0.0; 2]);
-                        [c[0][0], c[0][1], hi[0], hi[1]]
-                    })
-                    .collect();
-                tex.write(b.water_clip, &rows);
+            for range in ranges {
+                let Some(rows) = textures.get(id).and_then(|t| t.rows().get(range.clone())) else {
+                    continue;
+                };
+                let rows = rows.to_vec();
+                textures
+                    .get_or_insert(mirror, b.end)
+                    .write(range.start, &rows);
             }
         }
     });
+}
+
+/// The shared buffer's writes, each gated as its upload system is.
+fn pack_shared(world: &World, tex: &mut DataTexture, b: &Bases, seen: &mut Seen) -> Changed {
+    let mut changed = Changed::default();
+    if let Some(rows) = crate::lighting::gfx_light_rows(world) {
+        tex.write(0, rows);
+    }
+
+    if let Some((rows, high, generation, dirty)) = crate::lighting::gfx_prop_probes(world) {
+        if seen.probes != Some(generation) {
+            let high = high.min(rows.len());
+            let consecutive = seen.probes.is_some_and(|s| s.wrapping_add(1) == generation);
+            let (lo, hi) = match dirty {
+                Some((lo, hi)) if consecutive => (lo.min(high), hi.min(high)),
+                _ => (0, high),
+            };
+            seen.probes = Some(generation);
+            let flat: Vec<[f32; 4]> = rows[lo..hi].iter().flatten().copied().collect();
+            tex.write(b.probes + 7 * lo, &flat);
+        }
+    }
+
+    if let Some(p) = crate::rig_palette::gfx_palettes(world) {
+        if seen.rig_table != Some(p.table_generation) && !p.table.is_empty() {
+            seen.rig_table = Some(p.table_generation);
+            tex.write(b.rig_table, &pack4(p.table.iter().map(|&base| base as f32)));
+            changed.table = true;
+        }
+        if seen.rig_origin != Some(p.origin_generation) && !p.origins.is_empty() {
+            seen.rig_origin = Some(p.origin_generation);
+            tex.write(b.rig_origin, p.origins);
+            changed.origin = true;
+        }
+        if !seen.palette_primed && !p.rows.is_empty() {
+            // The first sight writes every row; after it only the published dirty ranges.
+            seen.palette_primed = true;
+            seen.palette_dirty = p.dirty_id;
+            tex.write(b.palette, p.rows);
+            changed.palette.push(b.palette..b.palette + p.rows.len());
+        } else if seen.palette_dirty != p.dirty_id && !p.dirty.is_empty() {
+            seen.palette_dirty = p.dirty_id;
+            for &(base, len, _) in p.dirty {
+                let (lo, hi) = (3 * base as usize, 3 * (base + len) as usize);
+                if let Some(rows) = p.rows.get(lo..hi) {
+                    tex.write(b.palette + lo, rows);
+                    changed.palette.push(b.palette + lo..b.palette + hi);
+                }
+            }
+        }
+    }
+
+    if let Some(tints) = world.get_resource::<crate::instance_tint::InstanceTints>() {
+        let (slots, generation) = tints.gfx_slots();
+        if seen.tints != Some(generation) {
+            seen.tints = Some(generation);
+            tex.write(b.rig_tint, &pack4(slots.iter().map(|&w| tint_value(w))));
+            changed.tint = true;
+        }
+    }
+
+    if let Some(table) = world.get_resource::<crate::mat_anim_table::MatAnimTable>() {
+        let (rows, generation) = table.gfx_rows();
+        if seen.matanim != Some(generation) {
+            seen.matanim = Some(generation);
+            tex.write(b.matanim, rows);
+            changed.matanim = true;
+        }
+    }
+
+    if let Some(clips) = world.get_resource::<crate::straddle::WaterClips>() {
+        let (slots, generation) = clips.gfx_slots();
+        if seen.clips != Some(generation) {
+            seen.clips = Some(generation);
+            let rows: Vec<[f32; 4]> = slots
+                .chunks(2)
+                .map(|c| {
+                    let hi = c.get(1).copied().unwrap_or([0.0; 2]);
+                    [c[0][0], c[0][1], hi[0], hi[1]]
+                })
+                .collect();
+            tex.write(b.water_clip, &rows);
+        }
+    }
+    changed
 }
 
 /// A `u32` tint word as the shader reads it: `-1` for the identity, else its RGB as a float.
