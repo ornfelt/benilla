@@ -18,6 +18,8 @@ pub struct WindowSpec {
     pub width: u32,
     pub height: u32,
     pub vsync: bool,
+    pub mode: bevy::window::WindowMode,
+    pub level: bevy::window::WindowLevel,
 }
 
 pub struct GfxContext {
@@ -72,6 +74,9 @@ impl GfxContext {
         // SAFETY: `window` is the live window just created, on this thread.
         let device = unsafe {
             ffi::gfx_dll_window_set_event_handler(window, events::on_event);
+            // Before the map, as winit builds the window in its mode and level.
+            ffi::gfx_dll_window_set_mode(window, crate::window::gfx_mode(spec.mode));
+            ffi::gfx_dll_window_set_level(window, crate::window::gfx_level(spec.level));
             ffi::gfx_dll_window_show(window);
             ffi::gfx_dll_set_swap_interval(window, spec.vsync as i32);
             ffi::gfx_dll_get_device(window)

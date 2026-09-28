@@ -18,6 +18,7 @@ pub mod data;
 pub mod draw;
 pub mod events;
 pub mod ffi;
+pub mod gizmos;
 pub mod images;
 pub mod input;
 pub mod material;
@@ -31,6 +32,7 @@ pub mod screenshot;
 pub mod shader_def;
 pub mod shader_loader;
 pub mod target;
+pub mod timer;
 pub mod ui;
 pub mod window;
 
@@ -47,6 +49,7 @@ pub use material::{
 };
 pub use post::GfxFfxGlow;
 pub use render::{GfxRender, GfxRenderSystems};
+pub use timer::GfxGpuMeter;
 pub use ui::GfxUiLane;
 
 /// `group` (the `DefaultPlugins` set) with winit and wgpu swapped out for gfx.
@@ -64,10 +67,13 @@ pub struct GfxPlugin;
 impl Plugin for GfxPlugin {
     fn build(&self, app: &mut App) {
         render::build(app);
+        timer::build(app);
         window::build(app);
         app.add_plugins(GfxMaterialPlugin::<StandardMaterial>::new(
             material::standard,
         ));
+        app.add_systems(Startup, gizmos::init)
+            .add_systems(GfxRender, gizmos::collect.in_set(GfxRenderSystems::Collect));
         app.set_runner(runner::run);
     }
 

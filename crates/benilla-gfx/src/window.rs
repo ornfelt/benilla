@@ -21,7 +21,7 @@ use bevy::prelude::*;
 use bevy::window::{
     CursorEntered, CursorGrabMode, CursorIcon, CursorLeft, CursorMoved, CursorOptions,
     CustomCursor, PresentMode, PrimaryWindow, SystemCursorIcon, WindowCreated, WindowEvent,
-    WindowFocused, WindowMoved, WindowResized,
+    WindowFocused, WindowLevel, WindowMode, WindowMoved, WindowResized,
 };
 
 use crate::backend::Backends;
@@ -492,6 +492,25 @@ pub(crate) fn swap_interval(mode: PresentMode) -> i32 {
     }
 }
 
+/// gfx's mode for a `WindowMode`: every fullscreen is borderless on the window's own monitor
+/// (gfx_benilla sets no video mode and picks no other monitor).
+pub(crate) fn gfx_mode(mode: WindowMode) -> ffi::GfxWindowMode {
+    match mode {
+        WindowMode::Windowed => ffi::GfxWindowMode::Windowed,
+        WindowMode::BorderlessFullscreen(_) | WindowMode::Fullscreen(..) => {
+            ffi::GfxWindowMode::BorderlessFullscreen
+        }
+    }
+}
+
+pub(crate) fn gfx_level(level: WindowLevel) -> ffi::GfxWindowLevel {
+    match level {
+        WindowLevel::AlwaysOnBottom => ffi::GfxWindowLevel::Bottom,
+        WindowLevel::Normal => ffi::GfxWindowLevel::Normal,
+        WindowLevel::AlwaysOnTop => ffi::GfxWindowLevel::Top,
+    }
+}
+
 /// `Window` changes to the gfx window (bevy_winit's `changed_windows`). What gfx has no call for
 /// is named once in the log.
 fn sync_windows(
@@ -508,8 +527,28 @@ fn sync_windows(
             unsafe { ffi::gfx_dll_window_set_title(gfx, title.as_ptr()) };
             trace.line(format_args!("gfx set_title {:?}", window.title));
         }
+        if window.mode != cache.0.mode {
+            // The window answers with a resize event to the monitor's size, or back.
+            // SAFETY: the live window.
+            unsafe { ffi::gfx_dll_window_set_mode(gfx, gfx_mode(window.mode)) };
+            trace.line(format_args!("gfx set_mode {:?}", window.mode));
+            if matches!(window.mode, WindowMode::Fullscreen(..)) && unsupported.insert("exclusive")
+            {
+                info!("gfx: WindowMode::Fullscreen is borderless under gfx: no mode change");
+            }
+        }
+        if window.window_level != cache.0.window_level {
+            // SAFETY: the live window.
+            unsafe { ffi::gfx_dll_window_set_level(gfx, gfx_level(window.window_level)) };
+            trace.line(format_args!("gfx set_level {:?}", window.window_level));
+        }
         let size = window.resolution.physical_size();
-        if size != cache.0.resolution.physical_size() && size.x > 0 && size.y > 0 {
+        // A fullscreen window keeps the monitor's size, as winit's does against a size request.
+        if size != cache.0.resolution.physical_size()
+            && size.x > 0
+            && size.y > 0
+            && window.mode == WindowMode::Windowed
+        {
             // The window answers with a resize event, which sets the size it really got.
             // SAFETY: the live window.
             unsafe { ffi::gfx_dll_window_resize(gfx, size.x, size.y) };
@@ -540,8 +579,6 @@ fn sync_windows(
             }
         }
         for (field, changed) in [
-            ("mode (fullscreen)", window.mode != cache.0.mode),
-            ("window_level", window.window_level != cache.0.window_level),
             ("position", window.position != cache.0.position),
             ("decorations", window.decorations != cache.0.decorations),
             ("resizable", window.resizable != cache.0.resizable),

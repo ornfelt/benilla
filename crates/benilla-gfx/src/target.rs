@@ -365,7 +365,7 @@ impl Present {
             return Err("present attribute state creation failed".into());
         }
         let blend = pipelines::blend_state(device, Blend::Replace, true);
-        let depth = pipelines::depth_state(device, false, false, false);
+        let depth = pipelines::depth_state(device, false, false, ffi::GfxCompareFunction::Always);
         let raster = pipelines::raster_state(device, None);
         present.states = [blend, depth, raster];
         let info = ffi::GfxPipelineCreateInfo {

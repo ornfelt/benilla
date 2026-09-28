@@ -561,6 +561,7 @@ fn resolve(
         depth_write: desc.state.depth_write.unwrap_or(!transparent_phase),
         depth_test: desc.state.depth_test,
         depth_always: desc.state.depth_always,
+        depth_strict: desc.state.depth_strict,
         depth_bias: (desc.state.raster_bias, desc.state.raster_slope.to_bits()),
         primitive,
         target: class,

@@ -3,10 +3,11 @@
 //! DLL as benilla does. The camera is set up as benilla's world camera (`Hdr`,
 //! `Tonemapping::None`), with MSAA off. The scene covers what the gfx renderer draws so far: an
 //! sRGB texture sampled nearest and linear, BC1 blocks, vertex colours, back-face culling, depth,
-//! alpha mask, alpha blend, additive blend and the rasterizer depth bias.
+//! alpha mask, alpha blend, additive blend, the rasterizer depth bias and gizmo lines (a list and a
+//! strip through the default config: depth-tested, translucent, one clipped by the near plane).
 //!
 //! The window prints `parity: ready` once the scene has been on screen for a second and exits
-//! two seconds later; `.claude/skills/gfx-dll-port/tools/parity.sh` captures it in between and
+//! two seconds later (with `WOW_GPU_MS=1` under gfx, also the gfx GPU meter's frame time then); `.claude/skills/gfx-dll-port/tools/parity.sh` captures it in between and
 //! diffs the two captures.
 
 use bevy::asset::RenderAssetUsages;
@@ -42,24 +43,65 @@ fn main() -> AppExit {
     } else {
         plugins.build()
     };
-    App::new()
-        .add_plugins(plugins)
-        .insert_resource(ClearColor(Color::srgb(0.2, 0.3, 0.45)))
+    let mut app = App::new();
+    app.add_plugins(plugins);
+    if gfx && std::env::var("WOW_GPU_MS").as_deref() == Ok("1") {
+        app.insert_resource(benilla_gfx::GfxGpuMeter(Default::default()));
+    }
+    app.insert_resource(ClearColor(Color::srgb(0.2, 0.3, 0.45)))
         .add_systems(Startup, scene)
-        .add_systems(Update, clock)
+        .add_systems(Update, (clock, lines))
         .run()
 }
 
-fn clock(mut frames: Local<u32>, time: Res<Time<Real>>, mut exit: MessageWriter<AppExit>) {
+fn clock(
+    mut frames: Local<u32>,
+    time: Res<Time<Real>>,
+    meter: Option<Res<benilla_gfx::GfxGpuMeter>>,
+    mut exit: MessageWriter<AppExit>,
+) {
     *frames += 1;
     let t = time.elapsed_secs();
     if t >= 1.0 && *frames < u32::MAX / 2 {
+        if let Some(meter) = meter {
+            let ns = meter.0.load(std::sync::atomic::Ordering::Relaxed);
+            println!("parity: gpu {:.3} ms", ns as f64 / 1e6);
+        }
         println!("parity: ready");
         *frames = u32::MAX / 2;
     }
     if t >= 3.0 {
         exit.write(AppExit::Success);
     }
+}
+
+/// Gizmo lines as benilla draws them (the bowstring's two segments, the fishing line's sagging
+/// strip), plus a translucent one, one through the cube and one running behind the camera.
+fn lines(mut gizmos: Gizmos) {
+    gizmos.line(
+        Vec3::new(-2.0, 0.05, 1.5),
+        Vec3::new(2.0, 1.6, -1.5),
+        Color::srgb(0.12, 0.10, 0.08),
+    );
+    gizmos.line(
+        Vec3::new(-2.2, 1.2, 0.0),
+        Vec3::new(2.2, 0.3, 0.0),
+        Color::srgba(1.0, 0.9, 0.2, 0.5),
+    );
+    gizmos.line_gradient(
+        Vec3::new(1.5, 0.5, 8.0),
+        Vec3::new(-1.0, 0.2, -2.0),
+        Color::srgb(1.0, 0.1, 0.1),
+        Color::srgb(0.1, 1.0, 0.1),
+    );
+    let (near, far) = (Vec3::new(-1.8, 1.8, -1.0), Vec3::new(1.6, 0.2, 1.2));
+    gizmos.linestrip(
+        (0..=64).map(|i| {
+            let t = i as f32 / 64.0;
+            near.lerp(far, t) - Vec3::Y * (0.5 * (std::f32::consts::PI * t).sin())
+        }),
+        Color::srgb(0.6, 0.8, 1.0),
+    );
 }
 
 fn scene(

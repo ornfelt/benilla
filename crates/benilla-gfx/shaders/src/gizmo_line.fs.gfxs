@@ -1,0 +1,29 @@
+in 0 vec4 color
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 stroke
+}
+
+// `lines.wgsl`'s `fragment_solid`: the interpolated vertex colour.
+
+fs_output gfx_main(fs_input gfx_input)
+{
+	fs_output gfx_output;
+	gfx_output.color = gfx_input.color;
+	return gfx_output;
+}

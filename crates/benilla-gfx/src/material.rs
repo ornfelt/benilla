@@ -130,6 +130,8 @@ pub struct GfxDrawState {
     pub depth_write: Option<bool>,
     /// `CompareFunction::Always` in place of reverse-Z `GreaterEqual`.
     pub depth_always: bool,
+    /// `Greater` in place of `GreaterEqual` (bevy_gizmos' line pipelines).
+    pub depth_strict: bool,
     /// Off for a draw into a colour-only target (the UI lane's byte target).
     pub depth_test: bool,
     /// Colour writes on; off for a depth-only draw.
@@ -149,6 +151,7 @@ impl Default for GfxDrawState {
             blend: None,
             depth_write: None,
             depth_always: false,
+            depth_strict: false,
             depth_test: true,
             color_write: true,
             sort_bias: 0.0,

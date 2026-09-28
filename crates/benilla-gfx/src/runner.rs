@@ -89,6 +89,8 @@ fn open(world: &mut World) -> Result<GfxContext, String> {
         width: window.resolution.physical_width(),
         height: window.resolution.physical_height(),
         vsync: crate::window::swap_interval(window.present_mode) != 0,
+        mode: window.mode,
+        level: window.window_level,
     };
     GfxContext::open(&spec, backends)
 }

@@ -180,8 +180,28 @@ pub enum GfxBlendEquation {
     Max,
 }
 
+/// gfx_benilla's `GFX_TIMESTAMP_SLOTS`.
+pub const TIMESTAMP_SLOTS: u32 = 64;
+
+/// gfx_benilla's `enum gfx_window_mode`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GfxWindowMode {
+    Windowed,
+    BorderlessFullscreen,
+}
+
+/// gfx_benilla's `enum gfx_window_level`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GfxWindowLevel {
+    Normal,
+    Bottom,
+    Top,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GfxCompareFunction {
     Never,
     Lower,
@@ -820,6 +840,10 @@ unsafe extern "C" {
     pub fn gfx_dll_get_mouse_y(window: GfxWindow) -> i32;
     pub fn gfx_dll_window_get_scale_factor(window: GfxWindow) -> f32;
     pub fn gfx_dll_window_set_icon(window: GfxWindow, data: *const c_void, width: u32, height: u32);
+    /// gfx_benilla: borderless fullscreen on the window's monitor, or windowed.
+    pub fn gfx_dll_window_set_mode(window: GfxWindow, mode: GfxWindowMode);
+    /// gfx_benilla: the window's stacking level.
+    pub fn gfx_dll_window_set_level(window: GfxWindow, level: GfxWindowLevel);
     /// `cursor`: a [`native_cursor`] value.
     pub fn gfx_dll_create_native_cursor(window: GfxWindow, cursor: u32) -> GfxCursor;
     /// RGBA8, top row first.
@@ -911,6 +935,12 @@ unsafe extern "C" {
         data: *mut c_void,
     ) -> bool;
     pub fn gfx_dll_delete_texture(device: GfxDevice, texture: GfxTexture);
+    /// gfx_benilla: records the GPU's time at this point of the frame's work in `slot` (of
+    /// [`TIMESTAMP_SLOTS`]); false without timestamps. At most once a frame per slot.
+    pub fn gfx_dll_write_timestamp(device: GfxDevice, slot: u32) -> bool;
+    /// gfx_benilla: the time `slot` recorded, in nanoseconds, once the GPU is past it; false
+    /// until then (never waits).
+    pub fn gfx_dll_read_timestamp(device: GfxDevice, slot: u32, ns: *mut u64) -> bool;
 
     pub fn gfx_dll_create_input_layout(
         device: GfxDevice,

@@ -1,9 +1,9 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-4 done; 5 (UI) done but gizmos; 6 in flight: image
-cameras (the glue booth, the portraits, the paper doll and model panes, the minimap composite) and
-bevy's `Screenshot` (so the capture harness) now run through gfx; login and char create match wgpu
-to 0.004% >4 on vk, gl4 and gles3.
+Branch: `gfx-dll-backend`. Status: milestones 1-5 done (gizmos this run); 6 in flight: image
+cameras, `Screenshot` (the capture harness), window modes and level, and the `WOW_GPU_MS` meter run
+through gfx. Left in 6: MSAA, the `dev` egui panel, `depth_probe` / `phase_probe`, and the window's
+position / decorations / resizable.
 
 ## Milestones
 
@@ -21,7 +21,8 @@ to 0.004% >4 on vk, gl4 and gles3.
   buttons, motion, wheel, cursor, focus, size, scale factor; `Window`, `CursorOptions`,
   `CursorIcon` sync). `WOW_GFX_INPUT_TRACE=<path>` logs every message and window call. Not applied
   yet, each logged once: `WindowMode` (milestone 6), `window_level`, `position`, `decorations`,
-  `resizable`, focus requests; no runtime scale-factor change, no IME. `cover_input_wall` skips
+  `resizable`, focus requests; no runtime scale-factor change, no IME. (`WindowMode` and
+  `window_level` are applied since milestone 6.) `cover_input_wall` skips
   `benilla-gfx/src/{window,input}.rs`: they send the channels, as bevy_winit does.
 - [x] 3. **GPU resources.** `GfxRender` sets: `Pack` (main-world data into data textures),
   `Prepare` (asset and data-texture changes -> device stores, draw list reset), `Collect`
@@ -86,7 +87,7 @@ to 0.004% >4 on vk, gl4 and gles3.
     w = `Exposure::exposure()`; `VIEW_BLOCK` 256, other programs declare the 240-byte prefix).
     Not drawn: the metallic-roughness, emissive, occlusion and normal maps, transmission, and
     `double_sided` back-face normal flip (the compiler has no front-facing input).
-- [ ] 5. **UI.**
+- [x] 5. **UI.**
   - [x] The UI lane (`benilla-gfx/src/ui.rs`, `GfxUiLane`; `benilla-app/src/ui_pass/gfx.rs`): the
     lane `Camera2d` draws into `UiTarget` (8-bit sRGB, as the `Camera2d` main texture, no depth)
     - cleared, or grounded by the world view it claims (`FfxBackdrop::source`, drawn by gfx
@@ -108,7 +109,13 @@ to 0.004% >4 on vk, gl4 and gles3.
     lane's late draws (`DrawList::push_late`, after its `Mesh2d` draws, before the decode) through
     bevy's UI view projection (a view block of its own). Not drawn (none in benilla): box
     shadows, gradients, `ViewportNode`, text backgrounds, underline / strikethrough.
-  - [ ] Gizmos (bowstring, fishing line).
+  - [x] Gizmos (`benilla-gfx/src/gizmos.rs`, `gizmo_line.{vs,fs}.gfxs`): bevy_gizmos_render
+    0.18.1's 3D line pipeline. Each config group's `GizmoAsset` (main world, built in `Last`) is
+    expanded into one screen-space quad per segment (the WGSL's `vertex_index` corner an input),
+    written into one mesh rewritten in place, drawn per active `Camera3d` whose layers meet the
+    group's at transparent-phase distance 0 (list, then strip), alpha blend, depth write, reverse-Z
+    `Greater` (`GfxDrawState::depth_strict`, new). Solid lines only; styles, joints, retained
+    `Gizmo`s and 2D views log once (benilla uses none). HLSL reserves `line` too: no member so named.
 - [ ] 6. **The rest.**
   - [x] Image cameras (`draw.rs`, `target::ImageTarget`, `images::GpuImages::target`): a camera on
     `RenderTarget::Image` draws into its image's main pair (shared by every camera on the image,
@@ -131,8 +138,24 @@ to 0.004% >4 on vk, gl4 and gles3.
     (`gfx_dll_read_texture`, rows flipped on GL) into bevy's `CapturedScreenshots` channel, which
     gfx re-creates (its sender went to the missing render world). `WOW_CAPTURE` runs write their PNG
     and exit 0 under gfx.
-  - [ ] `depth_probe`, `phase_probe` (render-graph nodes), `WOW_GPU_MS`, `pipe_warm`, MSAA,
-    fullscreen / window modes (`video.rs`), background window level, the `dev` egui panel.
+  - [x] Window modes and level (`window.rs`, `context.rs`): `WindowMode` and `WindowLevel` at
+    creation (before the first show) and on change, through gfx_benilla's
+    `gfx_dll_window_set_mode` / `gfx_dll_window_set_level`. Every fullscreen is borderless on the
+    window's own monitor (no exclusive mode, no other monitor: `MonitorSelection` is not read);
+    a size request is not applied while fullscreen, as winit's is not; `video.rs`'s leave
+    (mode, then resolution, one frame) lands.
+  - [x] `WOW_GPU_MS` (`timer.rs`, `GfxGpuMeter`): gfx_benilla timestamps at the start of `Draw`
+    and after `Present` (the wgpu meter's camera-driver bracket), a ring of 8 frame pairs read
+    back 7 frames later, into `perf::gpu`'s `GpuMsShared` (cfg `gfx`). The wgpu census stays 0.
+  - [x] `pipe_warm`: nothing to port. Under gfx `PipeWatch` counts 0 created / 0 settled, so the
+    cover never waits on it, and the menagerie drawn behind the cover makes gfx's own pipelines
+    (made on first draw) as a side effect. Not seen live: it runs only on world entry (a login).
+  - [ ] MSAA: gfx has no multisampled offscreen targets (only the swapchain's `samples`); needs a
+    gfx_benilla multisample texture + resolve on every device. The reference default
+    `gxMultisample` 1 is what gfx draws; `MsaaSupportPlugin` finds no `RenderAdapter` under gfx,
+    so `MsaaFormats` is empty and a requested count passes through unclamped (and undrawn).
+  - [ ] `depth_probe`, `phase_probe` (render-graph nodes), the `dev` egui panel, the window's
+    `position` / `decorations` / `resizable` (benilla sets none of them away from the default).
 - [ ] 7. **Backend matrix and `GFX.md`.**
 
 ## GPU safety (read before any live vk or GL run)
@@ -185,8 +208,26 @@ a temporary, uncommitted pin in `ffx_glow.rs::sync_wave` served before.
 
 ## Verified backend pairs
 
-Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx `92148e0`), no
+Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx `ac87edd`), no
 account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
+- This run, gizmos: the parity scene with gizmo lines (a bowstring-like pair, the fishing line's
+  64-segment sagging strip, a translucent line, a gradient line clipped by the near plane) against
+  wgpu's capture of the same binary: x11/vk and sdl/vk max 1 (0.000% >1); x11/gl4 and glfw/gles3
+  0.001% >4 (the known texel-edge pixels); llvmpipe gl3 / gles3 0.005% >4, no `GL_INVALID`;
+  lavapipe with validation first (only the known teardown leak). The wgpu shot shows the lines.
+- This run, window modes: the full client with `WOW_BG=0` (so `gxWindow` 0, borderless) opens
+  `_NET_WM_STATE_FULLSCREEN` 1920x1080+0+0 on x11/vk, sdl/vk and glfw/gl4, as the wgpu build does;
+  a background run (`AlwaysOnBottom`) shows the same 1019x1014 tile and no `_NET_WM_STATE` in both
+  builds (awesome keeps no BELOW for winit either, so the level is unobservable here). A live
+  switch (a scratch example: fullscreen at 2 s, windowed 800x500 at 5 s, `xprop` / `xwininfo`
+  sampled): windowed -> fullscreen 1920x1080 -> windowed with the state cleared, identical on wgpu,
+  gfx x11/vk, sdl/vk and glfw/gl4.
+- This run, `WOW_GPU_MS`: the parity scene's reading (`WOW_GPU_MS=1 parity gfx` prints it) on
+  lavapipe with validation 4.9 ms (clean), llvmpipe gl3 4.0 / gles3 4.3 ms, x11/vk 1.2-1.4,
+  sdl/vk 1.2, x11/gl4 0.5-0.6, x11/gl3 0.56-0.58, glfw/gles3 0.6-0.9 ms; not A/B'd against the
+  wgpu meter (its one reader, `WOW_LIVE_FPS`, needs a connected world).
+- This run, regression: `glue-login` x11/vk 0% >4 (max 8), x11/gl4 0.002% >4; `glue-charcreate`
+  vk and gl4 0.003% >4: the previous run's numbers.
 - Milestone 6 image cameras and screenshots, this run: both builds' own `WOW_CAPTURE_OUT` PNGs,
   1019x1014. `glue-login` (the portal scene live): x11/vk and sdl/vk 0.005% >1, max 8, 0% >4;
   x11/gl4 0.074% >1, 0.002% >4; glfw/gles3 0.002% >4; llvmpipe gl3 / gles3 0.022% >4.
@@ -231,7 +272,7 @@ Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes g
 No GPU reset in any run (`dmesg` count 0).
 ## Build notes
 
-- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `92148e0`). Differs from
+- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `ac87edd`). Differs from
   `gfx_dll/gfx`: key events carry `physical` + `scancode`, `GFX_EVENT_RAW_MOTION`, per-window
   `scale_factor`, exported cursor / warp / icon / scale-factor calls, milestone-2 backend fixes,
   (milestone 3) the sRGB formats, GL depth attachment by format, `D32_SFLOAT` as float depth, and
@@ -258,17 +299,32 @@ No GPU reset in any run (`dmesg` count 0).
   `glColorMask`/`glDepthMask`, so after any pipeline without depth (or colour) writes, the present
   included, the depth clear did nothing; every GL A/B before this run ran on stale depth, which a
   static view hides.
+  This run: `gfx_dll_window_set_mode` / `gfx_dll_window_set_level` (optional `gfx_window_def`
+  entries outside `GFX_WINDOW_DEF`, set on the x11, sdl, glfw and win32 defs of every device;
+  wayland, android and emscripten ignore them): x11 `_NET_WM_STATE` FULLSCREEN / BELOW / ABOVE
+  through `gfx_x11_set_wm_state` (dlopen'd, the property before the map, client messages after;
+  also the glfw and sdl backends' bottom level on x11), sdl `SDL_WINDOW_FULLSCREEN_DESKTOP` and
+  `SDL_SetWindowAlwaysOnTop`, glfw `glfwSetWindowMonitor` at the monitor's current mode with
+  `GLFW_AUTO_ICONIFY` off and `GLFW_FLOATING`, win32 a `WS_POPUP` over `MonitorFromWindow`'s rect
+  and `SetWindowPos` (`HWND_BOTTOM` / `HWND_TOPMOST`; also sdl and glfw on win32; not built).
+  And GPU timestamps (optional `gfx_device_op` entries outside `GFX_DEVICE_OP_DEF`; d3d9 and jkg
+  have none): `gfx_dll_write_timestamp` / `gfx_dll_read_timestamp`, 64 slots, never waiting; GL
+  3.3 `glQueryCounter` (gl3/gl4) or `GL_EXT_disjoint_timer_query` (gles3, checked by extension
+  before any name is looked up), vk one query pool per frame in flight harvested after its fence
+  and reset before its first render pass (a reset may not sit inside one), d3d11 a timestamp and
+  a disjoint query per slot, d3d12 a query heap resolved into a readback buffer, read once the
+  writing frame's fence passed (d3d ones not built).
   Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build && cmake ..
   -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)` -> `bin/Debug_x64/libgfx.so`. `benilla-gfx/build.rs`
   takes `gfx_benilla` over `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it beside the binary.
 - gfx's vk layout keeps its binding-2-is-14 hack (the original C apps' array): a benilla program's
   sampler slots 0..3 are single samplers; slot 2 works through the fill.
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs` (`blit` (the image targets'
-  `upscaling`), `present`,
+  `upscaling`), `present`, `gizmo_line`,
   `standard`, `wow_model`, `static_gx`, `terrain`, `wdl`, `liquid`, `sky`, `celestial`, `star`,
   `cloud`, `effect`, `ffx_downsample`, `ffx_gauss`, `ffx_combine`, `ffx_combine_wave`,
   `ui_quad`, `ui_gamma`, `ui_node_gamma`, `ui_slice_gamma`, `ui_add`); HLSL reserves `point`
-  (a geometry-stage keyword): no varying may be named so. `WOW_GFX_SHADERS=<dir>` loads a family tree from disk, e.g. a probe
+  and `line` (geometry-stage keywords): no varying or block member may be named so. `WOW_GFX_SHADERS=<dir>` loads a family tree from disk, e.g. a probe
   variant compiled into the scratchpad (`compile.sh` copied beside a `src/`); `crates/benilla-gfx/shaders/compile.sh [names]` writes the four families. The
   compiler prints samplers in fragment stages only: a vertex stage that fetches declares its
   sampler in the body per backend at the fragment stage's slot (vk `set = 1, binding = slot`).
@@ -282,15 +338,15 @@ No GPU reset in any run (`dmesg` count 0).
 ## Gates (this run)
 
 `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=8 scripts/check.sh` (escalates to `gates.sh`: files under
-`.claude/` are outside the crate map): ALL GATES GREEN on this run's code (1465 s): fmt, clippy,
+`.claude/` are outside the crate map): ALL GATES GREEN on this run's code (1089 s): fmt, clippy,
 workspace tests, no-install tests, doc links, pass-span lint, player build and tests, both
 enforcers; "install or addon corpus not found" (`WoW/Data` under the repo), so data-gated tests
-skipped. `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warnings` green;
-`cargo test -p benilla-gfx --features gfx` 35 passed, `benilla-world --features gfx` `gfx::` 5
-passed. No `smoke.sh`: no `.probe-identity`. Disk: the gate chain needs ~25 GB; delete
-`target/debug/deps` executables (`find target/debug/deps -maxdepth 1 -type f -executable ! -name
-'*.so' -delete`, plus `target/debug/examples`) and the A/B binaries under `target/ab/` (hard links
-of `target/debug/benilla`, 2.8 GB each) before it.
+skipped (30, no addon corpus). `cargo clippy --workspace --all-targets --features benilla/gfx --
+-D warnings` green; `cargo test -p benilla-gfx --features gfx` 37 passed, `benilla-world
+--features gfx` `gfx::` 5 passed. No `smoke.sh`: no `.probe-identity`. Disk: the gate chain needs
+~25 GB; delete `target/debug/deps` executables (`find target/debug/deps -maxdepth 1 -type f
+-executable ! -name '*.so' -delete`, plus `target/debug/examples`) and the A/B binaries under
+`target/ab/` (copies of `target/debug/benilla`, 2.8 GB each) before it.
 
 ## For the maintainer
 
@@ -359,16 +415,22 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
   camera now that GL clears depth.
 - The effect lane uploads the whole stream every frame into a mesh padded to a power of two; its
   cost in a busy scene (a city, a raid) is unmeasured.
+- `AlwaysOnBottom` cannot be seen on this WM: awesome keeps no `_NET_WM_STATE_BELOW` for the gfx
+  window or winit's. Check the level on another WM (or Windows) before calling it matched.
+- The gfx GPU meter reads plausibly on every device (GL ~0.5 ms, vk ~1.2 ms on the parity scene)
+  but is not A/B'd against the wgpu meter; vk stamps `BOTTOM_OF_PIPE` in gfx's command buffer,
+  GL at the counter's point in the stream.
 - Disk: ~10-25 GB free; `target/debug/deps` collects stale builds of benilla's crates per feature
   set (1.5-3 GB each). Delete the ones older than the current round's.
 
 ## Next
 
-Close milestone 5 with gizmos (the bowstring, the fishing line: bevy_gizmos' line lists read from
-the main world, drawn as a line program into the world view), then milestone 6's rest: the
-`depth_probe` / `phase_probe` instruments (read-back now exists; the depth needs a copy of the
-depth target into a colour texture), `WOW_GPU_MS` (gfx has no timestamp queries: CPU-side frame
-time or a gfx_benilla query API), `pipe_warm` (a no-op under gfx: pipelines are made on first
-draw), MSAA, fullscreen / window modes, the background window level and the `dev` egui panel.
-First look for a server-less scenario that shows a `<Model>` tile or the interior minimap, to A/B
-the atlas and composite paths. Lavapipe and llvmpipe first for every new program.
+Milestone 6's rest, in this order: MSAA (a gfx_benilla multisampled texture and a resolve on every
+device, then `Msaa` on the scene and image targets, the pipelines keyed on the sample count, and
+`MsaaFormats` published from the gfx device so the Video dropdown lists what gfx offers); the `dev`
+egui panel (bevy_egui's output drawn through gfx: its meshes and textures from the main world, or
+`gfx_imgui`); the `depth_probe` / `phase_probe` instruments (read-back exists; the depth needs a
+copy into a colour texture). Then milestone 7: every Linux window/device pair to the character
+screen and into the world, and `GFX.md`. With a `.probe-identity` account: A/B the bowstring or
+fishing line in the client, `WOW_LIVE_FPS` with `WOW_GPU_MS=1` on both builds, and watch the warm
+pass on world entry. Lavapipe and llvmpipe first for every new program.

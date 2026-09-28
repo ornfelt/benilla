@@ -115,7 +115,7 @@ impl FfxPost {
             triangle,
             states: [
                 pipelines::blend_state(device, Blend::Replace, true),
-                pipelines::depth_state(device, false, false, false),
+                pipelines::depth_state(device, false, false, ffi::GfxCompareFunction::Always),
                 pipelines::raster_state(device, None),
                 pipelines::raster_state_scissored(device),
             ],

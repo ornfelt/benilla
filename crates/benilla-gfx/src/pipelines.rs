@@ -59,6 +59,8 @@ pub struct PipelineKey {
     pub depth_test: bool,
     /// `Always` in place of `GreaterEqual`.
     pub depth_always: bool,
+    /// `Greater` in place of `GreaterEqual`.
+    pub depth_strict: bool,
     /// The rasterizer depth bias, wgpu's `DepthBiasState`: the constant and the slope scale's
     /// bits (`f32` is not `Hash`).
     pub depth_bias: (i32, u32),
@@ -77,7 +79,7 @@ pub struct Pipelines {
     pipelines: HashMap<PipelineKey, GfxPipeline>,
     layouts: HashMap<&'static str, Layout>,
     blend: HashMap<(Blend, bool), ffi::GfxBlendState>,
-    depth: HashMap<(bool, bool, bool), ffi::GfxDepthStencilState>,
+    depth: HashMap<(bool, bool, GfxCompareFunction), ffi::GfxDepthStencilState>,
     raster: HashMap<(Option<Face>, (i32, u32)), ffi::GfxRasterizerState>,
 }
 
@@ -135,12 +137,15 @@ impl Pipelines {
             .blend
             .entry((key.blend, key.color_write))
             .or_insert_with(|| blend_state(device, key.blend, key.color_write));
+        let compare = match (key.depth_always, key.depth_strict) {
+            (true, _) => GfxCompareFunction::Always,
+            (false, true) => GfxCompareFunction::Greater,
+            (false, false) => GfxCompareFunction::GEqual,
+        };
         let depth = *self
             .depth
-            .entry((key.depth_test, key.depth_write, key.depth_always))
-            .or_insert_with(|| {
-                depth_state(device, key.depth_test, key.depth_write, key.depth_always)
-            });
+            .entry((key.depth_test, key.depth_write, compare))
+            .or_insert_with(|| depth_state(device, key.depth_test, key.depth_write, compare));
         let raster = *self
             .raster
             .entry((key.cull, key.depth_bias))
@@ -279,7 +284,7 @@ pub(crate) fn depth_state(
     device: GfxDevice,
     test: bool,
     write: bool,
-    always: bool,
+    compare: GfxCompareFunction,
 ) -> ffi::GfxDepthStencilState {
     let stencil = GfxStencilState {
         fail: GfxStencilOperation::Keep,
@@ -291,11 +296,7 @@ pub(crate) fn depth_state(
         reference: 0,
     };
     let info = ffi::GfxDepthStencilStateCreateInfo {
-        depth_compare: if always {
-            GfxCompareFunction::Always
-        } else {
-            GfxCompareFunction::GEqual
-        },
+        depth_compare: compare,
         depth_write: write,
         depth_test: test,
         stencil_enabled: false,

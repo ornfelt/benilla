@@ -1,0 +1,94 @@
+in 0 vec3 position
+in 1 vec3 position_b
+in 2 vec4 color
+in 3 vec4 color_b
+in 4 vec2 corner
+
+out 0 vec4 color
+
+constant 0 view_block
+{
+	mat4 clip_from_world
+	mat4 view_from_world
+	mat4 clip_from_view
+	vec4 world_position
+	vec4 viewport
+	vec4 misc
+}
+
+constant 1 draw_block
+{
+	mat4 world_from_local
+	uvec4 tag
+	vec4 stroke
+}
+
+// bevy_gizmos_render 0.18.1 `lines.wgsl`'s vertex stage, solid lines: the segment a-b as a
+// screen-space quad `stroke.x` pixels wide (divided by clip w where `stroke.z`, the perspective
+// flag), near-plane clipped by hand, its depth pulled toward the camera by `stroke.y`, the depth
+// bias. The quad corner is an input in place of the WGSL's `vertex_index` table. Under the GL
+// clip remap (`misc.y`) the bias applies to the unremapped depth; the near-plane test
+// `z > w` holds either way.
+
+vec4 clip_near_plane(vec4 a, vec4 b)
+{
+	if (a.z > a.w && b.z <= b.w)
+	{
+		float distance_a = a.z - a.w;
+		float distance_b = b.z - b.w;
+		float t = distance_a / (distance_a - distance_b);
+		return mix(a, b, vec4(t, t, t, t));
+	}
+	return a;
+}
+
+vs_output gfx_main(vs_input gfx_input)
+{
+	vs_output gfx_output;
+	vec4 world_a = mul(vec4(gfx_input.position, 1.0), world_from_local);
+	vec4 world_b = mul(vec4(gfx_input.position_b, 1.0), world_from_local);
+	vec4 clip_a0 = mul(world_a, clip_from_world);
+	vec4 clip_b0 = mul(world_b, clip_from_world);
+	vec4 clip_a = clip_near_plane(clip_a0, clip_b0);
+	vec4 clip_b = clip_near_plane(clip_b0, clip_a0);
+	float along = gfx_input.corner.y;
+	vec4 clip = mix(clip_a, clip_b, vec4(along, along, along, along));
+
+	vec2 resolution = viewport.zw;
+	vec2 screen_a = resolution * (0.5 * clip_a.xy / clip_a.w + vec2(0.5, 0.5));
+	vec2 screen_b = resolution * (0.5 * clip_b.xy / clip_b.w + vec2(0.5, 0.5));
+	vec2 y_basis = normalize(screen_b - screen_a);
+	vec2 x_basis = vec2(-y_basis.y, y_basis.x);
+
+	vec4 color = mix(gfx_input.color, gfx_input.color_b, vec4(along, along, along, along));
+	float line_width = stroke.x;
+	if (stroke.z > 0.5)
+	{
+		line_width = line_width / clip.w;
+	}
+	// Line thinness fade.
+	if (line_width > 0.0 && line_width < 1.0)
+	{
+		color.a = color.a * line_width;
+		line_width = 1.0;
+	}
+	vec2 screen = mix(screen_a, screen_b, vec2(along, along)) + (line_width * gfx_input.corner.x) * x_basis;
+
+	float z = clip.z;
+	if (misc.y > 0.5)
+	{
+		z = 0.5 * (clip.z + clip.w);
+	}
+	float depth = z * (1.0 - stroke.y);
+	if (stroke.y < 0.0)
+	{
+		depth = z * exp2(-stroke.y * log2(clip.w / z - 0.000488));
+	}
+	if (misc.y > 0.5)
+	{
+		depth = 2.0 * depth - clip.w;
+	}
+	gfx_output.gfx_position = vec4(clip.w * ((2.0 * screen) / resolution - vec2(1.0, 1.0)), depth, clip.w);
+	gfx_output.color = color;
+	return gfx_output;
+}
