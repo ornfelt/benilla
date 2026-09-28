@@ -23,15 +23,14 @@ pub(crate) struct DefaultSampler(pub bevy::image::ImageSamplerDescriptor);
 pub struct GfxMsaaCounts(pub Vec<u32>);
 
 pub fn run(mut app: App) -> AppExit {
-    if app.plugins_state() != PluginsState::Cleaned {
+    // The device opens before the plugins finish, as wgpu's does in `RenderPlugin::build`:
+    // `finish` reads what it can do (the BLP loader's BC lane).
+    let finished = app.plugins_state() == PluginsState::Cleaned;
+    if !finished {
         while app.plugins_state() == PluginsState::Adding {
             bevy::tasks::tick_global_task_pools_on_main_thread();
         }
-        app.finish();
-        app.cleanup();
     }
-
-    crate::noop_device::insert(app.world_mut());
     let ctx = match open(app.world_mut()) {
         Ok(ctx) => ctx,
         Err(e) => {
@@ -40,6 +39,25 @@ pub fn run(mut app: App) -> AppExit {
             return AppExit::error();
         }
     };
+    let bc = crate::images::bc_supported(ctx.device);
+    info!(
+        "gfx: BC texture formats {}",
+        if bc { "sampled" } else { "not supported" }
+    );
+    if finished {
+        warn!("gfx: the plugins finished before the device opened; BC support stays guessed");
+    } else {
+        app.world_mut()
+            .insert_resource(bevy::image::CompressedImageFormatSupport(if bc {
+                bevy::image::CompressedImageFormats::BC
+            } else {
+                bevy::image::CompressedImageFormats::NONE
+            }));
+        app.finish();
+        app.cleanup();
+    }
+
+    crate::noop_device::insert(app.world_mut());
     let counts = crate::target::supported_sample_counts(ctx.device);
     app.world_mut().insert_resource(GfxMsaaCounts(counts));
     app.world_mut().insert_non_send_resource(ctx);

@@ -104,6 +104,31 @@ pub struct Upload {
     pub block: (u32, u32),
 }
 
+/// The block formats gfx has, BC1-5 with the sRGB forms: what `CompressedImageFormats::BC` promises
+/// the loaders for BLP and Bevy's own images.
+const BC_FORMATS: [GfxFormat; 11] = [
+    GfxFormat::Bc1RgbUnormBlock,
+    GfxFormat::Bc1RgbaUnormBlock,
+    GfxFormat::Bc1RgbaSrgbBlock,
+    GfxFormat::Bc2UnormBlock,
+    GfxFormat::Bc2SrgbBlock,
+    GfxFormat::Bc3UnormBlock,
+    GfxFormat::Bc3SrgbBlock,
+    GfxFormat::Bc4UnormBlock,
+    GfxFormat::Bc4SnormBlock,
+    GfxFormat::Bc5UnormBlock,
+    GfxFormat::Bc5SnormBlock,
+];
+
+/// Whether `device` samples every BC format, as `RenderPlugin::finish` reads the wgpu device's
+/// features: gl3, gl4 and gles3 through their S3TC / RGTC extensions, vk per format.
+pub(crate) fn bc_supported(device: GfxDevice) -> bool {
+    BC_FORMATS
+        .iter()
+        // SAFETY: a plain query of a live device.
+        .all(|&f| unsafe { ffi::gfx_dll_device_supports_format(device, f) })
+}
+
 pub fn upload_format(format: TextureFormat) -> Option<Upload> {
     use TextureFormat as T;
     let plain = |format, bytes| Upload {

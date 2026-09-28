@@ -111,9 +111,9 @@ impl Plugin for RenderMainWorldPlugin {
         app.init_asset::<bevy::shader::Shader>()
             .init_asset_loader::<bevy::shader::ShaderLoader>();
         // What `RenderPlugin::finish` publishes from the device, read by `TexturePlugin::finish`
-        // and the BLP loader: BC for every gfx device that uploads BC blocks, which is all but
-        // gles3 (`gles3.c` has no S3TC formats), where BLPs decode to RGBA8. The device does not
-        // exist yet; the backend it will be does.
+        // and the BLP loader. The device does not exist yet: this is the backend's guess (gles3
+        // has BC only by extension), which the runner replaces with the device's answer
+        // (`images::bc_supported`) before the plugins finish.
         let bc = crate::backend::Backends::from_env()
             .is_ok_and(|b| b.device != crate::ffi::GfxDeviceBackend::Gles3);
         app.insert_resource(bevy::image::CompressedImageFormatSupport(if bc {

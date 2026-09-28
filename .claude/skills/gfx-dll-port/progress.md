@@ -1,9 +1,9 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-6 done; milestone 7 in flight (this run: GL clip
-depth [0, 1] through clip control, the per-vertex remap where a GL lacks it, and the gfx window
-created at winit's size). The history of each piece is in `git log main..HEAD`; this file is the
-current state only.
+Branch: `gfx-dll-backend`. Status: milestones 1-6 done; milestone 7 in flight (this run: the
+Linux matrix through the server-less scenarios, `GFX.md`, BC textures on gles3 from the device,
+the `ui-unitframes` dock traced to benilla's resize re-layout). The history of each piece is in
+`git log main..HEAD`; this file is the current state only.
 
 ## Milestones
 
@@ -40,10 +40,16 @@ current state only.
     remap. Where it fails (a GL without clip control; forced by `WOW_GFX_DEPTH_REMAP=1`) the view
     block's `misc.y` has bit 2 and every 3D vertex program ends in `device_clip` (`z' = 2z - w`,
     naga's GL remap). `misc.y` = 1 (the target's rows run bottom-up) + 2 (remap).
-  - [x] The window's creation size (this run), above.
-  - [ ] Every Linux window/device pair to the character screen and into the world (needs a
-    `.probe-identity` account; server-less: the capture scenarios).
-  - [ ] `GFX.md`.
+  - [x] The window's creation size, above.
+  - [x] Every Linux pair (x11, sdl, glfw x gl3, gl4, gles3, vk) through `glue-login`,
+    `glue-charcreate`, `ui-bag`, `ui-char`, `ui-unitframes` (this run, table below).
+  - [x] BC on gles3 (this run): the device opens before the plugins finish (`runner.rs`) and
+    `images::bc_supported` asks `gfx_dll_device_supports_format` for BC1-5, which becomes
+    `CompressedImageFormatSupport`; gles3 had decoded BLPs on the CPU (`texpresso`), 5.7% of
+    pixels 2 levels off.
+  - [x] `GFX.md` (this run); refresh its pair table when Windows is built.
+  - [ ] With a `.probe-identity` account: every pair to the character screen and into the world.
+  - [ ] Windows: build win32 / d3d11 / d3d12 and run the matrix there.
 
 ## GPU safety (read before any live vk or GL run)
 
@@ -78,8 +84,35 @@ killed the maintainer's X session (a gfx vk descriptor bug, fixed). Since then:
 
 ## Verified this run
 
+Matrix (`OUT=target/ab/m-<scenario>`, wgpu vs gfx, % of pixels off by >1 / >4; every pair
+identical across x11, sdl and glfw; before the gles3 BC change):
+
+| scenario | vk | gl4 = gl3 | gles3 (after BC) |
+|---|---|---|---|
+| glue-login | 0.007 / 0.002 | 0.076 / 0.003 | 0.076 / 0.003 (was 3.53) |
+| glue-charcreate | 0.412 / 0.013 | 0.491 / 0.013 | 0.491 / 0.013 (was 7.81) |
+| ui-bag | 0.048 / 0.003 | 2.60 / 0.004 | 2.60 / 0.004 (was 8.0) |
+| ui-char | 0.065 / 0.002 | 2.64 / 0.003 | 2.64 / 0.003 (was 8.3) |
+| ui-unitframes | 6.44 / 6.32 | 9.17 / 6.32 | (the dock offset, below) |
+
+`WOW_NO_BC=1` proved the gles3 gap before the fix: gl4 with it equals old gles3 exactly (0.000%),
+and wgpu against itself with it moves 6.6% of pixels by 1-4 levels. After: gles3 x11 / sdl / glfw
+equal gl4 in every scenario run; llvmpipe gles3 clean (no `GL_INVALID`), lavapipe vk validation
+only the known teardown leak; x11 gl3, gl4, vk, sdl vk / gl4, glfw vk unchanged.
+
+The `ui-unitframes` dock: the chat box's white rows at x=200 are 703-850 in wgpu, 751-897 in gfx,
+and 703-850 in gfx with one resize after load (`WOW_RESIZE=611x608`). gfx's image is identical
+whether it asked 640x700 or the tile's size. wgpu gives the same image after a 4 px late resize
+(`WOW_WIN=609x606`) as after 1066x1166 -> 1019x1014. So the dock is whatever
+`UIParent_ManageFramePositions` last saw, and benilla re-runs it only on a screen size change
+(`benilla-ui/src/script/mod.rs` `set_screen_size`): awesome's tile arrives after winit's first
+frames (a late re-layout after `MultiBarBottomLeft` shows, empty, +55) and before gfx's first
+frame (none, +15). Not a gfx difference; handed to the maintainer (below).
+
 Linux (Debian 13, X11 :0, awesome, Radeon 680M / Mesa 25.0.7), `gfx_benilla` Debug, no account
 (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`. No GPU reset (dmesg count 0).
+
+The previous run (GL clip depth, window size):
 - Parity scene depth (`PARITY_DEPTH`, 4 pixels): at the origin gl3 / gl4 (llvmpipe and RADV)
   equal lavapipe / RADV vk to 9 digits (was 3e-6); at `PARITY_ORIGIN=0,0,-9000` GL within 3e-5
   relative of vk (was x1.00098); the rest is the f32 world transform at 9000 yd, compiled
@@ -105,7 +138,7 @@ Linux (Debian 13, X11 :0, awesome, Radeon 680M / Mesa 25.0.7), `gfx_benilla` Deb
 
 ## Build notes
 
-- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (its own repo at `~/Code2/General/gfx`, `087a10b`),
+- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (its own repo at `~/Code2/General/gfx`, `00d613d`),
   `cd .../gfx_benilla && mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug && make
   -j$(nproc)` -> `bin/Debug_x64/libgfx.so`. `benilla-gfx/build.rs` prefers `gfx_benilla` over
   `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it to `target/debug/` at build time only:
@@ -118,7 +151,10 @@ Linux (Debian 13, X11 :0, awesome, Radeon 680M / Mesa 25.0.7), `gfx_benilla` Deb
   decorations / resizable, windows created unmapped; GPU timestamps; vk multisampling and
   resolve, `get_msaa_counts`; `copy_texture`; vk depth barriers; and (this run)
   `gfx_dll_set_depth_zero_to_one` (gl3/gl4/gles3 `glClipControl` / `glClipControlEXT` once the
-  version or extension says it exists; vk, d3d11, d3d12 already [0, 1]; d3d ones not built).
+  version or extension says it exists; vk, d3d11, d3d12 already [0, 1]; d3d ones not built), and
+  (this run) `gfx_dll_device_supports_format` (GL / GLES by the S3TC, S3TC-sRGB, `EXT_texture_sRGB`
+  and RGTC extensions, vk by `vkGetPhysicalDeviceFormatProperties`, d3d11 / d3d12 true; d3d not
+  built).
   Optional ops sit outside `GFX_DEVICE_OP_DEF` (d3d9 and jkg leave them NULL).
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs`; `crates/benilla-gfx/shaders/
   compile.sh [names]` writes the four families (compiler: `cd ~/Code2/General/gfx/wc_compiler_rs
@@ -139,6 +175,11 @@ map), `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warni
 ## For the maintainer
 
 - Deferred (2026-09-27): mouselook's `CursorGrabMode::Locked` stays a real gfx grab.
+- `ui-unitframes` (2026-09-28): the chat dock ends where the last `UIParent_ManageFramePositions`
+  left it, and benilla re-runs that only on a screen size change, so a WM's late tile (winit) and
+  an early one (gfx) end 40 UI units apart; on a non-tiling WM wgpu would land where gfx does.
+  Measured under "Verified this run". A benilla UI question (1.12 re-docks from the bars'
+  OnShow / OnHide), not a gfx one.
 - Window size is not a parity target: the WM may tile a gfx window.
 - Upstream candidates in `gfx_benilla` that are gfx bugs, not benilla needs: the x11 raw event
   twice under a grab, the x11 release-as-repeat heuristic, glfw's no-op `set_mouse_position`,
@@ -152,17 +193,9 @@ map), `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warni
 
 ## Open problems
 
-- `ui-unitframes`: the chat frame and the pet-bar row sit 40 UI units lower in the gfx build
-  (both devices, deterministic; wgpu identical run to run). Measured this run: 40 units is
-  `FCF_UpdateDockPosition`'s `MultiBarBottomLeft:IsShown()` branch (+55 against +15), so the two
-  builds disagree on whether `MultiBarBottomLeft` was shown when `UIParent_ManageFramePositions`
-  last ran; 1.12 re-docks only from the main menu bar's and pet bar's OnShow / OnHide (and the pet
-  bar's slide), not from `MultiActionBar_Update`. The startup differs: winit runs frames at
-  1066x1166 before the WM's 1019x1014 tile arrives, gfx sees both sizes in its first frame
-  (`WOW_GFX_INPUT_TRACE`), and the image settles after 301 frames against 207. So the layout is
-  order- or size-history-dependent in benilla's UI, which gfx's timing exposes; not a drawing
-  difference. Next: a Lua-side order trace that runs in a capture (`WOW_PROBE_LUA` waits for a
-  world entry a capture never makes), or `WOW_WIN` at a size the WM keeps, in both builds.
+- `check_window_pinned` (`benilla-app/src/video.rs`) truncates the logical size at a fractional
+  scale factor (5/3 here), so a `WOW_WIN` capture refuses sizes that are not multiples of 3, and
+  under `WOW_DPI` winit still creates the window at the display's scale; both builds, not gfx.
 - GL MSAA sample pattern: GL draws the scene bottom-up (the present flips), so 4x is mirrored in
   y against the image (0.39% of the parity scene, 0.93% of the overview >1). `glClipControl
   (GL_UPPER_LEFT, …)` where clip control exists would draw top-down and retire the GL row flips
@@ -188,11 +221,11 @@ map), `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warni
 
 ## Next
 
-Milestone 7 continues. First the `ui-unitframes` ordering (Open problems): find why the builds
-end with a different dock offset, with a trace, not a guess; if it is benilla's UI (order or
-resize history), hand it to the maintainer with the trace. Then every Linux pair through the
-server-less scenarios (`glue-login`, `glue-charcreate`, `ui-bag`, `ui-char`, `ui-unitframes`,
-the worldview lake / overview) on x11, sdl, glfw x gl3, gl4, gles3, vk, and `GFX.md`. With a
-`.probe-identity` account: login to the character screen and into the world on every pair, the
-bowstring or fishing line, `gxMultisample 4`, `WOW_LIVE_FPS` with `WOW_GPU_MS=1` on both builds,
-the warm pass on world entry, `WOW_PHASE=<uniqueId>` on a WMO.
+Milestone 7 continues; what is left needs what this machine lacks. With a `.probe-identity`
+account: `scripts/smoke.sh` on the gfx build, then login to the character screen and into the
+world on every Linux pair, the bowstring or fishing line, `gxMultisample 4`, `WOW_LIVE_FPS` with
+`WOW_GPU_MS=1` on both builds, the warm pass on world entry, `WOW_PHASE=<uniqueId>` on a WMO. On
+Windows: build `gfx_benilla` (MSVC, `GFX.md`) and benilla with `--features gfx`, fix what does not
+compile in the win32 / d3d11 / d3d12 code written blind, and run the capture matrix there. Without
+either: the worldview A/B (`tools/world_ab.sh`) on every pair, and the GL MSAA row order
+(`glClipControl(GL_UPPER_LEFT, ...)`) from Open problems. Then mark the project done.
