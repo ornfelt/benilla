@@ -953,6 +953,12 @@ unsafe extern "C" {
     /// (GL through clip control: GL 4.5, `GL_ARB_clip_control`, GLES `GL_EXT_clip_control`),
     /// false where it stays [-1, 1]. Once, after the device is made.
     pub fn gfx_dll_set_depth_zero_to_one(device: GfxDevice) -> bool;
+    /// gfx_benilla: GL only, in place of [`gfx_dll_set_depth_zero_to_one`]: clip y +1 is a
+    /// target's first row, as on vk and d3d, and clip depth runs [0, 1]
+    /// (`glClipControl(GL_UPPER_LEFT, GL_ZERO_TO_ONE)`); facing and `gl_FragCoord` follow, and
+    /// viewport and scissor rects count rows from the target's first. False, with nothing changed,
+    /// on a GL without clip control and on every other device. Once, after the device is made.
+    pub fn gfx_dll_set_clip_upper_left(device: GfxDevice) -> bool;
     /// gfx_benilla: whether a 2D texture of `format` can be made, uploaded and sampled; the block
     /// formats are the ones a device may lack (GL and GLES without S3TC or RGTC), every other
     /// format is true.

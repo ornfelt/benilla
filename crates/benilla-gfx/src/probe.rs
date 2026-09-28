@@ -9,7 +9,7 @@
 use bevy::prelude::*;
 
 use crate::draw::GfxRenderer;
-use crate::ffi::{self, GfxDevice, GfxDeviceBackend, GfxTexture};
+use crate::ffi::{self, GfxDevice, GfxTexture};
 use crate::target::{self, DEPTH_FORMAT};
 
 /// A depth copy asked of the draw ([`GfxDepthProbe::request`]).
@@ -75,6 +75,7 @@ pub(crate) fn collect_depth(
     mut probe: ResMut<GfxDepthProbe>,
 ) {
     let backend = renderer.backend();
+    let bottom_up = renderer.rows_bottom_up();
     let Some(copy) = renderer.depth_copy.as_mut() else {
         return;
     };
@@ -100,11 +101,9 @@ pub(crate) fn collect_depth(
         error!("gfx: the depth copy could not be read back ({backend:?} reads no depth on gles3)");
         return;
     }
-    // GL draws the scene bottom-up: its first row is the image's bottom.
-    if matches!(
-        backend,
-        GfxDeviceBackend::Gl3 | GfxDeviceBackend::Gl4 | GfxDeviceBackend::Gles3
-    ) {
+    // A GL without the upper-left clip origin draws the scene bottom-up: its first row is the
+    // image's bottom.
+    if bottom_up {
         let rows: Vec<f32> = depth
             .chunks_exact(w as usize)
             .rev()

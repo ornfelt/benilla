@@ -179,6 +179,9 @@ pub struct GfxRenderer {
     /// The device clips depth to [-1, 1] (a GL without clip control): every 3D vertex program
     /// maps Bevy's [0, 1] clip z there itself (`misc.y` bit 2).
     depth_remap: bool,
+    /// GL draws clip y +1 at a target's first row (clip control's upper-left origin): every
+    /// target's rows run top-down as on vk and d3d, and gfx's rects count from that first row.
+    upper_left: bool,
     pub meshes: GpuMeshes,
     pub images: GpuImages,
     pub data: GpuDataTextures,
@@ -203,15 +206,23 @@ impl GfxRenderer {
     pub fn new(ctx: &mut GfxContext, default_sampler: bevy::image::ImageSamplerDescriptor) -> Self {
         let device = ctx.device;
         let backend = ctx.backends.device;
-        // Bevy's projections put clip z in [0, 1], vk's and d3d's range; GL takes it through
-        // clip control where it has one. `WOW_GFX_DEPTH_REMAP=1` keeps GL at [-1, 1], to measure
-        // the remap a device without clip control draws through.
+        // Bevy's projections put clip z in [0, 1], vk's and d3d's range, and its targets' first
+        // row at clip y +1; GL takes both through clip control where it has one.
+        // `WOW_GFX_DEPTH_REMAP=1` keeps GL at [-1, 1] and bottom-up, to measure the path a GL
+        // without clip control draws through.
         let force_remap = std::env::var_os("WOW_GFX_DEPTH_REMAP").is_some_and(|v| v == "1");
-        let depth_remap = if force_remap && is_gl(backend) {
+        let gl = is_gl(backend);
+        // SAFETY: the live device, on its thread, before any draw.
+        let upper_left = gl && !force_remap && unsafe { ffi::gfx_dll_set_clip_upper_left(device) };
+        let depth_remap = if force_remap && gl {
             true
         } else {
-            !unsafe { ffi::gfx_dll_set_depth_zero_to_one(device) }
+            // SAFETY: as above.
+            !upper_left && !unsafe { ffi::gfx_dll_set_depth_zero_to_one(device) }
         };
+        if gl && !upper_left {
+            warn!("gfx: GL draws its targets bottom-up (no clip control's upper-left origin)");
+        }
         if depth_remap {
             warn!("gfx: the device clips depth to [-1, 1]; the vertex programs remap it");
         }
@@ -230,6 +241,7 @@ impl GfxRenderer {
             device,
             backend,
             depth_remap,
+            upper_left,
             meshes: GpuMeshes::new(device),
             images: GpuImages::new(device, default_sampler),
             data: GpuDataTextures::new(device),
@@ -239,7 +251,7 @@ impl GfxRenderer {
             overlay: OverlayPass::new(device),
             present,
             capture: None,
-            post: FfxPost::new(device, backend),
+            post: FfxPost::new(device, backend, upper_left),
             depth_copy: None,
             ring: UniformRing::new(device),
             skipped: Vec::new(),
@@ -252,6 +264,11 @@ impl GfxRenderer {
 
     pub(crate) fn backend(&self) -> GfxDeviceBackend {
         self.backend
+    }
+
+    /// A target's first row is the image's bottom: GL without clip control's upper-left origin.
+    pub(crate) fn rows_bottom_up(&self) -> bool {
+        is_gl(self.backend) && !self.upper_left
     }
 
     /// The scene target's finished colour, the one the present encodes.
@@ -436,7 +453,8 @@ struct View {
     entity: Entity,
     /// Where it draws: the scene target, or the image of a `RenderTarget::Image` camera.
     dest: Dest,
-    /// Drawn upside down, so the target's rows run top-down on GL (`ImageTarget`).
+    /// The target's rows run top-down on GL: every target under the upper-left clip origin, or an
+    /// image target drawn upside down (`ImageTarget`). gfx's rects then count from the top.
     top_down: bool,
     /// The target's size in pixels.
     target_size: UVec2,
@@ -461,12 +479,13 @@ enum Dest {
     Image(AssetId<Image>),
 }
 
-/// A pixel rect in gfx's convention, y counted from the bottom of the target.
-type GfxRect = (i32, i32, UVec2);
+/// A pixel rect in gfx's convention: y counted from the bottom of the target, or from its top on a
+/// GL target whose rows run top-down.
+pub(crate) type GfxRect = (i32, i32, UVec2);
 
 /// `rect` (bevy's, top-down) on a `height` target as gfx counts it: from the bottom, except on a
 /// target drawn top-down, whose rows already run as bevy's.
-fn gfx_rect(rect: URect, height: u32, top_down: bool) -> GfxRect {
+pub(crate) fn gfx_rect(rect: URect, height: u32, top_down: bool) -> GfxRect {
     let size = rect.size();
     let y = if top_down {
         rect.min.y as i32
@@ -480,7 +499,7 @@ fn gfx_rect(rect: URect, height: u32, top_down: bool) -> GfxRect {
 enum Cmd {
     /// A window camera starts on the scene target, or its multisampled target when `msaa`.
     View {
-        viewport: URect,
+        viewport: GfxRect,
         clear: Option<LinearRgba>,
         msaa: bool,
     },
@@ -516,11 +535,11 @@ enum Cmd {
     },
     /// A UI lane view starts: its target bound, cleared unless a claimed combine grounded it.
     UiBegin {
-        viewport: URect,
+        viewport: GfxRect,
         clear: Option<LinearRgba>,
     },
     /// The UI lane's decode into the scene target, its block at this ring offset.
-    UiDecode { offset: u32, viewport: URect },
+    UiDecode { offset: u32, viewport: GfxRect },
     /// An overlay camera: the staged draws `draws` (start, end) into the overlay target, cleared
     /// with `clear`, through the transform block at `offset`; then its `upscaling` over the frame,
     /// its block at `composite`.
@@ -808,7 +827,7 @@ pub(crate) fn draw_views(
                 let d = img.texture_descriptor.size;
                 (Dest::Image(id), UVec2::new(d.width, d.height), gl)
             }
-            None => (Dest::Scene, size, false),
+            None => (Dest::Scene, size, renderer.upper_left),
         };
         let output_blend = match &camera.output_mode {
             CameraOutputMode::Write {
@@ -848,9 +867,10 @@ pub(crate) fn draw_views(
             continue;
         };
         let view_from_world = transform.to_matrix().inverse();
-        // An image target on GL is drawn upside down so its rows run top-down (`ImageTarget`);
-        // the flip turns the winding over too.
-        let flip = if top_down {
+        // An image target on GL without the upper-left origin is drawn upside down so its rows
+        // run top-down (`ImageTarget`); the flip turns the winding over too.
+        let clip_flip = top_down && !renderer.upper_left;
+        let flip = if clip_flip {
             Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0))
         } else {
             Mat4::IDENTITY
@@ -872,7 +892,7 @@ pub(crate) fn draw_views(
             depth_remap: renderer.depth_remap,
             time: time.elapsed_secs_wrapped(),
             target_height: target_size.y,
-            invert_culling: camera.invert_culling != top_down,
+            invert_culling: camera.invert_culling != clip_flip,
             glow: glow.copied(),
             ui_lane,
             claimed,
@@ -986,7 +1006,7 @@ pub(crate) fn draw_views(
                 images: gpu_images,
                 ..
             } = &mut *renderer;
-            let draws = overlay.stage(frame, size.y, |id| {
+            let draws = overlay.stage(frame, size.y, view.top_down, |id| {
                 Some(gpu_images.get(id, images.get(id)?)?.texture)
             });
             // Nothing drawn composites nothing: the overlay's clear is transparent under a
@@ -1016,7 +1036,7 @@ pub(crate) fn draw_views(
                 continue;
             };
             cmds.push(Cmd::UiBegin {
-                viewport: view.viewport,
+                viewport: gfx_rect(view.viewport, view.target_size.y, view.top_down),
                 clear: if grounded { None } else { view.clear },
             });
             cmds.extend(mesh2d_cmds(
@@ -1077,7 +1097,7 @@ pub(crate) fn draw_views(
             let offset = renderer.ring.push(&FfxPost::decode_block(gamma));
             cmds.push(Cmd::UiDecode {
                 offset,
-                viewport: view.viewport,
+                viewport: gfx_rect(view.viewport, view.target_size.y, view.top_down),
             });
             continue;
         }
@@ -1093,7 +1113,7 @@ pub(crate) fn draw_views(
                 };
                 let (target, msaa) = msaa_or_main(scene, samples);
                 cmds.push(Cmd::View {
-                    viewport: view.viewport,
+                    viewport: gfx_rect(view.viewport, view.target_size.y, view.top_down),
                     clear: view.clear,
                     msaa,
                 });
@@ -1544,26 +1564,12 @@ fn execute(
                 let Some(ui) = ui else {
                     continue;
                 };
-                let size = viewport.size();
+                let (x, y, size) = viewport;
                 // SAFETY: the live device and UI target, on the device's thread.
                 unsafe {
                     ffi::gfx_dll_bind_framebuffer(device, ui.framebuffer);
-                    ffi::gfx_dll_set_viewport(
-                        device,
-                        viewport.min.x as i32,
-                        viewport.min.y as i32,
-                        size.x,
-                        size.y,
-                        0.0,
-                        1.0,
-                    );
-                    ffi::gfx_dll_set_scissor(
-                        device,
-                        viewport.min.x as i32,
-                        viewport.min.y as i32,
-                        size.x,
-                        size.y,
-                    );
+                    ffi::gfx_dll_set_viewport(device, x, y, size.x, size.y, 0.0, 1.0);
+                    ffi::gfx_dll_set_scissor(device, x, y, size.x, size.y);
                     if let Some(c) = clear {
                         ffi::gfx_dll_clear_color(device, ui.framebuffer, 0, &gfx_color(c));
                     }
@@ -1609,29 +1615,15 @@ fn execute(
                 clear,
                 msaa,
             } => {
-                let size = viewport.size();
+                let (x, y, size) = viewport;
                 let Some(framebuffer) = bound_framebuffer(target, msaa) else {
                     continue;
                 };
                 // SAFETY: the live device and scene target, on the device's thread.
                 unsafe {
                     ffi::gfx_dll_bind_framebuffer(device, framebuffer);
-                    ffi::gfx_dll_set_viewport(
-                        device,
-                        viewport.min.x as i32,
-                        viewport.min.y as i32,
-                        size.x,
-                        size.y,
-                        0.0,
-                        1.0,
-                    );
-                    ffi::gfx_dll_set_scissor(
-                        device,
-                        viewport.min.x as i32,
-                        viewport.min.y as i32,
-                        size.x,
-                        size.y,
-                    );
+                    ffi::gfx_dll_set_viewport(device, x, y, size.x, size.y, 0.0, 1.0);
+                    ffi::gfx_dll_set_scissor(device, x, y, size.x, size.y);
                     if let Some(c) = clear {
                         ffi::gfx_dll_clear_color(device, framebuffer, 0, &gfx_color(c));
                     }

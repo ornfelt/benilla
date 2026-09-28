@@ -141,13 +141,15 @@ impl OverlayPass {
         self.draws.clear();
     }
 
-    /// Stages `frame` for a `height` target, each draw's texture from `texture` (a draw whose
+    /// Stages `frame` for a `height` target (its rows `top_down` on GL, as `gfx_rect` takes them),
+    /// each draw's texture from `texture` (a draw whose
     /// image is not on the device is skipped, as bevy_egui skips one without a bind group);
     /// returns its range of the staged draws.
     pub(crate) fn stage(
         &mut self,
         frame: &GfxOverlayFrame,
         height: u32,
+        top_down: bool,
         mut texture: impl FnMut(AssetId<Image>) -> Option<GfxTexture>,
     ) -> Range<usize> {
         let start = self.draws.len();
@@ -160,14 +162,9 @@ impl OverlayPass {
             let Some(texture) = texture(draw.image) else {
                 continue;
             };
-            let size = draw.scissor.size();
             self.draws.push(StagedDraw {
                 texture,
-                scissor: (
-                    draw.scissor.min.x as i32,
-                    height as i32 - draw.scissor.max.y as i32,
-                    size,
-                ),
+                scissor: crate::draw::gfx_rect(draw.scissor, height, top_down),
                 first: base_index + draw.indices.start,
                 count: draw.indices.len() as u32,
             });

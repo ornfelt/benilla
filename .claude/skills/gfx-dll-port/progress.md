@@ -1,8 +1,8 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-6 done; milestone 7 in flight (this run: the
-Linux matrix through the server-less scenarios, `GFX.md`, BC textures on gles3 from the device,
-the `ui-unitframes` dock traced to benilla's resize re-layout). The history of each piece is in
+Branch: `gfx-dll-backend`. Status: milestones 1-6 done; milestone 7 in flight (this run: GL
+draws top-down through clip control's upper-left origin, vk offscreen passes load their
+attachments, the vk teardown leak, the worldview A/B on every Linux pair). The history of each piece is in
 `git log main..HEAD`; this file is the current state only.
 
 ## Milestones
@@ -34,20 +34,29 @@ the `ui-unitframes` dock traced to benilla's resize re-layout). The history of e
   modes and level, `WOW_GPU_MS`, MSAA, the dev egui panel, window position / decorations /
   resizable, the `WOW_DEPTH` / `WOW_PHASE` instruments.
 - [ ] 7. **Backend matrix and `GFX.md`.**
-  - [x] GL clip depth (this run): `gfx_dll_set_depth_zero_to_one` at renderer creation puts GL
-    on `glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)` (GL 4.5 / `ARB_clip_control` /
-    `EXT_clip_control`), so every device takes Bevy's clip z as is and no matrix carries a
-    remap. Where it fails (a GL without clip control; forced by `WOW_GFX_DEPTH_REMAP=1`) the view
-    block's `misc.y` has bit 2 and every 3D vertex program ends in `device_clip` (`z' = 2z - w`,
-    naga's GL remap). `misc.y` = 1 (the target's rows run bottom-up) + 2 (remap).
+  - [x] GL clip control (this run): `gfx_dll_set_clip_upper_left` at renderer creation puts GL
+    on `glClipControl(GL_UPPER_LEFT, GL_ZERO_TO_ONE)` (GL 4.5 / `ARB_clip_control` /
+    `EXT_clip_control`): clip z as Bevy's, and clip y +1 at a target's first row, so every GL
+    target runs top-down as vk's (`GfxRenderer::upper_left`; views `top_down`, no clip flip, no
+    culling swap, `misc.y` 0, gfx rects from the top, the post triangle's V as vk's, no depth
+    probe row flip). The present and screenshot paths are unchanged: the window's first row is
+    its bottom, so clip y -1 lands on its top. Where clip control fails (forced by
+    `WOW_GFX_DEPTH_REMAP=1`) GL draws bottom-up with the old flips, the view block's `misc.y` bit
+    2 set and every 3D vertex program ending in `device_clip` (`z' = 2z - w`). `misc.y` = 1 (rows
+    bottom-up) + 2 (remap). Window, UI-lane and decode viewports now go through `gfx_rect` too.
+  - [x] vk offscreen passes load (this run): `LOAD_OP_LOAD` from the attachment layouts, each
+    image handed over in `vk_begin_render_pass` from its recorded layout (they loaded
+    `DONT_CARE` from `UNDEFINED`, relying on RADV and lavapipe keeping the content). The swapchain
+    pass keeps `DONT_CARE` (the present covers it whole). `vmaDestroyAllocator` before the device
+    (the teardown leak).
   - [x] The window's creation size, above.
   - [x] Every Linux pair (x11, sdl, glfw x gl3, gl4, gles3, vk) through `glue-login`,
-    `glue-charcreate`, `ui-bag`, `ui-char`, `ui-unitframes` (this run, table below).
-  - [x] BC on gles3 (this run): the device opens before the plugins finish (`runner.rs`) and
+    `glue-charcreate`, `ui-bag`, `ui-char`, `ui-unitframes`, and the worldview (table below).
+  - [x] BC on gles3: the device opens before the plugins finish (`runner.rs`) and
     `images::bc_supported` asks `gfx_dll_device_supports_format` for BC1-5, which becomes
     `CompressedImageFormatSupport`; gles3 had decoded BLPs on the CPU (`texpresso`), 5.7% of
     pixels 2 levels off.
-  - [x] `GFX.md` (this run); refresh its pair table when Windows is built.
+  - [x] `GFX.md`; refresh its pair table when Windows is built.
   - [ ] With a `.probe-identity` account: every pair to the character screen and into the world.
   - [ ] Windows: build win32 / d3d11 / d3d12 and run the matrix there.
 
@@ -84,61 +93,45 @@ killed the maintainer's X session (a gfx vk descriptor bug, fixed). Since then:
 
 ## Verified this run
 
-Matrix (`OUT=target/ab/m-<scenario>`, wgpu vs gfx, % of pixels off by >1 / >4; every pair
-identical across x11, sdl and glfw; before the gles3 BC change):
+Client matrix (`OUT=target/ab/ul-<scenario>` GL, `ld-<scenario>` vk; wgpu vs gfx, % of pixels
+off by >1 / >4; x11, sdl and glfw identical per device):
 
-| scenario | vk | gl4 = gl3 | gles3 (after BC) |
+| scenario | vk | gl4 = gl3 = gles3 | lavapipe vk |
 |---|---|---|---|
-| glue-login | 0.007 / 0.002 | 0.076 / 0.003 | 0.076 / 0.003 (was 3.53) |
-| glue-charcreate | 0.412 / 0.013 | 0.491 / 0.013 | 0.491 / 0.013 (was 7.81) |
-| ui-bag | 0.048 / 0.003 | 2.60 / 0.004 | 2.60 / 0.004 (was 8.0) |
-| ui-char | 0.065 / 0.002 | 2.64 / 0.003 | 2.64 / 0.003 (was 8.3) |
-| ui-unitframes | 6.44 / 6.32 | 9.17 / 6.32 | (the dock offset, below) |
+| glue-login | 0.007 / 0.002 | 0.078 / 0.003 (was 0.076) | 6.46 / 0.024 |
+| glue-charcreate | 0.412 / 0.013 | 0.492 / 0.013 (was 0.491) | 16.3 / 0.119 |
+| ui-bag | 0.048 / 0.003 | 2.577 / 0.004 (was 2.600) | 18.7 / 0.317 |
+| ui-char | 0.065 / 0.002 | 2.615 / 0.003 (was 2.642) | 20.0 / 0.553 |
 
-`WOW_NO_BC=1` proved the gles3 gap before the fix: gl4 with it equals old gles3 exactly (0.000%),
-and wgpu against itself with it moves 6.6% of pixels by 1-4 levels. After: gles3 x11 / sdl / glfw
-equal gl4 in every scenario run; llvmpipe gles3 clean (no `GL_INVALID`), lavapipe vk validation
-only the known teardown leak; x11 gl3, gl4, vk, sdl vk / gl4, glfw vk unchanged.
-
-The `ui-unitframes` dock: the chat box's white rows at x=200 are 703-850 in wgpu, 751-897 in gfx,
-and 703-850 in gfx with one resize after load (`WOW_RESIZE=611x608`). gfx's image is identical
-whether it asked 640x700 or the tile's size. wgpu gives the same image after a 4 px late resize
-(`WOW_WIN=609x606`) as after 1066x1166 -> 1019x1014. So the dock is whatever
-`UIParent_ManageFramePositions` last saw, and benilla re-runs it only on a screen size change
-(`benilla-ui/src/script/mod.rs` `set_screen_size`): awesome's tile arrives after winit's first
-frames (a late re-layout after `MultiBarBottomLeft` shows, empty, +55) and before gfx's first
-frame (none, +15). Not a gfx difference; handed to the maintainer (below).
+- vk after the load-op change: every image identical to the run before it (0.000% differ) on x11,
+  sdl, glfw and lavapipe; validation clean, the teardown leak gone after the allocator fix
+  (`lk-ui-bag`, parity 4x on lavapipe: 0 messages).
+- GL upper-left on llvmpipe gl3 / gles3 (`glue-login` 6.49% / 0.024%, as before) and radeonsi;
+  no `GL_INVALID`. `WOW_GFX_DEPTH_REMAP=1` (the bottom-up fallback) on the parity scene
+  and `ui-bag` gl3 at the old numbers (0.002% >1; 2.60% / 0.005%).
+- Parity scene (`PARITY_MSAA=4`): x11 gl4 0.004% >1 against wgpu (was 0.39%, the mirrored
+  sample pattern); vk 0.000%; no MSAA gl4 0.002%.
+- Worldview (`tools/world_ab.sh`, Northshire overview, noon, 1019x1014, `target/ab/wv`): every
+  pair; vk x11 / sdl / glfw 0.010 / 0.017 / 0.012% >1, <= 0.004% >4; every GL pair 0.033-0.037%
+  >1, 0.018-0.020% >4, 0.010% >16 (about 100 isolated pixels, some sky through a seam); the
+  bottom-up fallback was worse there (0.015% >16); wgpu against itself 2 pixels >16.
+- The GL `ui-bag` 2.6%: exactly +-2 in one channel (15934 at -2, 11938 at +2), none below 64,
+  about 5% of values 128-224: one step of the UI lane's 8-bit sRGB store (a step is ~2 output
+  levels there, ~1 at 64). Not the combine's dither (its arm is 0 in these scenes: the image did
+  not change with it forced off). RADV rounds as wgpu; radeonsi GL does not. Driver rounding.
 
 Linux (Debian 13, X11 :0, awesome, Radeon 680M / Mesa 25.0.7), `gfx_benilla` Debug, no account
 (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`. No GPU reset (dmesg count 0).
 
-The previous run (GL clip depth, window size):
-- Parity scene depth (`PARITY_DEPTH`, 4 pixels): at the origin gl3 / gl4 (llvmpipe and RADV)
-  equal lavapipe / RADV vk to 9 digits (was 3e-6); at `PARITY_ORIGIN=0,0,-9000` GL within 3e-5
-  relative of vk (was x1.00098); the rest is the f32 world transform at 9000 yd, compiled
-  differently for GL and SPIR-V (the scene is not camera-relative as benilla's world programs
-  are). The forced remap (`WOW_GFX_DEPTH_REMAP=1`) on gl4 and llvmpipe gl3: 1e-6 of vk at the
-  origin, the same 3e-5 far out. gles3 reads no depth (known).
-- Client `ui-bag` (Northshire), `WOW_DEPTH` at 5 pixels x 3 frames + the phase lines: x11/vk and
-  sdl/vk identical to wgpu in every line; x11/gl4, x11/gl3, llvmpipe gl3 within 4e-6 relative
-  (<= 0.0003 yd at 95 yd; was x1.00098, ~0.05 yd at 50 yd); forced remap on gl4 within 1.5e-5;
-  lavapipe 1-2 ulp. Images: vk 0.003% >4 / 0.002% >16; gl4 and gl3 0.004% >4 / 0.002% >16 (was
-  0.029% >16: fewer coplanar flips); lavapipe and llvmpipe 0.3% >4 (software rasterizers).
-- Regressions: `glue-login` x11/vk max 8, 0% >4; x11/gl4, glfw/gles3 0.002% >4; lavapipe,
-  llvmpipe gles3 0.02% >4. `glue-charcreate` (image camera, GL rows top-down: `misc.y` 0 now)
-  x11/vk, x11/gl4, glfw/gles3 0.003% >4; software 0.107% >4. Validation: only the known teardown
-  leak; no `GL_INVALID`.
-- Window size: the client (asked 640x700 logical at scale 1.667) now opens 1067x1167 on x11 as
-  winit's 1066x1166 before the WM tiles it; glfw steps through the asked size too; sdl clamps an
-  oversized ask itself. The parity scene (override 1.0) is unchanged.
-- Earlier runs (git): all twelve Linux pairs on the parity scene (milestone 3), every world
-  material and the UI at max 1 on vk, GL within its sRGB rounding; MSAA, egui, window modes and
-  properties, `WOW_GPU_MS`. Windows (win32, d3d11, d3d12) never built; the d3d11 HLSL of every
-  shader passes glslang's parser.
+Earlier runs (git): the `ui-unitframes` dock is benilla re-laying out on a late WM resize
+(`WOW_RESIZE`), not gfx; gles3 BC from the device's format query; GL clip depth within 4e-6 of
+vk in the client's `WOW_DEPTH` lines; all twelve Linux pairs on the parity scene; every world
+material and the UI at max 1 on vk; MSAA, egui, window modes and properties, `WOW_GPU_MS`.
+Windows (win32, d3d11, d3d12) never built; the d3d11 HLSL of every shader passes glslang.
 
 ## Build notes
 
-- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (its own repo at `~/Code2/General/gfx`, `00d613d`),
+- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (its own repo at `~/Code2/General/gfx`, `1cde22d`),
   `cd .../gfx_benilla && mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug && make
   -j$(nproc)` -> `bin/Debug_x64/libgfx.so`. `benilla-gfx/build.rs` prefers `gfx_benilla` over
   `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it to `target/debug/` at build time only:
@@ -149,12 +142,15 @@ The previous run (GL clip depth, window size):
   depth bias; `set_texture_subdata`; GL sRGB framebuffer writes; `read_texture` (colour and
   depth); GL clears that ignore the write masks; window mode / level / position / centre /
   decorations / resizable, windows created unmapped; GPU timestamps; vk multisampling and
-  resolve, `get_msaa_counts`; `copy_texture`; vk depth barriers; and (this run)
+  resolve, `get_msaa_counts`; `copy_texture`; vk depth barriers;
   `gfx_dll_set_depth_zero_to_one` (gl3/gl4/gles3 `glClipControl` / `glClipControlEXT` once the
-  version or extension says it exists; vk, d3d11, d3d12 already [0, 1]; d3d ones not built), and
-  (this run) `gfx_dll_device_supports_format` (GL / GLES by the S3TC, S3TC-sRGB, `EXT_texture_sRGB`
-  and RGTC extensions, vk by `vkGetPhysicalDeviceFormatProperties`, d3d11 / d3d12 true; d3d not
-  built).
+  version or extension says it exists; vk, d3d11, d3d12 already [0, 1]; d3d ones not built);
+  `gfx_dll_device_supports_format` (GL / GLES by the S3TC, S3TC-sRGB, `EXT_texture_sRGB` and RGTC
+  extensions, vk by `vkGetPhysicalDeviceFormatProperties`, d3d11 / d3d12 true; d3d not built);
+  and (this run) `gfx_dll_set_clip_upper_left` (gl3/gl4/gles3 only, the same lookup with
+  `GL_UPPER_LEFT`; NULL elsewhere, so false), vk offscreen render passes loading from the
+  attachment layouts with the hand-over in `vk_begin_render_pass`, and `vmaDestroyAllocator` in
+  `vk_dtr` (gfx repo `git log` for the hashes).
   Optional ops sit outside `GFX_DEVICE_OP_DEF` (d3d9 and jkg leave them NULL).
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs`; `crates/benilla-gfx/shaders/
   compile.sh [names]` writes the four families (compiler: `cd ~/Code2/General/gfx/wc_compiler_rs
@@ -163,14 +159,16 @@ The previous run (GL clip depth, window size):
   output, and `include` works only in the header (programs sharing a stage carry copies:
   `device_clip` is in every 3D vertex program).
 - Build: `CARGO_INCREMENTAL=0 cargo build -p benilla --features gfx`; incremental caches filled the
-  disk before. Disk: ~45 GB free; delete `target/debug/deps` files older than the round
+  disk before. Disk: ~15-35 GB free; delete `target/debug/deps` files older than the round
   (`find target/debug/deps -maxdepth 1 -type f -mmin +180 -delete`) before the gates.
 
 ## Gates (this run)
 
-See the commit: `scripts/check.sh` (escalates to `gates.sh`: `.claude/` is outside the crate
-map), `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warnings`,
-`cargo test -p benilla-gfx --features egui`. No `smoke.sh`: no `.probe-identity`.
+`CARGO_INCREMENTAL=0 scripts/check.sh` (escalates to `gates.sh`: `.claude/` is outside the crate
+map; all gates ok, ~2280 s; the first try ran out of disk), `cargo clippy --workspace
+--all-targets --features benilla/gfx -- -D warnings`, `cargo test -p benilla-gfx --features egui`
+(40 passed). No `smoke.sh`: no `.probe-identity`. Disk after the gates: 5.9 GB free (the
+workspace `target/` is ~95 GB; `target/debug/deps` holds stale hashes of earlier runs).
 
 ## For the maintainer
 
@@ -185,8 +183,9 @@ map), `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warni
   twice under a grab, the x11 release-as-repeat heuristic, glfw's no-op `set_mouse_position`,
   sdl's late X1/X2, win32's screen-coordinate `set_mouse_position`, the GL depth attachment and
   `D32_SFLOAT` fixes, the vk slot mapping / descriptor fill, gl3/gles3 array depth, GL clears
-  under the write masks, the vk depth barriers; API additions: depth bias, `read_texture`,
-  `copy_texture`, `set_depth_zero_to_one`.
+  under the write masks, the vk depth barriers, vk passes loading their attachments, the VMA
+  allocator never destroyed; API additions: depth bias, `read_texture`, `copy_texture`,
+  `set_depth_zero_to_one`, `set_clip_upper_left`.
 - The `shaders_gles3_dark` family is compiled without the Windows-only gamma hack.
 - The install: `$wow_classic_dir` = `/home/jonas/Downloads/wow_classic` (build 5875), through the
   gitignored `WoW` link or `WOW_DATA`; read-only.
@@ -196,15 +195,16 @@ map), `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warni
 - `check_window_pinned` (`benilla-app/src/video.rs`) truncates the logical size at a fractional
   scale factor (5/3 here), so a `WOW_WIN` capture refuses sizes that are not multiples of 3, and
   under `WOW_DPI` winit still creates the window at the display's scale; both builds, not gfx.
-- GL MSAA sample pattern: GL draws the scene bottom-up (the present flips), so 4x is mirrored in
-  y against the image (0.39% of the parity scene, 0.93% of the overview >1). `glClipControl
-  (GL_UPPER_LEFT, …)` where clip control exists would draw top-down and retire the GL row flips
-  (`top_down`, `misc.y` bit 1, the readback flips); the no-clip-control path keeps them.
-- GL sRGB store rounding: the UI target on GL differs by 1-2 levels over ~2.6% of a frame.
+- A GL without clip control still draws bottom-up, its 4x pattern mirrored (0.39% of the parity
+  scene >1); measured through `WOW_GFX_DEPTH_REMAP=1`.
+- radeonsi GL's sRGB store rounding in the UI lane (measured, above): 1-2 levels over ~2.6% of a
+  frame where the lane carries the world. Driver behaviour; matching it would mean encoding in
+  the shader into a UNORM target, which breaks the lane's linear blending.
+- About 100 isolated GL pixels in the worldview differ by >16 (some sky through a seam), 0.010%
+  of the frame against vk's 0.001%; not traced.
 - The depth probe reads no depth on gles3 (a copy into colour through a shader would).
-- A vk teardown leaks one `VkDeviceMemory` (`VUID-vkDestroyDevice-device-05137`).
-- A vk render pass loads `DONT_CARE` from `UNDEFINED`: targets kept across passes rely on the
-  driver keeping them (RADV, lavapipe do).
+- The vk swapchain pass loads `DONT_CARE`: the present covers it whole, but a second pass on the
+  window in one frame would lose the first.
 - Not A/B'd for want of a scenario or a login: the UI model tiles, the minimap composite, the
   tile cell clip, char-select, depth-biased decals in the client, image-camera MSAA, `WOW_GPU_MS`
   against the wgpu meter, `AlwaysOnBottom` (awesome keeps no BELOW for either build).
@@ -226,6 +226,6 @@ account: `scripts/smoke.sh` on the gfx build, then login to the character screen
 world on every Linux pair, the bowstring or fishing line, `gxMultisample 4`, `WOW_LIVE_FPS` with
 `WOW_GPU_MS=1` on both builds, the warm pass on world entry, `WOW_PHASE=<uniqueId>` on a WMO. On
 Windows: build `gfx_benilla` (MSVC, `GFX.md`) and benilla with `--features gfx`, fix what does not
-compile in the win32 / d3d11 / d3d12 code written blind, and run the capture matrix there. Without
-either: the worldview A/B (`tools/world_ab.sh`) on every pair, and the GL MSAA row order
-(`glClipControl(GL_UPPER_LEFT, ...)`) from Open problems. Then mark the project done.
+compile in the win32 / d3d11 / d3d12 code written blind (d3d leaves the clip-origin op NULL: its
+targets run top-down already), and run the capture matrix there. Without either: the GL
+worldview seam pixels, or the gles3 depth probe, from Open problems. Then mark the project done.

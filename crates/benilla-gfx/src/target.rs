@@ -5,8 +5,10 @@
 //! with a `Depth32Float`-like depth, and a present pass that clamps and sRGB-encodes each pixel
 //! into the window.
 //!
-//! A render-target texture's rows come back upside down on GL next to vk and d3d (gfx keeps GL's
-//! clip space everywhere; the vk viewport is flipped): the present quad's V follows the device.
+//! A GL without clip control's upper-left origin stores a render target's rows upside down next to
+//! vk and d3d (gfx keeps GL's clip space everywhere; the vk viewport is flipped). With the origin,
+//! targets run top-down, and clip y -1 lands on the window's last row, its top: the present quad's
+//! V follows the device either way.
 
 use std::ptr;
 
@@ -210,8 +212,8 @@ pub struct TargetClass {
 /// image's own texture, which bevy's `upscaling` blit writes over each camera's viewport and which
 /// every draw sampling the image reads ([`crate::images::GpuImages`]).
 ///
-/// On GL the cameras draw it upside down (a clip-space Y flip), so its rows run top-down like an
-/// uploaded image's and every sampler reads it unchanged.
+/// On a GL without the upper-left clip origin the cameras draw it upside down (a clip-space Y
+/// flip), so its rows run top-down like an uploaded image's and every sampler reads it unchanged.
 pub struct ImageTarget {
     device: GfxDevice,
     pub main: SceneTarget,

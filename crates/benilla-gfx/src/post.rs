@@ -70,7 +70,7 @@ struct Quarter {
 
 pub struct FfxPost {
     device: GfxDevice,
-    /// Image-down in V: -1 on GL, whose texture rows run bottom-up.
+    /// Image-down in V: -1 on a GL drawing its targets bottom-up.
     y_sign: f32,
     triangle: GfxBuffer,
     /// Blend, depth, rasterizer; and a rasterizer with the scissor test on (GL tests it only
@@ -81,12 +81,18 @@ pub struct FfxPost {
 }
 
 impl FfxPost {
-    pub(crate) fn new(device: GfxDevice, backend: GfxDeviceBackend) -> Option<Self> {
+    /// `upper_left`: GL draws its targets top-down ([`crate::draw::GfxRenderer`]).
+    pub(crate) fn new(
+        device: GfxDevice,
+        backend: GfxDeviceBackend,
+        upper_left: bool,
+    ) -> Option<Self> {
         let gl = matches!(
             backend,
             GfxDeviceBackend::Gl3 | GfxDeviceBackend::Gl4 | GfxDeviceBackend::Gles3
-        );
-        // (x, y, u, v) over one screen-covering triangle; V follows the device as the present's.
+        ) && !upper_left;
+        // (x, y, u, v) over one screen-covering triangle; V follows the target's rows, so each
+        // pass reads the texel under the pixel it writes.
         let v = |y: f32| if gl { y } else { 1.0 - y };
         let quad: [f32; 12] = [
             -1.0,
@@ -256,8 +262,8 @@ impl FfxPost {
         b
     }
 
-    /// Decodes the UI lane's `ui` bytes over `viewport` of `scene`'s current colour, with the block
-    /// at `offset` in `ring` ([`Self::decode_block`]).
+    /// Decodes the UI lane's `ui` bytes over `viewport` (x, y as gfx counts, size) of `scene`'s
+    /// current colour, with the block at `offset` in `ring` ([`Self::decode_block`]).
     pub(crate) fn decode(
         &mut self,
         shaders: &mut ShaderLibrary,
@@ -265,7 +271,7 @@ impl FfxPost {
         ui: GfxTexture,
         ring: GfxBuffer,
         offset: u32,
-        viewport: bevy::math::URect,
+        viewport: (i32, i32, UVec2),
     ) {
         let fb = scene.framebuffer();
         let Some(pass) = self.pass(shaders, PROGRAMS[4], fb) else {
@@ -273,20 +279,14 @@ impl FfxPost {
             return;
         };
         let (pipeline, attributes, layout) = (pass.pipeline, pass.attributes, pass.layout);
-        let size = viewport.size();
+        let (x, y, size) = viewport;
         let mut textures = [ui];
         // SAFETY: every handle is live and made on this device, on its thread; the ring holds the
         // block at `offset`.
         unsafe {
             ffi::gfx_dll_bind_framebuffer(self.device, fb);
             ffi::gfx_dll_set_viewport(self.device, 0, 0, scene.size.x, scene.size.y, 0.0, 1.0);
-            ffi::gfx_dll_set_scissor(
-                self.device,
-                viewport.min.x as i32,
-                viewport.min.y as i32,
-                size.x,
-                size.y,
-            );
+            ffi::gfx_dll_set_scissor(self.device, x, y, size.x, size.y);
             ffi::gfx_dll_bind_pipeline(self.device, pipeline);
             ffi::gfx_dll_bind_attributes_state(self.device, attributes, layout);
             ffi::gfx_dll_bind_constant(self.device, 0, ring, POST_BLOCK as u32, offset);
