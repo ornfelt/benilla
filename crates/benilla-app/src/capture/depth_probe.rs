@@ -34,6 +34,9 @@ use super::probes::ProbeClock;
 use benilla_world::particles::ParticleEmitter;
 use benilla_world::view::WorldCamera;
 
+#[cfg(feature = "gfx")]
+mod gfx;
+
 pub(crate) struct DepthProbePlugin;
 
 impl Plugin for DepthProbePlugin {
@@ -78,6 +81,12 @@ impl Plugin for DepthProbePlugin {
             ExtractResourcePlugin::<QuadProbes>::default(),
             ExtractComponentPlugin::<DepthProbeView>::default(),
         ));
+        // Under gfx there is no render app: the draw copies the depth itself.
+        #[cfg(feature = "gfx")]
+        if app.get_sub_app(RenderApp).is_none() {
+            gfx::build(app);
+            return;
+        }
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             warn!("depth: no render app — inert");
             return;
@@ -433,48 +442,71 @@ fn read_depth(
     }
     let frame = read.0;
     read.0 += 1;
+    {
+        let data = slice.get_mapped_range();
+        let depth_at = |x: u32, y: u32| {
+            let at = (y * staging.bytes_per_row + x * 4) as usize;
+            f32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]])
+        };
+        report_frame(
+            frame,
+            UVec2::new(size.width, size.height),
+            &view.clip_from_view,
+            &watch.pixels,
+            &quads,
+            depth_at,
+        );
+    }
+    staging.buffer.unmap();
+}
+
+/// Log one frame's named pixels and quads, `depth_at` reading the depth at a pixel of the
+/// `size` view drawn through `clip_from_view`.
+fn report_frame(
+    frame: u32,
+    size: UVec2,
+    clip_from_view: &Mat4,
+    pixels: &[(u32, u32)],
+    quads: &[QuadProbe],
+    depth_at: impl Fn(u32, u32) -> f32,
+) {
     // The projection the frame was drawn with, once per burst: the distances derive from it.
     if frame == 0 {
         info!(
             "depth: {}x{} view, clip_from_view P₂₂ {} P₃₂ {} P₀₀ {} P₁₁ {}",
-            size.width,
-            size.height,
-            view.clip_from_view.z_axis.z,
-            view.clip_from_view.w_axis.z,
-            view.clip_from_view.x_axis.x,
-            view.clip_from_view.y_axis.y,
+            size.x,
+            size.y,
+            clip_from_view.z_axis.z,
+            clip_from_view.w_axis.z,
+            clip_from_view.x_axis.x,
+            clip_from_view.y_axis.y,
         );
     }
-    let view_from_clip = view.clip_from_view.inverse();
-    {
-        let data = slice.get_mapped_range();
-        for &(x, y) in &watch.pixels {
-            if x >= size.width || y >= size.height {
-                warn!(
-                    "depth#{frame} ({x}, {y}): outside the {}x{} view",
-                    size.width, size.height
-                );
-                continue;
-            }
-            let at = (y * staging.bytes_per_row + x * 4) as usize;
-            let d = f32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]);
-            match view_point(&view_from_clip, ndc_of(x, y, size.width, size.height), d) {
-                // Along the ray (what `WOW_PICK` reports) and to the camera plane (what depth
-                // encodes); they differ by 15% at the frame edge.
-                Some(p) => info!(
-                    "depth#{frame} ({x}, {y}): {d:.9}  =  {:.4} yd along the ray  ({:.4} yd view z)",
-                    p.length(),
-                    -p.z
-                ),
-                // Reverse-Z clears to 0 = infinitely far: nothing drew here at all.
-                None => info!("depth#{frame} ({x}, {y}): {d:.9}  =  nothing drew (cleared)"),
-            }
+    let view_from_clip = clip_from_view.inverse();
+    for &(x, y) in pixels {
+        if x >= size.x || y >= size.y {
+            warn!(
+                "depth#{frame} ({x}, {y}): outside the {}x{} view",
+                size.x, size.y
+            );
+            continue;
         }
-        for q in &quads {
-            report_quad(frame, q, &data, &staging, size.width, size.height);
+        let d = depth_at(x, y);
+        match view_point(&view_from_clip, ndc_of(x, y, size.x, size.y), d) {
+            // Along the ray (what `WOW_PICK` reports) and to the camera plane (what depth
+            // encodes); they differ by 15% at the frame edge.
+            Some(p) => info!(
+                "depth#{frame} ({x}, {y}): {d:.9}  =  {:.4} yd along the ray  ({:.4} yd view z)",
+                p.length(),
+                -p.z
+            ),
+            // Reverse-Z clears to 0 = infinitely far: nothing drew here at all.
+            None => info!("depth#{frame} ({x}, {y}): {d:.9}  =  nothing drew (cleared)"),
         }
     }
-    staging.buffer.unmap();
+    for q in quads {
+        report_quad(frame, q, &depth_at, size.x, size.y);
+    }
 }
 
 /// Samples per side across a quad's own area: 16x16, stable to under a percent.
@@ -486,8 +518,7 @@ const QUAD_GRID: usize = 16;
 fn report_quad(
     frame: u32,
     q: &QuadProbe,
-    data: &[u8],
-    staging: &DepthStaging,
+    depth_at: &impl Fn(u32, u32) -> f32,
     width: u32,
     height: u32,
 ) {
@@ -506,8 +537,7 @@ fn report_quad(
             if x < 0.0 || y < 0.0 || x >= width as f32 || y >= height as f32 {
                 continue;
             }
-            let at = (y as u32 * staging.bytes_per_row + x as u32 * 4) as usize;
-            let d = f32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]);
+            let d = depth_at(x as u32, y as u32);
             total += 1;
             if q.dquad >= d {
                 passed += 1;

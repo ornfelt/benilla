@@ -53,6 +53,7 @@ use crate::meshes::GpuMeshes;
 use crate::overlay::{GfxOverlays, OverlayPass};
 use crate::pipelines::{Blend, PipelineKey, Pipelines};
 use crate::post::{FfxPost, GfxFfxGlow};
+use crate::probe::{DepthCopy, GfxDepthProbe, GfxDepthRequest, GfxPhaseRecord, GfxViewPhases};
 use crate::shader_loader::ShaderLibrary;
 use crate::target::{Present, SceneTarget, TargetClass, UiTarget, UI_FORMAT};
 use crate::ui::GfxUiLane;
@@ -80,9 +81,11 @@ pub struct EarlyDraw {
 
 /// A draw placed by a system in a camera's transparent phase ([`DrawList::push_sorted`]):
 /// `indices` of an indexed mesh with a description, sorted by the view z of `anchor` plus `bias`,
-/// the `Transparent3d` distance, whatever the description's alpha.
+/// the `Transparent3d` distance, whatever the description's alpha; `entity` is the main-world
+/// entity it stands for, as a phase item's `MainEntity` (`Entity::PLACEHOLDER` for none).
 #[derive(Debug, Clone)]
 pub struct SortedDraw {
+    pub entity: Entity,
     pub mesh: AssetId<Mesh>,
     pub indices: Range<u32>,
     pub world_from_local: Mat4,
@@ -186,6 +189,8 @@ pub struct GfxRenderer {
     /// The screenshot capture texture ([`crate::screenshot`]).
     pub(crate) capture: Option<crate::screenshot::CaptureTarget>,
     post: Option<FfxPost>,
+    /// The depth probe's copy target ([`crate::probe`]).
+    pub(crate) depth_copy: Option<DepthCopy>,
     ring: UniformRing,
     /// Camera kinds not drawn yet, logged once each.
     skipped: Vec<&'static str>,
@@ -219,6 +224,7 @@ impl GfxRenderer {
             present,
             capture: None,
             post: FfxPost::new(device, backend),
+            depth_copy: None,
             ring: UniformRing::new(device),
             skipped: Vec::new(),
         }
@@ -290,6 +296,7 @@ impl Drop for GfxRenderer {
         self.pipelines.clear();
         self.post = None;
         self.capture = None;
+        self.depth_copy = None;
         self.present = None;
         self.ui = None;
         self.overlay.drop_target();
@@ -471,6 +478,8 @@ enum Cmd {
     },
     /// A multisampled view's end: its colour resolved into `dest`'s current colour.
     Resolve { dest: Dest },
+    /// The depth probe's copy of `dest`'s depth, at this point of the view's phases, tagged `tag`.
+    DepthCopy { dest: Dest, tag: u32 },
     /// The camera's FFXGlow chain, its four blocks at these ring offsets, and the wave LUT of an
     /// armed underwater warp; `into_ui` clears the UI lane's target and combines into it. Run on
     /// `dest`'s colour, its quarter targets a quarter of `viewport`.
@@ -720,9 +729,13 @@ pub(crate) fn draw_views(
     primary: Query<Entity, With<PrimaryWindow>>,
     cameras: Query<CameraItem>,
     overlays: Res<GfxOverlays>,
+    (mut depth_probe, mut phases): (ResMut<GfxDepthProbe>, ResMut<GfxPhaseRecord>),
     mut last_shape: Local<Vec<String>>,
 ) {
     let size = ctx.size();
+    let depth_request = depth_probe.request.take();
+    phases.views.clear();
+    let record = phases.enabled;
     let default_clear = clear_color.map_or(Color::BLACK, |c| c.0).to_linear();
     let primary = primary.single().ok();
     let remap = clip_remap(renderer.backend);
@@ -1106,7 +1119,16 @@ pub(crate) fn draw_views(
                 &images,
             ));
         } else {
-            view_3d_cmds(
+            let depth = depth_request.filter(|r| r.camera == view.entity);
+            if depth.is_some() && msaa {
+                renderer.skip_once("a depth copy of a multisampled view");
+            }
+            let depth = depth.filter(|_| {
+                !msaa
+                    && target.1.depth
+                    && crate::probe::depth_copy(renderer, view.target_size).is_some()
+            });
+            let recorded = view_3d_cmds(
                 renderer,
                 &mut ctx.shaders,
                 target,
@@ -1116,8 +1138,11 @@ pub(crate) fn draw_views(
                 &list,
                 &meshes,
                 &images,
+                depth,
+                record,
                 &mut cmds,
             );
+            phases.views.extend(recorded);
             if msaa {
                 cmds.push(Cmd::Resolve { dest: view.dest });
             }
@@ -1177,6 +1202,7 @@ pub(crate) fn draw_views(
         ui,
         images,
         overlay,
+        depth_copy,
         ..
     } = renderer;
     let Some(target) = target else {
@@ -1189,6 +1215,7 @@ pub(crate) fn draw_views(
         images,
         post.as_mut(),
         overlay_ready.then_some(overlay),
+        depth_copy.as_mut(),
         &mut ctx.shaders,
         ring,
         &cmds,
@@ -1229,7 +1256,9 @@ fn mesh2d_cmds(
     sorted.into_iter().map(|(_, c)| c).collect()
 }
 
-/// A 3D view's draws: the early draws, then opaque and mask, then transparent.
+/// A 3D view's draws: the early draws, then opaque and mask, then transparent; with `depth`,
+/// the probe's depth copy after the opaque and mask phases or after the transparent one. With
+/// `record`, returns the phases as drawn.
 #[allow(clippy::too_many_arguments)]
 fn view_3d_cmds(
     renderer: &mut GfxRenderer,
@@ -1241,8 +1270,17 @@ fn view_3d_cmds(
     list: &DrawList,
     meshes: &Assets<Mesh>,
     images: &Assets<Image>,
+    depth: Option<GfxDepthRequest>,
+    record: bool,
     cmds: &mut Vec<Cmd>,
-) {
+) -> Option<GfxViewPhases> {
+    let mut phases = GfxViewPhases {
+        camera: view.entity,
+        early: 0,
+        opaque: Vec::new(),
+        mask: Vec::new(),
+        transparent: Vec::new(),
+    };
     // The early draws, in the order pushed; draws sharing a description and world matrix
     // share one block.
     let mut early_blocks: HashMap<(u32, [u32; 16]), (u32, u32)> = HashMap::new();
@@ -1273,6 +1311,7 @@ fn view_3d_cmds(
                 (renderer.ring.push(&block), (block.len() * 4) as u32)
             });
         cmds.push(r.cmd(view_offset, draw_offset, draw_size, Some(&early.indices)));
+        phases.early += 1;
     }
 
     // Opaque and mask first (sorted by pipeline, texture, mesh, as bins batch), then
@@ -1295,7 +1334,7 @@ fn view_3d_cmds(
             // bevy_pbr's `Transparent3d` distance: the view z of the AABB centre plus the
             // material's depth bias, sorted ascending.
             let z = view.view_from_world.transform_point3(item.center).z + desc.state.sort_bias;
-            transparent.push((z, cmd));
+            transparent.push((z, *entity, cmd));
         } else {
             let rank = match desc.alpha {
                 GfxAlpha::Mask(_) => 1u8,
@@ -1303,6 +1342,7 @@ fn view_3d_cmds(
             };
             opaque.push((
                 (rank, r.pipeline as usize, r.textures[0] as usize, item.mesh),
+                *entity,
                 cmd,
             ));
         }
@@ -1345,13 +1385,38 @@ fn view_3d_cmds(
             Some(&sorted.indices),
         );
         let z = view.view_from_world.transform_point3(sorted.anchor).z + sorted.bias;
-        transparent.push((z, cmd));
+        transparent.push((z, sorted.entity, cmd));
     }
-    opaque.sort_by_key(|(key, _)| *key);
-    cmds.extend(opaque.into_iter().map(|(_, c)| c));
+    opaque.sort_by_key(|(key, ..)| *key);
+    for (key, entity, cmd) in opaque {
+        if record {
+            if key.0 == 0 {
+                phases.opaque.push(entity);
+            } else {
+                phases.mask.push(entity);
+            }
+        }
+        cmds.push(cmd);
+    }
+    let copy = depth.map(|r| Cmd::DepthCopy {
+        dest: view.dest,
+        tag: r.tag,
+    });
+    let (copy_opaque, copy_transparent) = match depth {
+        Some(r) if r.after_transparent => (None, copy),
+        _ => (copy, None),
+    };
+    cmds.extend(copy_opaque);
     // Farthest first: the most negative view-space z.
     transparent.sort_by(|a, b| a.0.total_cmp(&b.0));
-    cmds.extend(transparent.into_iter().map(|(_, c)| c));
+    for (z, entity, cmd) in transparent {
+        if record {
+            phases.transparent.push((entity, z));
+        }
+        cmds.push(cmd);
+    }
+    cmds.extend(copy_transparent);
+    record.then_some(phases)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1362,6 +1427,7 @@ fn execute(
     images: &mut GpuImages,
     mut post: Option<&mut FfxPost>,
     mut overlay: Option<&mut OverlayPass>,
+    mut depth_copy: Option<&mut DepthCopy>,
     shaders: &mut ShaderLibrary,
     ring: GfxBuffer,
     cmds: &[Cmd],
@@ -1369,6 +1435,25 @@ fn execute(
     let mut bound = ptr::null_mut();
     for cmd in cmds {
         match *cmd {
+            Cmd::DepthCopy { dest, tag } => {
+                let src = match dest {
+                    Dest::Scene => target.depth,
+                    Dest::Image(id) => images
+                        .image_target(id)
+                        .map_or(ptr::null_mut(), |t| t.main.depth),
+                };
+                let Some(copy) = depth_copy.as_deref_mut().filter(|_| !src.is_null()) else {
+                    continue;
+                };
+                // SAFETY: both depth textures are live on `device`, of one format and size.
+                if unsafe { ffi::gfx_dll_copy_texture(device, src, copy.texture) } {
+                    copy.pending = Some(tag);
+                } else {
+                    error!("gfx: the depth probe's copy failed");
+                }
+                // vk copies between render passes: the pass resumed after it binds nothing.
+                bound = ptr::null_mut();
+            }
             Cmd::Glow {
                 dest,
                 viewport,

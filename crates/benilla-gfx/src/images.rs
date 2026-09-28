@@ -286,6 +286,13 @@ impl GpuImages {
         self.images.is_empty()
     }
 
+    /// The image on the device as it is (an upload or a render target), without uploading it.
+    pub fn peek(&self, id: AssetId<Image>) -> Option<&GpuImage> {
+        self.images
+            .get(&id)
+            .or_else(|| self.targets.get(&id).map(|t| &t.1))
+    }
+
     /// The image on the device, uploading it from `image` first when needed; `None` for an image
     /// with no data or a format or shape gfx cannot take.
     pub fn get(&mut self, id: AssetId<Image>, image: &Image) -> Option<&GpuImage> {

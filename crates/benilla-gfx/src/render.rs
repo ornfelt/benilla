@@ -38,6 +38,8 @@ pub(crate) fn build(app: &mut App) {
         .init_resource::<crate::overlay::GfxOverlays>()
         .init_resource::<crate::data::GfxDataTextures>()
         .init_resource::<crate::images::GfxTextureWrites>()
+        .init_resource::<crate::probe::GfxDepthProbe>()
+        .init_resource::<crate::probe::GfxPhaseRecord>()
         .configure_sets(
             GfxRender,
             (
@@ -52,7 +54,11 @@ pub(crate) fn build(app: &mut App) {
         .add_systems(
             GfxRender,
             (
-                (crate::screenshot::collect, draw::prepare)
+                (
+                    crate::screenshot::collect,
+                    crate::probe::collect_depth,
+                    draw::prepare,
+                )
                     .chain()
                     .in_set(GfxRenderSystems::Prepare),
                 draw::draw_views.in_set(GfxRenderSystems::Draw),

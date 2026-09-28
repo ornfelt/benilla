@@ -933,8 +933,8 @@ unsafe extern "C" {
     ) -> bool;
     /// gfx_benilla: reads a `width` x `height` rect at (`x`, `y`) of level 0 of a 2D texture, rows
     /// tightly packed in texel-row order (row 0 the bottom of an image drawn on GL, its top on vk
-    /// and d3d), once the frames already submitted have drawn it; uncompressed formats only
-    /// (gles3: 8-bit RGBA).
+    /// and d3d), once the frames already submitted have drawn it; uncompressed formats only, a
+    /// depth one as its depth values (gles3: 8-bit RGBA only).
     pub fn gfx_dll_read_texture(
         device: GfxDevice,
         texture: GfxTexture,
@@ -945,6 +945,10 @@ unsafe extern "C" {
         size: u32,
         data: *mut c_void,
     ) -> bool;
+    /// gfx_benilla: copies level 0 of the 2D texture `src` into `dst` (same format and size,
+    /// single-sampled, colour or depth) at this point of the frame's work, the bound framebuffer
+    /// kept bound; false where the device cannot (d3d9, jkg).
+    pub fn gfx_dll_copy_texture(device: GfxDevice, src: GfxTexture, dst: GfxTexture) -> bool;
     pub fn gfx_dll_delete_texture(device: GfxDevice, texture: GfxTexture);
     /// gfx_benilla: records the GPU's time at this point of the frame's work in `slot` (of
     /// [`TIMESTAMP_SLOTS`]); false without timestamps. At most once a frame per slot.

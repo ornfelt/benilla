@@ -207,6 +207,11 @@ impl GpuMeshes {
         self.meshes.is_empty()
     }
 
+    /// The mesh on the device as it is, without uploading it.
+    pub fn peek(&self, id: AssetId<Mesh>) -> Option<&GpuMesh> {
+        self.meshes.get(&id)
+    }
+
     /// The mesh on the device, uploading or rewriting it from `mesh` first when needed.
     pub fn get(&mut self, id: AssetId<Mesh>, mesh: &Mesh) -> Option<&mut GpuMesh> {
         if self.stale.remove(&id).is_some() {

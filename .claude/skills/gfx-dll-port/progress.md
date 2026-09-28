@@ -1,9 +1,8 @@
 # gfx DLL port - progress
 
-Branch: `gfx-dll-backend`. Status: milestones 1-5 done; 6 in flight: image cameras, `Screenshot`
-(the capture harness), window modes and level, the `WOW_GPU_MS` meter, MSAA and (this run) the
-`dev` egui panel and the window's position / decorations / resizable run through gfx. Left in 6:
-the `depth_probe` / `phase_probe` instruments.
+Branch: `gfx-dll-backend`. Status: milestones 1-6 done (this run: the `WOW_DEPTH` and
+`WOW_PHASE` instruments under gfx). Next: milestone 7, starting with the GL depth remap (Open
+problems: measured this run, a constant ~0.1% depth scale on GL at world coordinates).
 
 ## Milestones
 
@@ -115,7 +114,7 @@ the `depth_probe` / `phase_probe` instruments.
     group's at transparent-phase distance 0 (list, then strip), alpha blend, depth write, reverse-Z
     `Greater` (`GfxDrawState::depth_strict`, new). Solid lines only; styles, joints, retained
     `Gizmo`s and 2D views log once (benilla uses none). HLSL reserves `line` too: no member so named.
-- [ ] 6. **The rest.**
+- [x] 6. **The rest.**
   - [x] Image cameras (`draw.rs`, `target::ImageTarget`, `images::GpuImages::target`): a camera on
     `RenderTarget::Image` draws into its image's main pair (shared by every camera on the image,
     `Hdr` float or 8-bit sRGB, depth for 3D), cleared whole as a wgpu clear op, over its viewport,
@@ -178,7 +177,21 @@ the `depth_probe` / `phase_probe` instruments.
     `gfx_dll_window_set_position` / `_center` / `_set_decorations` / `_set_resizable`.
     `Centered` centres on the window's own monitor (x11: the root window). benilla keeps all three
     at their defaults; measured on the parity window (`PARITY_WINDOW`, `tools/window_props.sh`).
-  - [ ] `depth_probe`, `phase_probe` (render-graph nodes).
+  - [x] The instruments (`probe.rs`; `capture/{depth,phase}_probe/gfx.rs`, gated arms taken when
+    there is no render app). `WOW_DEPTH`: `GfxDepthProbe::request` names a camera; the draw puts
+    `Cmd::DepthCopy` after its opaque and mask phases (or its transparent one, `WOW_DEPTH_AFTER`),
+    the node's place in bevy's graph, copying its depth into the probe's own depth texture
+    (gfx_benilla `gfx_dll_copy_texture`); the next frame's Prepare reads it back
+    (`gfx_dll_read_texture` of a depth texture, rows flipped on GL) into `result`, and the probe
+    reports it against the quads and `clip_from_view` of the frame it asked in (tags, two frames
+    in flight). A multisampled view is not copied (the probe refuses MSAA anyway). The report
+    (`report_frame`, `report_quad` over a depth lookup) is shared with the wgpu path, whose output
+    is unchanged. `WOW_PHASE`: `GfxPhaseRecord` keeps each 3D view's early count and
+    opaque / mask / transparent lists as `view_3d_cmds` built them (a `SortedDraw` now names the
+    entity it stands for: the effect lane's `main_entity`, a gizmo `PLACEHOLDER`); the next frame
+    reports census, tail and watched batches as `report_phases`, device state through
+    `GpuMeshes::peek` / `GpuImages::peek` (the format printed is the image asset's). No gles3
+    depth read (GLES 3 reads no depth; the probe logs an error).
 - [ ] 7. **Backend matrix and `GFX.md`.**
 
 ## GPU safety (read before any live vk or GL run)
@@ -198,7 +211,8 @@ vertex stage read an unwritten descriptor and looped on a garbage light count. S
 ## Parity instrument
 
 `crates/benilla-gfx/examples/parity.rs` (`--features gfx`): one scene through `wgpu` or `gfx` in
-the same binary, with a lit cube and a lit metallic, emissive sphere under a camera
+the same binary (`PARITY_DEPTH="<x>,<y>;…"` prints gfx depth at pixels, `PARITY_ORIGIN=x,y,z`
+moves the whole scene to benilla-sized world coordinates), with a lit cube and a lit metallic, emissive sphere under a camera
 `AmbientLight` (6000); `PARITY_MSAA=2|4|8` multisamples its camera in both paths. Built with
 `--features egui`, `PARITY_EGUI=1` adds the debug panel's overlay camera and a panel;
 `PARITY_WINDOW=[later,]nodeco,fixed,center,at=<x>:<y>` sets the window's frame, sizing and place
@@ -219,17 +233,23 @@ Particles are not deterministic: `fx_series.sh` counts flat-magenta coverage ove
 a backend matches when its counts fall in wgpu's own spread (a second wgpu run as the "gfx" binary
 gives the noise floor in `world_ab.sh` too). Keep the binaries in `target/ab/` (the gfx
 one beside a copy of the current `libgfx.so`: it loads the library from its own directory, so a
-stale copy there runs the old library). `target/ab/worldview-wgpu` was deleted for disk at the end of this run: rebuild both binaries
+stale copy there runs the old library). The A/B binaries are deleted for disk after each run: rebuild both
 (feature off, then gfx) before an A/B. `validate_gfx.py crates/benilla-gfx/shaders`
 runs glslangValidator over every family's GL/GLES text and the d3d11 HLSL.
 
-The full client: since this run both builds write their own `WOW_CAPTURE_OUT` (the gfx build
+The instruments: `.claude/skills/gfx-dll-port/tools/probe_ab.sh <wgpu-bin> <gfx-bin> x11:vk
+lvp:vk soft:gl3 ...` with `OUT`, `SCENARIO` and the probe variables exported: one capture per
+build and pair, the probe lines (colour, time, module and entity ids stripped) diffed against
+wgpu's; `DIFF_ONLY=1` re-diffs, `SHOW=n` prints diff lines. The probe clock (`Time<Real>`) runs
+slow under the capture's held clock: `WOW_DEPTH_AT` 3 lands before the scene settles, 8 never
+fires before the shot; the emitters go live once the clock is released (quad mode arms at once).
+
+The full client: both builds write their own `WOW_CAPTURE_OUT` (the gfx build
 through `screenshot.rs`), the exact aged frame under the capture's frozen clock, so an animated
 scene (the login portal's embers, fire and scrolling textures) diffs exactly: two wgpu runs of
 `glue-login` and `ui-unitframes` are identical (max 0). `scratchpad`-style runner: lavapipe with
 validation first, then the wgpu build, then gfx on each pair, `parity_diff.py` against the wgpu
-PNG (this run's loop is worth re-creating as a tool: scenario list in, one diff line per pair
-out). `tools/client_shot.sh` (window import at `capture: scene aged`) is now only for a window
+PNG (`tools/probe_ab.sh` runs that loop and keeps each build's PNG; `parity_diff.py a b out`). `tools/client_shot.sh` (window import at `capture: scene aged`) is now only for a window
 check; its import lands frames after the aged one, so it cannot A/B an animated scene. A leftover
 `import` holding the X server blocks the next client's window: kill stray `import`s before a run.
 A phase-dependent effect (the underwater warp) needs the phase pinned in both builds for an A/B:
@@ -238,8 +258,23 @@ a temporary, uncommitted pin in `ffx_glow.rs::sync_wave` served before.
 ## Verified backend pairs
 
 Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gfx
-`d98d2c0`), no account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
-- This run, egui: the parity scene with `PARITY_EGUI=1` (a debug-panel-styled window: text,
+`b9ba356`), no account (no `.probe-identity`), `WOW_UNATTENDED=1 WOW_NOSOUND=1`, window tiled by the WM.
+- This run, the instruments (`tools/probe_ab.sh`, `WOW_CAPTURE=ui-bag`, Northshire server-less,
+  wgpu build against gfx build, the probe lines diffed with entity ids normalised):
+  `WOW_DEPTH` at five pixels x 3 frames plus `WOW_PHASE=particles`: x11/vk and sdl/vk identical
+  to wgpu in every line (depth to 9 digits, census 25 / 2 / 12, the 12-item tail and its sort
+  distances, the watched emitter at `Transparent3d @9 d -61.979`); lavapipe with validation
+  2 ulp off (clean but the known teardown leak); x11/gl4 and llvmpipe gl3 phases identical,
+  depth x1.00098 at every pixel (see Open problems: the GL remap, not the probe); glfw/gles3 the
+  phases identical but for the texture format (gles3 decodes BLPs to RGBA8), depth refused.
+  Quad mode (`WOW_DEPTH_QUADS=`, `WOW_DEPTH_AFTER=1`, 2 frames): the same quad, `dquad` and pass
+  34.0% (87/256) on wgpu, x11/vk and x11/gl4, occluder distances within 0.0002 yd. The probed
+  runs' own PNGs against wgpu (the vk copy ends and resumes the render pass): x11/vk and sdl/vk
+  0.003% >4, 0.002% >16; x11/gl4 0.029% >16 (the known GL sRGB rounding, as last run). The
+  parity scene (`PARITY_DEPTH`): gl4 and gl3 against vk within 3e-6 relative at the origin;
+  moved 9000 yd along the view axis (`PARITY_ORIGIN=0,0,-9000`), x1.00098 on GL, vk unchanged.
+  No GPU reset.
+- Milestone 6, egui: the parity scene with `PARITY_EGUI=1` (a debug-panel-styled window: text,
   monospace, a slider, a checkbox, filled rects, a scroll area clipped by its scissor) against
   wgpu in the same binary: x11/vk and sdl/vk max 1 (0.000% >1); x11/gl4, x11/gl3, glfw/gles3
   0.001% >16, none in the panel (the known scene texel-edge pixels). Lavapipe with validation
@@ -249,16 +284,16 @@ Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gf
   x11/gl4, x11/gl3, sdl/gl4, glfw/gles3 0.002% >4. Input: one synthetic click (`xsend`) on the
   panel's "Models" header under x11/vk expands it (trace: 2 `MouseButtonInput`); wgpu not driven
   (winit reads XI2, not the core events `xsend` sends). No GPU reset.
-- This run, window properties (`tools/window_props.sh`, geometry + `_MOTIF_WM_HINTS` +
+- Milestone 6, window properties (`tools/window_props.sh`, geometry + `_MOTIF_WM_HINTS` +
   `WM_NORMAL_HINTS` at 1.2 s, or after a change at 1.5 s): native x11 (vk, gl4) matches winit for
   the default, `nodeco`, `fixed` (the WM floats a min = max window: 640x400+0+22 on both),
   `nodeco,fixed,at=300:120` (640x400+300+120 on both) and the same applied later (both stay
   tiled, frame off, min = max the tiled size). `center`: gfx centres (640x400+640+340); winit's
   window lands where the WM puts it (+0+22). sdl and glfw float, frame and position as asked, but
   at gfx's grown size (1641x1026, `pick_window_size`) and with the client, not the frame, at the
-  position (see Open problems). Before this run the vk x11, sdl and glfw windows mapped inside
+  position (see Open problems). Before milestone 6 the vk x11, sdl and glfw windows mapped inside
   `gfx_dll_create_window`, so nothing set "before the first show" reached the WM's first look.
-- This run, MSAA: the parity scene at `PARITY_MSAA=4` against wgpu's 4x: x11/vk and sdl/vk max 1
+- Milestone 6, MSAA: the parity scene at `PARITY_MSAA=4` against wgpu's 4x: x11/vk and sdl/vk max 1
   (0.000% >1); x11/gl4, x11/gl3, glfw/gles3 0.39% >1: every GL device multisamples (gl4 4x against
   its own 1x 0.93%, wgpu's 0.98%) but on edges wgpu does not match, 53% of diagonal edge pixels
   >16 against 10% of axis-aligned ones: GL draws the scene bottom-up, so the standard sample
@@ -270,25 +305,21 @@ Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gf
   matches wgpu's on RADV); lavapipe offers `[1, 4]` and runs the world at 4x clean under
   validation (only the known teardown leak); llvmpipe gl3 / gles3 `[1, 2, 4]`, no `GL_INVALID`.
   The view log line now names the count (`gfx: views [0 3D, glow, 4x ...]`). No GPU reset.
-- This run, gizmos: the parity scene with gizmo lines (a bowstring-like pair, the fishing line's
-  64-segment sagging strip, a translucent line, a gradient line clipped by the near plane) against
-  wgpu's capture of the same binary: x11/vk and sdl/vk max 1 (0.000% >1); x11/gl4 and glfw/gles3
-  0.001% >4 (the known texel-edge pixels); llvmpipe gl3 / gles3 0.005% >4, no `GL_INVALID`;
-  lavapipe with validation first (only the known teardown leak). The wgpu shot shows the lines.
-- This run, window modes: the full client with `WOW_BG=0` (so `gxWindow` 0, borderless) opens
+- Milestone 5, gizmos: the parity scene's lines x11/vk and sdl/vk max 1, GL 0.001% >4.
+- Milestone 6, window modes: the full client with `WOW_BG=0` (so `gxWindow` 0, borderless) opens
   `_NET_WM_STATE_FULLSCREEN` 1920x1080+0+0 on x11/vk, sdl/vk and glfw/gl4, as the wgpu build does;
   a background run (`AlwaysOnBottom`) shows the same 1019x1014 tile and no `_NET_WM_STATE` in both
   builds (awesome keeps no BELOW for winit either, so the level is unobservable here). A live
   switch (a scratch example: fullscreen at 2 s, windowed 800x500 at 5 s, `xprop` / `xwininfo`
   sampled): windowed -> fullscreen 1920x1080 -> windowed with the state cleared, identical on wgpu,
   gfx x11/vk, sdl/vk and glfw/gl4.
-- This run, `WOW_GPU_MS`: the parity scene's reading (`WOW_GPU_MS=1 parity gfx` prints it) on
+- Milestone 6, `WOW_GPU_MS`: the parity scene's reading (`WOW_GPU_MS=1 parity gfx` prints it) on
   lavapipe with validation 4.9 ms (clean), llvmpipe gl3 4.0 / gles3 4.3 ms, x11/vk 1.2-1.4,
   sdl/vk 1.2, x11/gl4 0.5-0.6, x11/gl3 0.56-0.58, glfw/gles3 0.6-0.9 ms; not A/B'd against the
   wgpu meter (its one reader, `WOW_LIVE_FPS`, needs a connected world).
-- This run, regression: `glue-login` x11/vk 0% >4 (max 8), x11/gl4 0.002% >4; `glue-charcreate`
+- Milestone 6, regression: `glue-login` x11/vk 0% >4 (max 8), x11/gl4 0.002% >4; `glue-charcreate`
   vk and gl4 0.003% >4: the previous run's numbers.
-- Milestone 6 image cameras and screenshots, this run: both builds' own `WOW_CAPTURE_OUT` PNGs,
+- Milestone 6 image cameras and screenshots: both builds' own `WOW_CAPTURE_OUT` PNGs,
   1019x1014. `glue-login` (the portal scene live): x11/vk and sdl/vk 0.005% >1, max 8, 0% >4;
   x11/gl4 0.074% >1, 0.002% >4; glfw/gles3 0.002% >4; llvmpipe gl3 / gles3 0.022% >4.
   `glue-charcreate` (the booth: rigged character, pet-less, the scene): x11/vk and sdl/vk 0.376%
@@ -298,58 +329,34 @@ Linux (Debian 13, X11 :0, awesome WM, Radeon 680M/Mesa), `gfx_benilla` Debug (gf
   in gfx on both devices (open problem; UI layout, not drawing). Lavapipe with validation first for
   every scenario (only the known teardown leak); no `GL_INVALID`. Before the GL clear fix gl4 drew
   the char-create character as a dark silhouette: see Build notes.
-- Milestone 5 bevy_ui, this run: `WOW_CAPTURE=glue-login` and `glue-realmlist`, the login
-  portal scene pinned off in both builds (a temporary, uncommitted `preview.scene = None` in
-  `login/mod.rs::enter_login`: the scene is an image camera gfx does not draw yet), wgpu capture
-  vs gfx window. Login: x11/vk and x11/gl4 max 1 (0.000% >1; the background clear 1 level off in
-  blue, 22% of UI pixels 1 level); glfw/gles3 and sdl/vk the same but for the text caret, white
-  in those shots and hidden in wgpu's (blink phase, 0.016%). Realm list (tiled borders, header
-  tabs, the highlighted row, the dimming overlay): x11/vk and x11/gl4 max 1, mean 0.015. First
-  on lavapipe with validation (clean) and llvmpipe gl3 / gles3 (no `GL_INVALID`, max 3, 0.37% >1).
-- Milestone 5, the previous run, `WOW_CAPTURE=ui-bag` (Northshire, the unit frames, four bags, chat,
-  minimap, action bars) through the full client, wgpu capture vs gfx window: x11/vk 0.103% >1,
-  0.002% >16 (single pixels on world features, none on the UI); x11/gl4 2.714% >1, 0.029% >16:
-  2-level steps over the world backdrop, 63% of them in channel values >= 128 (21% of all
-  values), where one 8-bit sRGB store step spans two gamma levels: the GL driver's sRGB-encode
-  rounding into the UI target against RADV's (open problem). Before the vk clear fix the world
-  backdrop was black (see Build notes). Lavapipe (only the known teardown leak), llvmpipe
-  gl3/gles3 (no `GL_INVALID`, no refused sub-rect write) first.
-- Milestone 4 finish, this run: the underwater warp (`WOW_FORCE_SUB`, the lake view, particles
-  off, phases pinned 0.25/0.6 in both builds) x11/vk max 1, 0.000% >1; x11/gl4 and glfw/gles3
-  0.044% >1, 0% >16 (the GL foliage speckle); the same gfx shot unpinned differs 52.4% >1, so the
-  check sees the warp. With particles on the drift motes differ as wgpu against itself (0.47%
-  >1 floor, gfx 0.67%). The dry lake stays max 1 on vk; the overview 0.004% >1 against a
-  reproducible wgpu shot (one wgpu overview run landed on another camera: 69% edges, wgpu
-  against wgpu too). Parity scene with the lit shapes: x11/vk max 1, 0.000% >1; gl3/gl4/gles3
-  0.001% (the known texel-edge pixels).
-- Milestone 4, earlier: liquid, sky family, effect lane, depth bias: lake noon/dawn/dusk/night
-  and high dusk/night max 1 on x11/vk; GL 0.005-0.065% >1 (foliage alpha-test, waterline).
-  Models, static-gx, terrain, WDL: x11/vk 0.023% >1; x11/gl3, glfw/gles3, x11/gl4 up to 0.28%
-  >1 (the same GL foliage speckle).
+- Milestones 4-5 (details in git): bevy_ui login / realm list x11/vk and x11/gl4 max 1; `ui-bag`
+  x11/vk 0.002% >16, x11/gl4 2.7% >1 (GL sRGB store rounding); the underwater warp x11/vk max 1,
+  GL 0.044% >1 (foliage speckle); liquid, sky, effect lane, models, static-gx, terrain, WDL
+  x11/vk max 1 to 0.023% >1, GL up to 0.28% >1 (the same speckle).
 - Milestone 3: parity scene on all twelve Linux pairs (x11, glfw, sdl) x (gl3, gl4, gles3, vk).
 - Milestone 2 (input, grab, scale factor): see git `3db008e3`; not re-run.
 Windows (win32, d3d11, d3d12) not built; the d3d11 HLSL of every shader passes glslang's parser.
 No GPU reset in any run (`dmesg` count 0).
 ## Build notes
 
-- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `8ecf4eb`). Differs from
+- gfx library: `~/Code2/General/gfx/gfx_dll/gfx_benilla` (gfx repo `b9ba356`). Differs from
   `gfx_dll/gfx`: key events carry `physical` + `scancode`, `GFX_EVENT_RAW_MOTION`, per-window
   `scale_factor`, exported cursor / warp / icon / scale-factor calls, milestone-2 backend fixes,
   (milestone 3) the sRGB formats, GL depth attachment by format, `D32_SFLOAT` as float depth, and
-  (this run) vk: each sampler slot mapped to (binding, element) against its shader state's layout
+  (milestone 3) vk: each sampler slot mapped to (binding, element) against its shader state's layout
   (`vk_map_sampler_slots`; the old write, slot i -> binding 1 element i-1, rolled slot 3 into
   binding 2's array) and every unwritten element of a binding filled from a descriptor of the same
   binding; gl3/gles3: a 2D array keeps its layer count at every mip level (was halved as for 3D);
-  and (this run) the rasterizer depth bias, `gfx_dll_create_rasterizer_state_biased` (GL polygon
+  and (milestone 4) the rasterizer depth bias, `gfx_dll_create_rasterizer_state_biased` (GL polygon
   offset, vk pipeline bias, d3d11/d3d12 `DepthBias`; the d3d ones not built here, GL drops the
-  clamp), and (this run) `gfx_dll_set_texture_subdata` (a sub-rect of one level and layer,
+  clamp), and (milestone 5) `gfx_dll_set_texture_subdata` (a sub-rect of one level and layer,
   uncompressed formats; gl3/gl4/gles3 `Tex(ture)SubImage`, vk a buffer-to-image region, d3d11
   `UpdateSubresource` with a box, d3d12 `CopyTextureRegion` at (x, y); d3d9/jkg refuse) and GL
   sRGB writes: gl3/gl4 enable `GL_FRAMEBUFFER_SRGB` while a framebuffer with an sRGB colour
   attachment is bound (`gl_bind_framebuffer`), so the UI target encodes as on vk/d3d/gles3.
   A vk clear lands in the bound render pass: bind a framebuffer before `gfx_dll_clear_color` on
   it (a clear of the UI target with the scene bound erased the world backdrop once).
-  This run: `gfx_dll_read_texture` (level 0 of a 2D texture, texel-row order, after the frames
+  Milestone 6: `gfx_dll_read_texture` (level 0 of a 2D texture, texel-row order, after the frames
   already submitted: gl3/gl4/gles3 a scratch FBO + `glReadPixels` in `gl.c`, gles3 RGBA8 only;
   vk a copy to a host-visible buffer after `vkDeviceWaitIdle`, colour targets now with
   `TRANSFER_SRC`, `TRANSFER_SRC_OPTIMAL` added to `transition_image_layout`; d3d11 a staging
@@ -357,9 +364,9 @@ No GPU reset in any run (`dmesg` count 0).
   here), `gfx_format_texel_size` in `objects.h`, and GL clears that ignore the write masks
   (`gl_clear_masks_open`/`close` around every gl3/gl4/gles3 `ClearBuffer*`): a GL clear honours
   `glColorMask`/`glDepthMask`, so after any pipeline without depth (or colour) writes, the present
-  included, the depth clear did nothing; every GL A/B before this run ran on stale depth, which a
+  included, the depth clear did nothing; every GL A/B before milestone 6 ran on stale depth, which a
   static view hides.
-  This run: `gfx_dll_window_set_mode` / `gfx_dll_window_set_level` (optional `gfx_window_def`
+  Milestone 6: `gfx_dll_window_set_mode` / `gfx_dll_window_set_level` (optional `gfx_window_def`
   entries outside `GFX_WINDOW_DEF`, set on the x11, sdl, glfw and win32 defs of every device;
   wayland, android and emscripten ignore them): x11 `_NET_WM_STATE` FULLSCREEN / BELOW / ABOVE
   through `gfx_x11_set_wm_state` (dlopen'd, the property before the map, client messages after;
@@ -374,7 +381,7 @@ No GPU reset in any run (`dmesg` count 0).
   and reset before its first render pass (a reset may not sit inside one), d3d11 a timestamp and
   a disjoint query per slot, d3d12 a query heap resolved into a readback buffer, read once the
   writing frame's fence passed (d3d ones not built).
-  This run (MSAA): vk multisampled images (`GFX_TEXTURE_2D_MS`, `levels` the sample count, one
+  Milestone 6 (MSAA): vk multisampled images (`GFX_TEXTURE_2D_MS`, `levels` the sample count, one
   mip; `gfx_texture.samples`), a framebuffer's sample count from its attachments, a pipeline made
   for a target framebuffer rasterizing at that count, and `vk_resolve_framebuffer` for real
   (colour only: the pass ends, `vkCmdResolveImage`, the destination left shader-readable, the
@@ -388,7 +395,7 @@ No GPU reset in any run (`dmesg` count 0).
   colour-and-depth limits, others every power of two up to `max_msaa`, d3d11/d3d12 4). d3d11 and
   d3d12 already created MS textures, keyed PSOs on samples and resolved with
   `ResolveSubresource`: unchanged, not built here.
-  This run: `gfx_dll_window_set_position` / `gfx_dll_window_center` /
+  Milestone 6: `gfx_dll_window_set_position` / `gfx_dll_window_center` /
   `gfx_dll_window_set_decorations` / `gfx_dll_window_set_resizable` (optional `gfx_window_def`
   entries on the x11, sdl, glfw and win32 defs): x11 `WM_NORMAL_HINTS` (USPosition | PPosition,
   NorthWest gravity; a fixed size as min = max, rewritten on resize), `XMoveWindow` (now loaded),
@@ -399,12 +406,24 @@ No GPU reset in any run (`dmesg` count 0).
   the saved windowed style while fullscreen; not built). The vk x11 window is no longer mapped in
   its create, and sdl (`SDL_WINDOW_HIDDEN`) and glfw (`GLFW_VISIBLE` false) create hidden: all
   map at `show`, as gl x11 always did.
+  This run: `gfx_dll_copy_texture` (level 0 of a 2D texture into one of its format and size,
+  colour or depth, at that point of the frame; an optional op outside `GFX_DEVICE_OP_DEF`):
+  gl3/gl4/gles3 two scratch framebuffers and a nearest `glBlitFramebuffer` (`gl_copy_texture`,
+  `BlitFramebuffer` / `DrawBuffers` now in the shared GL struct), vk `vkCmdCopyImage` between
+  render passes (the resolve's end / resume; each image back to its layout), d3d11
+  `CopySubresourceRegion`, d3d12 on the frame's command list (the d3d ones not built); and
+  `gfx_dll_read_texture` of depth: gl3/gl4 `glReadPixels(GL_DEPTH_COMPONENT)`, vk on the graphics
+  queue (a transfer-only queue may not copy a depth aspect; `begin/end_single_time_commands_in`
+  take the pool), d3d11/d3d12 through a whole-subresource copy (no box on depth); gles3 refuses.
+  vk depth render targets now carry `TRANSFER_SRC | TRANSFER_DST` (colour targets `TRANSFER_DST`
+  too), `vk_begin_render_pass` records the depth attachment's layout, and depth barriers wait on
+  the late fragment tests as well as the early.
   Build: `cd ~/Code2/General/gfx/gfx_dll/gfx_benilla && mkdir -p build && cd build && cmake ..
   -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)` -> `bin/Debug_x64/libgfx.so`. `benilla-gfx/build.rs`
   takes `gfx_benilla` over `gfx` (`GFX_DIR`, `GFX_CONFIGURATION`) and copies it to `target/debug/`
   at build time only: after a library rebuild, copy it there by hand. A binary's RUNPATH is
   `$ORIGIN/..` for an example (`target/debug/examples/parity` loads `target/debug/libgfx.so`);
-  check which copy loads with `ldd`. A stale copy cost this run one wrong measurement.
+  check which copy loads with `ldd`. A stale copy cost one wrong measurement once.
 - gfx's vk layout keeps its binding-2-is-14 hack (the original C apps' array): a benilla program's
   sampler slots 0..3 are single samplers; slot 2 works through the fill.
 - Shaders: sources `crates/benilla-gfx/shaders/src/*.{vs,fs}.gfxs` (`blit` (the image targets'
@@ -422,19 +441,21 @@ No GPU reset in any run (`dmesg` count 0).
   stage (the sky family) each carry their own copy. Compiler: `cd
   ~/Code2/General/gfx/wc_compiler_rs && cargo build --release`.
 - Build: `CARGO_INCREMENTAL=0 cargo build -p benilla --features gfx` (or `-p benilla-worldview`).
-  Incremental caches filled the disk twice this run: build without them.
+  Incremental caches filled the disk twice: build without them.
 
 ## Gates (this run)
 
 `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=8 scripts/check.sh` (escalates to `gates.sh`: files under
-`.claude/` are outside the crate map): ALL GATES GREEN on this run's code (1543 s): fmt, clippy,
-workspace tests, no-install tests, doc links, pass-span lint, player build and tests, both
-enforcers; the install is not under the repo's `WoW/Data` for the gates, so the 30 data-gated
-tests (no addon corpus) skipped. `cargo clippy --workspace --all-targets --features benilla/gfx
--- -D warnings` green; `cargo test -p benilla-gfx --features egui` 39 passed. No `smoke.sh`: no
-`.probe-identity`. Disk: the gate chain needs ~25 GB; delete `target/debug/deps` executables
-(`find target/debug/deps -maxdepth 1 -type f -executable ! -name '*.so' -delete`, plus
-`target/debug/examples`) and the A/B binaries under `target/ab/` (2.8 GB each) before it.
+`.claude/` are outside the crate map): ALL GATES GREEN on this run's final tree (3053 s): fmt,
+clippy, workspace tests, no-install tests, doc links, pass-span lint, player build and tests,
+both enforcers; the install is not under the repo's `WoW/Data` for the gates, so the data-gated
+tests skipped. `cargo clippy --workspace --all-targets --features benilla/gfx -- -D warnings`
+green; `cargo test -p benilla-gfx --features egui` 39 passed. No `smoke.sh`: no
+`.probe-identity`. Disk: a first gate run died in the test link (lld SIGBUS, the disk full
+mid-link); `target/debug/deps` held 35 GB of files older than the day's builds. Before the
+gates: `find target/debug/deps -maxdepth 1 -type f -mmin +180 -delete`, the `deps`
+executables, `target/debug/examples` and the A/B binaries. Kill a gate run by PID, never
+`pkill -f` a pattern on the killing command's own line (it killed its own shell this run).
 
 ## For the maintainer
 
@@ -444,9 +465,11 @@ tests (no addon corpus) skipped. `cargo clippy --workspace --all-targets --featu
   twice under a grab, the x11 release-as-repeat heuristic, glfw's no-op `set_mouse_position`,
   sdl's late X1/X2, win32's screen-coordinate `set_mouse_position`, milestone 3's GL depth
   attachment and `D32_SFLOAT` fixes, the vk slot mapping / descriptor fill and the gl3/gles3
-  array depth, the rasterizer depth bias (an API addition), and this run's GL clears under the
-  write masks (a real bug for any gfx app that clears after a no-write pipeline) and
-  `gfx_dll_read_texture` (an API addition).
+  array depth, the rasterizer depth bias (an API addition), milestone 6's GL clears under the
+  write masks (a real bug for any gfx app that clears after a no-write pipeline),
+  `gfx_dll_read_texture` and `gfx_dll_copy_texture` (API additions), and the vk depth barriers'
+  missing late-fragment-test stage and unrecorded depth attachment layout (a depth sampled after
+  its pass transitioned from `UNDEFINED`, discarding it).
 - The `shaders_gles3_dark` family is compiled here without the Windows-only gamma hack.
 
 ## The install
@@ -493,8 +516,8 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
   chat frame when a bottom bar shows. Suspect the window's size or focus event order at startup
   (`WOW_GFX_INPUT_TRACE` against winit's); `ui-bag` matched last run.
 - A vk render pass loads with `DONT_CARE` from `UNDEFINED`: every target that keeps content across
-  passes (the scene ping-pong, a sleeping booth's image) relies on the driver keeping it; RADV
-  and lavapipe do.
+  passes (the scene ping-pong, a sleeping booth's image, the pass resumed after a resolve or the
+  depth probe's copy) relies on the driver keeping it; RADV and lavapipe do.
 - Data textures of booth light buffers that go (a UI model pool buffer) are never dropped
   (`GfxDataTextures` is keyed by buffer id, with no removal hook); FFXGlow quarter targets are
   kept per viewport size until the scene target is re-made.
@@ -511,11 +534,22 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
 - Image-camera MSAA (`Cmd::ImageView` on an image's MS target, the resolve into its main pair)
   is written and runs through the same code as the window's, but no benilla image camera
   multisamples (the booths are `Msaa::Off`), so it has not been exercised.
-- GL depth precision: the `2z - w` remap puts reverse-Z into GL's [-1, 1] clip range, so the
-  float depth buffer keeps no reverse-Z advantage; coplanar intersections (the waterline, some
-  terrain edges) flip single pixels on GL that vk holds. `glClipControl(GL_LOWER_LEFT,
-  GL_ZERO_TO_ONE)` (GL 4.5 / `ARB_clip_control`; not in GLES 3) in gfx_benilla would take the
-  remap out on gl4 and on gl3 where the extension exists.
+- GL depth remap, measured this run: `clip_remap` folds `z' = 2z - w` into the view block's
+  `clip_from_world`, so the z row's translation is `2 near - t_w` stored in f32 beside `t_w`
+  (the camera's view-z offset, ~9000 in Northshire): the 0.2 loses up to ulp(9000)/2 = 0.0005,
+  a constant error delta that scales every GL depth by 1 + delta / (2 near), x1.00098 in the
+  `ui-bag` frame and in the parity scene moved 9000 yd along the view axis (at the origin GL
+  matches vk to 3e-6). Order-preserving (one scale for every fragment), so images match, but
+  GL's depth values, the depth probe's distances and a constant depth bias's weight are off,
+  and the [-1, 1] range keeps no reverse-Z advantage (coplanar single-pixel flips at the
+  waterline and terrain edges). Fix: take the remap out of the matrices and apply it per vertex
+  after the projection (every vertex program's last line under `misc.y`, the programs' own GL
+  z terms - static_gx / wow_model nudge, the skybox lane, the sky far pin, wdl - back to their
+  vk form), or `glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)` (GL 4.5, `ARB_clip_control` on
+  gl3, `EXT_clip_control` on GLES) with no remap at all; `misc.y` then has to split "remap"
+  from "rows bottom-up". Measure with `probe_ab.sh` (depth lines) and `PARITY_ORIGIN`.
+- The depth probe reads no depth on gles3 (GLES 3 has no depth `glReadPixels`); a copy into a
+  colour target through a shader would.
 - The depth-biased draws (the effect lane's decals, the model zfill twin) do not occur in the
   worldview views; the bias is proven on the parity scene only. Check a ring, blob shadow or
   footprint in the client once a login exists. Re-run the milestone 4 GL world A/Bs on a moving
@@ -532,11 +566,12 @@ This machine has a 1.12.1 install: `$wow_classic_dir` = `/home/jonas/Downloads/w
 
 ## Next
 
-Milestone 6's last item: the `depth_probe` / `phase_probe` instruments
-(`crates/benilla-app/src/capture/{depth_probe,phase_probe}.rs`, render-graph nodes; read-back
-exists; the depth needs a copy into a colour texture, and under MSAA a depth resolve, which vk
-refuses today). Then milestone 7: every Linux window/device pair to the character screen and into
-the world, and `GFX.md`. With a `.probe-identity` account: A/B the bowstring or fishing line in the client, the
-client at `gxMultisample 4` (the Video dropdown's list against wgpu's), `WOW_LIVE_FPS` with
-`WOW_GPU_MS=1` on both builds, and watch the warm pass on world entry. Lavapipe and llvmpipe first
-for every new program.
+Milestone 7. First the GL depth remap (Open problems): per-vertex remap in every vertex program
+(or clip control where GL has it), A/B'd with `probe_ab.sh` `WOW_DEPTH` lines (target: gl4 and
+gl3 equal to vk to float precision in `ui-bag`) and `PARITY_ORIGIN`, then the GL image
+regressions (`glue-login`, `glue-charcreate`, `ui-bag`, the worldview lake / overview) against
+their numbers above. Then every Linux window/device pair to the character screen and into the
+world (a login needs a `.probe-identity` account; server-less: the capture scenarios), fix what
+differs, and write `GFX.md`. With an account: A/B the bowstring or fishing line, the client at
+`gxMultisample 4`, `WOW_LIVE_FPS` with `WOW_GPU_MS=1` on both builds, the warm pass on world
+entry, and `WOW_PHASE=<uniqueId>` on a WMO. Lavapipe and llvmpipe first for every new program.

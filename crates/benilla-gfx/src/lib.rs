@@ -29,6 +29,7 @@ pub mod noop_device;
 pub mod overlay;
 pub mod pipelines;
 pub mod post;
+pub mod probe;
 pub mod render;
 pub mod runner;
 pub mod screenshot;
@@ -54,6 +55,7 @@ pub use material::{
 };
 pub use overlay::{GfxOverlayDraw, GfxOverlayFrame, GfxOverlays};
 pub use post::GfxFfxGlow;
+pub use probe::{GfxDepthProbe, GfxDepthReadback, GfxDepthRequest, GfxPhaseRecord, GfxViewPhases};
 pub use render::{GfxRender, GfxRenderSystems};
 pub use runner::GfxMsaaCounts;
 pub use timer::GfxGpuMeter;

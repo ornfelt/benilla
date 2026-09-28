@@ -211,6 +211,7 @@ pub(crate) fn collect(
         list.push_sorted(
             draw.cam,
             SortedDraw {
+                entity: draw.main_entity,
                 mesh: id,
                 indices,
                 world_from_local: Mat4::IDENTITY,

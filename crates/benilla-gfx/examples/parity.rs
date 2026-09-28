@@ -9,6 +9,10 @@
 //! context on a `Camera2d` above the scene, set up as `debug_panel::spawn_egui_camera` does, with
 //! a panel of text, widgets, a filled rect and a clipped scroll area.
 //!
+//! `PARITY_DEPTH="<x>,<y>[;…]"` (gfx) logs the camera's depth at those pixels once, through the
+//! depth probe's copy, with the view distance it unprojects to. `PARITY_ORIGIN="<x>,<y>,<z>"` moves
+//! the whole scene, camera included, by that much: world coordinates as large as benilla's.
+//!
 //! `PARITY_WINDOW` sets the window's frame, sizing and place, for a window-manager A/B of both
 //! paths (`xprop`, `xwininfo`): a comma list of `nodeco`, `fixed`, `center` and `at=<x>:<y>`,
 //! applied at creation, or after 1.5 s with a leading `later,`.
@@ -64,6 +68,10 @@ fn main() -> AppExit {
     #[cfg(feature = "egui")]
     if std::env::var("PARITY_EGUI").as_deref() == Ok("1") {
         panel::add(&mut app, gfx);
+    }
+    app.add_systems(PostStartup, shift_origin);
+    if gfx && std::env::var("PARITY_DEPTH").is_ok() {
+        app.add_systems(PostUpdate, depth);
     }
     #[cfg(not(feature = "egui"))]
     let _ = gfx;
@@ -468,5 +476,67 @@ mod panel {
                     });
             });
         Ok(())
+    }
+}
+
+/// `PARITY_DEPTH`: asks for the camera's depth each frame until one copy is back, then logs the
+/// named pixels' depth and the view distance each unprojects to.
+fn depth(
+    mut probe: ResMut<benilla_gfx::GfxDepthProbe>,
+    camera: Query<(Entity, &Camera), With<Camera3d>>,
+    time: Res<Time<Real>>,
+    mut done: Local<bool>,
+) {
+    let Ok((entity, camera)) = camera.single() else {
+        return;
+    };
+    if *done || time.elapsed_secs() < 1.0 {
+        return;
+    }
+    if let Some(back) = probe.result.take() {
+        *done = true;
+        let view_from_clip = camera.clip_from_view().inverse();
+        let spec = std::env::var("PARITY_DEPTH").unwrap_or_default();
+        for pair in spec.split(';') {
+            let Some((x, y)) = pair.split_once(',') else {
+                continue;
+            };
+            let (Ok(x), Ok(y)) = (x.trim().parse::<u32>(), y.trim().parse::<u32>()) else {
+                continue;
+            };
+            if x >= back.size.x || y >= back.size.y {
+                continue;
+            }
+            let d = back.depth[(y * back.size.x + x) as usize];
+            let ndc = Vec2::new(
+                (x as f32 + 0.5) / back.size.x as f32 * 2.0 - 1.0,
+                1.0 - (y as f32 + 0.5) / back.size.y as f32 * 2.0,
+            );
+            let p = view_from_clip * Vec4::new(ndc.x, ndc.y, d, 1.0);
+            println!("parity: depth ({x}, {y}) {d:.9} view z {:.6}", -(p.z / p.w));
+        }
+        return;
+    }
+    probe.request = Some(benilla_gfx::GfxDepthRequest {
+        camera: entity,
+        after_transparent: false,
+        tag: 0,
+    });
+}
+
+/// `PARITY_ORIGIN`: every root transform moved by the offset, before the first propagation.
+fn shift_origin(mut roots: Query<&mut Transform, Without<ChildOf>>) {
+    let Ok(spec) = std::env::var("PARITY_ORIGIN") else {
+        return;
+    };
+    let v: Vec<f32> = spec
+        .split(',')
+        .filter_map(|c| c.trim().parse().ok())
+        .collect();
+    let [x, y, z] = v[..] else {
+        return;
+    };
+    for mut t in &mut roots {
+        t.translation += Vec3::new(x, y, z);
     }
 }

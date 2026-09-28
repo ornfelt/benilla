@@ -17,6 +17,9 @@ use super::probes::ProbeClock;
 use benilla_assets::materials::WowModelMaterial;
 use benilla_world::interact::WorldObject;
 
+#[cfg(feature = "gfx")]
+mod gfx;
+
 pub(crate) struct PhaseProbePlugin;
 
 impl Plugin for PhaseProbePlugin {
@@ -64,6 +67,12 @@ impl Plugin for PhaseProbePlugin {
         })
         .add_systems(Update, (collect_batches, collect_emitters))
         .add_plugins(ExtractResourcePlugin::<PhaseWatch>::default());
+        // Under gfx there is no render app: the draw keeps its phase lists itself.
+        #[cfg(feature = "gfx")]
+        if app.get_sub_app(RenderApp).is_none() {
+            gfx::build(app);
+            return;
+        }
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             warn!("phase: no render app — inert");
             return;

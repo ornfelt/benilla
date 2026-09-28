@@ -229,6 +229,7 @@ pub(crate) fn collect(
             list.push_sorted(
                 camera,
                 SortedDraw {
+                    entity: Entity::PLACEHOLDER,
                     mesh: id,
                     indices: indices.clone(),
                     world_from_local: Mat4::IDENTITY,
