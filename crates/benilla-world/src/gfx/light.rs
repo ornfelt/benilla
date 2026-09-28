@@ -153,10 +153,10 @@ pub(crate) fn pack(world: &mut World, mut seen: Local<Seen>) {
     world.resource_scope(|world, mut textures: Mut<GfxDataTextures>| {
         let b = bases();
         let seen = &mut *seen;
-        let changed = pack_shared(world, textures.get_or_insert(id, b.end), &b, seen);
+        let changed = pack_shared(world, light_texture(&mut textures, id, &b), &b, seen);
 
         for (buffer, at, rows) in blobs {
-            textures.get_or_insert(buffer, b.end).write(at, &rows);
+            light_texture(&mut textures, buffer, &b).write(at, &rows);
         }
 
         // A mirror takes its regions whole on first sight, then what the shared pack rewrote;
@@ -185,12 +185,27 @@ pub(crate) fn pack(world: &mut World, mut seen: Local<Seen>) {
                     continue;
                 };
                 let rows = rows.to_vec();
-                textures
-                    .get_or_insert(mirror, b.end)
-                    .write(range.start, &rows);
+                light_texture(&mut textures, mirror, &b).write(range.start, &rows);
             }
         }
     });
+}
+
+/// Buffer `id`'s texture, made when it has none as the wgpu buffer is made, zeroed: its tint
+/// region reads the identity, -1 here ([`tint_value`]), since a buffer no tint mirror fills (the
+/// portrait booths') keeps it so, where a zero row would tint every rig on it black.
+fn light_texture<'a>(
+    textures: &'a mut GfxDataTextures,
+    id: BufferId,
+    b: &Bases,
+) -> &'a mut DataTexture {
+    if textures.get(id).is_none() {
+        let identity = tint_value(crate::instance_tint::IDENTITY);
+        textures
+            .get_or_insert(id, b.end)
+            .write(b.rig_tint, &vec![[identity; 4]; b.rig_origin - b.rig_tint]);
+    }
+    textures.get_or_insert(id, b.end)
 }
 
 /// The shared buffer's writes, each gated as its upload system is.
@@ -351,6 +366,24 @@ mod tests {
         assert_eq!(
             tint_value(crate::instance_tint::pack([1, 2, 3])),
             ((1 << 16) | (2 << 8) | 3) as f32
+        );
+    }
+
+    #[test]
+    fn a_new_light_texture_reads_the_identity_tint_and_zero_elsewhere() {
+        let b = bases();
+        let mut textures = GfxDataTextures::default();
+        let id = BufferId::new();
+        let tex = light_texture(&mut textures, id, &b);
+        assert_eq!(tex.row(b.rig_tint), [-1.0; 4]);
+        assert_eq!(tex.row(b.rig_origin - 1), [-1.0; 4]);
+        assert_eq!(tex.row(b.rig_tint - 1), [0.0; 4]);
+        assert_eq!(tex.row(b.rig_origin), [0.0; 4]);
+        // A later write keeps its rows: the prefill runs once, when the texture is made.
+        tex.write(b.rig_tint, &[[5.0; 4]]);
+        assert_eq!(
+            light_texture(&mut textures, id, &b).row(b.rig_tint),
+            [5.0; 4]
         );
     }
 

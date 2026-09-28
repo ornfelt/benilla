@@ -6,6 +6,15 @@ use bevy::prelude::*;
 
 use crate::thread_qos;
 
+/// The log filter: wgpu and naga quieted.
+#[cfg(not(feature = "gfx"))]
+const LOG_FILTER: &str = "wgpu=error,naga=warn";
+/// With `gfx` there is no render sub-app by design, and the two notices of its absence are off:
+/// the first `Extract*Plugin`'s one-time error and bevy_gizmos_render's warning.
+#[cfg(feature = "gfx")]
+const LOG_FILTER: &str =
+    "wgpu=error,naga=warn,bevy_render::extract_resource=off,bevy_gizmos_render=error";
+
 /// `DefaultPlugins` with benilla's engine tuning applied, around the caller's primary window.
 // Without `gfx` the group is returned as built, through the binding the gfx swap rebinds.
 #[cfg_attr(not(feature = "gfx"), allow(clippy::let_and_return))]
@@ -19,7 +28,7 @@ pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
         // machine. Every shader is embedded (`embedded://<crate>/shaders/…`), so no root is read.
         // Quiet wgpu/naga; the ring keeps the last stderr lines for the crash report (`log_ring`).
         .set(bevy::log::LogPlugin {
-            filter: "wgpu=error,naga=warn".into(),
+            filter: LOG_FILTER.into(),
             custom_layer: |_| Some(Box::new(crate::log_ring::LogRing)),
             ..default()
         })
