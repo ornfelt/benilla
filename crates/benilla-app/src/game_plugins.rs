@@ -1,6 +1,6 @@
 //! [`GamePlugins`]: the game as one plugin group, on top of the engine's
 //! `benilla_world::world_plugins::WorldPlugins`. `schedule_tests` builds it headless and checks
-//! the schedule for undeclared orders.
+//! the schedule for undeclared orders; `frame` records the frame it builds.
 //!
 //! The order is load-bearing. Some plugins read a resource an earlier one inserts at build time
 //! (`VideoPlugin` and `RealmlistPlugin` before `CvarPlugin`, `WorldBackdropPlugin` after
@@ -252,6 +252,9 @@ impl PluginGroup for GamePlugins {
             .add(crate::screenshot::ScreenshotPlugin)
     }
 }
+
+#[cfg(test)]
+mod frame;
 
 #[cfg(test)]
 pub(crate) mod schedule_tests {
