@@ -5,7 +5,6 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{
     AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, RenderPipelineDescriptor,
 };
-use bevy::shader::ShaderRef;
 use bevy::ui_render::ui_material::{UiMaterial, UiMaterialKey};
 
 /// An additive UI overlay: `texture`'s uv sub-region `rect` `(u0, v0, u1, v1)`, drawn
@@ -20,10 +19,6 @@ pub(crate) struct AddUiMaterial {
 }
 
 impl UiMaterial for AddUiMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_app/shaders/ui_add.wgsl".into()
-    }
-
     fn specialize(descriptor: &mut RenderPipelineDescriptor, _key: UiMaterialKey<Self>) {
         if let Some(target) = descriptor
             .fragment

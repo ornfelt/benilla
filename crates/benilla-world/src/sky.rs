@@ -19,7 +19,6 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{
     AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError,
 };
-use bevy::shader::ShaderRef;
 
 use crate::dev_state::DebugState;
 use crate::lighting::WowLighting;
@@ -58,15 +57,6 @@ pub struct SkyExt {
 }
 
 impl MaterialExtension for SkyExt {
-    /// The shared sky vertex stage, which pins depth to the far plane ([`crate::sky_order`]).
-    fn vertex_shader() -> ShaderRef {
-        crate::sky_order::SKY_VERTEX_SHADER.into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_world/shaders/sky.wgsl".into()
-    }
-
     /// No depth write, as every sky element inherits from `CSky::Render` (`0x6d4940`); the depth
     /// test stays on. The glare quads are then occluded by world geometry only, never the dome.
     fn specialize(

@@ -212,8 +212,6 @@ pub fn register_asset_loaders(app: &mut App) {
     app.register_asset_loader(WmoModelLoader);
     app.register_asset_loader(AdtLoader);
     app.register_asset_loader(WdtIndexLoader);
-    // The materials' WGSL, compiled in; it too needs `AssetPlugin` first.
-    materials::register_shaders(app);
 }
 
 #[cfg(test)]

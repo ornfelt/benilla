@@ -104,8 +104,6 @@ pub(crate) struct GamePlugins {
 impl PluginGroup for GamePlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            // The game's own WGSL, compiled in, before anything that could ask for one.
-            .add(crate::shaders::plugin)
             .add(BowstringPlugin)
             .add(crate::weapon_trail::WeaponTrailPlugin)
             .add(FishingLinePlugin)

@@ -226,20 +226,27 @@ fn release_wdl_ring(mut commands: Commands, streamer: Option<ResMut<WdlStreamer>
     }
 }
 
+/// The far band's vertex and fragment stages on the gfx renderer.
+#[cfg(test)]
+const WDL_VS: &str = include_str!("../../benilla-gfx/shaders/src/wdl.vs.gfxs");
+#[cfg(test)]
+const WDL_FS: &str = include_str!("../../benilla-gfx/shaders/src/wdl.fs.gfxs");
+
 /// The backdrop law lives in the shader, so it is checked there: a shared clip plane or a dropped
-/// frag-depth write reopens a seam visible only at a ridge crest on a fogged horizon.
+/// depth clamp reopens a seam visible only at a ridge crest on a fogged horizon.
 #[test]
 fn the_far_band_stays_a_depth_pushed_backdrop() {
-    let src = benilla_assets::materials::WDL_WGSL;
     assert!(
-        src.contains("const WDL_OVERLAP: f32 = 33.0;"),
-        "wdl.wgsl: the far band's 33 yd overlap into the wall is gone — the coarse-vs-fine seam \
+        WDL_FS.contains("#define WDL_OVERLAP 33.0"),
+        "wdl.fs.gfxs: the far band's 33 yd overlap into the wall is gone — the coarse-vs-fine seam \
          reopens as a hole at the horizon (the reference's far-band near plane, [0x8101b0])"
     );
     assert!(
-        src.contains("out.depth = depth;") && src.contains("view_z_to_depth_ndc(-farclip)"),
-        "wdl.wgsl: the far band no longer clamps its depth behind the far-clip wall — its overlap \
-         now pokes THROUGH the detailed terrain (the reference's compressed far-band depth range)"
+        WDL_VS.contains("clip.z = min(clip.z, limit * clip.w);")
+            && WDL_VS.contains("mul(vec4(0.0, 0.0, -farclip, 1.0), clip_from_view)"),
+        "wdl.vs.gfxs: the far band no longer clamps its depth behind the far-clip wall — its \
+         overlap now pokes THROUGH the detailed terrain (the reference's compressed far-band depth \
+         range)"
     );
 }
 
@@ -248,15 +255,14 @@ fn the_far_band_stays_a_depth_pushed_backdrop() {
 /// fog the 33 yd overlap shows as a pale band at low view distances.
 #[test]
 fn the_far_band_is_a_fog_hull_not_a_fogged_surface() {
-    let src = benilla_assets::materials::WDL_WGSL;
     assert!(
-        src.contains("rgb = w.fog_color.xyz;"),
-        "wdl.wgsl: the hull no longer paints the flat fog colour (the reference's own start-0 / \
+        WDL_FS.contains("rgb = fog_color.xyz;"),
+        "wdl.fs.gfxs: the hull no longer paints the flat fog colour (the reference's own start-0 / \
          end-1.0 fog pair, saturated beyond one yard)"
     );
     assert!(
-        !src.contains("w.fog_params.x") && !src.contains("w.fog_params.y"),
-        "wdl.wgsl: the hull reads the SCENE fog distances again — the 33 yd overlap goes partly \
+        !WDL_FS.contains("light_row(5).x") && !WDL_FS.contains("light_row(5).y"),
+        "wdl.fs.gfxs: the hull reads the SCENE fog distances again — the 33 yd overlap goes partly \
          white at low view distances"
     );
 }

@@ -1,8 +1,6 @@
 //! The render materials: the four `ExtendedMaterial`s the world is drawn with (terrain splat,
-//! M2/WMO model, WDL far band, liquid surface) and the WGSL each one binds.
-//!
-//! The WGSL is embedded (`embedded://benilla_assets/shaders/…`), not served: a relative path would
-//! resolve against the host binary's `AssetPlugin::file_path` and render nothing elsewhere.
+//! M2/WMO model, WDL far band, liquid surface). The gfx renderer draws each with its `.gfxs`
+//! family (`benilla-gfx/shaders/src/`).
 
 use bevy::image::Image;
 use bevy::mesh::MeshVertexBufferLayoutRef;
@@ -15,23 +13,10 @@ use bevy::render::render_resource::{
     AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, BufferId, ColorWrites,
     CompareFunction, RenderPipelineDescriptor, SpecializedMeshPipelineError,
 };
-use bevy::shader::ShaderRef;
-
-/// Compile the four WGSL files into the binary under `embedded://benilla_assets/shaders/…`. Call
-/// after Bevy's `AssetPlugin`, whose registry this fills; [`crate::register_asset_loaders`] does.
-pub fn register_shaders(app: &mut App) {
-    bevy::asset::embedded_asset!(app, "shaders/terrain.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/wow_model.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/wdl.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/liquid.wgsl");
-}
-
-/// The WDL far-band shader's source, for the tests that live beside the renderer (`wdl.rs`).
-pub const WDL_WGSL: &str = include_str!("shaders/wdl.wgsl");
 
 /// Alpha-test reference for blend mode 1 (`Blend_AlphaKey`): 224 in the reference's
 /// per-blend-mode table at `0x85ad20`, `{0, 224, 1, 1, 1, 1, 1, 0, 0, 0, 0}`. Must stay in sync
-/// with `VANILLA_ALPHA_KEY` in `shaders/wow_model.wgsl`.
+/// with `VANILLA_ALPHA_KEY` in `benilla-gfx/shaders/src/wow_model.fs.gfxs`.
 pub const VANILLA_ALPHA_KEY_REF: f32 = 224.0 / 255.0;
 
 /// `StandardMaterial` plus the per-tile layer-blend extension.
@@ -121,15 +106,6 @@ pub struct WowModelExt {
 }
 
 impl MaterialExtension for WowModelExt {
-    /// Bevy's mesh vertex plus the point-light term, per vertex like the reference's FFP.
-    fn vertex_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/wow_model.wgsl".into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/wow_model.wgsl".into()
-    }
-
     /// The reference writes depth for every M2 batch, transparent ones too, and tests `LEQUAL`,
     /// unless render flag 0x10 (no write) or 0x08 (no test) clears it (`0x70c190`).
     fn specialize(
@@ -321,14 +297,7 @@ pub struct WdlExt {
     pub light_buf: BufferId,
 }
 
-impl MaterialExtension for WdlExt {
-    fn vertex_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/wdl.wgsl".into()
-    }
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/wdl.wgsl".into()
-    }
-}
+impl MaterialExtension for WdlExt {}
 
 /// Liquid surfaces, one `liquid.wgsl` arm per reference liquid renderer: ADT MCLQ (the
 /// `ocean0_s.bls` combine), WMO exterior and interior water, and magma and slime.
@@ -363,13 +332,6 @@ pub struct LiquidExt {
 }
 
 impl MaterialExtension for LiquidExt {
-    fn vertex_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/liquid.wgsl".into()
-    }
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/liquid.wgsl".into()
-    }
-
     /// `sky_order::WATER_BIAS` (−2e4) is a sort rung, kept out of the rasterizer: as a depth-bias
     /// constant it would move the waterline, by an amount that doubles at every float exponent
     /// boundary, so neighbouring triangles' shorelines would disagree.
@@ -411,61 +373,48 @@ pub struct TerrainExtension {
     pub light_buf: BufferId,
 }
 
-impl MaterialExtension for TerrainExtension {
-    // The sun specular is per vertex (the reference's light flush `0x59c820`).
-    fn vertex_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/terrain.wgsl".into()
-    }
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_assets/shaders/terrain.wgsl".into()
-    }
-}
+impl MaterialExtension for TerrainExtension {}
 
 #[cfg(test)]
 mod tests {
     /// The sky depth law for the WMO skybox, the one sky element on the model lane.
     #[test]
     fn the_sky_lane_pins_the_far_depth_at_the_vertex() {
-        let src = include_str!("shaders/wow_model.wgsl");
-        // The pin, matched behind its ifdef: ungated, every model draw sits at the far plane.
+        let src = include_str!("../../benilla-gfx/shaders/src/wow_model.vs.gfxs");
+        // The pin, matched behind its marker bit (13): ungated, every model draw sits at the far
+        // plane. The gfx shader language has no fragment depth output, so no fragment rewrites it.
         let pin = src
-            .find("#ifdef WOW_SKY_DEPTH")
+            .find("if ((markers & 8192u) != 0u)")
             .expect("the sky-depth branch is gone");
-        let branch = &src[pin..src[pin..].find("#endif").map_or(src.len(), |e| pin + e)];
         assert!(
-            branch.contains("out.position.z = 0.0;"),
+            src[pin..].lines().nth(1).map(str::trim) == Some("clip.z = 0.0;"),
             "the model lane's sky branch no longer pins the far depth at the vertex — a WMO \
              skybox's shell radius is deciding occlusion again (benilla_world::sky_order, \"The \
              depth law\")"
         );
-        assert!(
-            !src.contains("@builtin(frag_depth)"),
-            "the model lane writes a fragment depth again — the sky pin is the vertex stage's, \
-             and a fragment write costs every draw on this lane its early-Z"
-        );
     }
 
-    /// The WGSL carries the reference's swatch row arithmetic, and a Rust mirror of it reproduces
+    /// The shader carries the reference's swatch row arithmetic, and a Rust mirror of it reproduces
     /// the row fill `0x68a830` on `Light.dbc` id 4, map 0, t = 1440, ocean `LightIntBand` 14 to 15.
     #[test]
     fn liquid_swatch_reproduces_the_reference_row_ramp() {
-        let src = include_str!("shaders/liquid.wgsl");
+        let src = include_str!("../../benilla-gfx/shaders/src/liquid.fs.gfxs");
         // The row accumulator `c0 + floor(i*(c1 - c0)/64)`, not a lerp to the deep endpoint.
         assert!(
-            src.contains("let row = c0 + floor(i * (c1 - c0) / 64.0);"),
+            src.contains("vec4 row = c0 + floor(i * (c1 - c0) / 64.0);"),
             "the swatch stopped building its rows the way `0x68a830` does: a plain lerp to the \
              deep endpoint runs a 64th of a ramp that does not exist"
         );
         // The ocean-only tail: floor(0.9*byte) on the last row, alpha forced opaque.
         assert!(
-            src.contains("if ocean && i >= 63.0 {")
-                && src.contains("vec4<f32>(floor(row.rgb * 0.9), 255.0)"),
+            src.contains("if (ocean && i >= 63.0)")
+                && src.contains("vec4(floor(row.xyz * 0.9), 255.0)"),
             "the ocean's last-row darkening is gone — ~80% of the world's ocean vertices sample \
              that row, so this is the open sea's colour"
         );
         // Linear sampling across the two rows V falls between, at texel `V*64 - 0.5`.
         assert!(
-            src.contains("let t = clamp(v * 64.0 - 0.5, 0.0, 63.0);"),
+            src.contains("float t = clamp(v * 64.0 - 0.5, 0.0, 63.0);"),
             "the swatch stopped sampling as an 8x64 LINEAR/CLAMP texture — the ocean darkening \
              would step instead of ramping across the final 1/64 of V"
         );

@@ -15,10 +15,9 @@ use bevy::render::render_resource::{
     AsBindGroup, Extent3d, RenderPipelineDescriptor, SpecializedMeshPipelineError,
     TextureDimension, TextureFormat,
 };
-use bevy::shader::ShaderRef;
 
 use crate::dev_state::DebugState;
-use crate::sky_order::{sky_pipeline_state, SKY_VERTEX_SHADER};
+use crate::sky_order::sky_pipeline_state;
 use crate::view::WorldCamera;
 
 use super::kernel::COLS;
@@ -37,15 +36,6 @@ pub struct CloudExt {
 }
 
 impl MaterialExtension for CloudExt {
-    /// The shared sky vertex stage, which pins every sky vertex to the far depth.
-    fn vertex_shader() -> ShaderRef {
-        SKY_VERTEX_SHADER.into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_world/shaders/cloud.wgsl".into()
-    }
-
     fn specialize(
         _pipeline: &MaterialExtensionPipeline,
         descriptor: &mut RenderPipelineDescriptor,

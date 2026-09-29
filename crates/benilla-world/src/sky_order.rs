@@ -14,16 +14,13 @@
 //! rasterizer's depth-bias constant, so a rung on a depth-tested draw stays as small as it can.
 //!
 //! The depth law: our sky draws after the world, so every sky vertex pins clip z to 0.0, reverse-Z
-//! infinitely far, in the shared vertex stage ([`SKY_VERTEX_SHADER`]): a sky fragment survives only
-//! where the depth buffer holds the clear value, as the reference's world paints over its sky, and
-//! no shell radius decides occlusion. Pinned at the vertex so early-Z rejects covered fragments,
-//! with [`sky_pipeline_state`] zeroing the raster bias that would move it.
+//! infinitely far, in every sky family's vertex stage (`benilla-gfx/shaders/src/`): a sky
+//! fragment survives only where the depth buffer holds the clear value, as the reference's world
+//! paints over its sky, and no shell radius decides occlusion. Pinned at the vertex so early-Z
+//! rejects covered fragments, with [`sky_pipeline_state`] zeroing the raster bias that would move
+//! it.
 
 use bevy::render::render_resource::RenderPipelineDescriptor;
-
-/// The vertex stage every sky material draws through, the far-depth pin (the depth law); each
-/// returns it from `vertex_shader()`, and the test below holds them to it.
-pub(crate) const SKY_VERTEX_SHADER: &str = "embedded://benilla_world/shaders/sky_vertex.wgsl";
 
 /// Every sky material's `specialize` (the depth law): zero the rasterizer depth-bias constant, so
 /// the rung in `StandardMaterial::depth_bias` stays a sort key and the pinned depth is untouched.
@@ -166,58 +163,35 @@ const _: () = {
     assert!(Rung::RING + WORLD_VIEW_Z_FLOOR - WMO_SKYBOX_BIAS > 1.0e3);
 };
 
-/// The depth law, in the shaders: the shared vertex stage pins the far depth (without it stars
-/// show through distant hills), every sky material draws through it, and no fragment rewrites it.
+/// The depth law, in the shaders: every sky family's vertex stage pins the far depth (without it
+/// stars show through distant hills). No fragment rewrites it: the gfx shader language has no
+/// fragment depth output.
 #[test]
 fn the_sky_depth_is_pinned_at_the_vertex_and_nowhere_else() {
-    use bevy::pbr::Material;
-    use bevy::shader::ShaderRef;
-
-    let vertex = include_str!("shaders/sky_vertex.wgsl");
-    assert!(
-        vertex.contains("const SKY_FAR_CLIP_Z: f32 = 0.0;")
-            && vertex.contains("out.position.z = SKY_FAR_CLIP_Z;"),
-        "sky_vertex.wgsl no longer pins the far depth — every shell radius is deciding occlusion \
-         again (sky_order.rs, \"The depth law\")"
-    );
     for (name, src) in [
-        ("sky.wgsl", include_str!("shaders/sky.wgsl")),
-        ("star.wgsl", include_str!("shaders/star.wgsl")),
-        ("cloud.wgsl", include_str!("shaders/cloud.wgsl")),
-        ("celestial.wgsl", include_str!("shaders/celestial.wgsl")),
-        // The WMO skybox draws on the shared model lane, whose `WOW_SKY_DEPTH` branch is held to
-        // the same law in `benilla_assets::materials`.
+        (
+            "sky",
+            include_str!("../../benilla-gfx/shaders/src/sky.vs.gfxs"),
+        ),
+        (
+            "star",
+            include_str!("../../benilla-gfx/shaders/src/star.vs.gfxs"),
+        ),
+        (
+            "cloud",
+            include_str!("../../benilla-gfx/shaders/src/cloud.vs.gfxs"),
+        ),
+        (
+            "celestial",
+            include_str!("../../benilla-gfx/shaders/src/celestial.vs.gfxs"),
+        ),
+        // The WMO skybox draws on the shared model lane, whose sky-depth branch is held to the
+        // same law in `benilla_assets::materials`.
     ] {
         assert!(
-            !src.contains("@builtin(frag_depth)"),
-            "{name}: a sky fragment writes its depth again — the pin is the vertex stage's, and a \
-             fragment write costs the pipeline its early-Z (sky_order.rs, \"The depth law\")"
+            src.lines().any(|l| l.trim() == "clip.z = 0.0;"),
+            "{name}.vs.gfxs no longer pins the far depth — every shell radius is deciding \
+             occlusion again (sky_order.rs, \"The depth law\")"
         );
     }
-    fn shared(name: &str, shader: ShaderRef) {
-        match shader {
-            ShaderRef::Path(p) => assert_eq!(
-                p.to_string(),
-                SKY_VERTEX_SHADER,
-                "{name}: not drawing through the shared sky vertex stage"
-            ),
-            _ => panic!("{name}: vertex shader is not a path — not the shared sky vertex stage"),
-        }
-    }
-    shared(
-        "SkyMaterial",
-        <crate::sky::SkyMaterial as Material>::vertex_shader(),
-    );
-    shared(
-        "CloudMaterial",
-        <crate::clouds::CloudMaterial as Material>::vertex_shader(),
-    );
-    shared(
-        "StarMaterial",
-        <crate::sun::StarMaterial as Material>::vertex_shader(),
-    );
-    shared(
-        "CelestialMaterial",
-        <crate::sun::CelestialMaterial as Material>::vertex_shader(),
-    );
 }

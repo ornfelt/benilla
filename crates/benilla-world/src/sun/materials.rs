@@ -8,9 +8,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{
     AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError,
 };
-use bevy::shader::ShaderRef;
 
-use crate::sky_order::{sky_pipeline_state, SKY_VERTEX_SHADER};
+use crate::sky_order::sky_pipeline_state;
 
 /// Every disc and glare, blended in gamma space like the reference. A disc takes the horizon clip
 /// and fade (`0x6d1960`) under a premultiplied blend; a glare skips it and adds gamma bytes, the
@@ -33,15 +32,6 @@ pub struct CelestialExt {
 }
 
 impl MaterialExtension for CelestialExt {
-    /// The shared sky vertex stage, the far-depth pin ([`crate::sky_order`]).
-    fn vertex_shader() -> ShaderRef {
-        SKY_VERTEX_SHADER.into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_world/shaders/celestial.wgsl".into()
-    }
-
     fn specialize(
         _pipeline: &MaterialExtensionPipeline,
         descriptor: &mut RenderPipelineDescriptor,
@@ -65,15 +55,6 @@ pub type StarMaterial = ExtendedMaterial<StandardMaterial, StarExt>;
 pub struct StarExt {}
 
 impl MaterialExtension for StarExt {
-    /// The shared sky vertex stage, the far-depth pin ([`crate::sky_order`]).
-    fn vertex_shader() -> ShaderRef {
-        SKY_VERTEX_SHADER.into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_world/shaders/star.wgsl".into()
-    }
-
     fn specialize(
         _pipeline: &MaterialExtensionPipeline,
         descriptor: &mut RenderPipelineDescriptor,

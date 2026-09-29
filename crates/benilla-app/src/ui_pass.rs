@@ -25,7 +25,6 @@ use bevy::render::render_resource::{
     AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, Extent3d,
     TextureDimension, TextureFormat,
 };
-use bevy::shader::ShaderRef;
 use bevy::sprite_render::{Material2d, Material2dKey, Material2dPlugin};
 use bevy::window::PrimaryWindow;
 
@@ -280,15 +279,6 @@ pub(crate) fn tile_quad_mesh() -> Mesh {
 }
 
 impl Material2d for UiQuadMaterial {
-    /// Our own vertex stage, which unpacks the run's tint from the instance tag ([`tint_tag`]).
-    fn vertex_shader() -> ShaderRef {
-        "embedded://benilla_app/shaders/ui_quad.wgsl".into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        "embedded://benilla_app/shaders/ui_quad.wgsl".into()
-    }
-
     fn alpha_mode(&self) -> bevy::sprite_render::AlphaMode2d {
         // The transparent phase, sorted by mesh z (the run order); `specialize` sets the blend.
         bevy::sprite_render::AlphaMode2d::Blend
