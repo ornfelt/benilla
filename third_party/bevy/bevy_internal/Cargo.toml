@@ -73,10 +73,7 @@ bevy_gizmos = [
     "dep:bevy_gizmos",
     "bevy_camera",
 ]
-bevy_gizmos_render = [
-    "dep:bevy_gizmos_render",
-    "bevy_gizmos",
-]
+bevy_gizmos_render = ["bevy_gizmos"]
 bevy_gltf = [
     "bevy_scene",
     "bevy_pbr",
@@ -100,7 +97,6 @@ bevy_pbr = [
     "dep:bevy_pbr",
     "bevy_light",
     "bevy_core_pipeline",
-    "bevy_gizmos_render?/bevy_pbr",
 ]
 bevy_picking = [
     "dep:bevy_picking",
@@ -127,7 +123,6 @@ bevy_sprite_render = [
     "dep:bevy_sprite_render",
     "bevy_sprite",
     "bevy_core_pipeline",
-    "bevy_gizmos_render?/bevy_sprite_render",
 ]
 bevy_state = ["dep:bevy_state"]
 bevy_text = [
@@ -275,7 +270,6 @@ webgl = [
     "bevy_core_pipeline?/webgl",
     "bevy_pbr?/webgl",
     "bevy_render?/webgl",
-    "bevy_gizmos_render?/webgl",
     "bevy_sprite_render?/webgl",
 ]
 zstd_rust = ["bevy_image/zstd_rust"]
@@ -333,11 +327,6 @@ features = ["bevy_reflect"]
 default-features = false
 
 [dependencies.bevy_gizmos]
-version = "0.18.0"
-optional = true
-default-features = false
-
-[dependencies.bevy_gizmos_render]
 version = "0.18.0"
 optional = true
 default-features = false

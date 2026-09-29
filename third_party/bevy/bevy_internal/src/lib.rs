@@ -32,8 +32,6 @@ pub use bevy_diagnostic as diagnostic;
 pub use bevy_ecs as ecs;
 #[cfg(feature = "bevy_gizmos")]
 pub use bevy_gizmos as gizmos;
-#[cfg(feature = "bevy_gizmos_render")]
-pub use bevy_gizmos_render as gizmos_render;
 #[cfg(feature = "bevy_image")]
 pub use bevy_image as image;
 pub use bevy_input as input;

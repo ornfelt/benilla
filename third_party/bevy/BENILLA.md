@@ -42,6 +42,24 @@ the same repository's.
   writeback): nothing in benilla or the rest of Bevy names it, and its plugin built only render-app
   halves, so it is deleted with its slot in `DefaultPlugins` and its `bevy::post_process`
   re-export; the `bevy_post_process` feature stays as a name enabling `bevy_core_pipeline`.
+- **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
+  world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
+  is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
+- **The render-app halves** (no `RenderApp` exists under gfx, so none of it ever ran). Every
+  plugin keeps what it did in the main world (systems, sets, assets, types, required components,
+  hooks), so benilla's recorded frame is unchanged, and every type benilla or another kept crate
+  names stays:
+  - `bevy_sprite_render`: the sprite, mesh2d, text2d and wireframe2d pipelines, extraction,
+    batching and draw commands, `Mesh2dRenderPlugin` (it had no main-world half) and all WGSL. Kept:
+    `SpriteRenderPlugin`'s slice systems and `Sprite`'s `SyncToRenderWorld`, `Material2d`,
+    `Material2dKey`, `Mesh2dPipelineKey`, `Material2dPlugin`'s asset and specialization check,
+    `ColorMaterial`, the tilemap chunk.
+  - `bevy_ui_render`: `UiRenderPlugin` returned before its sub-plugins without a `RenderApp`, so it
+    is empty; everything but `UiMaterial`, `UiMaterialKey`, `MaterialNode`, `UiMaterialPlugin`'s
+    asset registration, `UiAntiAlias`, `BoxShadowSamples` and `stack_z_offsets` is gone.
+  - `bevy_egui`: the render-graph edge ordering egui against `bevy_ui_render`'s UI pass.
+
+  The manifests drop the dependencies no kept code uses; no crate's resolved features change.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
   avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each

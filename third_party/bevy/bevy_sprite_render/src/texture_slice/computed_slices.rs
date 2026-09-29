@@ -1,4 +1,4 @@
-use crate::{ExtractedSlice, TextureAtlasLayout};
+use crate::TextureAtlasLayout;
 use bevy_asset::{AssetEvent, Assets};
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
@@ -10,38 +10,13 @@ use bevy_sprite::{Sprite, SpriteImageMode, TextureSlice};
 ///
 /// This component is automatically inserted and updated
 #[derive(Debug, Clone, Component)]
-pub struct ComputedTextureSlices(Vec<TextureSlice>);
-
-impl ComputedTextureSlices {
-    /// Computes [`ExtractedSlice`] iterator from the sprite slices
-    ///
-    /// # Arguments
-    ///
-    /// * `sprite` - The sprite component
-    #[must_use]
-    pub(crate) fn extract_slices<'a>(
-        &'a self,
-        sprite: &'a Sprite,
-        anchor: Vec2,
-    ) -> impl ExactSizeIterator<Item = ExtractedSlice> + 'a {
-        let mut flip = Vec2::ONE;
-        if sprite.flip_x {
-            flip.x *= -1.0;
-        }
-        if sprite.flip_y {
-            flip.y *= -1.0;
-        }
-        let anchor = anchor
-            * sprite
-                .custom_size
-                .unwrap_or(sprite.rect.unwrap_or_default().size());
-        self.0.iter().map(move |slice| ExtractedSlice {
-            offset: slice.offset * flip - anchor,
-            rect: slice.texture_rect,
-            size: slice.draw_size,
-        })
-    }
-}
+pub struct ComputedTextureSlices(
+    #[expect(
+        dead_code,
+        reason = "read only by the render world's sprite extraction, which is cut"
+    )]
+    Vec<TextureSlice>,
+);
 
 /// Generates sprite slices for a [`Sprite`] with [`SpriteImageMode::Sliced`] or [`SpriteImageMode::Sliced`]. The slices
 /// will be computed according to the `image_handle` dimensions or the sprite rect.

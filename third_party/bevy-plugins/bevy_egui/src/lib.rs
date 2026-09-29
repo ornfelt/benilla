@@ -1328,8 +1328,6 @@ impl Plugin for EguiPlugin {
 
     #[cfg(feature = "render")]
     fn finish(&self, app: &mut App) {
-        #[cfg(feature = "bevy_ui")]
-        let bevy_ui_is_enabled = app.is_plugin_added::<bevy_ui_render::UiRenderPlugin>();
 
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
@@ -1363,60 +1361,6 @@ impl Plugin for EguiPlugin {
                     Render,
                     render::systems::queue_pipelines_system.in_set(RenderSystems::Queue),
                 );
-
-            // Configure a fixed rendering order between Bevy UI and egui.
-            // Otherwise, this order is effectively decided at random on every game startup.
-            #[cfg(feature = "bevy_ui")]
-            if bevy_ui_is_enabled {
-                use bevy_render::render_graph::RenderLabel;
-                let mut graph = render_app
-                    .world_mut()
-                    .resource_mut::<bevy_render::render_graph::RenderGraph>();
-                let (below, above) = match self.ui_render_order {
-                    UiRenderOrder::EguiAboveBevyUi => (
-                        bevy_ui_render::graph::NodeUi::UiPass.intern(),
-                        render::graph::NodeEgui::EguiPass.intern(),
-                    ),
-                    UiRenderOrder::BevyUiAboveEgui => (
-                        render::graph::NodeEgui::EguiPass.intern(),
-                        bevy_ui_render::graph::NodeUi::UiPass.intern(),
-                    ),
-                };
-                if let Some(graph_2d) =
-                    graph.get_sub_graph_mut(bevy_core_pipeline::core_2d::graph::Core2d)
-                {
-                    // Only apply if the bevy_ui plugin is actually enabled.
-                    // In theory we could use RenderGraph::try_add_node_edge instead and ignore the result,
-                    // but that still seems to end up writing the corrupt edge into the graph,
-                    // causing the game to panic down the line.
-                    match graph_2d.get_node_state(bevy_ui_render::graph::NodeUi::UiPass) {
-                        Ok(_) => {
-                            graph_2d.add_node_edge(below, above);
-                        }
-                        Err(err) => log::warn!(
-                            error = &err as &dyn std::error::Error,
-                            "bevy_ui::UiPlugin is enabled but could not be found in 2D render graph, rendering order will be inconsistent",
-                        ),
-                    }
-                }
-                if let Some(graph_3d) =
-                    graph.get_sub_graph_mut(bevy_core_pipeline::core_3d::graph::Core3d)
-                {
-                    match graph_3d.get_node_state(bevy_ui_render::graph::NodeUi::UiPass) {
-                        Ok(_) => {
-                            graph_3d.add_node_edge(below, above);
-                        }
-                        Err(err) => log::warn!(
-                            error = &err as &dyn std::error::Error,
-                            "bevy_ui::UiPlugin is enabled but could not be found in 3D render graph, rendering order will be inconsistent",
-                        ),
-                    }
-                }
-            } else {
-                log::debug!(
-                    "bevy_ui feature is enabled, but bevy_ui::UiPlugin is disabled, not applying configured rendering order"
-                )
-            }
         }
     }
 }

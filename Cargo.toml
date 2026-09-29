@@ -76,7 +76,6 @@ bevy_ecs_macros = { path = "third_party/bevy/bevy_ecs_macros" }
 bevy_encase_derive = { path = "third_party/bevy/bevy_encase_derive" }
 bevy_gizmos = { path = "third_party/bevy/bevy_gizmos" }
 bevy_gizmos_macros = { path = "third_party/bevy/bevy_gizmos_macros" }
-bevy_gizmos_render = { path = "third_party/bevy/bevy_gizmos_render" }
 bevy_image = { path = "third_party/bevy/bevy_image" }
 bevy_input = { path = "third_party/bevy/bevy_input" }
 bevy_input_focus = { path = "third_party/bevy/bevy_input_focus" }
