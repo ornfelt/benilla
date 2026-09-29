@@ -8,8 +8,8 @@ Notes from 2026-09-28, answering three questions:
    libraries or direct Rust-to-C ports for everything else.
 
 Numbers are from the `gfx-dll-backend` branch at `915d50a4`. The plan starts with a Rust-side
-step that removes Bevy before any C is written (Phase A), then translates the Bevy-free Rust to
-C.
+step (Phase A) that runs benilla, unchanged, on a trimmed Bevy of its own; that trimmed Bevy is
+then ported to C and benilla is translated onto it.
 
 ## 1. What benilla is made of
 
@@ -69,8 +69,8 @@ so no dynamics simulation is needed.
 gfx plus sockets, threads, files and audio, all available in C. Lua and PCRE are C already. The
 format parsers and the protocol are plain byte work.
 
-**The cost is the size and the architecture, not the libraries.** 500k lines is a multi-year
-effort by hand. The hard part is that the game is written as Bevy ECS systems with an implicit
+**The cost is the size and the architecture, not the libraries.** 500k lines is a large
+body of code to port by hand. The hard part is that the game is written as Bevy ECS systems with an implicit
 schedule, change detection and asset handles. That runtime has to be rebuilt or replaced before
 most of `benilla-app` and `benilla-world` can be ported.
 
@@ -85,7 +85,7 @@ checked against the Rust client.
 |---|---|---|---|
 | bevy: window, input | window, events, cursor, grab | **gfx** window backends (x11, sdl, glfw, win32) | Already done on this branch through `gfx_benilla` |
 | bevy: render, wgpu, WGSL | all drawing | **gfx** devices (gl3, gl4, gles3, vk, d3d11, d3d12) with the existing `.gfxs` shaders | The shaders and draw logic are already ported (`benilla-gfx`, 12k lines of mostly FFI-shaped Rust); translate that crate almost line for line |
-| bevy_ecs | the whole game's structure | **flecs** (a C ECS: systems, queries, pipelines, observers, change detection), or plain data-oriented structs with a hand-written frame order | Chosen in Phase A, while still in Rust (see the plan) |
+| bevy_ecs | the whole game's structure | **the trimmed Bevy ECS, ported to C** (Phase 2); flecs is the off-the-shelf alternative, but its semantics differ from Bevy's | See Phases A and 2 |
 | bevy asset | MPQ asset source, handles, async loaders | own: a ref-counted handle table plus an IO thread pool | Small once the MPQ reader exists |
 | bevy transform, hierarchy, visibility | transform propagation, frustum culling, render layers | own | Straightforward |
 | bevy animation | M2 skeletal animation and blending | own M2 sampler (tracks, interpolation, blend slots) | benilla already implements the reference's blend rules on top of Bevy; port the rules, not Bevy |
@@ -118,41 +118,46 @@ checked against the Rust client.
 ```text
 Today                Rust + Bevy + wgpu/winit (feature off) or gfx (this branch)
    |
-Phase A (Rust)       Rust + own runtime and ECS + gfx; no Bevy, no wgpu, no winit
+Phase A (Rust)       benilla unchanged, on a trimmed Bevy of its own + gfx; no wgpu, no winit
    |
-Phases 0-7 (C)       C + gfx; a mechanical translation of the Phase A code
+Phases 0-7 (C)       C + gfx; the trimmed Bevy ported to C, then benilla translated onto it
 ```
 
 The first step off Bevy's renderer is already done: this branch draws everything through gfx,
 with all 26 shader programs ported to `.gfxs` and every Linux window and device pair verified
-(`GFX.md`). Phase A finishes the job in Rust, and the C port then translates code that no
-longer depends on Bevy.
+(`GFX.md`).
 
-Why Phase A first:
+**Phase A does not change benilla's code or structure.** It replaces the Bevy benilla depends
+on with a trimmed copy that implements only what benilla uses, with the same API. benilla's
+systems, components, plugins and queries stay exactly as they are and compile against the
+trimmed copy. Once that copy runs benilla and is proven in Rust (the tests, the capture sweep,
+`smoke.sh` and live logins match upstream), it becomes the translation reference for the C
+port: first the trimmed Bevy is ported to C, keeping its behaviour, then benilla's code is
+translated onto that C runtime, drawing through the gfx library.
 
-- **The hard part is solved once, with a safety net.** Turning Bevy's implicit behaviour
-  (system order, change detection, deferred commands, asset readiness, the animation player)
-  into explicit code is where subtle bugs come from. In Rust, the compiler and benilla's roughly
-  166k lines of tests keep checking that work, and the capture and live harnesses still compare
-  against upstream benilla.
-- **The C translation becomes mechanical.** Once the Rust uses the same runtime shape and the
-  same libraries the C code will, each file maps onto C nearly one to one:
+Why this order:
 
-  | Rust | C |
-  |---|---|
-  | `Vec3`, `Mat4` (glam) | cglm types |
-  | `Vec`, `HashMap`, `String` | the chosen container library |
-  | enums with data | tagged unions |
-  | `Result` and `?` | error codes with an error struct |
-  | `Arc` | reference counts |
-  | channels | queues |
+- **Phase A is low-risk.** Vendoring changes no behaviour, and every cut after it is
+  small and checked by benilla's roughly 166k lines of tests and the harnesses. benilla's 430k
+  Bevy-bound lines are not touched.
+- **The C port gets an exact, small reference.** The trimmed Bevy is the precise set of
+  behaviours benilla relies on (system order, change ticks, deferred commands, message
+  lifetimes, observer timing, asset events), readable in one place instead of spread across
+  390k lines of Bevy.
+- **The C runtime keeps benilla's semantics.** A C ECS written to match the trimmed Bevy behaves
+  as benilla expects. A different ECS (flecs, for example) differs in ways benilla depends on:
+  flecs tracks changes per table, Bevy per entity and component; command application, message
+  lifetimes and observer timing differ too. Each difference is a potential bug across 400+
+  systems.
+- **Everything is checked against running code.** Upstream benilla checks Phase A; the Phase A
+  Rust build checks the C runtime and the C translation.
 
-- **The same result can feed a C# port later**, if that is ever wanted (see the appendix).
-
-The price is a large refactor of the Bevy-bound Rust (about 430k lines in `benilla-app`,
-`benilla-world` and `benilla-assets`), mostly structural rather than new logic. The Bevy-free
-crates (formats, protocol, SRP6, UI core) do not need Phase A and can be ported to C in parallel
-(Phase 1).
+The price moves to the C side: C cannot express Bevy's type-driven API (a system declares its
+data through its signature, `Query<(&A, &mut B), Changed<A>>`), so every system's parameters
+become explicit runtime queries and lookups in C. That work is regular and follows a written
+mapping table (Phase 2), but there is a lot of it: about 1,400 queries, 4,000 resource
+parameters and 1,100 `Commands` uses. The Bevy-free crates (formats, protocol, SRP6, UI core) do
+not need Phase A and can be ported to C in parallel (Phase 1).
 
 ### Principles
 
@@ -160,13 +165,11 @@ crates (formats, protocol, SRP6, UI core) do not need Phase A and can be ported 
   it drops the wgpu path upstream keeps. Keep an unmodified upstream build beside it, and check
   every step against it: the capture sweep (`scripts/visual.sh`, `benilla-visual`,
   `probe_ab.sh`), `smoke.sh`, and live A/B logins as this branch did for gfx.
-- **Pick the C libraries during Phase A, and swap them in while still in Rust** wherever the
-  swap changes something measurable: text rasterization, audio mixing, collision. Settle those
-  differences with the Rust harnesses, not in C. Libraries whose output is identical (zlib for
-  flate2, a SHA-1) can wait for the translation.
-- **Write the new runtime in a C-shaped Rust style:** plain structs, explicit allocation and
-  ownership, few trait objects, no deep generics, closures only where C would take a callback
-  and a context pointer.
+- **benilla's code and structure stay as they are in Phase A.** Only the Bevy underneath
+  changes. The one edit to benilla itself is dropping the feature-off wgpu path (A1), which the
+  trimmed Bevy no longer provides.
+- **The C port translates, it does not redesign.** The trimmed Bevy is ported to C with its
+  behaviour, and benilla's systems keep their names, order and data flow in C.
 - **gfx as a static library.** Link `gfx_benilla` statically (CMake `add_subdirectory`) instead
   of loading it as a DLL; the benilla-specific API additions are already there.
 - **Keep the offline tools in Rust at first:** `wc_compiler_rs` (the `.gfxs` compiler),
@@ -175,7 +178,7 @@ crates (formats, protocol, SRP6, UI core) do not need Phase A and can be ported 
   `benilla-config/`, no assets or client code are committed, and settings default to the stock
   1.12 values.
 
-### Phase A (Rust): remove Bevy
+### Phase A (Rust): a trimmed Bevy under an unchanged benilla
 
 Order the steps so each one leaves a working client that passes the capture sweep and a live
 login.
@@ -184,80 +187,70 @@ login.
 feature switch, so `benilla-gfx` is always on. Remove `WinitPlugin`, `RenderPlugin`, the no-op
 wgpu device (`noop_device.rs`) and the WGSL.
 
-**A2. Record the frame.** Dump Bevy's real system order before replacing the scheduler.
+**A2. Record the frame.** Dump Bevy's real system order while it is still stock.
 `headless_client()` in `benilla-app` builds the full schedule graph without a window. Write out
-every schedule, set and system with its ordering constraints. This list becomes the explicit
-frame function, and a test pins it.
+every schedule, set and system with its ordering constraints. A test pins it; the trimmed
+scheduler must produce the same order, and so must the C one later.
 
-**A3. Choose the runtime shape, the one the C code will have.**
+**A3. Vendor the Bevy crates benilla uses.** Copy the Bevy 0.18.1 crates in benilla's build into
+the workspace (as `third_party/kira` is vendored) and point the workspace at them through
+`[patch.crates-io]`. This changes no behaviour, so it lands at once. Bevy is MIT OR Apache-2.0,
+so vendoring is allowed; keep its licence files beside the copy. The crates that are Bevy
+plugins themselves come along: avian3d (trimmed to the collision queries benilla uses) and
+bevy_egui (dev builds only).
 
-- **flecs through its Rust bindings** (`flecs_ecs`; check its maturity first). The Rust and C
-  code then share the same ECS: entities, components, queries, systems in pipelines,
-  observers. The C translation keeps every system's structure. This is the recommendation for
-  the 400+ system files in `benilla-app`.
-- **Own data-oriented modules** with an explicit frame function: simpler and faster, but every
-  system is redesigned rather than translated.
+**A4. Trim to what benilla uses, keeping the API benilla calls.** Delete what nothing in
+benilla reaches, crate by crate, with the tests and the capture sweep after each cut. The Bevy
+crates in the build come to about 390k lines, docs and tests included; benilla names about 270
+distinct Bevy types. The ECS features it uses, counted across the app, world and assets crates:
 
-Hot subsystems (terrain streaming, particles, model draw lists) can use plain arrays inside
-either choice.
+| Feature | Uses |
+|---|---|
+| `Res<>` / `ResMut<>` | 4,070 |
+| `Query<>` | 1,373 |
+| `Commands` | 1,123 |
+| system ordering (`.before`, `.after`, `.chain`) and sets (`in_set`) | about 900 |
+| messages (`MessageReader` / `MessageWriter`) | 648 |
+| `Handle<>`, `AssetServer`, `AssetEvent` | about 820 |
+| `Visibility`, `GlobalTransform` | about 890 |
+| `Local<>` / `NonSend<>` | about 670 |
+| animation (`AnimationPlayer`, `AnimationGraph`, `AnimationClip`) | 305 |
+| change detection (`Changed`, `Added`, `is_changed`) | about 180 |
+| parent and child relationships (`ChildOf`, `Children`) | 183 |
+| observers and component hooks | about 120 |
+| states (`OnEnter`, `OnExit`, `NextState`) | 69 |
 
-The shape of a system in each:
+Not used: reflection derives, sub-states and computed states, `FixedUpdate`. Per crate:
 
-```rust
-// Bevy today
-commands.spawn((Transform::from_translation(p), Mesh3d(mesh), UnitModel { .. }));
-```
+| Bevy crates | What happens to them |
+|---|---|
+| `bevy_render`, `bevy_pbr`, `bevy_core_pipeline`, `bevy_post_process`, `bevy_anti_alias`, `bevy_shader`, `bevy_winit`, `bevy_ui_render`, `bevy_sprite_render`, `bevy_gizmos_render` | **Cut to their data types.** The gfx renderer replaced their rendering; keep only the components and structs benilla and `benilla-gfx` name (`Mesh3d`, `MeshMaterial3d`, `Camera`, `RenderLayers`, `Msaa`, `StandardMaterial` and similar), with the same paths |
+| `bevy_ecs` (about 64k non-comment lines) | **Trim** to the features in the table above: world, entities, archetype storage, queries and filters, change ticks, commands, messages, resources, `Local` and `NonSend`, relationships, observers and hooks, and a scheduler that keeps the recorded order. The multithreaded executor can stay, or give way to a single-threaded one that runs the A2 order |
+| `bevy_app`, `bevy_time`, `bevy_input`, `bevy_window`, `bevy_state`, `bevy_transform`, `bevy_camera`, `bevy_tasks`, `bevy_diagnostic` | **Trim** to what benilla calls. Each is a few thousand lines before trimming |
+| `bevy_asset` (21k) | **Trim** to the handle tables, `Assets<T>`, `AssetServer`, asset events and the loader path benilla's `mpq://` source uses; drop the processor, hot reload and file watching |
+| `bevy_animation` (4.5k), `bevy_mesh`, `bevy_image` | **Trim** to the evaluation, skinning data and mesh and image types benilla uses |
+| `bevy_ui`, `bevy_text`, `bevy_gizmos`, `bevy_picking`, `bevy_scene`, `bevy_sprite` | **Trim** to the glue screens' nodes and text, the two gizmo lines, ray picking and what avian's collider backend needs. `bevy_ui` lays out through taffy (flexbox), which stays in Rust; its C counterpart is Yoga (C API) or Clay |
+| `bevy_reflect` (32k) | **Cut as far as the rest allows**; benilla derives no `Reflect` itself |
+| `bevy_math` | **Keep as the glam re-export** benilla uses; glam maps onto cglm |
 
-```c
-// flecs in C (the Rust bindings are the same shape)
-ecs_entity_t e = ecs_new(world);
-ecs_set(world, e, Transform, { .translation = p });
-ecs_set(world, e, Mesh3d, { mesh });
-ecs_set(world, e, UnitModel, { ... });
-```
+**A5. Checkpoint.** `cargo tree` shows no Bevy, wgpu or winit from crates.io: every Bevy crate
+left is the trimmed, vendored copy. benilla's own code is unchanged apart from A1. The tests
+pass, the A2 order test passes, the capture sweep matches upstream benilla as closely as the
+gfx branch did, `smoke.sh` is green, and live A/B logins match on every gfx pair. From here the
+trimmed Bevy is frozen as the reference.
 
-**A4. Replace Bevy's pieces one at a time,** roughly from the leaves inward:
+Why not keep Bevy behind a C API instead: Bevy has no C bindings and its Rust ABI is not
+stable. A hand-written `extern "C"` layer over its dynamic ECS API is possible, but the program
+would still run on Bevy's runtime underneath; that is not a C codebase.
 
-| Bevy piece | Replacement in Rust (then in C) | Notes |
-|---|---|---|
-| `Time`, `FrameCount` | own clock resource | trivial |
-| input (`ButtonInput`, mouse and keyboard messages) and `Window` | own input and window state, fed from gfx events | `benilla-gfx/src/window.rs` and `input.rs` already translate gfx events into Bevy's; point them at the new state instead |
-| messages and events | own double-buffered queues | keep Bevy's one-frame lifetime semantics |
-| `States` (the client state machine) | an explicit state enum with enter and exit hooks | |
-| transform and hierarchy | own `Transform`, `GlobalTransform`, parent and children, propagation | |
-| visibility, frustum culling, `RenderLayers` | own | the gfx renderer already consumes these from the ECS |
-| `Assets<T>`, `Handle<T>`, `AssetServer`, `AssetEvent` | own ref-counted handle tables, an IO thread pool, load events | the `mpq://` source and loaders are benilla's own code already |
-| `Mesh`, `Image`, materials | plain structs the gfx renderer reads | the gfx path already reads them field by field |
-| `AnimationPlayer`, `AnimationGraph`, `SkinnedMesh` | own M2 animation sampler (tracks, interpolation, blend slots) and skinning | about 250 uses; benilla already implements the reference's blend rules on top of Bevy, so port the rules |
-| cameras and projections | own camera components | `WowPortraitProjection` is already custom |
-| bevy_ui and bevy_text (glue screens) | benilla's own quad and text path | the in-game UI does not use them |
-| gizmos | own line drawing (the bowstring and fishing line) | |
-| picking | own ray picking | |
-| bevy_egui | Dear ImGui through the gfx `gfx_imgui` layer (a Rust binding now, cimgui in C) | dev builds only |
-| avian3d | own triangle BVH with ray and capsule sweeps, or JoltC | settle collision parity here, in Rust |
-| the change-detection uses (`Changed<T>`, `Added<T>`, `is_changed`) | flecs change tracking or explicit dirty flags | audit each use; these are where ordering bugs hide |
-| deferred `Commands` | flecs deferred mode, or an explicit command buffer applied at the same points Bevy did | the A2 dump says where |
-
-**A5. Swap the behaviour-visible libraries** to their C choices, still in Rust through `-sys`
-crates or small bindings:
-
-- text: FreeType (plus HarfBuzz if needed), or stb_truetype
-- audio: miniaudio (or PortAudio and an own mixer), carrying kira's per-chunk spatial-gain patch
-- regex: PCRE2 (what the 1.12 client itself used for the chat filters)
-- XML: expat or yxml (optional; roxmltree's output is easy to match)
-
-**A6. Checkpoint.** `cargo tree` shows no `bevy`, `wgpu` or `winit`. The capture sweep matches
-upstream benilla as closely as the gfx branch did, `smoke.sh` is green, and live A/B logins
-match on every gfx pair.
-
-### Phase 0 (C): foundations (weeks)
+### Phase 0 (C): foundations
 
 - Build: CMake, C11 or C17 (C23 if `#embed` is wanted), with warnings as errors, ASan and UBSan
   in debug, and clang-tidy.
 - Pick the container and allocation style (stb_ds or klib, arenas) and an error style (return
-  codes with an error struct), matching what Phase A settled on.
-- A platform layer: gfx for the window, input and device; the audio library from A5; threads;
-  sockets; files; the clock; the OS RNG.
+  codes with an error struct).
+- A platform layer: gfx for the window, input and device; the audio library (miniaudio, or
+  PortAudio and an own mixer); threads; sockets; files; the clock; the OS RNG.
 - A test harness (plain C test runner, e.g. greatest or utest.h) and a differential-test
   runner that feeds the same input to the Rust and C builds and compares the outputs.
 
@@ -266,7 +259,7 @@ A source layout along the lines of:
 ```text
 src/
   app/        the frame function, states, settings
-  ecs/        flecs setup, or the own runtime
+  bevy/       the trimmed Bevy, ported to C: ecs/ app/ asset/ transform/ animation/ time/ input/
   platform/   gfx glue, input, audio, net, threads, files
   assets/     handles, IO pool, the mpq:// source
   wow/        adt/ blp/ dbc/ m2/ mpq/ wdt/ wmo/ formats/
@@ -290,17 +283,41 @@ and `-protocol`.
 - Replace flate2 with zlib, num-bigint with libtommath, `sha1` with a C SHA-1. Optionally swap
   the MPQ reader for StormLib.
 
-### Phase 2 (C): the runtime
+### Phase 2 (C): the trimmed Bevy, ported to C
 
-Translate the Phase A runtime: the ECS setup (flecs has the same API in C), the frame function
-from A2, assets and the IO pool, transforms, visibility, input, time, messages and states.
-Because Phase A already made the design decisions, this is translation, not design.
+Port the frozen Phase A Bevy to C, keeping its behaviour: benilla's own small C runtime.
+
+- **ECS:** components registered at runtime (size, alignment, drop function), archetype tables,
+  entities with generations, queries built from descriptors (read, write, optional, `With`,
+  `Without`, `Changed`, `Added`), per-component change ticks as Bevy keeps them, a command
+  buffer applied where Bevy applies it, resources, messages with Bevy's two-frame lifetime,
+  relationships, observers and hooks.
+- **Scheduler:** the A2 order as an explicit list of systems per schedule, single-threaded
+  first. A test compares the order with the Rust one.
+- **The rest:** app and plugin registration, time, input, window state, states, transforms and
+  propagation, visibility, cameras, assets (handles, `Assets<T>`, events, the IO pool),
+  animation evaluation, the glue-screen UI layout (Yoga or Clay in place of taffy).
+- **Differential tests** against the Rust trimmed Bevy: the same operations in both, the same
+  query results, change ticks and command outcomes.
+
+Then write the **mapping table** the rest of the port follows, for example:
+
+| Rust (benilla on the trimmed Bevy) | C |
+|---|---|
+| `fn sys(q: Query<(&A, &mut B), Changed<A>>, r: Res<R>, mut cmds: Commands)` | `void sys(World *w, SysCtx *ctx)` with a query descriptor `{ read A, write B, changed A }` built once at registration, and `res_get(w, R)`, `cmds_*(ctx, ...)` inside |
+| `for (a, mut b) in &mut q` | `QueryIter it = query_iter(w, q); while (query_next(&it)) { const A *a = it_get(&it, 0); B *b = it_get_mut(&it, 1); }` |
+| `commands.spawn((A { .. }, B { .. }))` | `Entity e = cmds_spawn(ctx); cmds_insert(ctx, e, A, &a); cmds_insert(ctx, e, B, &b);` |
+| `Local<T>` | a per-system state struct in `SysCtx` |
+| `NonSend<T>` | a main-thread resource |
+| `MessageReader<M>` / `MessageWriter<M>` | `msg_read(ctx, M, &cursor)` / `msg_write(w, M, &m)` |
+| `.add_systems(Update, sys.after(other).run_if(c))` | an entry in the recorded schedule list, with its run condition |
+| `Handle<Image>` | a generation-checked handle into the image table |
 
 ### Phase 3 (C): rendering on gfx
 
 Translate `benilla-gfx` (12k lines): images, meshes, data textures, materials, draw lists, post
-(FFXGlow), UI lane, screenshots, the GPU meter. It already talks to gfx through FFI, and after
-Phase A it reads the runtime's own components. The `.gfxs` shaders are reused unchanged: the
+(FFXGlow), UI lane, screenshots, the GPU meter. It already talks to gfx through FFI; in C it reads
+components through the Phase 2 runtime instead of Bevy's ECS. The `.gfxs` shaders are reused unchanged: the
 single-source shader pipeline (`.gfxs` compiled by `wc_compiler_rs` into SPIR-V, HLSL and GLSL
 families) already exists, so no per-backend shader copies are maintained by hand.
 
@@ -310,8 +327,9 @@ install, and the capture diffs against the Rust build are as small as the gfx po
 ### Phase 4 (C): the world (`benilla-world`, 62k lines)
 
 Terrain and WDL streaming, liquid, sky, weather, the M2 and WMO model paths, lighting and the
-shared light buffer, particles, the M2 animation sampler, and collision, all as settled in
-Phase A.
+shared light buffer, particles, the M2 path on the Phase 2 animation evaluation, and collision
+(avian3d's queries as trimmed in Phase A, as an own triangle BVH with ray and capsule sweeps, or
+JoltC).
 
 Checkpoint: every world capture scenario diffs against the Rust build.
 
@@ -336,8 +354,9 @@ Port by subsystem, each behind a live A/B against the Rust client on the local s
 5. chat and text filters (PCRE2)
 6. UI glue and bindings
 7. portraits
-8. sound
-9. text rendering
+8. sound (miniaudio, or PortAudio and an own mixer, carrying kira's per-chunk spatial-gain
+   patch)
+9. text rendering (FreeType, or stb_truetype)
 10. settings and CVars (tomlc99)
 11. the capture harness
 12. the dev tools (cimgui)
@@ -351,9 +370,11 @@ sweep and a live session match the Rust client on every platform gfx supports.
 
 ### Effort and risks
 
-- **Size.** About 500k lines of program code. Phase A is the single biggest step (structural
-  work across about 430k lines of Rust). Phases 1 and 3 are weeks to a few months. Phases 2, 4,
-  5 and 6 shrink to mostly translation after Phase A, but are still large by volume.
+- **Size.** About 500k lines of program code. Phase A trims Bevy and leaves benilla alone.
+  Phases 1 and 3 are contained: Bevy-free code and an already FFI-shaped renderer. Phase 2 (the
+  trimmed Bevy in C) is the hardest single piece. Phases 4, 5 and 6 are translation on top of
+  it, following the mapping table, but they are the bulk of the volume: every system's
+  parameters become explicit queries and lookups.
 
   Rough difficulty per piece, given what this branch already did:
 
@@ -364,8 +385,10 @@ sweep and a live session match the Rust client on every platform gfx supports.
   | math, zlib, SHA-1, XML | low |
   | SRP6, the file parsers, Lua bindings | medium |
   | audio, text, collision | medium to high (behaviour to match) |
-  | Bevy assets and animation | high |
-  | Bevy ECS, scheduling, change detection | highest |
+  | trimming Bevy in Rust (Phase A) | medium: deletion, checked by the tests |
+  | Bevy assets and animation in C | high |
+  | Bevy ECS, scheduling, change detection in C | highest |
+  | benilla's systems onto the C runtime | medium per system, large in total |
 
 - **What is lost from Rust:**
   - memory and thread safety
@@ -375,20 +398,23 @@ sweep and a live session match the Rust client on every platform gfx supports.
   - `Result` and `?` error handling
   - exhaustive `match`
 
-  Budget time for sanitizers, fuzzing the parsers (the install and the network are input), and
+  Plan for sanitizers, fuzzing the parsers (the install and the network are input), and
   review.
 - **Bevy's implicit behaviour:** system ordering, change detection, deferred commands, and
   asset readiness gates such as the booth "pending" waits. These are easy to get subtly wrong;
-  Phase A's recorded frame (A2) and the differential tests are the defence.
+  Phase A's recorded frame (A2), the trimmed Bevy as the reference, and the differential tests
+  are the defence.
 - **A cheaper middle path:** keep Rust for the game and expose a C API around it (or around
-  the finished leaf crates), porting only the parts that need to be C. Decide before Phase A,
-  since Phase A is the big commitment.
+  the finished leaf crates), porting only the parts that need to be C. Decide before Phase 2,
+  since Phase 2 is the big commitment; Phase A is useful either way.
 
 ## Appendix: if C# is ever a target
 
-The Phase A result also feeds a C# port: the de-Bevyed Rust translates closely into C#
-(records and pattern matching, interfaces and generics, lambdas, built-in collections, a
-garbage collector), and flecs has the same model in C# (Flecs.NET).
+The Phase A result also feeds a C# port: the trimmed Bevy is a small, exact reference for a C#
+runtime, and Rust translates closely into C# (records and pattern matching, interfaces and
+generics, lambdas, built-in collections, a garbage collector). C# can also express much of
+Bevy's system-parameter style with generics, so benilla's systems keep more of their shape
+than in C.
 
 - **Native libraries stay native,** called through P/Invoke: gfx (wrapped in `SafeHandle`
   types), the patched Lua, and the audio library.
