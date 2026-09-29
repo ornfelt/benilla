@@ -1,6 +1,7 @@
 /* Synthetic X events to one window only (XSendEvent), so a scripted input check never types into
  * or clicks anything else on the desktop. Usage: xsend <window-id> <cmd> [args]...
- *   key <keysym-name> [shift]      press+release
+ *   key <keysym-name> [shift]      press+release; `#<n>` names X keycode n itself (`#66`, the
+ *                                  Caps Lock key, whatever keysym the layout gives it)
  *   hold <keysym-name> <ms>        press, wait, release
  *   motion <x> <y>                 MotionNotify
  *   button <n> <x> <y>             press+release
@@ -21,7 +22,7 @@ static void key(const char *name, unsigned state, int press) {
     e.type = press ? KeyPress : KeyRelease;
     e.xkey.root = DefaultRootWindow(d); e.xkey.subwindow = None; e.xkey.time = CurrentTime;
     e.xkey.x = e.xkey.y = e.xkey.x_root = e.xkey.y_root = 1; e.xkey.same_screen = True;
-    e.xkey.state = state; e.xkey.keycode = XKeysymToKeycode(d, XStringToKeysym(name));
+    e.xkey.state = state; e.xkey.keycode = name[0] == '#' ? (unsigned)atoi(name + 1) : XKeysymToKeycode(d, XStringToKeysym(name));
     send(&e, press ? KeyPressMask : KeyReleaseMask);
 }
 int main(int argc, char **argv) {
