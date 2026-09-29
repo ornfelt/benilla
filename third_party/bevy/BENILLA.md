@@ -36,12 +36,16 @@ behind features benilla leaves off. They leave the lock when `bevy_internal` is 
 
 ## How to check
 
-Until a crate's trim lands, it is byte-identical to the registry crate:
+A crate no commit has touched since the copy is byte-identical to the registry crate:
 
 ```sh
 R=~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f
 diff -r -q $R/bevy_ecs-0.18.1 third_party/bevy/bevy_ecs
 ```
 
-prints only the files left out above. After a trim, `git log -- third_party/bevy/<crate>` is
-what changed and why.
+prints only the files left out above. `git log -- third_party/bevy/<crate>` is what changed
+since, and why. The first change: the four lint warnings rustc raises on Bevy's own code, which
+cargo capped while the crates came from the registry (a path crate's lints are not capped), are
+fixed without a change in meaning: `bevy_reflect`'s `pub use ::inventory` names the crate its
+glob import also reached, and `bevy_ui`'s three float literals passed to taffy's
+`length`/`percent` spell out the `f32` the compiler already fell back to.
