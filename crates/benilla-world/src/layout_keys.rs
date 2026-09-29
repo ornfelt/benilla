@@ -1,31 +1,37 @@
-//! The keyboard layout's named keys. The reference reads keys through its Windows key table,
-//! whose virtual-key codes the OS layout produces from the scancode, so a layout that gives a key
-//! another named function (X11's `caps:escape`, `caps:swapescape`, `ctrl:swapcaps`) moves that
-//! function in 1.12; under Wine the same keysym becomes the same virtual key. Bevy's `KeyCode` is
-//! the physical key, which such a layout does not move: Caps Lock mapped to Escape arrives as
-//! `CapsLock` with the logical key `Escape`.
+//! The keyboard layout's named keys. The Windows client reads a key as the virtual-key code the
+//! OS layout produced from the scancode (the WndProc's key arm `0x42d21e` hands `wParam` to the
+//! translator `0x42d800`, which never reads the scancode), so a layout that gives a key another
+//! named function (X11's `caps:escape`, `caps:swapescape`, `ctrl:nocaps`, Colemak's Caps Lock as
+//! Backspace) moves that function in 1.12; under Wine the same keysym becomes the same virtual
+//! key. Bevy's `KeyCode` is the physical key, which such a layout does not move: Caps Lock mapped
+//! to Escape arrives as `CapsLock` with the logical key `Escape`.
 //!
-//! On Linux, each keyboard message whose logical key is a named key other than its physical one
+//! Off macOS, each keyboard message whose logical key is a named key other than its physical one
 //! takes that named key's code, before Bevy's input collection, so every reader (the bindings,
-//! the text boxes, the glue screens, `ButtonInput<KeyCode>`) sees the layout's key. Character
-//! keys stay physical, and so do the numpad keys, whose Num Lock navigation meanings are not
-//! remaps.
+//! the text boxes, the glue screens, `ButtonInput<KeyCode>`) sees the layout's key. The Mac client
+//! reads its non-character keys off a fixed table on the physical keycode (`0x5bf320`), so macOS
+//! keeps them physical. Character keys stay physical, and so do the numpad keys, whose Num Lock
+//! navigation meanings are not remaps.
 
+#[cfg(any(not(target_os = "macos"), test))]
 use bevy::input::keyboard::{Key, KeyCode};
 use bevy::prelude::*;
 
-/// Rewrites remapped named keys before Bevy's input collection (Linux only).
+/// Rewrites remapped named keys before Bevy's input collection (all but macOS).
 pub struct LayoutKeysPlugin;
 
 impl Plugin for LayoutKeysPlugin {
-    fn build(&self, _app: &mut App) {
-        #[cfg(target_os = "linux")]
-        _app.add_systems(PreUpdate, remap.before(bevy::input::InputSystems));
+    #[cfg(not(target_os = "macos"))]
+    fn build(&self, app: &mut App) {
+        app.add_systems(PreUpdate, remap.before(bevy::input::InputSystems));
     }
+
+    #[cfg(target_os = "macos")]
+    fn build(&self, _app: &mut App) {}
 }
 
 /// Gives each new keyboard message the code of the named key its layout made it.
-#[cfg(target_os = "linux")]
+#[cfg(not(target_os = "macos"))]
 fn remap(mut keys: bevy::ecs::message::MessageMutator<bevy::input::keyboard::KeyboardInput>) {
     for key in keys.read() {
         if let Some(code) = layout_code(key.key_code, &key.logical_key) {
@@ -37,7 +43,7 @@ fn remap(mut keys: bevy::ecs::message::MessageMutator<bevy::input::keyboard::Key
 /// The code of the named key `logical` stands for when a layout put it on the physical key
 /// `physical`, or `None` when the key keeps its code: a character, a numpad key, a named key with
 /// no code, or the key already there (either side, for a modifier).
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(not(target_os = "macos"), test))]
 fn layout_code(physical: KeyCode, logical: &Key) -> Option<KeyCode> {
     use KeyCode as C;
     if is_numpad(physical) {
@@ -57,7 +63,7 @@ fn layout_code(physical: KeyCode, logical: &Key) -> Option<KeyCode> {
 }
 
 /// The physical key a non-modifier named key sits on in a plain layout.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(not(target_os = "macos"), test))]
 fn named_code(logical: &Key) -> Option<KeyCode> {
     use KeyCode as C;
     Some(match logical {
@@ -98,7 +104,7 @@ fn named_code(logical: &Key) -> Option<KeyCode> {
     })
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(not(target_os = "macos"), test))]
 fn is_numpad(code: KeyCode) -> bool {
     use KeyCode as C;
     matches!(

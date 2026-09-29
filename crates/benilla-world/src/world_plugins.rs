@@ -114,7 +114,7 @@ impl PluginGroup for WorldPlugins {
             // Stuck-modifier reconciliation: macOS system shortcuts (⇧⌘5) swallow modifier
             // releases without a focus loss, wedging every bare-key binding.
             .add(crate::modkeys::ModKeysPlugin)
-            // Linux: a named key the keyboard layout moved (`caps:escape`) acts as that key.
+            // Off macOS: a named key the keyboard layout moved (`caps:escape`) acts as that key.
             .add(crate::layout_keys::LayoutKeysPlugin)
             // Terrain streaming (`AdtTile` through the `AssetServer`): tiles with their doodads,
             // WMOs, liquid and clutter.
