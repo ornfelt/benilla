@@ -67,6 +67,8 @@ benilla builds and runs on macOS, Linux and Windows. You need:
 - **Stable Rust and a C compiler**, because the client's Lua is built from source: on macOS the
   Xcode command line tools, on Linux the ALSA and udev development packages and pkg-config, on
   Windows the MSVC build tools that the Rust installer sets up.
+- **The gfx library**, which opens the window and draws on this branch: build it first, as
+  [`GFX.md`](GFX.md) says.
 
 ```sh
 WOW_DATA=/path/to/WoW/Data cargo run --release -p benilla

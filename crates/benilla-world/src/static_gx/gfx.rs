@@ -1,4 +1,4 @@
-//! The retained static-world pass on the gfx renderer (`benilla-gfx`, the `gfx` feature): the
+//! The retained static-world pass on the gfx renderer (`benilla-gfx`): the
 //! program `static_gx.{vs,fs}.gfxs`, a port of `static_gx.wgsl`, drawn for the world camera
 //! before its opaque phase in the render node's order (WMO regions, then the doodad phase
 //! near-first), each region's admitted runs in bake order.

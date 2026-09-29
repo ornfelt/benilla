@@ -1,6 +1,6 @@
-//! One fixed scene drawn through either path, for a numeric A/B of the gfx renderer against
-//! wgpu: `parity wgpu` runs Bevy's own winit + wgpu renderer, `parity gfx` swaps in the gfx
-//! DLL as benilla does. The camera is set up as benilla's world camera (`Hdr`,
+//! One fixed scene drawn through the gfx DLL as benilla draws, for a numeric A/B of the gfx
+//! renderer against wgpu: `parity gfx`. This build has no winit and no wgpu renderer, so the wgpu
+//! half is `parity wgpu` from a `gfx-dll-backend` build. The camera is set up as benilla's world camera (`Hdr`,
 //! `Tonemapping::None`), with MSAA off (`PARITY_MSAA=2|4|8` turns it on). The scene covers what the gfx renderer draws so far: an
 //! sRGB texture sampled nearest and linear, BC1 blocks, vertex colours, back-face culling, depth,
 //! alpha mask, alpha blend, additive blend, the rasterizer depth bias and gizmo lines (a list and a
@@ -18,7 +18,7 @@
 //! applied at creation, or after 1.5 s with a leading `later,`.
 //!
 //! The window prints `parity: ready` once the scene has been on screen for a second and exits
-//! two seconds later (with `WOW_GPU_MS=1` under gfx, also the gfx GPU meter's frame time then); `.claude/skills/gfx-dll-port/tools/parity.sh` captures it in between and
+//! two seconds later (with `WOW_GPU_MS=1`, also the gfx GPU meter's frame time then); `.claude/skills/gfx-dll-port/tools/parity.sh` captures it in between and
 //! diffs the two captures.
 
 use bevy::asset::RenderAssetUsages;
@@ -31,14 +31,10 @@ use bevy::window::WindowResolution;
 
 fn main() -> AppExit {
     let path = std::env::args().nth(1).unwrap_or_default();
-    let gfx = match path.as_str() {
-        "gfx" => true,
-        "wgpu" => false,
-        _ => {
-            eprintln!("usage: parity <wgpu|gfx>");
-            return AppExit::error();
-        }
-    };
+    if path != "gfx" {
+        eprintln!("usage: parity gfx (the wgpu half is a gfx-dll-backend build's `parity wgpu`)");
+        return AppExit::error();
+    }
     let spec = std::env::var("PARITY_WINDOW").unwrap_or_default();
     let later = spec.starts_with("later,");
     let mut window = Window {
@@ -55,26 +51,19 @@ fn main() -> AppExit {
         primary_window: Some(window),
         ..default()
     });
-    let plugins = if gfx {
-        benilla_gfx::swap_in(plugins.build())
-    } else {
-        plugins.build()
-    };
     let mut app = App::new();
-    app.add_plugins(plugins);
-    if gfx && std::env::var("WOW_GPU_MS").as_deref() == Ok("1") {
+    app.add_plugins(benilla_gfx::swap_in(plugins.build()));
+    if std::env::var("WOW_GPU_MS").as_deref() == Ok("1") {
         app.insert_resource(benilla_gfx::GfxGpuMeter(Default::default()));
     }
     #[cfg(feature = "egui")]
     if std::env::var("PARITY_EGUI").as_deref() == Ok("1") {
-        panel::add(&mut app, gfx);
+        panel::add(&mut app);
     }
     app.add_systems(PostStartup, shift_origin);
-    if gfx && std::env::var("PARITY_DEPTH").is_ok() {
+    if std::env::var("PARITY_DEPTH").is_ok() {
         app.add_systems(PostUpdate, depth);
     }
-    #[cfg(not(feature = "egui"))]
-    let _ = gfx;
     app.insert_resource(ClearColor(Color::srgb(0.2, 0.3, 0.45)))
         .add_systems(Startup, scene)
         .add_systems(Update, (clock, lines))
@@ -403,14 +392,11 @@ mod panel {
     use bevy_egui::PrimaryEguiContext;
     use bevy_egui::{egui, EguiContexts, EguiGlobalSettings, EguiPlugin, EguiPrimaryContextPass};
 
-    pub(super) fn add(app: &mut App, gfx: bool) {
-        app.add_plugins(EguiPlugin::default());
+    pub(super) fn add(app: &mut App) {
+        app.add_plugins((EguiPlugin::default(), benilla_gfx::GfxEguiPlugin));
         app.world_mut()
             .resource_mut::<EguiGlobalSettings>()
             .auto_create_primary_context = false;
-        if gfx {
-            app.add_plugins(benilla_gfx::GfxEguiPlugin);
-        }
         app.add_systems(Startup, camera)
             .add_systems(EguiPrimaryContextPass, ui);
     }

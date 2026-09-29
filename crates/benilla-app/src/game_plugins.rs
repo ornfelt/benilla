@@ -265,26 +265,18 @@ pub(crate) mod schedule_tests {
     use bevy::ecs::schedule::graph::Direction;
     use bevy::ecs::schedule::{LogLevel, NodeId, ScheduleBuildSettings, ScheduleLabel, SystemKey};
 
-    /// The whole client, built headless: the tuned `DefaultPlugins` with no window, winit, logger
-    /// or GPU (`backends: None`, so no render app), then the engine, then the game. Every
-    /// plugin's `build` and `finish` runs and no schedule does, which fixes the schedule graph.
+    /// The whole client, built headless: the tuned `DefaultPlugins` with no window or logger (the
+    /// gfx runner, which would open the window and the device, never runs, and there is no
+    /// render app), then the engine, then the game. Every plugin's `build` and `finish` runs and
+    /// no schedule does, which fixes the schedule graph.
     pub(crate) fn headless_client() -> App {
         let mut app = App::new();
         app.add_plugins(
             benilla_world::boot::tuned_default_plugins(Window::default())
-                .disable::<bevy::winit::WinitPlugin>()
                 .disable::<bevy::log::LogPlugin>()
                 .set(bevy::window::WindowPlugin {
                     primary_window: None,
                     exit_condition: bevy::window::ExitCondition::DontExit,
-                    ..default()
-                })
-                .set(bevy::render::RenderPlugin {
-                    render_creation: bevy::render::settings::WgpuSettings {
-                        backends: None,
-                        ..default()
-                    }
-                    .into(),
                     ..default()
                 }),
         );

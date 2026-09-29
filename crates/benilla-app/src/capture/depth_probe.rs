@@ -34,7 +34,6 @@ use super::probes::ProbeClock;
 use benilla_world::particles::ParticleEmitter;
 use benilla_world::view::WorldCamera;
 
-#[cfg(feature = "gfx")]
 mod gfx;
 
 pub(crate) struct DepthProbePlugin;
@@ -82,7 +81,6 @@ impl Plugin for DepthProbePlugin {
             ExtractComponentPlugin::<DepthProbeView>::default(),
         ));
         // Under gfx there is no render app: the draw copies the depth itself.
-        #[cfg(feature = "gfx")]
         if app.get_sub_app(RenderApp).is_none() {
             gfx::build(app);
             return;

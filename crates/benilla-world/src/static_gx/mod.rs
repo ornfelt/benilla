@@ -19,7 +19,6 @@ use benilla_formats::{ModelBlend, RenderSubmesh, WmoBatchClass};
 
 mod bake;
 mod cull;
-#[cfg(feature = "gfx")]
 mod gfx;
 mod pick;
 mod pool;

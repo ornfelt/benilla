@@ -1,19 +1,14 @@
 # Running benilla on the gfx library
 
-benilla draws through Bevy's renderer (wgpu) and opens its window through winit. The `gfx` cargo
-feature swaps both for the gfx library (`libgfx.so` / `gfx.dll`), a C library with its own window
-backends (x11, sdl, glfw, win32) and device backends (gl3, gl4, gles3, vk, d3d11, d3d12). With the
-feature on, only the gfx library opens a window, reads input and draws: Bevy's `WinitPlugin` and
-`RenderPlugin` are never added. With the feature off, nothing changes.
+On this branch benilla draws only through the gfx library (`libgfx.so` / `gfx.dll`), a C library
+with its own window backends (x11, sdl, glfw, win32) and device backends (gl3, gl4, gles3, vk,
+d3d11, d3d12). The gfx library opens the window, reads input and draws: winit is not in the build,
+and Bevy's `RenderPlugin` is never added. Upstream benilla's wgpu and winit client is the
+reference this build is checked against.
 
-The code is `crates/benilla-gfx`; it compiles to nothing without its `gfx` feature.
+The code is `crates/benilla-gfx`; every build links the gfx library, so build it first.
 
-## Without gfx (the default)
-
-Nothing to do: `cargo run --release -p benilla` as in [`README.md`](README.md) builds and runs the
-wgpu client, with no dependency on the gfx library.
-
-## With gfx
+## Building
 
 ### 1. Build the gfx library
 
@@ -44,10 +39,10 @@ cmake --build build --config Release    # -> bin\Release_x64\gfx.dll, lib\Releas
 
 `Debug` works as well (`bin/Debug_x64`); `Release` is taken when both exist.
 
-### 2. Build benilla with the feature
+### 2. Build benilla
 
 ```sh
-WOW_DATA=/path/to/WoW/Data cargo run --release -p benilla --features gfx
+WOW_DATA=/path/to/WoW/Data cargo run --release -p benilla
 ```
 
 `crates/benilla-gfx/build.rs` finds the library, links it and copies it beside the binary
@@ -60,8 +55,8 @@ refreshed. The search:
   (the unmodified library, which lacks calls benilla makes).
 - `GFX_CONFIGURATION`: `Release` or `Debug`; unset, `Release` when it is built.
 
-The player build takes the feature too: `cargo build --release -p benilla --no-default-features
---features gfx`. With `dev`, the dev egui panel draws through gfx as well.
+The player build is `cargo build --release -p benilla --no-default-features`. With `dev`, the dev
+egui panel draws through gfx as well.
 
 ### 3. Pick the backends
 
@@ -76,7 +71,7 @@ A name the library was not built with stops the boot with the names it has; ther
 fallback. The boot log names the pair it opened (`gfx: ...`).
 
 ```sh
-WOW_GFX_WINDOW=sdl WOW_GFX_DEVICE=vk cargo run --release -p benilla --features gfx
+WOW_GFX_WINDOW=sdl WOW_GFX_DEVICE=vk cargo run --release -p benilla
 ```
 
 ### Supported pairs
@@ -110,7 +105,7 @@ copies, to iterate without a rebuild.
   window.
 - `WOW_GFX_DEPTH_REMAP=1`: GL keeps clip depth in [-1, 1] and remaps per vertex, and draws its
   targets bottom-up, as it does on a GL without clip control; for measuring that path.
-- The instruments work on both paths: `WOW_CAPTURE`, `WOW_DEPTH`, `WOW_PHASE`, `WOW_GPU_MS`,
+- The instruments work as on the wgpu client: `WOW_CAPTURE`, `WOW_DEPTH`, `WOW_PHASE`, `WOW_GPU_MS`,
   screenshots.
 
 ## Known differences from the wgpu path

@@ -124,14 +124,12 @@ impl LightBlob {
                 bytemuck::cast_slice(&rows),
             );
             // gfx has no storage buffers: the rows reach the buffer's data texture at the next pack.
-            #[cfg(feature = "gfx")]
             crate::gfx::light::record_blob_write(
                 buffer.id(),
                 (prop_probe_region_offset() / 16) as usize,
                 rows.to_vec(),
             );
         }
-        #[cfg(feature = "gfx")]
         crate::gfx::light::record_blob_write(buffer.id(), 0, head);
     }
 }

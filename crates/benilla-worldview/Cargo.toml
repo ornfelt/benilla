@@ -8,10 +8,6 @@ description = "The world viewer: the engine with no game attached, which keeps t
 [lints]
 workspace = true
 
-[features]
-# The gfx DLL backend (`benilla-gfx`, `GFX.md`), as on the `benilla` launcher.
-gfx = ["benilla-world/gfx"]
-
 [dependencies]
 # Only the engine, never a game crate: a world concept that needs the game fails to build here.
 benilla-world = { path = "../benilla-world" }

@@ -1,4 +1,4 @@
-//! The player-UI lane on the gfx renderer (`benilla-gfx`, the `gfx` feature): [`UiQuadMaterial`]
+//! The player-UI lane on the gfx renderer (`benilla-gfx`): [`UiQuadMaterial`]
 //! draws through a port of `ui_quad.wgsl` (`ui_quad.{vs,fs}.gfxs`), and the lane camera carries
 //! [`GfxUiLane`], its display gamma and the world view its backdrop claims. Bevy UI (the glue and
 //! loading screens) draws on the lane through ports of `ui_node_gamma.wgsl` and

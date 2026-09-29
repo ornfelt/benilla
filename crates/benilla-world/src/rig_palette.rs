@@ -697,8 +697,7 @@ fn publish_rig_palettes(mut palettes: ResMut<RigPalettes>, mut out: ResMut<RigPa
     out.origin_mirror_generation = p.origin_mirror_generation;
 }
 
-/// With `gfx`: the published palette as [`upload_rig_palettes`] reads it.
-#[cfg(feature = "gfx")]
+/// For gfx: the published palette as [`upload_rig_palettes`] reads it.
 pub(crate) struct GfxPaletteView<'a> {
     pub rows: &'a [[f32; 4]],
     pub table: &'a [u32],
@@ -710,7 +709,6 @@ pub(crate) struct GfxPaletteView<'a> {
     pub origin_generation: u64,
 }
 
-#[cfg(feature = "gfx")]
 pub(crate) fn gfx_palettes(world: &World) -> Option<GfxPaletteView<'_>> {
     world
         .get_resource::<RigPaletteExtract>()

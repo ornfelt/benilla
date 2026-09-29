@@ -118,7 +118,6 @@ pub mod exterior_cull;
 pub mod ffx_glow;
 pub mod final_pass;
 pub mod frame_pace;
-#[cfg(feature = "gfx")]
 pub mod gfx;
 pub mod ground_fx;
 pub mod instance_tint;

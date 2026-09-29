@@ -1,4 +1,4 @@
-//! Finds the gfx library, only with the `gfx` feature on, the way `wc_clean_new_rs/build.rs`
+//! Finds the gfx library the way `wc_clean_new_rs/build.rs`
 //! does: `$GFX_DIR` names a gfx checkout (the folder holding `bin/<Configuration>_x64`), else
 //! `$code_root_dir/Code2/General/gfx/gfx_dll/gfx_benilla` when it exists, else `.../gfx`. The
 //! configuration is `$GFX_CONFIGURATION`, else `Release` when built, else `Debug`. The library is
@@ -12,9 +12,6 @@ fn main() {
     println!("cargo:rerun-if-env-changed=GFX_DIR");
     println!("cargo:rerun-if-env-changed=GFX_CONFIGURATION");
     println!("cargo:rerun-if-env-changed=code_root_dir");
-    if env::var_os("CARGO_FEATURE_GFX").is_none() {
-        return;
-    }
 
     let gfx_dir = gfx_dir();
     let configuration = env::var("GFX_CONFIGURATION").unwrap_or_else(|_| {

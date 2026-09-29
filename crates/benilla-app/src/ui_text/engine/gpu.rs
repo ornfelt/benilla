@@ -39,8 +39,7 @@ impl Plugin for UiTextPlugin {
         app.init_resource::<GlyphUploadQueue>()
             .add_systems(Update, init)
             .add_systems(Last, publish_sheet);
-        // With `gfx` there is no render world: the cells go to the gfx device's sub-rect writes.
-        #[cfg(feature = "gfx")]
+        // There is no render world: the cells go to the gfx device's sub-rect writes.
         app.add_systems(Last, hand_cells_to_gfx.after(publish_sheet));
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -122,9 +121,8 @@ fn publish_sheet(
     report_cache(&atlas);
 }
 
-/// With `gfx`: the frame's cells as sub-rect writes into the sheet on the gfx device, as
+/// For gfx: the frame's cells as sub-rect writes into the sheet on the gfx device, as
 /// [`upload_glyph_cells`] writes them into its `GpuImage`.
-#[cfg(feature = "gfx")]
 fn hand_cells_to_gfx(
     mut queue: ResMut<GlyphUploadQueue>,
     mut writes: ResMut<benilla_gfx::GfxTextureWrites>,

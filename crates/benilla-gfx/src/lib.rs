@@ -1,15 +1,11 @@
-//! The gfx DLL backend, behind the `gfx` feature: the window, input and every draw go through the
-//! gfx library (`Code2/General/gfx/gfx_dll`) instead of winit and wgpu. [`swap_in`] takes the
-//! tuned `DefaultPlugins` and leaves out `WinitPlugin` and `RenderPlugin`, so neither opens a
-//! window or a device; the ECS types the game builds on (`Mesh`, `Image`, materials, UI nodes)
-//! stay, and the gfx renderer reads them from the main world.
+//! The gfx DLL backend: the window, input and every draw go through the gfx library
+//! (`Code2/General/gfx/gfx_dll`). There is no winit in the build, and [`swap_in`] takes the tuned
+//! `DefaultPlugins` and leaves out `RenderPlugin`, so wgpu opens no device; the ECS types the game
+//! builds on (`Mesh`, `Image`, materials, UI nodes) stay, and the gfx renderer reads them from the
+//! main world.
 //!
 //! Backends: `WOW_GFX_WINDOW` (`x11`, `win32`, `glfw`, `sdl`) and `WOW_GFX_DEVICE` (`gl4`, `gl3`,
 //! `gles3`, `vk`, `d3d11`, `d3d12`), see [`backend`]. Shaders: `shaders/compile.sh`.
-//!
-//! Without the feature this crate is empty.
-
-#![cfg(feature = "gfx")]
 
 pub mod backend;
 pub mod bevy_ui;
@@ -61,10 +57,9 @@ pub use runner::GfxMsaaCounts;
 pub use timer::GfxGpuMeter;
 pub use ui::GfxUiLane;
 
-/// `group` (the `DefaultPlugins` set) with winit and wgpu swapped out for gfx.
+/// `group` (the `DefaultPlugins` set) with wgpu's renderer swapped out for gfx.
 pub fn swap_in(group: PluginGroupBuilder) -> PluginGroupBuilder {
     group
-        .disable::<bevy::winit::WinitPlugin>()
         .disable::<bevy::render::RenderPlugin>()
         .add_after::<bevy::render::RenderPlugin>(RenderMainWorldPlugin)
         .add(GfxPlugin)

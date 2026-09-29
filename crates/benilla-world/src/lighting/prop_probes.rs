@@ -195,9 +195,8 @@ pub(super) fn publish_prop_probes(
     }
 }
 
-/// With `gfx`: the published probe table as [`upload_prop_probes`] reads it: the rows, the
+/// For gfx: the published probe table as [`upload_prop_probes`] reads it: the rows, the
 /// allocated span, the generation and the span it changed (`None`: everything).
-#[cfg(feature = "gfx")]
 #[allow(clippy::type_complexity)]
 pub(crate) fn gfx_prop_probes(
     world: &World,

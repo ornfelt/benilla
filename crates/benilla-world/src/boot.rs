@@ -6,18 +6,13 @@ use bevy::prelude::*;
 
 use crate::thread_qos;
 
-/// The log filter: wgpu and naga quieted.
-#[cfg(not(feature = "gfx"))]
-const LOG_FILTER: &str = "wgpu=error,naga=warn";
-/// With `gfx` there is no render sub-app by design, and the two notices of its absence are off:
-/// the first `Extract*Plugin`'s one-time error and bevy_gizmos_render's warning.
-#[cfg(feature = "gfx")]
+/// The log filter: wgpu and naga quieted. There is no render sub-app by design (the gfx library
+/// draws), and the two notices of its absence are off: the first `Extract*Plugin`'s one-time
+/// error and bevy_gizmos_render's warning.
 const LOG_FILTER: &str =
     "wgpu=error,naga=warn,bevy_render::extract_resource=off,bevy_gizmos_render=error";
 
 /// `DefaultPlugins` with benilla's engine tuning applied, around the caller's primary window.
-// Without `gfx` the group is returned as built, through the binding the gfx swap rebinds.
-#[cfg_attr(not(feature = "gfx"), allow(clippy::let_and_return))]
 pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
     let plugins = DefaultPlugins
         .set(WindowPlugin {
@@ -80,8 +75,6 @@ pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
         .disable::<bevy::anti_alias::AntiAliasPlugin>()
         // No gamepad input; 1.12's bindings are keyboard/mouse.
         .disable::<bevy::gilrs::GilrsPlugin>();
-    // With `gfx`, the gfx DLL owns the window, input and rendering; winit and wgpu stay out.
-    #[cfg(feature = "gfx")]
-    let plugins = benilla_gfx::swap_in(plugins);
-    plugins
+    // The gfx DLL owns the window, input and rendering; wgpu's renderer stays out.
+    benilla_gfx::swap_in(plugins)
 }

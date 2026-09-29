@@ -95,7 +95,7 @@ struct Changed {
     palette: Vec<Range<usize>>,
 }
 
-/// With `gfx`: every [`crate::lighting::LightBlob::write`] since the last pack, as (buffer, first
+/// For gfx: every [`crate::lighting::LightBlob::write`] since the last pack, as (buffer, first
 /// row, rows); the booths write their studio blobs where no pack runs.
 static BLOB_WRITES: Mutex<Vec<BlobWrite>> = Mutex::new(Vec::new());
 

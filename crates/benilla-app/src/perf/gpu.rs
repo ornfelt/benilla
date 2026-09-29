@@ -356,7 +356,6 @@ pub(crate) fn plugin(app: &mut App) {
     app.insert_resource(GpuMsShared(shared.clone()));
     app.insert_resource(WgpuCensusShared(counts.clone()));
     // gfx has no render app: its own meter brackets the same span and writes the same counter.
-    #[cfg(feature = "gfx")]
     app.insert_resource(benilla_gfx::GfxGpuMeter(shared.clone()));
     let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
         return;

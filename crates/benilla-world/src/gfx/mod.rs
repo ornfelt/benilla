@@ -1,4 +1,4 @@
-//! The world's materials on the gfx renderer (`benilla-gfx`, the `gfx` feature): each draws through
+//! The world's materials on the gfx renderer (`benilla-gfx`): each draws through
 //! a port of its WGSL ([`model`], [`terrain`], [`wdl`], [`liquid`], [`sky`]), and the effect lane
 //! through [`effect`]. [`light`] keeps the shared light buffer's data texture, which the ported
 //! programs read, and [`ffx`] feeds each camera's FFXGlow combine, the frame's gamma decode.

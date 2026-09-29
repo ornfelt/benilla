@@ -101,9 +101,8 @@ impl InstanceTints {
     }
 }
 
-#[cfg(feature = "gfx")]
 impl InstanceTints {
-    /// With `gfx`: every slot's word and the generation, as [`upload_instance_tints`] reads them.
+    /// For gfx: every slot's word and the generation, as [`upload_instance_tints`] reads them.
     pub(crate) fn gfx_slots(&self) -> (&[u32], u64) {
         (self.slots.as_slice(), self.generation)
     }

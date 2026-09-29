@@ -11,10 +11,8 @@ use benilla_assets::materials::{TerrainMaterial, WowModelMaterial};
 pub struct WorldPlugins;
 
 impl PluginGroup for WorldPlugins {
-    // Without `gfx` the group is returned as built, through the binding the gfx line rebinds.
-    #[cfg_attr(not(feature = "gfx"), allow(clippy::let_and_return))]
     fn build(self) -> PluginGroupBuilder {
-        let group = PluginGroupBuilder::start::<Self>()
+        PluginGroupBuilder::start::<Self>()
             // The engine's WGSL first: every material below specializes against it, and an
             // unregistered shader fails silently.
             .add(crate::shaders::plugin)
@@ -120,11 +118,9 @@ impl PluginGroup for WorldPlugins {
             .add(crate::layout_keys::LayoutKeysPlugin)
             // Terrain streaming (`AdtTile` through the `AssetServer`): tiles with their doodads,
             // WMOs, liquid and clutter.
-            .add(crate::terrain_stream::TerrainPlugin);
-        // With `gfx`, the world's materials also draw through the gfx renderer.
-        #[cfg(feature = "gfx")]
-        let group = group.add(crate::gfx::GfxWorldMaterials);
-        group
+            .add(crate::terrain_stream::TerrainPlugin)
+            // The world's materials draw through the gfx renderer.
+            .add(crate::gfx::GfxWorldMaterials)
     }
 }
 

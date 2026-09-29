@@ -770,7 +770,6 @@ impl ViewNode for StaticGxNode {
 
 /// Wire the render half (called by the plugin only when armed).
 pub(super) fn build(app: &mut App) {
-    #[cfg(feature = "gfx")]
     super::gfx::build(app);
     // The shader registers in `crate::shaders`: `embedded_asset!` prefixes by the calling file.
     // `publish_gx_world` mirrors `StaticGx`'s published half into this resource for extraction.

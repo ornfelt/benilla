@@ -203,10 +203,6 @@ fn dropdown_bit_depths() -> (u32, u32) {
 pub struct MsaaSupportPlugin;
 
 impl Plugin for MsaaSupportPlugin {
-    #[cfg(not(feature = "gfx"))]
-    fn build(&self, _app: &mut App) {}
-
-    #[cfg(feature = "gfx")]
     fn build(&self, app: &mut App) {
         app.add_systems(PreStartup, grant_gfx_msaa);
     }
@@ -253,7 +249,6 @@ fn grant(world: &mut World, supported: &[u32]) {
 /// [`MsaaSupportPlugin`]'s work under gfx, whose device opens after `finish`: the counts the gfx
 /// device offers, published by its runner before the first update, in `PreStartup`, still before
 /// the CVar load and any camera.
-#[cfg(feature = "gfx")]
 pub fn grant_gfx_msaa(world: &mut World) {
     let Some(counts) = world.get_resource::<benilla_gfx::GfxMsaaCounts>().cloned() else {
         return;

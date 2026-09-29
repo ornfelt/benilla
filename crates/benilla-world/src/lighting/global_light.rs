@@ -349,8 +349,7 @@ fn build_light_data(
     }
 }
 
-/// With `gfx`: the per-frame blob's rows, header then point table, as [`upload_light`] writes them.
-#[cfg(feature = "gfx")]
+/// For gfx: the per-frame blob's rows, header then point table, as [`upload_light`] writes them.
 pub(crate) fn gfx_light_rows(world: &World) -> Option<&[[f32; 4]]> {
     world
         .get_resource::<WowLightData>()

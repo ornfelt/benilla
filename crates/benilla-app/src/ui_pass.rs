@@ -29,7 +29,6 @@ use bevy::shader::ShaderRef;
 use bevy::sprite_render::{Material2d, Material2dKey, Material2dPlugin};
 use bevy::window::PrimaryWindow;
 
-#[cfg(feature = "gfx")]
 mod gfx;
 
 /// One `(u, v)` per screen corner, in [`Run::push_quad`]'s winding (top-left, top-right,
@@ -363,7 +362,6 @@ pub(crate) struct PlayerUiPlugin;
 
 impl Plugin for PlayerUiPlugin {
     fn build(&self, app: &mut App) {
-        #[cfg(feature = "gfx")]
         app.add_plugins(gfx::GfxPlayerUi);
         app.init_resource::<UiQuads>()
             .init_resource::<UiMeshCost>()
