@@ -38,6 +38,10 @@ the same repository's.
   `bevy::gilrs`, `bevy::anti_alias`) and in its old slot of the group; `bevy_asset`, `bevy_winit`
   and `bevy_derive` lost the Android branches that named `bevy_android` (benilla builds for
   Linux, Windows and macOS).
+- **`bevy_post_process`** (bloom, motion blur, depth of field, chromatic aberration, MSAA
+  writeback): nothing in benilla or the rest of Bevy names it, and its plugin built only render-app
+  halves, so it is deleted with its slot in `DefaultPlugins` and its `bevy::post_process`
+  re-export; the `bevy_post_process` feature stays as a name enabling `bevy_core_pipeline`.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
   avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each

@@ -90,7 +90,6 @@ bevy_mikktspace = { path = "third_party/bevy/bevy_mikktspace" }
 bevy_pbr = { path = "third_party/bevy/bevy_pbr" }
 bevy_picking = { path = "third_party/bevy/bevy_picking" }
 bevy_platform = { path = "third_party/bevy/bevy_platform" }
-bevy_post_process = { path = "third_party/bevy/bevy_post_process" }
 bevy_ptr = { path = "third_party/bevy/bevy_ptr" }
 bevy_reflect = { path = "third_party/bevy/bevy_reflect" }
 bevy_reflect_derive = { path = "third_party/bevy/bevy_reflect_derive" }
