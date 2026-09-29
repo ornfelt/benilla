@@ -490,8 +490,8 @@ pub(crate) const REGISTERED: &[Registered] = &[
     same("checkAddonVersion", "1"),
     // `gxApi` (`0x63a833`: name `0x842a64`, default `0x864f7c` "direct3d", flags 3, callback
     // `0x63b030`, record `[0xc4ea94]`): the reference builds D3D9 unless it reads "OpenGl"
-    // (`0x63a3c4`, `0x842a5c`). Here it reports the wgpu backend (`wgpu::Backend::to_str`), pushed
-    // from `RenderAdapterInfo` and owned by the session, so it is never persisted. pfUI's
+    // (`0x63a3c4`, `0x842a5c`). Here it is owned by the session, so it is never persisted, and the
+    // gfx renderer pushes no backend into it, so the registered `""` stands. pfUI's
     // `panel.lua:185` concatenates it.
     deviates(
         "gxApi",
@@ -1180,8 +1180,7 @@ fn load_config(world: &mut World) {
         for (name, value) in session {
             cvars.own_for_session(name, value.as_deref());
         }
-        // `gxApi` is the render backend, a fact about the machine that `sync_cvars` pushes live, so
-        // it is never persisted.
+        // `gxApi` is the render backend, a fact about the machine, so it is never persisted.
         cvars.own_for_session("gxApi", None);
         match stored {
             StoredConfig::Absent => {} // no file, hermetic capture, or no install
@@ -1247,18 +1246,10 @@ pub(crate) fn boot_cvar(name: &str) -> Option<String> {
 pub(crate) fn sync_cvars(
     script: Option<NonSendMut<UiScript>>,
     mut cvars: ResMut<Cvars>,
-    adapter: Option<Res<bevy::render::renderer::RenderAdapterInfo>>,
     msaa_formats: Option<Res<benilla_world::view::MsaaFormats>>,
     mut seeded: Local<VmMemo<bool>>,
     mut commands: Commands,
 ) {
-    // The live render backend; absent headless, where the registered `""` stands.
-    if let Some(adapter) = adapter.as_deref() {
-        let backend = adapter.backend.to_str();
-        if cvars.get("gxApi") != Some(backend) {
-            cvars.own_for_session("gxApi", Some(backend));
-        }
-    }
     let Some(mut script) = script else {
         // Nothing to mirror into; a later VM is seeded from the table, which carries it all.
         if cvars.has_outbox() {

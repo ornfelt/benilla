@@ -16,8 +16,7 @@ use bevy::camera::visibility::{NoFrustumCulling, RenderLayers};
 use bevy::camera::{OrthographicProjection, Projection, RenderTarget, ScalingMode};
 use bevy::mesh::MeshTag;
 use bevy::prelude::*;
-use bevy::render::render_resource::Buffer;
-use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::render_resource::BufferId;
 
 use benilla_assets::materials::WowModelMaterial;
 use benilla_assets::{m2_url, quantize, M2Model, WorldAssets};
@@ -171,7 +170,7 @@ impl TileScene {
 /// One slot of the light pool, with the material twins bound to its buffer.
 struct TileLight {
     scene: TileScene,
-    buffer: Buffer,
+    buffer: BufferId,
     variants: HashMap<AssetId<WowModelMaterial>, Handle<WowModelMaterial>>,
 }
 
@@ -205,8 +204,6 @@ impl TileRig {
     fn slot_for(
         &mut self,
         scene: TileScene,
-        device: &RenderDevice,
-        queue: &RenderQueue,
         mirrors: &mut RigPaletteMirrors,
         anim_mirrors: &mut MatAnimMirrors,
     ) -> usize {
@@ -219,10 +216,10 @@ impl TileRig {
         }
         let key = LIGHT_MIRROR_KEYS[self.lights.len()];
         let blob = scene.blob();
-        let buffer = blob.create(device, "wow_ui_model_light");
-        blob.write(queue, &buffer);
-        mirrors.0.insert(key, buffer.clone());
-        anim_mirrors.0.insert(key, buffer.clone());
+        let buffer = blob.create();
+        blob.write(buffer);
+        mirrors.0.insert(key, buffer);
+        anim_mirrors.0.insert(key, buffer);
         self.lights.push(TileLight {
             scene,
             buffer,
@@ -468,8 +465,6 @@ impl Plugin for UiModelsPlugin {
 /// Startup: the tile cameras, the layer and the default black light.
 fn setup_tiles(
     mut commands: Commands,
-    device: Res<RenderDevice>,
-    queue: Res<RenderQueue>,
     mut mirrors: ResMut<RigPaletteMirrors>,
     mut anim_mirrors: ResMut<MatAnimMirrors>,
 ) {
@@ -480,14 +475,8 @@ fn setup_tiles(
     };
     // Slot 0, the `<Model>` ctor's scene (`0x76c8e0`). A twin binds its own light buffer, whose
     // palette and mat-anim rows the tiles read, so every pool buffer joins both mirror lists.
-    rig.slot_for(
-        TileScene::default_scene(),
-        &device,
-        &queue,
-        &mut mirrors,
-        &mut anim_mirrors,
-    );
-    let light_buf = rig.lights[0].buffer.clone();
+    rig.slot_for(TileScene::default_scene(), &mut mirrors, &mut anim_mirrors);
+    let light_buf = rig.lights[0].buffer;
     commands.spawn((
         Name::new("ui model tiles camera"),
         booth_view_shape(),
@@ -603,9 +592,7 @@ struct TileRender<'w> {
     rig: ResMut<'w, TileRig>,
     /// The shared mat-anim table, where the tiles' materials own rows.
     table: ResMut<'w, MatAnimTable>,
-    /// The light pool grows lazily, so the per-frame pass needs the device, queue and mirror lists.
-    device: Res<'w, RenderDevice>,
-    queue: Res<'w, RenderQueue>,
+    /// The light pool grows lazily, so the per-frame pass needs the mirror lists.
     mirrors: ResMut<'w, RigPaletteMirrors>,
     anim_mirrors: ResMut<'w, MatAnimMirrors>,
 }
@@ -751,8 +738,6 @@ fn sync_tiles(
                     light: req.light,
                     fog: req.fog,
                 },
-                &render.device,
-                &render.queue,
                 &mut render.mirrors,
                 &mut render.anim_mirrors,
             )
@@ -1501,7 +1486,7 @@ fn build_tile(
     if !render.mats.ready() {
         return None;
     }
-    let light = render.rig.lights.get(light_slot)?.buffer.clone();
+    let light = render.rig.lights.get(light_slot)?.buffer;
     let fogged = render.rig.lights[light_slot].scene.fog.is_some();
     let layer = layer.clone();
     // The render forms now, unpaced: one small model, on demand.
@@ -1670,11 +1655,9 @@ fn build_tile(
         ) else {
             continue;
         };
-        commands.entity(e).insert((
-            layer.clone(),
-            ChildOf(root),
-            EffectLightOverride(light.clone()),
-        ));
+        commands
+            .entity(e)
+            .insert((layer.clone(), ChildOf(root), EffectLightOverride(light)));
         emitters.push(e);
     }
 

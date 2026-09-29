@@ -120,19 +120,19 @@ fn mirrors(world: &World) -> HashMap<BufferId, u8> {
     add(
         world
             .get_resource::<crate::rig_palette::RigPaletteMirrors>()
-            .map(|m| m.0.values().map(|b| b.id()).collect()),
+            .map(|m| m.0.values().copied().collect()),
         Mirror::RIG,
     );
     add(
         world
             .get_resource::<crate::instance_tint::InstanceTintMirrors>()
-            .map(|m| m.0.values().map(|b| b.id()).collect()),
+            .map(|m| m.0.values().copied().collect()),
         Mirror::TINT,
     );
     add(
         world
             .get_resource::<crate::mat_anim_table::MatAnimMirrors>()
-            .map(|m| m.0.values().map(|b| b.id()).collect()),
+            .map(|m| m.0.values().copied().collect()),
         Mirror::MATANIM,
     );
     out
@@ -142,7 +142,7 @@ fn mirrors(world: &World) -> HashMap<BufferId, u8> {
 /// queued off-world blobs into theirs, and the mirrored regions into every mirror's, as the
 /// render-world uploads write the shared buffer and each mirror.
 pub(crate) fn pack(world: &mut World, mut seen: Local<Seen>) {
-    let Some(id) = world.get_resource::<SharedLightBuffer>().map(|b| b.0.id()) else {
+    let Some(id) = world.get_resource::<SharedLightBuffer>().map(|b| b.0) else {
         return;
     };
     let blobs = BLOB_WRITES

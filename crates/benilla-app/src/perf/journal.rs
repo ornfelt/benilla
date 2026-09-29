@@ -15,7 +15,6 @@ use std::time::Instant;
 use bevy::diagnostic::DiagnosticsStore;
 use bevy::prelude::*;
 use bevy::render::diagnostic::RenderDiagnosticsPlugin;
-use bevy::render::renderer::{RenderAdapterInfo, RenderDevice};
 use bevy::time::Real;
 
 use super::clock::{main_thread_cpu_secs, process_cpu_secs};
@@ -210,34 +209,9 @@ impl GpuAccum {
 }
 
 /// The `#` line a fresh file opens with: the adapter, and whether the GPU columns can ever fill.
-fn preamble(adapter: Option<&RenderAdapterInfo>, device: Option<&RenderDevice>) -> String {
-    let (gpu, backend, driver) = adapter.map_or_else(
-        || ("?".to_string(), "?".to_string(), "?".to_string()),
-        |a| {
-            let driver = format!("{} {}", a.driver, a.driver_info).trim().to_string();
-            (
-                a.name.clone(),
-                format!("{:?}", a.backend),
-                // Metal reports no driver string.
-                if driver.is_empty() {
-                    "?".to_string()
-                } else {
-                    driver
-                },
-            )
-        },
-    );
-    let spans = device.map_or("?", |d| {
-        let f = d.features();
-        if f.contains(
-            wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES,
-        ) {
-            "yes"
-        } else {
-            "no"
-        }
-    });
-    format!("# benilla fps journal | gpu {gpu} | backend {backend} | driver {driver} | gpu_spans {spans}\n")
+/// The gfx renderer reports no adapter and records no GPU spans.
+fn preamble() -> String {
+    "# benilla fps journal | gpu ? | backend ? | driver ? | gpu_spans no\n".to_string()
 }
 
 /// The journal's residency columns, grouped for Bevy's system-param arity limit. The
@@ -259,12 +233,10 @@ struct JournalResidency<'w> {
     scope: Res<'w, benilla_world::art_scope::ArtScopeState>,
 }
 
-/// The diagnostics store and the preamble's adapter and device; all absent without a renderer.
+/// The diagnostics store; absent without a renderer.
 #[derive(bevy::ecs::system::SystemParam)]
 struct JournalGpu<'w> {
     store: Option<Res<'w, DiagnosticsStore>>,
-    adapter: Option<Res<'w, RenderAdapterInfo>>,
-    device: Option<Res<'w, RenderDevice>>,
 }
 
 /// Pinned to the main thread: [`main_thread_cpu_secs`] reads the calling thread's clock.
@@ -302,10 +274,7 @@ fn journal_fps(
             };
             // The header goes in once, at creation; rows append across runs.
             if !path.exists() {
-                let head = format!(
-                    "{}{JOURNAL_HEADER}",
-                    preamble(gpu.adapter.as_deref(), gpu.device.as_deref())
-                );
+                let head = format!("{}{JOURNAL_HEADER}", preamble());
                 if let Err(e) = crate::local_state::write_atomic(&path, &head) {
                     warn!("fps journal: cannot create {}: {e}", path.display());
                     return;
@@ -519,10 +488,10 @@ mod tests {
     }
 
     #[test]
-    fn the_preamble_names_the_adapter_or_says_it_cannot() {
+    fn the_preamble_says_it_cannot_name_the_adapter() {
         assert_eq!(
-            preamble(None, None),
-            "# benilla fps journal | gpu ? | backend ? | driver ? | gpu_spans ?\n"
+            preamble(),
+            "# benilla fps journal | gpu ? | backend ? | driver ? | gpu_spans no\n"
         );
     }
 }

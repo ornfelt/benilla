@@ -6,7 +6,7 @@ use bevy::asset::AssetId;
 use bevy::mesh::MeshTag;
 use bevy::pbr::ExtendedMaterial;
 use bevy::prelude::*;
-use bevy::render::render_resource::{Buffer, Face};
+use bevy::render::render_resource::{BufferId, Face};
 
 use benilla_assets::materials::{WowModelExt, WowModelMaterial, VANILLA_ALPHA_KEY_REF};
 
@@ -42,7 +42,7 @@ fn wmo_bias_off() -> bool {
 #[derive(PartialEq, Eq, Hash)]
 pub struct MatKey {
     /// The bound light buffer: the world, a portrait booth and char select each bind their own.
-    light: bevy::render::render_resource::BufferId,
+    light: BufferId,
     texture: Option<AssetId<Image>>,
     blend: ModelBlend,
     two_sided: bool,
@@ -145,11 +145,11 @@ pub fn model_material(
     sidn: Option<[u8; 3]>,
     window: bool,
     sky_depth: bool,
-    light: &Buffer,
+    light: &BufferId,
     instance: Option<Entity>,
 ) -> Handle<WowModelMaterial> {
     let key = MatKey {
-        light: light.id(),
+        light: *light,
         texture: texture.as_ref().map(Handle::id),
         blend,
         two_sided,
@@ -316,7 +316,7 @@ pub fn model_material(
                 },
                 // Zero until a sampler registers this material and bakes its table slot in once.
                 anim_slots: Vec4::ZERO,
-                light_buf: light.clone(),
+                light_buf: *light,
             },
         },
     );
@@ -373,10 +373,10 @@ pub fn zfill_material(
     texture: Option<Handle<Image>>,
     two_sided: bool,
     cutout: bool,
-    light: &Buffer,
+    light: &BufferId,
 ) -> Handle<WowModelMaterial> {
     let key = MatKey {
-        light: light.id(),
+        light: *light,
         texture: texture.as_ref().map(Handle::id),
         blend: if cutout {
             ModelBlend::AlphaTest
@@ -435,7 +435,7 @@ pub fn zfill_material(
                 tint: Vec4::new(1.0, 1.0, 1.0, 0.0),
                 sidn: Vec4::ZERO,
                 anim_slots: Vec4::ZERO,
-                light_buf: light.clone(),
+                light_buf: *light,
             },
         },
     );

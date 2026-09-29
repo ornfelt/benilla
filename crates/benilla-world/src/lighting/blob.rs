@@ -1,14 +1,11 @@
 //! Off-world light blobs: the portrait booths' studio light, the body panes' light and the glue
-//! scene's rig light, each written into a buffer of its own against the model shaders' std430
-//! struct. Producers state values and never a row index, so a layout change cannot strand them.
+//! scene's rig light, each written into a data texture of its own (keyed by a [`BufferId`]) in
+//! the model shaders' std430 row layout. Producers state values and never a row index, so a layout change cannot strand them.
 
 use bevy::prelude::*;
-use bevy::render::render_resource::{Buffer, BufferDescriptor, BufferUsages};
-use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::render_resource::BufferId;
 
-use super::global_light::{
-    commit_raw, light_blob_bytes, pack_model_core_rows, LIGHT_HEADER_ROWS, MAX_POINT_LIGHTS,
-};
+use super::global_light::{commit_raw, pack_model_core_rows, LIGHT_HEADER_ROWS, MAX_POINT_LIGHTS};
 use super::prop_probes::prop_probe_region_offset;
 use super::sh::prop_probe_coeffs;
 
@@ -99,38 +96,26 @@ impl LightBlob {
         self.points.len() / 2
     }
 
-    /// A buffer of the full layout's size, never just what was written: wgpu validates the bound
-    /// size against `wow_model.wgsl`'s whole struct at every draw, and zeroes the unwritten rest.
-    pub fn create(&self, device: &RenderDevice, label: &'static str) -> Buffer {
-        device.create_buffer(&BufferDescriptor {
-            label: Some(label),
-            size: light_blob_bytes(),
-            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
+    /// A new blob's key. Its data texture is made at the first pack that writes it, with the full
+    /// layout's rows ([`crate::lighting::light_blob_bytes`]) zeroed where nothing is written.
+    pub fn create(&self) -> BufferId {
+        BufferId::new()
     }
 
     /// Writes the header rows and the point table in one write and the probe region, past the
-    /// per-frame prefix, in another.
-    pub fn write(&self, queue: &RenderQueue, buffer: &Buffer) {
+    /// per-frame prefix, in another; the rows reach the blob's data texture at the next pack.
+    pub fn write(&self, buffer: BufferId) {
         let mut head = self.rows.to_vec();
         head.extend_from_slice(&self.points);
-        queue.write_buffer(buffer, 0, bytemuck::cast_slice(&head));
         if let Some(probe) = self.probe {
             let rows: [[f32; 4]; 7] = probe.map(|v| v.to_array());
-            queue.write_buffer(
-                buffer,
-                prop_probe_region_offset(),
-                bytemuck::cast_slice(&rows),
-            );
-            // gfx has no storage buffers: the rows reach the buffer's data texture at the next pack.
             crate::gfx::light::record_blob_write(
-                buffer.id(),
+                buffer,
                 (prop_probe_region_offset() / 16) as usize,
                 rows.to_vec(),
             );
         }
-        crate::gfx::light::record_blob_write(buffer.id(), 0, head);
+        crate::gfx::light::record_blob_write(buffer, 0, head);
     }
 }
 

@@ -38,7 +38,7 @@ pub fn describe(m: &TerrainMaterial) -> GfxMaterialDesc {
             GfxTextureSlot::ImageSampledLike(layers, layers),
             GfxTextureSlot::ImageSampledLike(e.alpha_array.id(), layers),
             GfxTextureSlot::ImageSampledLike(e.shadow_array.id(), layers),
-            GfxTextureSlot::Data(e.light_buf.id()),
+            GfxTextureSlot::Data(e.light_buf),
         ],
         params,
         alpha,

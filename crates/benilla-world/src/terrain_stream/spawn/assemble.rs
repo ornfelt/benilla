@@ -8,7 +8,7 @@ use bevy::camera::primitives::Aabb;
 use bevy::camera::visibility::NoAutoAabb;
 use bevy::mesh::MeshTag;
 use bevy::prelude::*;
-use bevy::render::render_resource::Buffer;
+use bevy::render::render_resource::BufferId;
 
 use crate::billboard::BillboardCard;
 use crate::doodad_anim::DoodadAnimHost;
@@ -58,7 +58,7 @@ pub fn spawn_model_entities(
     commands: &mut Commands,
     mat_cache: &mut MaterialCache,
     materials: &mut Assets<WowModelMaterial>,
-    light: &Buffer,
+    light: &BufferId,
     submeshes: &[ModelSubmesh],
     // Index-parallel with `submeshes`; complete, as callers gate on `ModelForms::require`.
     forms: crate::model_forms::FormSlices<'_>,

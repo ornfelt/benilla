@@ -53,7 +53,7 @@ pub fn pack(rgb: [u8; 3]) -> u32 {
 /// (`0x472939` into `0x710cf0`, the char-select ghost) and has a slot of its own.
 #[derive(Resource, Clone, Default)]
 pub struct InstanceTintMirrors(
-    pub std::collections::HashMap<&'static str, bevy::render::render_resource::Buffer>,
+    pub std::collections::HashMap<&'static str, bevy::render::render_resource::BufferId>,
 );
 
 /// The per-slot tint table, indexed by the `MeshTag` rig slot; `Arc`-shared for a cheap clone

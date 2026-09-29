@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use bevy::image::Image;
 use bevy::prelude::*;
-use bevy::render::render_resource::{Buffer, Face};
+use bevy::render::render_resource::{BufferId, Face};
 
 use crate::materials::{WowModelExt, WowModelMaterial, VANILLA_ALPHA_KEY_REF};
 use crate::SpatialCache;
@@ -49,7 +49,7 @@ pub struct WorldAssets {
     /// Materials deduped by [`MaterialKey`].
     pub model_materials: SpatialCache<MaterialKey, Handle<WowModelMaterial>>,
     /// The shared global-light buffer, cloned into every deduped model material's `light_buf`.
-    pub shared_light: Buffer,
+    pub shared_light: BufferId,
 }
 
 /// Identity of a deduped model material; everything textureless shares one fallback per WMO flag.
@@ -255,9 +255,9 @@ impl<T> LockRecover<T> for Mutex<T> {
 }
 
 impl WorldAssets {
-    /// Open the store over an opened patch chain. `shared_light` is a raw `Buffer`, not the
+    /// Open the store over an opened patch chain. `shared_light` is a raw `BufferId`, not the
     /// client's `SharedLightBuffer`, which keeps this crate below the renderer.
-    pub fn open(chain: Chain, shared_light: Buffer) -> Self {
+    pub fn open(chain: Chain, shared_light: BufferId) -> Self {
         Self {
             chain: Arc::new(Mutex::new(chain)),
             textures: SpatialCache::default(),
@@ -564,7 +564,7 @@ impl WorldAssets {
                 tint: Vec4::ONE, // clutter has no animated M2Color tint and is not a WMO batch
                 sidn: Vec4::ZERO, // clutter is never SIDN/WINDOW glass (WMO-only)
                 anim_slots: Vec4::ZERO,
-                light_buf: self.shared_light.clone(),
+                light_buf: self.shared_light,
             },
         });
         self.model_materials.insert(key, handle.clone());

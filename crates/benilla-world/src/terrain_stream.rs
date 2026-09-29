@@ -710,7 +710,7 @@ fn stream_terrain(
                 alpha_array: adt.alpha_array.clone(),
                 shadow_array: adt.shadow_array.clone(),
                 params: Vec4::new(benilla_formats::TERRAIN_LAYER_TILES, 0.0, 0.0, 0.0),
-                light_buf: shared_light.0.clone(),
+                light_buf: shared_light.0,
             },
         });
         // One static trimesh per tile from the drawn chunks, built off-thread, riding the root.

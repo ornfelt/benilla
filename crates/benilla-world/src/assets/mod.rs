@@ -2,7 +2,6 @@
 //! light buffer, `MapChange`, the art scope), so it lives here rather than in `benilla-assets`.
 
 use bevy::prelude::*;
-use bevy::render::renderer::RenderDevice;
 
 use crate::art_scope::{ArtScope, ArtSlot};
 use benilla_assets::{AssetSet, RenderConfig, WorldAssets};
@@ -45,11 +44,11 @@ fn scope_world_art(mut scope: ArtScope, assets: Option<ResMut<WorldAssets>>) {
 
 /// Opens the patch chain found by [`benilla_formats::wow_data`] and inserts [`WorldAssets`] and
 /// [`RenderConfig`]; with no install, `WorldAssets` is absent and startup falls back to free-fly.
-fn open_world_assets(mut commands: Commands, device: Res<RenderDevice>) {
+fn open_world_assets(mut commands: Commands) {
     // Inserted before the install lookup so no early return skips it: even with no install,
     // `particles::model::update_model_particles` takes it as a hard `Res<SharedLightBuffer>`.
-    let shared_light = crate::lighting::new_shared_light_buffer(&device);
-    let light_buf = shared_light.0.clone();
+    let shared_light = crate::lighting::new_shared_light_buffer();
+    let light_buf = shared_light.0;
     commands.insert_resource(shared_light);
     let Some(data) = benilla_formats::wow_data() else {
         warn!(

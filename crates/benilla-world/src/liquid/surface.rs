@@ -405,7 +405,7 @@ pub(super) fn setup_liquid(
                             1.0
                         },
                     ),
-                    light_buf: world_assets.shared_light.clone(),
+                    light_buf: world_assets.shared_light,
                 },
             });
             assets

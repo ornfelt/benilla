@@ -14,7 +14,7 @@ use benilla_assets::materials::WowModelMaterial;
 /// an exact clone with only `light_buf` swapped.
 #[derive(Default)]
 pub(super) struct BoothRig {
-    pub(super) buffer: Option<bevy::render::render_resource::Buffer>,
+    pub(super) buffer: Option<bevy::render::render_resource::BufferId>,
     variants: HashMap<AssetId<WowModelMaterial>, Handle<WowModelMaterial>>,
     /// Set by [`Self::variant`] when the source material was not resident yet.
     unready: bool,
@@ -30,7 +30,7 @@ impl BoothRig {
         world: &Handle<WowModelMaterial>,
         materials: &mut Assets<WowModelMaterial>,
     ) -> Handle<WowModelMaterial> {
-        let Some(buffer) = self.buffer.clone() else {
+        let Some(buffer) = self.buffer else {
             // No booth buffer (headless tests): nothing to wait for, so a plain fallback.
             if super::booth_log() {
                 eprintln!("[booth] variant NO-BUFFER -> world lane (unlit in a booth)");
@@ -106,7 +106,7 @@ pub(crate) enum VariantLane {
 /// world material is no substitute (wrong light buffer), so callers retry.
 pub(crate) fn material_variant(
     variants: &mut HashMap<AssetId<WowModelMaterial>, Handle<WowModelMaterial>>,
-    buffer: &bevy::render::render_resource::Buffer,
+    buffer: &bevy::render::render_resource::BufferId,
     world: &Handle<WowModelMaterial>,
     materials: &mut Assets<WowModelMaterial>,
     lane: VariantLane,
@@ -118,7 +118,7 @@ pub(crate) fn material_variant(
     benilla_world::model_render::lazy::realize(materials, world.id());
     let mat = materials.get(world)?;
     let mut twin = mat.clone();
-    twin.extension.light_buf = buffer.clone();
+    twin.extension.light_buf = *buffer;
     if lane != VariantLane::World {
         twin.extension.sun_scale.x = benilla_world::model_render::ShadeSel::Rig.selector();
     }

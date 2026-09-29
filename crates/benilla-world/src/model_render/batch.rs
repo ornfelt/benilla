@@ -8,7 +8,7 @@ use benilla_assets::ModelSubmesh;
 use benilla_formats::ModelBlend;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use bevy::render::render_resource::Buffer;
+use bevy::render::render_resource::BufferId;
 
 use super::{model_material, zfill_material, MaterialCache, ShadeSel};
 use crate::lighting::SharedLightBuffer;
@@ -83,7 +83,7 @@ impl M2BatchMaterials<'_> {
         texture: Option<Handle<Image>>,
         order: u16,
     ) -> Option<Handle<WowModelMaterial>> {
-        let light = self.light.as_ref()?.0.clone();
+        let light = self.light.as_ref()?.0;
         Some(self.build(
             sub,
             texture,
@@ -109,7 +109,7 @@ impl M2BatchMaterials<'_> {
         texture: Option<Handle<Image>>,
         order: u16,
     ) -> Option<SkyboxBatch> {
-        let light = self.light.as_ref()?.0.clone();
+        let light = self.light.as_ref()?.0;
         let mut mk = |fade: bool| {
             model_material(
                 &mut self.cache.0,
@@ -161,7 +161,7 @@ impl M2BatchMaterials<'_> {
         sub: &ModelSubmesh,
         texture: Option<Handle<Image>>,
         order: u16,
-        light: &Buffer,
+        light: &BufferId,
         rig: bool,
     ) -> Handle<WowModelMaterial> {
         let shade = if rig { ShadeSel::Rig } else { ShadeSel::Lit };
@@ -178,7 +178,7 @@ impl M2BatchMaterials<'_> {
         order: u16,
         uv: &mut EntityUvLane<'_>,
     ) -> Option<BatchVariants> {
-        let light = self.light.as_ref()?.0.clone();
+        let light = self.light.as_ref()?.0;
         let steady = self.build(
             sub,
             texture.clone(),
@@ -282,7 +282,7 @@ impl M2BatchMaterials<'_> {
         blend: ModelBlend,
         two_sided: bool,
     ) -> Option<BatchVariants> {
-        let light = self.light.as_ref()?.0.clone();
+        let light = self.light.as_ref()?.0;
         let mut mk = |shade: ShadeSel, probe: bool, fade: bool| {
             model_material(
                 &mut self.cache.0,
@@ -336,8 +336,8 @@ impl M2BatchMaterials<'_> {
     /// once per placement.
     pub fn pieces(
         &mut self,
-    ) -> Option<(&mut MaterialCache, &mut Assets<WowModelMaterial>, Buffer)> {
-        let light = self.light.as_ref()?.0.clone();
+    ) -> Option<(&mut MaterialCache, &mut Assets<WowModelMaterial>, BufferId)> {
+        let light = self.light.as_ref()?.0;
         Some((&mut self.cache.0, &mut self.materials, light))
     }
 
@@ -346,7 +346,7 @@ impl M2BatchMaterials<'_> {
         &mut self,
         sub: &ModelSubmesh,
         texture: Option<Handle<Image>>,
-        light: &Buffer,
+        light: &BufferId,
     ) -> Option<Handle<WowModelMaterial>> {
         if sub.no_depth_write || sub.no_depth_test {
             return None;
@@ -374,7 +374,7 @@ impl M2BatchMaterials<'_> {
         probe: bool,
         fade: bool,
         play_uv: bool,
-        light: &Buffer,
+        light: &BufferId,
     ) -> Handle<WowModelMaterial> {
         model_material(
             &mut self.cache.0,

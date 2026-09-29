@@ -1056,7 +1056,7 @@ pub(super) fn simulate_particles(
                 cam_relative: false,
                 no_depth_test: false,
                 main_entity: entity,
-                light: light_override.map(|l| l.0.clone()),
+                light: light_override.map(|l| l.0),
                 // A UI model tile's pane cell (`set_clip`); `None` in the world.
                 clip: *clip,
             },
@@ -1096,7 +1096,7 @@ pub(super) fn simulate_particles(
                     cam_relative: false,
                     no_depth_test: false,
                     main_entity: entity,
-                    light: light_override.map(|l| l.0.clone()),
+                    light: light_override.map(|l| l.0),
                     // The parent's cell and clip.
                     clip: *clip,
                 },

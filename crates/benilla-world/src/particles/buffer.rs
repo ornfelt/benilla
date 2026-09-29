@@ -9,7 +9,7 @@ use std::ops::Range;
 use benilla_formats::{ModelBlend, ParticleBlend};
 use bevy::asset::AssetId;
 use bevy::prelude::*;
-use bevy::render::render_resource::Buffer;
+use bevy::render::render_resource::BufferId;
 
 /// One vertex of the lane: world-space in the stream, so instruments read world coordinates,
 /// except on a [`EffectDrawSpec::cam_relative`] draw.
@@ -149,8 +149,8 @@ pub enum EffectLighting {
 }
 
 /// A per-emitter `WowLight` buffer read in place of the world's; the glue-scene booths set it.
-#[derive(Component, Clone)]
-pub struct EffectLightOverride(pub Buffer);
+#[derive(Component, Clone, Copy)]
+pub struct EffectLightOverride(pub BufferId);
 
 /// One draw of the lane: a vertex range, its texture, blend and fog, and its sort point.
 pub struct EffectDraw {
@@ -177,7 +177,7 @@ pub struct EffectDraw {
     /// The producing entity, the item's identity in the phase (`item.entity.1`).
     pub main_entity: Entity,
     /// [`EffectLightOverride`]'s buffer; `None` is the world's.
-    pub(crate) light: Option<Buffer>,
+    pub(crate) light: Option<BufferId>,
     pub(crate) clip: Option<Vec4>,
 }
 
@@ -226,7 +226,7 @@ pub struct EffectDrawSpec {
     /// (EGxRs id `0x10` = 0, `0x6c686e`) so the swinger's shoulder never eats the arc.
     pub no_depth_test: bool,
     pub main_entity: Entity,
-    pub light: Option<Buffer>,
+    pub light: Option<BufferId>,
     /// A target-pixel clip rect `(min.x, min.y, max.x, max.y)`; `None` is the whole target. UI
     /// model tiles share one atlas where the reference gives each `<Model>` its own viewport
     /// (`0x59c730`), so the fragment discards outside the pane's cell.

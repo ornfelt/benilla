@@ -12,7 +12,7 @@ use bevy::pbr::{
 };
 use bevy::prelude::*;
 use bevy::render::render_resource::{
-    AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, ColorWrites,
+    AsBindGroup, BlendComponent, BlendFactor, BlendOperation, BlendState, BufferId, ColorWrites,
     CompareFunction, RenderPipelineDescriptor, SpecializedMeshPipelineError,
 };
 use bevy::shader::ShaderRef;
@@ -117,8 +117,7 @@ pub struct WowModelExt {
     pub anim_slots: Vec4,
     /// The shared global light (`lighting::global_light`), updated in place once a frame; the
     /// vertex stage reads its point-light table, since Bevy's clusterable lights are fragment-only.
-    #[storage(90, read_only, buffer, visibility(vertex, fragment))]
-    pub light_buf: Buffer,
+    pub light_buf: BufferId,
 }
 
 impl MaterialExtension for WowModelExt {
@@ -319,8 +318,7 @@ pub type WdlMaterial = ExtendedMaterial<StandardMaterial, WdlExt>;
 #[derive(Asset, AsBindGroup, Clone, TypePath)]
 pub struct WdlExt {
     /// The shared global light, rows 4/5 only (scene fog colour, farclip wall).
-    #[storage(90, read_only, buffer)]
-    pub light_buf: Buffer,
+    pub light_buf: BufferId,
 }
 
 impl MaterialExtension for WdlExt {
@@ -361,8 +359,7 @@ pub struct LiquidExt {
     #[uniform(102)]
     pub anim: Vec4,
     /// The shared global light, read in both stages (the vertex stage evaluates the sun sheen).
-    #[storage(90, read_only, buffer, visibility(vertex, fragment))]
-    pub light_buf: Buffer,
+    pub light_buf: BufferId,
 }
 
 impl MaterialExtension for LiquidExt {
@@ -411,8 +408,7 @@ pub struct TerrainExtension {
     pub params: Vec4,
 
     /// The shared global light, rows 0-5 (light, fog, farclip).
-    #[storage(90, read_only, buffer)]
-    pub light_buf: Buffer,
+    pub light_buf: BufferId,
 }
 
 impl MaterialExtension for TerrainExtension {

@@ -224,7 +224,7 @@ pub(super) fn spawn_booth_effects(
     commands: &mut Commands,
     rig: &mut BoothRig,
     layer: &RenderLayers,
-    light: Option<&bevy::render::render_resource::Buffer>,
+    light: Option<&bevy::render::render_resource::BufferId>,
     effects: &[BoothEffects],
     // An effect model attached to a translucent instance composes onto its alpha.
     instance: BoothInstance,
@@ -293,9 +293,7 @@ pub(super) fn spawn_booth_effects(
             if let Some(buf) = light {
                 commands
                     .entity(e)
-                    .insert(benilla_world::particles::buffer::EffectLightOverride(
-                        buf.clone(),
-                    ));
+                    .insert(benilla_world::particles::buffer::EffectLightOverride(*buf));
             }
             spawned += 1;
         }
@@ -316,7 +314,7 @@ pub(super) fn spawn_booth_own_emitters(
     rig: &mut BoothRig,
     root: Entity,
     layer: &RenderLayers,
-    light: Option<&bevy::render::render_resource::Buffer>,
+    light: Option<&bevy::render::render_resource::BufferId>,
     emitters: &[benilla_assets::ModelEmitter],
 ) -> (usize, usize) {
     let mut spawned = 0usize;
@@ -369,9 +367,7 @@ pub(super) fn spawn_booth_own_emitters(
         if let Some(buf) = light {
             commands
                 .entity(e)
-                .insert(benilla_world::particles::buffer::EffectLightOverride(
-                    buf.clone(),
-                ));
+                .insert(benilla_world::particles::buffer::EffectLightOverride(*buf));
         }
         spawned += 1;
     }

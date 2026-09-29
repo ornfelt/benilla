@@ -22,7 +22,7 @@ pub fn describe(m: &WdlMaterial) -> GfxMaterialDesc {
     GfxMaterialDesc {
         program: WDL,
         textures: [
-            GfxTextureSlot::Data(m.extension.light_buf.id()),
+            GfxTextureSlot::Data(m.extension.light_buf),
             GfxTextureSlot::White,
             GfxTextureSlot::White,
             GfxTextureSlot::White,

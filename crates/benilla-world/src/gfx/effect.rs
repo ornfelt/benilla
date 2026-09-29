@@ -168,7 +168,7 @@ pub(crate) fn collect(
     // Untracked, so the device copy is marked here, before this frame's draw rewrites it.
     renderer.meshes.modified(id);
 
-    let light = light.0.id();
+    let light = light.0;
     // The lane's instruments, as `EffectPipeline::specialize` reads them.
     let no_depth = std::env::var_os("WOW_PARTICLE_NODEPTH").is_some();
     let flat = if std::env::var_os("WOW_PARTICLE_FLAT").is_some() {
@@ -192,7 +192,7 @@ pub(crate) fn collect(
             // A booth's record reads the booth's own light buffer.
             textures: [
                 GfxTextureSlot::Image(draw.texture),
-                GfxTextureSlot::Data(draw.light.as_ref().map_or(light, |b| b.id())),
+                GfxTextureSlot::Data(draw.light.unwrap_or(light)),
                 GfxTextureSlot::White,
                 GfxTextureSlot::White,
             ],

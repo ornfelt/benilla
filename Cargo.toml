@@ -47,8 +47,6 @@ bevy = { version = "0.18.1", default-features = false, features = [
     "scene",
     "picking",
 ] }
-# For the `WOW_GPU_MS` meter's query set, which bevy 0.18 does not wrap; must match bevy's wgpu.
-wgpu = "27"
 clap = { version = "4.6.1", features = ["derive"] }
 sha1 = "0.10.6"
 

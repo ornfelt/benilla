@@ -195,7 +195,7 @@ pub(crate) struct CreateScene {
     ghost: bool,
     /// The scene's light buffer: its authored rig ([`SceneRig`]) plus the per-race fog
     /// (`CharModelFogInfo`) at create only; select renders unfogged (`0x472110`).
-    light: Option<bevy::render::render_resource::Buffer>,
+    light: Option<bevy::render::render_resource::BufferId>,
     /// Booth twins of the character's materials against the scene buffer (`BoothLight::variants`).
     variants: std::collections::HashMap<AssetId<WowModelMaterial>, Handle<WowModelMaterial>>,
     /// Bumped on every scene spawn; `sync_glue_booth` keys on it to re-light the character.
@@ -594,8 +594,6 @@ pub(super) fn sync_glue_scene(
     anim_data: Option<Res<crate::creature_anim::AnimData>>,
     mut cams: Query<(&BoothCam, &mut Transform, &mut Projection)>,
     window: Query<&Window, With<PrimaryWindow>>,
-    device: Res<bevy::render::renderer::RenderDevice>,
-    queue: Res<bevy::render::renderer::RenderQueue>,
     // One tuple for the 16-SystemParam ceiling.
     particle_assets: (
         ResMut<benilla_world::rig_palette::RigPalettes>,
@@ -725,17 +723,16 @@ pub(super) fn sync_glue_scene(
     } else if scene.spawned && scene.ghost != ghost {
         // The selection crossed the ghost bit: re-light in place, as the reference's fill
         // callback does (`0x472150`); a respawn would restart the stage's emitters.
-        if let (Some(model), Some(light)) = (
-            scene.handle.as_ref().and_then(|h| m2s.get(h)),
-            scene.light.clone(),
-        ) {
+        if let (Some(model), Some(light)) =
+            (scene.handle.as_ref().and_then(|h| m2s.get(h)), scene.light)
+        {
             let rig = if ghost {
                 ghost_rig()
             } else {
                 scene_rig(&model.lights)
             };
             let (fog_rgb, fog_far) = scene_fog(token);
-            scene_light_blob(&rig, fog_rgb, fog_far, fog).write(&queue, &light);
+            scene_light_blob(&rig, fog_rgb, fog_far, fog).write(light);
             scene.ghost = ghost;
             // The character and the pet re-bake onto the rewritten buffer.
             scene.rev += 1;
@@ -769,18 +766,15 @@ pub(super) fn sync_glue_scene(
         };
         let (fog_rgb, fog_far) = scene_fog(token);
         let blob = scene_light_blob(&rig, fog_rgb, fog_far, fog);
-        let light = scene
-            .light
-            .get_or_insert_with(|| blob.create(&device, "wow_create_scene_light"))
-            .clone();
+        let light = *scene.light.get_or_insert_with(|| blob.create());
         // The scene's rigs skin from this buffer's palette region.
-        mirrors.0.insert("glue_scene", light.clone());
+        mirrors.0.insert("glue_scene", light);
         // The per-instance tint region: the glue character's modulate colour is read from here.
-        tint_mirrors.0.insert("glue_scene", light.clone());
+        tint_mirrors.0.insert("glue_scene", light);
         // The mat-anim delta table: the scene's materials sample `matanim[slot]` from this buffer.
         // The portrait booths stay off it ([`MatAnimMirrors`]): a bake photographs one instant.
-        anim_mirrors.0.insert("glue_scene", light.clone());
-        blob.write(&queue, &light);
+        anim_mirrors.0.insert("glue_scene", light);
+        blob.write(light);
         scene.fog = fog;
         scene.ghost = ghost;
         let dc = blob.probe_dc();
@@ -1097,7 +1091,7 @@ pub(super) fn sync_glue_booth(
         };
         let scene_buf = scene
             .as_deref()
-            .and_then(|s| if s.spawned { s.light.clone() } else { None });
+            .and_then(|s| if s.spawned { s.light } else { None });
         let relight = |material: &Handle<WowModelMaterial>,
                        scene: &mut Option<ResMut<CreateScene>>,
                        booth_light: &mut BoothLight,
@@ -1311,7 +1305,7 @@ pub(super) fn sync_glue_pet(
         return; // already standing, unchanged
     }
     // The rig comes from the display cache that produced the parts; if not ready, retry.
-    let (Some(creatures), Some(light)) = (creatures.as_deref(), scene.light.clone()) else {
+    let (Some(creatures), Some(light)) = (creatures.as_deref(), scene.light) else {
         return;
     };
     let Some(rig) = creatures.display_rig(pet.display_id) else {

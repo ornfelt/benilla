@@ -6,8 +6,7 @@
 
 use benilla_formats::LiquidKind;
 use bevy::prelude::*;
-use bevy::render::render_resource::{Buffer, BufferDescriptor, BufferUsages};
-use bevy::render::renderer::RenderDevice;
+use bevy::render::render_resource::BufferId;
 
 use super::prop_probes::MAX_PROP_PROBES;
 use super::{sh, WowLighting};
@@ -127,10 +126,10 @@ impl Default for WowLightData {
     }
 }
 
-/// The persistent light buffer every material binds, created by [`new_shared_light_buffer`]; a
-/// `Buffer` clone shares the resource.
-#[derive(Resource, Clone)]
-pub struct SharedLightBuffer(pub Buffer);
+/// The persistent light buffer every material binds, created by [`new_shared_light_buffer`]: the
+/// key of its gfx data texture, which the gfx pack fills.
+#[derive(Resource, Clone, Copy)]
+pub struct SharedLightBuffer(pub BufferId);
 
 /// Registers the light pack and the probe publish.
 pub(super) fn register(app: &mut App) {
@@ -148,15 +147,10 @@ pub(super) fn register(app: &mut App) {
         .add_systems(PostUpdate, super::prop_probes::publish_prop_probes);
 }
 
-/// Creates the shared light buffer, sized by [`light_blob_bytes`], from the main-world
-/// `RenderDevice`; the assets foundation builds it at startup.
-pub fn new_shared_light_buffer(device: &RenderDevice) -> SharedLightBuffer {
-    SharedLightBuffer(device.create_buffer(&BufferDescriptor {
-        label: Some("wow_shared_light"),
-        size: light_blob_bytes(),
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    }))
+/// Creates the shared light buffer's key; its data texture, sized by [`light_blob_bytes`], is made
+/// at the first pack. The assets foundation builds it at startup.
+pub fn new_shared_light_buffer() -> SharedLightBuffer {
+    SharedLightBuffer(BufferId::new())
 }
 
 /// The shared light buffer's full size: the per-frame blob ([`LIGHT_HEADER_ROWS`] rows and the

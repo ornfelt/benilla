@@ -890,19 +890,17 @@ fn setup_booths(
     mut booths: ResMut<Booths>,
     mut booth_light: ResMut<BoothLight>,
     mut mirrors: ResMut<benilla_world::rig_palette::RigPaletteMirrors>,
-    device: Res<bevy::render::renderer::RenderDevice>,
-    queue: Res<bevy::render::renderer::RenderQueue>,
 ) {
-    // The studio-light buffer, written once. Sized to the full blob, which wgpu validates against
-    // the shader's struct; the zeroed rest leaves `point_count = 0`.
-    let light_buffer = |label: &'static str, blob: benilla_world::lighting::LightBlob| {
-        let buffer = blob.create(&device, label);
-        blob.write(&queue, &buffer);
+    // The studio-light buffer, written once. The full blob's rows; the zeroed rest leaves
+    // `point_count = 0`.
+    let light_buffer = |blob: benilla_world::lighting::LightBlob| {
+        let buffer = blob.create();
+        blob.write(buffer);
         buffer
     };
-    booth_light.studio.buffer = Some(light_buffer("wow_portrait_light", studio_light()));
+    booth_light.studio.buffer = Some(light_buffer(studio_light()));
     // The body panes' own light, the reference `<PlayerModel>` widget's.
-    booth_light.pane.buffer = Some(light_buffer("wow_model_pane_light", model_pane_light()));
+    booth_light.pane.buffer = Some(light_buffer(model_pane_light()));
     // Booth rigs skin from the palette regions of these buffers: register both
     // as mirrors so the palette upload keeps their regions live.
     for (key, buf) in [
@@ -910,7 +908,7 @@ fn setup_booths(
         ("pane", &booth_light.pane.buffer),
     ] {
         if let Some(b) = buf {
-            mirrors.0.insert(key, b.clone());
+            mirrors.0.insert(key, *b);
         }
     }
 

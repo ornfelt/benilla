@@ -90,7 +90,7 @@ pub fn describe(m: &WowModelMaterial) -> GfxMaterialDesc {
         program: WOW_MODEL,
         textures: [
             texture,
-            GfxTextureSlot::Data(e.light_buf.id()),
+            GfxTextureSlot::Data(e.light_buf),
             GfxTextureSlot::White,
             GfxTextureSlot::White,
         ],

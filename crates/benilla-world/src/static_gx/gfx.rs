@@ -108,7 +108,7 @@ fn pack(
     let Some(light) = light else {
         return;
     };
-    let light = light.0.id();
+    let light = light.0;
 
     // Drop the regions that vanished or re-baked, with their record tables.
     let mut drop_gone = |gone: bool, r: &GxRegionGfx| {

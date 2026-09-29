@@ -21,7 +21,6 @@ pub mod images;
 pub mod input;
 pub mod material;
 pub mod meshes;
-pub mod noop_device;
 pub mod overlay;
 pub mod pipelines;
 pub mod post;

@@ -711,7 +711,7 @@ pub(crate) fn gfx_palettes(world: &World) -> Option<GfxPaletteView<'_>> {
 /// The glue and portrait booths' studio light buffers, which mirror the palette regions.
 #[derive(Resource, Clone, Default)]
 pub struct RigPaletteMirrors(
-    pub std::collections::HashMap<&'static str, bevy::render::render_resource::Buffer>,
+    pub std::collections::HashMap<&'static str, bevy::render::render_resource::BufferId>,
 );
 
 /// `WOW_RIG_CENSUS=<secs>` (unparseable: 5): a periodic line of who holds the palette's slots, by

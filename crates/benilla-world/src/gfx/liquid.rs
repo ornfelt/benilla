@@ -39,7 +39,7 @@ pub fn describe(m: &LiquidMaterial) -> GfxMaterialDesc {
         program: LIQUID,
         textures: [
             GfxTextureSlot::Image(e.frames.id()),
-            GfxTextureSlot::Data(e.light_buf.id()),
+            GfxTextureSlot::Data(e.light_buf),
             GfxTextureSlot::White,
             GfxTextureSlot::White,
         ],

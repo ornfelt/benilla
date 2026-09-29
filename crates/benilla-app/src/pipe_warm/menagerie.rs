@@ -7,7 +7,7 @@ use bevy::camera::primitives::MeshAabb;
 use bevy::ecs::system::SystemParam;
 use bevy::mesh::{Indices, MeshTag, PrimitiveTopology};
 use bevy::prelude::*;
-use bevy::render::render_resource::Buffer;
+use bevy::render::render_resource::BufferId;
 
 use benilla_assets::materials::{LiquidMaterial, WowModelMaterial};
 use benilla_world::clouds::CloudMaterial;
@@ -69,7 +69,7 @@ pub(super) fn spawn_menagerie(
     materials: &mut Assets<WowModelMaterial>,
     lanes: &mut WarmLanes,
     cache: &mut MaterialCache,
-    light: &Buffer,
+    light: &BufferId,
 ) -> usize {
     // The model lane's four layouts (strides 32/48/56/72): static and skinned, plain and
     // vertex-coloured. Statics are render-world-only, so their Aabb is inserted explicitly.

@@ -130,31 +130,6 @@ impl MsaaSetting {
     }
 }
 
-/// The sample counts this GPU accepts in all three formats we multisample into (the
-/// `Rgba16Float` target, `Depth32Float` depth, the swapchain), each a separate wgpu capability;
-/// Bevy passes a count on unchecked, and wgpu fails validation on one the device lacks.
-fn supported_sample_counts(adapter: &bevy::render::renderer::RenderAdapter) -> Vec<u32> {
-    use bevy::image::BevyDefault as _;
-    use bevy::render::render_resource::TextureFormat;
-
-    let formats = [
-        TextureFormat::Rgba16Float,
-        TextureFormat::Depth32Float,
-        TextureFormat::bevy_default(),
-    ];
-    MSAA_RANGE
-        .clone()
-        .filter(|&n| {
-            formats.iter().all(|f| {
-                adapter
-                    .get_texture_format_features(*f)
-                    .flags
-                    .sample_count_supported(n)
-            })
-        })
-        .collect()
-}
-
 /// The largest count in `supported` at or below `requested`, floored at 1, which no device refuses.
 pub fn clamp_to_supported(requested: u32, supported: &[u32]) -> u32 {
     supported
@@ -198,25 +173,13 @@ fn dropdown_bit_depths() -> (u32, u32) {
     )
 }
 
-/// Clamps [`MsaaSetting`] to this GPU and publishes [`MsaaFormats`], in `finish`, the first moment
-/// `RenderAdapter` exists and still before any camera spawns; headless, it does nothing.
+/// Clamps [`MsaaSetting`] to this GPU and publishes [`MsaaFormats`] ([`grant_gfx_msaa`]), before
+/// any camera spawns; headless, it does nothing.
 pub struct MsaaSupportPlugin;
 
 impl Plugin for MsaaSupportPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(PreStartup, grant_gfx_msaa);
-    }
-
-    fn finish(&self, app: &mut App) {
-        // Scoped so the adapter borrow ends before the resource is written.
-        let supported = match app
-            .world()
-            .get_resource::<bevy::render::renderer::RenderAdapter>()
-        {
-            Some(adapter) => supported_sample_counts(adapter),
-            None => return,
-        };
-        grant(app.world_mut(), &supported);
     }
 }
 
@@ -246,9 +209,9 @@ fn grant(world: &mut World, supported: &[u32]) {
     world.resource_mut::<MsaaSetting>().samples = granted;
 }
 
-/// [`MsaaSupportPlugin`]'s work under gfx, whose device opens after `finish`: the counts the gfx
-/// device offers, published by its runner before the first update, in `PreStartup`, still before
-/// the CVar load and any camera.
+/// [`MsaaSupportPlugin`]'s work: the counts the gfx device offers, published by its runner once
+/// the plugins finish and before the first update, in `PreStartup`, still before the CVar load
+/// and any camera.
 pub fn grant_gfx_msaa(world: &mut World) {
     let Some(counts) = world.get_resource::<benilla_gfx::GfxMsaaCounts>().cloned() else {
         return;

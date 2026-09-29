@@ -105,7 +105,7 @@ fn setup_wdl(
             ..default()
         },
         extension: WdlExt {
-            light_buf: world_assets.shared_light.clone(),
+            light_buf: world_assets.shared_light,
         },
     });
     commands.insert_resource(WdlStreamer {

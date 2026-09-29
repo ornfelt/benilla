@@ -31,7 +31,7 @@ pub(crate) fn region_bytes() -> u64 {
 /// uploaded there too. The portrait booths are not on it: their zeroed region is the seed pose.
 #[derive(Resource, Clone, Default)]
 pub struct MatAnimMirrors(
-    pub std::collections::HashMap<&'static str, bevy::render::render_resource::Buffer>,
+    pub std::collections::HashMap<&'static str, bevy::render::render_resource::BufferId>,
 );
 
 /// The live delta table, `Arc`-shared for a cheap clone and generation-stamped so an unchanged

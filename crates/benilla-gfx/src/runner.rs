@@ -17,8 +17,8 @@ use crate::render::GfxRender;
 pub(crate) struct DefaultSampler(pub bevy::image::ImageSamplerDescriptor);
 
 /// The sample counts the gfx device offers a multisampled target
-/// ([`crate::target::supported_sample_counts`]), ascending: what wgpu's `RenderAdapter` answers
-/// on the wgpu path. Inserted once the device opens, before the first update (`PreStartup`).
+/// ([`crate::target::supported_sample_counts`]), ascending. Inserted once the device opens, before
+/// the first update (`PreStartup`).
 #[derive(Resource, Debug, Clone)]
 pub struct GfxMsaaCounts(pub Vec<u32>);
 
@@ -57,7 +57,6 @@ pub fn run(mut app: App) -> AppExit {
         app.cleanup();
     }
 
-    crate::noop_device::insert(app.world_mut());
     let counts = crate::target::supported_sample_counts(ctx.device);
     app.world_mut().insert_resource(GfxMsaaCounts(counts));
     app.world_mut().insert_non_send_resource(ctx);

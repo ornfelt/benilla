@@ -75,10 +75,7 @@ fn bake_test(
         return false;
     };
     // Each slot bakes against the light it really uses: the portraits' studio, the pane's own.
-    let (Some(studio), Some(pane)) = (
-        booth_light.studio.buffer.clone(),
-        booth_light.pane.buffer.clone(),
-    ) else {
+    let (Some(studio), Some(pane)) = (booth_light.studio.buffer, booth_light.pane.buffer) else {
         return false;
     };
     // An untextured model reads dark brown (the muted fallback), so brightness is only judgeable
@@ -97,7 +94,7 @@ fn bake_test(
     let built = forms.slices(&handle);
     let (stat_forms, skin_forms) = (built.stat, built.skin.unwrap_or(&[]));
     let parts_against =
-        |light: &bevy::render::render_resource::Buffer,
+        |light: &bevy::render::render_resource::BufferId,
          mats: &mut benilla_world::model_render::M2BatchMaterials| {
             model
                 .submeshes

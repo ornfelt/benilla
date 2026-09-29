@@ -31,7 +31,6 @@ arboard = "3"
 benilla-gfx = { path = "../benilla-gfx" }
 benilla-ui = { path = "../benilla-ui" }
 bevy.workspace = true
-wgpu.workspace = true
 bevy_egui = { version = "0.39", optional = true }
 bytemuck = { version = "1", features = ["derive"] }
 # `f16` decode for the `WOW_BOOTH_DUMP` dump of the `Rgba16Float` booth targets.
