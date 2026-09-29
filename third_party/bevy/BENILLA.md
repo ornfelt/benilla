@@ -58,6 +58,24 @@ the same repository's.
     is empty; everything but `UiMaterial`, `UiMaterialKey`, `MaterialNode`, `UiMaterialPlugin`'s
     asset registration, `UiAntiAlias`, `BoxShadowSamples` and `stack_z_offsets` is gone.
   - `bevy_egui`: the render-graph edge ordering egui against `bevy_ui_render`'s UI pass.
+  - `bevy_pbr`: the mesh, material, prepass, shadow, light, cluster, fog, skin and morph render
+    code, GPU preprocessing, the material bind-group allocator, SSAO, SSR, volumetric fog,
+    atmosphere, light probes and environment-map generation, lightmaps, clustered decals, deferred
+    lighting, meshlets (a feature nothing enables), the wireframe plugin and the allocator
+    diagnostic (plugins nothing adds), the blue-noise texture and all WGSL. The sub-plugins left
+    with nothing in the main world (`MeshRenderPlugin`, `GpuMeshPreprocessPlugin`,
+    `LightmapPlugin`, `LightProbePlugin`, `PrepassPipelinePlugin`) are gone; every
+    `RenderAssetPlugin`/`ErasedRenderAssetPlugin` (the render-world asset preparation) went, as in
+    `bevy_sprite_render`; an `ExtractComponentPlugin` whose extraction built a render type became
+    the `SyncComponentPlugin` it added in the main world. Kept: the `Material` and
+    `MaterialExtension` traits, `ExtendedMaterial`, `StandardMaterial`, `MeshMaterial3d`,
+    `MaterialPlugin`'s asset, type and specialization-check systems, `MaterialPipelineKey`,
+    `MaterialExtensionKey`, `MeshPipelineKey`, `MaterialPipeline` and `MaterialExtensionPipeline`
+    (the `specialize` signatures name them; `MeshPipeline` inside them is an empty struct, since
+    only a `RenderApp` builds one), the prepass's previous-transform systems, the deferred
+    lighting-id system, the atmosphere probe system, the forward decal's material and mesh, the
+    meshes and the placeholder image the plugins add to their assets, and the components users
+    add (fog, SSAO, SSR, atmosphere, lightmap, `ScatteringMedium`).
 
   The manifests drop the dependencies no kept code uses; no crate's resolved features change.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a

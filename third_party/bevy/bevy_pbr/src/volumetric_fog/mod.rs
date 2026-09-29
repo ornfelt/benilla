@@ -30,85 +30,26 @@
 //! [Henyey-Greenstein phase function]: https://www.pbr-book.org/4ed/Volume_Scattering/Phase_Functions#TheHenyeyndashGreensteinPhaseFunction
 
 use bevy_app::{App, Plugin};
-use bevy_asset::{embedded_asset, Assets, Handle};
-use bevy_core_pipeline::core_3d::{
-    graph::{Core3d, Node3d},
-    prepare_core_3d_depth_textures,
-};
-use bevy_ecs::{resource::Resource, schedule::IntoScheduleConfigs as _};
+use bevy_asset::Assets;
 use bevy_light::FogVolume;
 use bevy_math::{
     primitives::{Cuboid, Plane3d},
     Vec2, Vec3,
 };
 use bevy_mesh::{Mesh, Meshable};
-use bevy_render::{
-    render_graph::{RenderGraphExt, ViewNodeRunner},
-    render_resource::SpecializedRenderPipelines,
-    sync_component::SyncComponentPlugin,
-    ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems,
-};
-use render::{VolumetricFogNode, VolumetricFogPipeline, VolumetricFogUniformBuffer};
-
-use crate::{graph::NodePbr, volumetric_fog::render::init_volumetric_fog_pipeline};
-
-pub mod render;
+use bevy_render::sync_component::SyncComponentPlugin;
 
 /// A plugin that implements volumetric fog.
 pub struct VolumetricFogPlugin;
 
-#[derive(Resource)]
-pub struct FogAssets {
-    plane_mesh: Handle<Mesh>,
-    cube_mesh: Handle<Mesh>,
-}
-
 impl Plugin for VolumetricFogPlugin {
     fn build(&self, app: &mut App) {
-        embedded_asset!(app, "volumetric_fog.wgsl");
-
+        // The fog meshes were handed to the render world; with no RenderApp under gfx they are
+        // added and dropped here, as before.
         let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
-        let plane_mesh = meshes.add(Plane3d::new(Vec3::Z, Vec2::ONE).mesh());
-        let cube_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0).mesh());
+        let _plane_mesh = meshes.add(Plane3d::new(Vec3::Z, Vec2::ONE).mesh());
+        let _cube_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0).mesh());
 
         app.add_plugins(SyncComponentPlugin::<FogVolume>::default());
-
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
-            .insert_resource(FogAssets {
-                plane_mesh,
-                cube_mesh,
-            })
-            .init_resource::<SpecializedRenderPipelines<VolumetricFogPipeline>>()
-            .init_resource::<VolumetricFogUniformBuffer>()
-            .add_systems(RenderStartup, init_volumetric_fog_pipeline)
-            .add_systems(ExtractSchedule, render::extract_volumetric_fog)
-            .add_systems(
-                Render,
-                (
-                    render::prepare_volumetric_fog_pipelines.in_set(RenderSystems::Prepare),
-                    render::prepare_volumetric_fog_uniforms.in_set(RenderSystems::Prepare),
-                    render::prepare_view_depth_textures_for_volumetric_fog
-                        .in_set(RenderSystems::Prepare)
-                        .before(prepare_core_3d_depth_textures),
-                ),
-            )
-            .add_render_graph_node::<ViewNodeRunner<VolumetricFogNode>>(
-                Core3d,
-                NodePbr::VolumetricFog,
-            )
-            .add_render_graph_edges(
-                Core3d,
-                // Volumetric fog should run after the main pass but before bloom, so
-                // we order if at the start of post processing.
-                (
-                    Node3d::EndMainPass,
-                    NodePbr::VolumetricFog,
-                    Node3d::StartMainPassPostProcessing,
-                ),
-            );
     }
 }

@@ -34,173 +34,31 @@
 //! [Unreal Engine Implementation]: https://github.com/sebh/UnrealEngineSkyAtmosphere
 
 mod environment;
-mod node;
-pub mod resources;
 
 use bevy_app::{App, Plugin, Update};
-use bevy_asset::{embedded_asset, AssetId, Handle};
-use bevy_camera::Camera3d;
-use bevy_core_pipeline::core_3d::graph::Node3d;
-use bevy_ecs::{
-    component::Component,
-    query::{Changed, QueryItem, With},
-    schedule::IntoScheduleConfigs,
-    system::{lifetimeless::Read, Query},
-};
+use bevy_asset::Handle;
+use bevy_ecs::component::Component;
 use bevy_math::{UVec2, UVec3, Vec3};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
-use bevy_render::{
-    extract_component::UniformComponentPlugin,
-    render_resource::{DownlevelFlags, ShaderType, SpecializedRenderPipelines},
-    view::Hdr,
-    RenderStartup,
-};
-use bevy_render::{
-    extract_component::{ExtractComponent, ExtractComponentPlugin},
-    render_graph::{RenderGraphExt, ViewNodeRunner},
-    render_resource::{TextureFormat, TextureUsages},
-    renderer::RenderAdapter,
-    Render, RenderApp, RenderSystems,
-};
+use bevy_render::{sync_component::SyncComponentPlugin, view::Hdr};
 
-use bevy_core_pipeline::core_3d::graph::Core3d;
-use bevy_shader::load_shader_library;
-use environment::{
-    init_atmosphere_probe_layout, init_atmosphere_probe_pipeline,
-    prepare_atmosphere_probe_bind_groups, prepare_atmosphere_probe_components,
-    prepare_probe_textures, AtmosphereEnvironmentMap, EnvironmentNode,
-};
-use resources::{
-    prepare_atmosphere_transforms, prepare_atmosphere_uniforms, queue_render_sky_pipelines,
-    AtmosphereTransforms, GpuAtmosphere, RenderSkyBindGroupLayouts,
-};
-use tracing::warn;
+use environment::{prepare_atmosphere_probe_components, AtmosphereEnvironmentMap};
 
-use crate::{
-    medium::ScatteringMedium,
-    resources::{init_atmosphere_buffer, write_atmosphere_buffer},
-};
-
-use self::{
-    node::{AtmosphereLutsNode, AtmosphereNode, RenderSkyNode},
-    resources::{
-        prepare_atmosphere_bind_groups, prepare_atmosphere_textures, AtmosphereBindGroupLayouts,
-        AtmosphereLutPipelines, AtmosphereSampler,
-    },
-};
+use crate::medium::ScatteringMedium;
 
 #[doc(hidden)]
 pub struct AtmospherePlugin;
 
 impl Plugin for AtmospherePlugin {
     fn build(&self, app: &mut App) {
-        load_shader_library!(app, "types.wgsl");
-        load_shader_library!(app, "functions.wgsl");
-        load_shader_library!(app, "bruneton_functions.wgsl");
-        load_shader_library!(app, "bindings.wgsl");
-
-        embedded_asset!(app, "transmittance_lut.wgsl");
-        embedded_asset!(app, "multiscattering_lut.wgsl");
-        embedded_asset!(app, "sky_view_lut.wgsl");
-        embedded_asset!(app, "aerial_view_lut.wgsl");
-        embedded_asset!(app, "render_sky.wgsl");
-        embedded_asset!(app, "environment.wgsl");
-
+        // The main-world halves of the three `ExtractComponentPlugin`s; the uniform plugins and
+        // `finish` only reached the RenderApp, which gfx does not have.
         app.add_plugins((
-            ExtractComponentPlugin::<Atmosphere>::default(),
-            ExtractComponentPlugin::<GpuAtmosphereSettings>::default(),
-            ExtractComponentPlugin::<AtmosphereEnvironmentMap>::default(),
-            UniformComponentPlugin::<GpuAtmosphere>::default(),
-            UniformComponentPlugin::<GpuAtmosphereSettings>::default(),
+            SyncComponentPlugin::<Atmosphere>::default(),
+            SyncComponentPlugin::<GpuAtmosphereSettings>::default(),
+            SyncComponentPlugin::<AtmosphereEnvironmentMap>::default(),
         ))
         .add_systems(Update, prepare_atmosphere_probe_components);
-    }
-
-    fn finish(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        let render_adapter = render_app.world().resource::<RenderAdapter>();
-
-        if !render_adapter
-            .get_downlevel_capabilities()
-            .flags
-            .contains(DownlevelFlags::COMPUTE_SHADERS)
-        {
-            warn!("AtmospherePlugin not loaded. GPU lacks support for compute shaders.");
-            return;
-        }
-
-        if !render_adapter
-            .get_texture_format_features(TextureFormat::Rgba16Float)
-            .allowed_usages
-            .contains(TextureUsages::STORAGE_BINDING)
-        {
-            warn!("AtmospherePlugin not loaded. GPU lacks support: TextureFormat::Rgba16Float does not support TextureUsages::STORAGE_BINDING.");
-            return;
-        }
-
-        render_app
-            .insert_resource(AtmosphereBindGroupLayouts::new())
-            .init_resource::<RenderSkyBindGroupLayouts>()
-            .init_resource::<AtmosphereSampler>()
-            .init_resource::<AtmosphereLutPipelines>()
-            .init_resource::<AtmosphereTransforms>()
-            .init_resource::<SpecializedRenderPipelines<RenderSkyBindGroupLayouts>>()
-            .add_systems(
-                RenderStartup,
-                (
-                    init_atmosphere_probe_layout,
-                    init_atmosphere_probe_pipeline,
-                    init_atmosphere_buffer,
-                )
-                    .chain(),
-            )
-            .add_systems(
-                Render,
-                (
-                    configure_camera_depth_usages.in_set(RenderSystems::ManageViews),
-                    queue_render_sky_pipelines.in_set(RenderSystems::Queue),
-                    prepare_atmosphere_textures.in_set(RenderSystems::PrepareResources),
-                    prepare_probe_textures
-                        .in_set(RenderSystems::PrepareResources)
-                        .after(prepare_atmosphere_textures),
-                    prepare_atmosphere_uniforms
-                        .before(RenderSystems::PrepareResources)
-                        .after(RenderSystems::PrepareAssets),
-                    prepare_atmosphere_probe_bind_groups.in_set(RenderSystems::PrepareBindGroups),
-                    prepare_atmosphere_transforms.in_set(RenderSystems::PrepareResources),
-                    prepare_atmosphere_bind_groups.in_set(RenderSystems::PrepareBindGroups),
-                    write_atmosphere_buffer.in_set(RenderSystems::PrepareResources),
-                ),
-            )
-            .add_render_graph_node::<ViewNodeRunner<AtmosphereLutsNode>>(
-                Core3d,
-                AtmosphereNode::RenderLuts,
-            )
-            .add_render_graph_edges(
-                Core3d,
-                (
-                    // END_PRE_PASSES -> RENDER_LUTS -> MAIN_PASS
-                    Node3d::EndPrepasses,
-                    AtmosphereNode::RenderLuts,
-                    Node3d::StartMainPass,
-                ),
-            )
-            .add_render_graph_node::<ViewNodeRunner<RenderSkyNode>>(
-                Core3d,
-                AtmosphereNode::RenderSky,
-            )
-            .add_render_graph_node::<EnvironmentNode>(Core3d, AtmosphereNode::Environment)
-            .add_render_graph_edges(
-                Core3d,
-                (
-                    Node3d::MainOpaquePass,
-                    AtmosphereNode::RenderSky,
-                    Node3d::MainTransparentPass,
-                ),
-            );
     }
 }
 
@@ -242,33 +100,6 @@ impl Atmosphere {
             medium,
         }
     }
-}
-
-impl ExtractComponent for Atmosphere {
-    type QueryData = Read<Atmosphere>;
-
-    type QueryFilter = With<Camera3d>;
-
-    type Out = ExtractedAtmosphere;
-
-    fn extract_component(item: QueryItem<'_, '_, Self::QueryData>) -> Option<Self::Out> {
-        Some(ExtractedAtmosphere {
-            bottom_radius: item.bottom_radius,
-            top_radius: item.top_radius,
-            ground_albedo: item.ground_albedo,
-            medium: item.medium.id(),
-        })
-    }
-}
-
-/// The render-world representation of an `Atmosphere`, but which
-/// hasn't been converted into shader uniforms yet.
-#[derive(Clone, Component)]
-pub struct ExtractedAtmosphere {
-    pub bottom_radius: f32,
-    pub top_radius: f32,
-    pub ground_albedo: Vec3,
-    pub medium: AssetId<ScatteringMedium>,
 }
 
 /// This component controls the resolution of the atmosphere LUTs, and
@@ -364,7 +195,7 @@ impl Default for AtmosphereSettings {
     }
 }
 
-#[derive(Clone, Component, Reflect, ShaderType)]
+#[derive(Clone, Component, Reflect)]
 #[reflect(Default)]
 pub struct GpuAtmosphereSettings {
     pub transmittance_lut_size: UVec2,
@@ -405,26 +236,6 @@ impl From<AtmosphereSettings> for GpuAtmosphereSettings {
             sky_max_samples: s.sky_max_samples,
             rendering_method: s.rendering_method as u32,
         }
-    }
-}
-
-impl ExtractComponent for GpuAtmosphereSettings {
-    type QueryData = Read<AtmosphereSettings>;
-
-    type QueryFilter = (With<Camera3d>, With<Atmosphere>);
-
-    type Out = GpuAtmosphereSettings;
-
-    fn extract_component(item: QueryItem<'_, '_, Self::QueryData>) -> Option<Self::Out> {
-        Some(item.clone().into())
-    }
-}
-
-fn configure_camera_depth_usages(
-    mut cameras: Query<&mut Camera3d, (Changed<Camera3d>, With<ExtractedAtmosphere>)>,
-) {
-    for mut camera in &mut cameras {
-        camera.depth_texture_usages.0 |= TextureUsages::TEXTURE_BINDING.bits();
     }
 }
 
