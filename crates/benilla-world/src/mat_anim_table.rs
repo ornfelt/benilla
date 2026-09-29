@@ -10,9 +10,6 @@
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::renderer::RenderQueue;
-use bevy::render::{Render, RenderApp, RenderSystems};
 
 /// Slots in the table, row 0 included. A batch whose loop differs by sequence takes a row per
 /// placement (about 145 within half a second of entering Upper Blackrock Spire), and exhaustion
@@ -32,14 +29,14 @@ pub(crate) fn region_bytes() -> u64 {
 /// Off-world `wow_light`-layout buffers that also carry the region, by key. A lane whose materials
 /// bind their own light buffer (the UI model tiles) reads `matanim[slot]` from it, so the table is
 /// uploaded there too. The portrait booths are not on it: their zeroed region is the seed pose.
-#[derive(Resource, Clone, Default, ExtractResource)]
+#[derive(Resource, Clone, Default)]
 pub struct MatAnimMirrors(
     pub std::collections::HashMap<&'static str, bevy::render::render_resource::Buffer>,
 );
 
-/// The live delta table, `Arc`-shared for a cheap extract and generation-stamped so an unchanged
+/// The live delta table, `Arc`-shared for a cheap clone and generation-stamped so an unchanged
 /// table uploads nothing.
-#[derive(Resource, Clone, ExtractResource)]
+#[derive(Resource, Clone)]
 pub struct MatAnimTable {
     rows: Arc<Vec<[f32; 4]>>,
     generation: u64,
@@ -112,48 +109,15 @@ pub fn affine_row(q: [f32; 4], scale: [f32; 2]) -> [f32; 4] {
 }
 
 impl MatAnimTable {
-    /// For gfx: every row and the generation, as [`upload_mat_anim`] reads them.
+    /// For gfx: every row and the generation, which gates the upload.
     pub(crate) fn gfx_rows(&self) -> (&[[f32; 4]], u64) {
         (self.rows.as_slice(), self.generation)
     }
 }
 
-/// Render world (`PrepareResources`): write the whole region to every carrying buffer when the
-/// generation moved.
-fn upload_mat_anim(
-    queue: Res<RenderQueue>,
-    shared: Option<Res<crate::lighting::SharedLightBuffer>>,
-    mirrors: Option<Res<MatAnimMirrors>>,
-    table: Option<Res<MatAnimTable>>,
-    mut last: Local<Option<u64>>,
-) {
-    let Some(table) = table else { return };
-    // The gate folds in the mirror count, so a mirror registered after the last write gets rows.
-    let mirrors = mirrors
-        .map(|m| m.0.values().cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
-    let gate = table.generation ^ ((mirrors.len() as u64) << 40);
-    if *last == Some(gate) {
-        return;
-    }
-    *last = Some(gate);
-    let rows = bytemuck::cast_slice(table.rows.as_slice());
-    for buffer in shared.iter().map(|s| &s.0).chain(mirrors.iter()) {
-        queue.write_buffer(buffer, region_offset(), rows);
-    }
-}
-
 pub fn plugin(app: &mut App) {
     app.init_resource::<MatAnimTable>()
-        .init_resource::<MatAnimMirrors>()
-        .add_plugins(ExtractResourcePlugin::<MatAnimTable>::default())
-        .add_plugins(ExtractResourcePlugin::<MatAnimMirrors>::default());
-    if let Some(render) = app.get_sub_app_mut(RenderApp) {
-        render.add_systems(
-            Render,
-            upload_mat_anim.in_set(RenderSystems::PrepareResources),
-        );
-    }
+        .init_resource::<MatAnimMirrors>();
 }
 
 #[cfg(test)]

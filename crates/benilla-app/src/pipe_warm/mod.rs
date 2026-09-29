@@ -5,21 +5,13 @@
 //! - [`WarmPass`] and `spawn_menagerie`: one tiny rig per reachable variant, spawned once the
 //!   entry cover is on screen and revealed [`WARM_REVEAL_PER_FRAME`] at a time so each frame's
 //!   compile batch is bounded; the cover holds on [`WarmPass::satisfied`] until the cache drains.
-//! - [`PipeWatch`]: counters shared by the main and render worlds, and whether a cover hides the
-//!   frame.
-//! - [`watch_pipelines`]: the tripwire, a `warn!` for every pipeline compiled uncovered, which
-//!   means the menagerie has a coverage hole.
-//! - `WOW_PIPE_TRACE=<path>`: one line per pipeline created, with its full variant identity.
+//! - [`PipeWatch`]: the pipeline counters the cover and the bakes wait on.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use bevy::render::render_resource::{CachedPipelineState, PipelineCache, PipelineDescriptor};
-use bevy::render::{Render, RenderApp, RenderSystems};
 
-use crate::char_select::ClientState;
-use crate::loading_screen::LoadingScreen;
 use benilla_assets::materials::WowModelMaterial;
 use benilla_world::model_render::MaterialCache;
 use benilla_world::particles::buffer::{
@@ -29,7 +21,7 @@ use benilla_world::particles::buffer::{
 mod menagerie;
 use menagerie::{spawn_menagerie, BoothCamQuery, WarmLanes};
 
-/// The channel between the main and render worlds, aligned to within one frame.
+/// The pipeline counters: gfx builds its pipelines on first draw, so both stay 0.
 #[derive(Resource, Clone)]
 pub(crate) struct PipeWatch(pub(crate) Arc<PipeShared>);
 
@@ -38,8 +30,6 @@ pub(crate) struct PipeShared {
     pub(crate) created: AtomicUsize,
     /// Of those, how many are `Ok` or a non-retryable `Err`; a retryable one reads as pending.
     pub(crate) settled: AtomicUsize,
-    /// An opaque cover hides the frame: the loading screen, or not `InWorld`.
-    pub(crate) covered: AtomicBool,
 }
 
 impl PipeWatch {
@@ -58,19 +48,10 @@ pub(crate) fn plugin(app: &mut App) {
     let shared = Arc::new(PipeShared {
         created: AtomicUsize::new(0),
         settled: AtomicUsize::new(0),
-        covered: AtomicBool::new(true),
     });
-    app.insert_resource(PipeWatch(shared.clone()));
+    app.insert_resource(PipeWatch(shared));
     app.init_resource::<WarmPass>();
-    app.add_systems(
-        Last,
-        (
-            publish_cover,
-            publish_compile_burst,
-            record_warmed_views,
-            census_view_classes,
-        ),
-    );
+    app.add_systems(Last, (record_warmed_views, census_view_classes));
     // Before Present, so the loading screen reads this frame's gate.
     app.add_systems(
         Update,
@@ -82,158 +63,6 @@ pub(crate) fn plugin(app: &mut App) {
         Update,
         warm_ui_quad_lane.in_set(crate::ui_pass::UiQuadAppend),
     );
-    let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-        return;
-    };
-    render_app.insert_resource(PipeWatch(shared));
-    render_app.add_systems(Render, watch_pipelines.in_set(RenderSystems::Cleanup));
-}
-
-/// Tell the render thread a compile burst is on, so it leaves the frame-critical QoS band.
-fn publish_compile_burst(warm: Res<WarmPass>) {
-    let bursting = warm.spawned_at.is_some() && !warm.done;
-    benilla_world::thread_qos::COMPILE_BURST.store(bursting, Ordering::Relaxed);
-}
-
-/// Publish whether the frame is covered to the render world.
-fn publish_cover(
-    watch: Res<PipeWatch>,
-    loading: Res<LoadingScreen>,
-    state: Res<State<ClientState>>,
-) {
-    let covered = loading.covering() || *state.get() != ClientState::InWorld;
-    watch.0.covered.store(covered, Ordering::Relaxed);
-}
-
-/// Count the cache's pipelines after it queues this frame's builds, and warn on any new one
-/// compiled uncovered. `seen` is the previous frame's count.
-fn watch_pipelines(
-    cache: Res<PipelineCache>,
-    watch: Res<PipeWatch>,
-    mut seen: Local<usize>,
-    mut settled_seen: Local<usize>,
-) {
-    let covered = watch.0.covered.load(Ordering::Relaxed);
-    // Early-out when nothing is new and everything had settled; queued pipelines settle later
-    // without `total` moving. `size_hint().0` is exact for the slice iterator behind it.
-    let total = cache.pipelines().size_hint().0;
-    if total == *seen && *settled_seen == total {
-        return;
-    }
-    let mut total = 0usize;
-    let mut settled = 0usize;
-    for (id, pipe) in cache.pipelines().enumerate() {
-        total += 1;
-        if matches!(
-            pipe.state,
-            CachedPipelineState::Ok(_) | CachedPipelineState::Err(_)
-        ) {
-            settled += 1;
-        }
-        if id >= *seen {
-            let line = describe(&pipe.descriptor);
-            if covered {
-                debug!("pipeline compiled (covered) [{id}] {line}");
-            } else {
-                // The tripwire: a live compile is a visible stall, and a warm pass coverage hole.
-                warn!("pipeline compiled LIVE [{id}] {line}");
-            }
-            if let Ok(path) = std::env::var("WOW_PIPE_TRACE") {
-                use std::io::Write;
-                if let Ok(mut f) = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&path)
-                {
-                    let cov = if covered { "covered" } else { "LIVE" };
-                    let _ = writeln!(f, "[{id}] {cov} {line}");
-                }
-            }
-        }
-    }
-    *seen = total;
-    *settled_seen = settled;
-    watch.0.created.store(total, Ordering::Relaxed);
-    watch.0.settled.store(settled, Ordering::Relaxed);
-}
-
-/// One greppable line of a pipeline's variant identity.
-fn describe(desc: &PipelineDescriptor) -> String {
-    fn defs(d: &[bevy::shader::ShaderDefVal]) -> String {
-        let mut v: Vec<String> = d
-            .iter()
-            .map(|d| match d {
-                bevy::shader::ShaderDefVal::Bool(k, true) => k.clone(),
-                bevy::shader::ShaderDefVal::Bool(k, false) => format!("!{k}"),
-                bevy::shader::ShaderDefVal::Int(k, i) => format!("{k}={i}"),
-                bevy::shader::ShaderDefVal::UInt(k, u) => format!("{k}={u}"),
-            })
-            .collect();
-        v.sort();
-        v.join("+")
-    }
-    match desc {
-        PipelineDescriptor::RenderPipelineDescriptor(d) => {
-            let label = d.label.as_deref().unwrap_or("?");
-            let vs = d
-                .vertex
-                .shader
-                .path()
-                .map_or_else(|| format!("{:?}", d.vertex.shader.id()), |p| p.to_string());
-            let vbufs: Vec<String> = d
-                .vertex
-                .buffers
-                .iter()
-                .map(|b| {
-                    let locs: Vec<String> = b
-                        .attributes
-                        .iter()
-                        .map(|a| a.shader_location.to_string())
-                        .collect();
-                    format!("stride{}@[{}]", b.array_stride, locs.join(","))
-                })
-                .collect();
-            let (bias, dw, cmp) = d.depth_stencil.as_ref().map_or_else(
-                || (0, false, String::from("none")),
-                |ds| {
-                    (
-                        ds.bias.constant,
-                        ds.depth_write_enabled,
-                        format!("{:?}", ds.depth_compare),
-                    )
-                },
-            );
-            let frag = d.fragment.as_ref().map_or_else(
-                || String::from("frag=none"),
-                |f| {
-                    let fs = f
-                        .shader
-                        .path()
-                        .map_or_else(|| format!("{:?}", f.shader.id()), |p| p.to_string());
-                    let tgt = f.targets.iter().flatten().next().map_or_else(
-                        || String::from("none"),
-                        |t| format!("blend={:?} mask={:?}", t.blend, t.write_mask),
-                    );
-                    format!("fs={fs} fs_defs=[{}] {tgt}", defs(&f.shader_defs))
-                },
-            );
-            format!(
-                "label={label} vs={vs} vs_defs=[{}] bufs=[{}] cull={:?} bias={bias} depth_write={dw} cmp={cmp} {frag} samples={}",
-                defs(&d.vertex.shader_defs),
-                vbufs.join(";"),
-                d.primitive.cull_mode,
-                d.multisample.count,
-            )
-        }
-        PipelineDescriptor::ComputePipelineDescriptor(d) => {
-            let label = d.label.as_deref().unwrap_or("?");
-            let cs = d
-                .shader
-                .path()
-                .map_or_else(|| format!("{:?}", d.shader.id()), |p| p.to_string());
-            format!("label={label} compute={cs} defs=[{}]", defs(&d.shader_defs))
-        }
-    }
 }
 
 /// Marker on every menagerie entity.

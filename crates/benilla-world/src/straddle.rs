@@ -20,9 +20,6 @@ use bevy::camera::primitives::Aabb;
 use bevy::camera::visibility::{NoFrustumCulling, RenderLayers};
 use bevy::mesh::MeshTag;
 use bevy::prelude::*;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::renderer::RenderQueue;
-use bevy::render::{Render, RenderApp, RenderSystems};
 
 use benilla_assets::materials::WowModelMaterial;
 
@@ -56,7 +53,7 @@ pub(crate) fn region_bytes() -> u64 {
 }
 
 /// The clip table by `MeshTag` rig slot; generation-stamped, so a dry world uploads nothing.
-#[derive(Resource, Clone, ExtractResource)]
+#[derive(Resource, Clone)]
 pub struct WaterClips {
     slots: Arc<Vec<ClipWord>>,
     generation: u64,
@@ -411,37 +408,15 @@ fn trace(what: &str, part: Entity) {
 }
 
 impl WaterClips {
-    /// For gfx: every slot's clip word and the generation, as [`upload_water_clips`] reads them.
+    /// For gfx: every slot's clip word and the generation, which gates the upload.
     pub(crate) fn gfx_slots(&self) -> (&[ClipWord], u64) {
         (self.slots.as_slice(), self.generation)
     }
 }
 
-/// Render world: write the whole region to the shared buffer on a change; studio buffers stay zero.
-fn upload_water_clips(
-    queue: Res<RenderQueue>,
-    shared: Option<Res<crate::lighting::SharedLightBuffer>>,
-    clips: Option<Res<WaterClips>>,
-    mut last: Local<Option<u64>>,
-) {
-    let (Some(shared), Some(clips)) = (shared, clips) else {
-        return;
-    };
-    if *last == Some(clips.generation) {
-        return;
-    }
-    *last = Some(clips.generation);
-    queue.write_buffer(
-        &shared.0,
-        region_offset(),
-        bytemuck::cast_slice(clips.slots.as_slice()),
-    );
-}
-
 /// The straddle split's registration.
 pub fn plugin(app: &mut App) {
     app.init_resource::<WaterClips>()
-        .add_plugins(ExtractResourcePlugin::<WaterClips>::default())
         .add_systems(
             Update,
             band_instances
@@ -452,12 +427,6 @@ pub fn plugin(app: &mut App) {
             PostUpdate,
             sync_straddle_twins.after(crate::zfill::sync_zfill_twins),
         );
-    if let Some(render) = app.get_sub_app_mut(RenderApp) {
-        render.add_systems(
-            Render,
-            upload_water_clips.in_set(RenderSystems::PrepareResources),
-        );
-    }
 }
 
 #[cfg(test)]

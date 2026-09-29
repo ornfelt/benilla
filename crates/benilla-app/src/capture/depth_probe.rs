@@ -14,21 +14,9 @@
 //! MSAA must be off (`WOW_MSAA=off`): a multisampled depth texture cannot be copied and has no
 //! single depth per pixel, so the probe refuses.
 
-use bevy::core_pipeline::core_3d::graph::{Core3d, Node3d};
-use bevy::ecs::query::QueryItem;
 use bevy::prelude::*;
 use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::render_graph::{
-    NodeRunError, RenderGraphContext, RenderGraphExt, RenderLabel, ViewNode, ViewNodeRunner,
-};
-use bevy::render::render_resource::{
-    Buffer, BufferDescriptor, BufferUsages, Extent3d, MapMode, Origin3d, TexelCopyBufferInfo,
-    TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureUsages,
-};
-use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::view::{ExtractedView, ViewDepthTexture};
-use bevy::render::{Render, RenderApp, RenderSystems};
+use bevy::render::render_resource::TextureUsages;
 
 use super::probes::ProbeClock;
 use benilla_world::particles::ParticleEmitter;
@@ -75,51 +63,9 @@ impl Plugin for DepthProbePlugin {
             PostUpdate,
             collect_quads.after(benilla_world::billboard::BillboardPlace),
         )
-        .add_plugins((
-            ExtractResourcePlugin::<DepthWatch>::default(),
-            ExtractResourcePlugin::<QuadProbes>::default(),
-            ExtractComponentPlugin::<DepthProbeView>::default(),
-        ));
-        // Under gfx there is no render app: the draw copies the depth itself.
-        if app.get_sub_app(RenderApp).is_none() {
-            gfx::build(app);
-            return;
-        }
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            warn!("depth: no render app — inert");
-            return;
-        };
-        render_app
-            .init_resource::<DepthFramesRead>()
-            .add_systems(
-                Render,
-                (
-                    prepare_staging.in_set(RenderSystems::PrepareResources),
-                    // The node encodes the copy in the graph; after submit, staging maps.
-                    read_depth.after(RenderSystems::Render),
-                ),
-            )
-            .add_render_graph_node::<ViewNodeRunner<DepthReadbackNode>>(Core3d, DepthReadbackLabel)
-            // After the opaque pass (`Opaque3d` and `AlphaMask3d`), before the transmissive one.
-            // The retained static pass draws before the opaque pass, so its walls are in the read.
-            // `WOW_DEPTH_AFTER=1` copies after the transparent pass instead, to read the depth the
-            // transparent pass itself wrote.
-            .add_render_graph_edges(
-                Core3d,
-                if std::env::var_os("WOW_DEPTH_AFTER").is_some() {
-                    (
-                        Node3d::MainTransparentPass,
-                        DepthReadbackLabel,
-                        Node3d::EndMainPass,
-                    )
-                } else {
-                    (
-                        Node3d::MainOpaquePass,
-                        DepthReadbackLabel,
-                        Node3d::MainTransmissivePass,
-                    )
-                },
-            );
+        .add_plugins(ExtractComponentPlugin::<DepthProbeView>::default());
+        // The gfx draw copies the depth itself.
+        gfx::build(app);
     }
 }
 
@@ -132,18 +78,11 @@ struct DepthWatch {
     armed: bool,
 }
 
-impl ExtractResource for DepthWatch {
-    type Source = DepthWatch;
-    fn extract_resource(source: &Self::Source) -> Self {
-        source.clone()
-    }
-}
-
 /// `$WOW_DEPTH_QUADS`'s bone scope: `None` = the mode is off, `Some([])` = every quad emitter.
 #[derive(Resource)]
 struct QuadWatch(Option<Vec<u16>>);
 
-/// One live particle quad, carried to the render world in the space the depth buffer is read in.
+/// One live particle quad, in the space the depth buffer is read in.
 #[derive(Clone, Copy)]
 struct QuadProbe {
     bone: u16,
@@ -162,13 +101,6 @@ struct QuadProbe {
 /// This frame's live quads, in `$WOW_DEPTH_QUADS` scope.
 #[derive(Resource, Clone, Default)]
 struct QuadProbes(Vec<QuadProbe>);
-
-impl ExtractResource for QuadProbes {
-    type Source = QuadProbes;
-    fn extract_resource(source: &Self::Source) -> Self {
-        source.clone()
-    }
-}
 
 /// Project every in-scope emitter's live quads into pixels, once a frame, from the shared effect
 /// stream `BillboardPlace` fills, so each quad is measured as drawn. Child-pool quads share the
@@ -256,14 +188,6 @@ fn parse_bones(spec: Option<&str>) -> Option<Vec<u16>> {
 #[derive(Component, Clone, Copy, ExtractComponent)]
 struct DepthProbeView;
 
-/// The staging buffer, kept across frames so a 24-frame burst allocates once.
-#[derive(Resource)]
-struct DepthStaging {
-    buffer: Buffer,
-    bytes_per_row: u32,
-    height: u32,
-}
-
 /// Once the sampling window opens, opt the world camera's depth texture into `COPY_SRC` and mark
 /// it; the live `Msaa` component being anything but off disables the probe.
 fn arm(
@@ -296,166 +220,6 @@ fn arm(
         watch.count
     );
     watch.armed = true;
-}
-
-/// Allocate the staging buffer to match the view's depth texture, before the graph runs.
-fn prepare_staging(
-    watch: Option<Res<DepthWatch>>,
-    view: Query<&ViewDepthTexture, With<DepthProbeView>>,
-    staging: Option<Res<DepthStaging>>,
-    device: Res<RenderDevice>,
-    mut commands: Commands,
-) {
-    let Some(watch) = watch else { return };
-    if !watch.armed {
-        return;
-    }
-    let Ok(depth) = view.single() else { return };
-    let size = depth.texture.size();
-    // `Depth32Float` is 4 bytes a texel; a buffer copy's row stride is 256-byte aligned.
-    let bytes_per_row = RenderDevice::align_copy_bytes_per_row(size.width as usize * 4) as u32;
-    if staging.is_some_and(|s| s.bytes_per_row == bytes_per_row && s.height == size.height) {
-        return;
-    }
-    commands.insert_resource(DepthStaging {
-        buffer: device.create_buffer(&BufferDescriptor {
-            label: Some("wow_depth_readback"),
-            size: u64::from(bytes_per_row) * u64::from(size.height),
-            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        }),
-        bytes_per_row,
-        height: size.height,
-    });
-}
-
-#[derive(RenderLabel, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct DepthReadbackLabel;
-
-/// Copies the depth texture right after the opaque pass. Read at the end of the main pass instead,
-/// it also holds depth the transparent pass wrote, from something that tracks the camera.
-#[derive(Default)]
-struct DepthReadbackNode;
-
-impl ViewNode for DepthReadbackNode {
-    type ViewQuery = (&'static ViewDepthTexture, &'static DepthProbeView);
-
-    fn run(
-        &self,
-        _graph: &mut RenderGraphContext,
-        render_context: &mut RenderContext,
-        (depth, _): QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let (Some(watch), Some(staging)) = (
-            world.get_resource::<DepthWatch>(),
-            world.get_resource::<DepthStaging>(),
-        ) else {
-            return Ok(());
-        };
-        // `read_depth` counts the frames; stop copying once the burst is done.
-        if !watch.armed || world.resource::<DepthFramesRead>().0 >= watch.count {
-            return Ok(());
-        }
-        // Quad mode with nothing live this frame: no copy, and `read_depth` does not count it.
-        if watch.pixels.is_empty()
-            && world
-                .get_resource::<QuadProbes>()
-                .is_none_or(|q| q.0.is_empty())
-        {
-            return Ok(());
-        }
-        let size = depth.texture.size();
-        // `COPY_SRC` lands only on the texture allocated after `arm`, so the first armed frame
-        // still has the old one.
-        if !depth.texture.usage().contains(TextureUsages::COPY_SRC) {
-            return Ok(());
-        }
-        // Depth-stencil formats reject partial copies (wgpu-core `validate_texture_copy_range`), so
-        // the whole texture goes across.
-        render_context.command_encoder().copy_texture_to_buffer(
-            TexelCopyTextureInfo {
-                texture: &depth.texture,
-                mip_level: 0,
-                origin: Origin3d::ZERO,
-                aspect: TextureAspect::DepthOnly,
-            },
-            TexelCopyBufferInfo {
-                buffer: &staging.buffer,
-                layout: TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(staging.bytes_per_row),
-                    rows_per_image: Some(size.height),
-                },
-            },
-            Extent3d {
-                width: size.width,
-                height: size.height,
-                depth_or_array_layers: 1,
-            },
-        );
-        Ok(())
-    }
-}
-
-/// How many frames [`read_depth`] has reported; a resource because the graph node reads it.
-#[derive(Resource, Default)]
-struct DepthFramesRead(u32);
-
-/// Map back what the node copied and log the named pixels.
-fn read_depth(
-    watch: Option<Res<DepthWatch>>,
-    quads: Option<Res<QuadProbes>>,
-    view: Query<&ExtractedView, With<DepthProbeView>>,
-    device: Res<RenderDevice>,
-    staging: Option<Res<DepthStaging>>,
-    depth: Query<&ViewDepthTexture, With<DepthProbeView>>,
-    mut read: ResMut<DepthFramesRead>,
-) {
-    let (Some(watch), Some(staging)) = (watch, staging) else {
-        return;
-    };
-    if !watch.armed || read.0 >= watch.count {
-        return;
-    }
-    // Mirrors the node's quad-mode skip: nothing was copied, and the frame is not counted.
-    let quads = quads.map(|q| q.0.clone()).unwrap_or_default();
-    if watch.pixels.is_empty() && quads.is_empty() {
-        return;
-    }
-    let (Ok(view), Ok(depth)) = (view.single(), depth.single()) else {
-        return;
-    };
-    // Mirrors the node's own skip: no copy was encoded this frame, so there is nothing to map.
-    if !depth.texture.usage().contains(TextureUsages::COPY_SRC) {
-        return;
-    }
-    let size = depth.texture.size();
-    let slice = staging.buffer.slice(..);
-    slice.map_async(MapMode::Read, |_| {});
-    // Block, so a frame's numbers never arrive under a later frame's index.
-    if let Err(e) = device.poll(bevy::render::render_resource::PollType::wait_indefinitely()) {
-        error!("depth: poll failed: {e}");
-        return;
-    }
-    let frame = read.0;
-    read.0 += 1;
-    {
-        let data = slice.get_mapped_range();
-        let depth_at = |x: u32, y: u32| {
-            let at = (y * staging.bytes_per_row + x * 4) as usize;
-            f32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]])
-        };
-        report_frame(
-            frame,
-            UVec2::new(size.width, size.height),
-            &view.clip_from_view,
-            &watch.pixels,
-            &quads,
-            depth_at,
-        );
-    }
-    staging.buffer.unmap();
 }
 
 /// Log one frame's named pixels and quads, `depth_at` reading the depth at a pixel of the

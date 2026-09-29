@@ -1,15 +1,13 @@
 //! The one shared global light, as the reference has a single scene light every draw reads.
 //!
-//! One persistent storage buffer, which every material binds at `storage(90)`: [`build_light_data`]
-//! packs the resolved light each frame and [`upload_light`] writes it in place. Material assets
-//! are never mutated after creation, since Bevy rebuilds the bind group of a mutated material.
+//! One persistent light buffer, which every material binds: [`build_light_data`] packs the
+//! resolved light each frame and the gfx pack writes it in place. Material assets are never
+//! mutated after creation.
 
 use benilla_formats::LiquidKind;
 use bevy::prelude::*;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{Buffer, BufferDescriptor, BufferUsages};
-use bevy::render::renderer::{RenderDevice, RenderQueue};
-use bevy::render::{Render, RenderApp, RenderSystems};
+use bevy::render::renderer::RenderDevice;
 
 use super::prop_probes::MAX_PROP_PROBES;
 use super::{sh, WowLighting};
@@ -32,8 +30,8 @@ use crate::view::WorldCamera;
 ///      fragment-only in the view layout and the point term is per vertex.
 ///
 /// The GPU buffer is larger: the interior-prop probes and the skin-palette regions follow this
-/// prefix. They stay out of this struct because the extract clones it by value every frame, and
-/// ~900 KB overflowed a render thread's stack.
+/// prefix. They stay out of this struct, which is copied by value every frame (~900 KB would
+/// overflow a thread's stack).
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct LightStd430 {
@@ -116,8 +114,8 @@ pub struct WorldPointLight {
     pub range: f32,
 }
 
-/// The packed light for this frame, extracted for [`upload_light`].
-#[derive(Resource, Clone, Copy, ExtractResource)]
+/// The packed light for this frame.
+#[derive(Resource, Clone, Copy)]
 struct WowLightData(LightStd430);
 
 impl Default for WowLightData {
@@ -129,18 +127,15 @@ impl Default for WowLightData {
     }
 }
 
-/// The persistent storage buffer every material binds, created by [`new_shared_light_buffer`] and
-/// extracted to the render world; a `Buffer` clone shares the GPU resource.
-#[derive(Resource, Clone, ExtractResource)]
+/// The persistent light buffer every material binds, created by [`new_shared_light_buffer`]; a
+/// `Buffer` clone shares the resource.
+#[derive(Resource, Clone)]
 pub struct SharedLightBuffer(pub Buffer);
 
-/// Registers the light pack, the probe publish, their extracts and the render-world uploads.
+/// Registers the light pack and the probe publish.
 pub(super) fn register(app: &mut App) {
     app.init_resource::<WowLightData>()
         .init_resource::<super::prop_probes::PropProbeExtract>()
-        .add_plugins(ExtractResourcePlugin::<WowLightData>::default())
-        .add_plugins(ExtractResourcePlugin::<SharedLightBuffer>::default())
-        .add_plugins(ExtractResourcePlugin::<super::prop_probes::PropProbeExtract>::default())
         // After transform propagation: a carried light (a torch in a hand) is a child of a moving
         // joint, so its `GlobalTransform` is this frame's only once `Propagate` has run.
         .add_systems(
@@ -149,16 +144,8 @@ pub(super) fn register(app: &mut App) {
                 .after(bevy::transform::TransformSystems::Propagate)
                 .after(super::update_time_lighting),
         )
-        // After the spawners (PostUpdate): publish the probe table for extraction on change.
+        // After the spawners (PostUpdate): publish the probe table on change.
         .add_systems(PostUpdate, super::prop_probes::publish_prop_probes);
-    // A headless build (no GPU, `backends: None`), as the schedule tests use, has no render app.
-    if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-        render_app.add_systems(
-            Render,
-            (upload_light, super::prop_probes::upload_prop_probes)
-                .in_set(RenderSystems::PrepareResources),
-        );
-    }
 }
 
 /// Creates the shared light buffer, sized by [`light_blob_bytes`], from the main-world
@@ -209,8 +196,8 @@ fn build_light_data(
     // River and lake share the non-ocean swatch.
     let (rs, rd, rsa, rda) = l.water_colors(LiquidKind::Still);
     let (os, od, osa, oda) = l.water_colors(LiquidKind::Ocean);
-    // Built in a scratch copy and written through `ResMut` only when a row moved: the extract
-    // clones this 8.5 KB blob every frame it reads as changed.
+    // Built in a scratch copy and written through `ResMut` only when a row moved, so the 8.5 KB
+    // blob reads as changed only then.
     let mut fresh = data.0;
     fresh.rows = [[0.0; 4]; LIGHT_HEADER_ROWS];
     let rows = &mut fresh.rows;
@@ -349,24 +336,11 @@ fn build_light_data(
     }
 }
 
-/// For gfx: the per-frame blob's rows, header then point table, as [`upload_light`] writes them.
+/// For gfx: the per-frame blob's rows, header then point table.
 pub(crate) fn gfx_light_rows(world: &World) -> Option<&[[f32; 4]]> {
     world
         .get_resource::<WowLightData>()
         .map(|d| bytemuck::cast_slice(bytemuck::bytes_of(&d.0)))
-}
-
-/// Render world, in `PrepareResources`: writes the packed light into the shared buffer before any
-/// draw reads it.
-fn upload_light(
-    queue: Res<RenderQueue>,
-    buffer: Option<Res<SharedLightBuffer>>,
-    data: Option<Res<WowLightData>>,
-) {
-    let (Some(buffer), Some(data)) = (buffer, data) else {
-        return;
-    };
-    queue.write_buffer(&buffer.0, 0, bytemuck::bytes_of(&data.0));
 }
 
 #[cfg(test)]

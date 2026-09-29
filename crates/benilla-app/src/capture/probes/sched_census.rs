@@ -1,16 +1,14 @@
-//! `WOW_SCHED_CENSUS=1`: per schedule in both worlds, every system with its executor flags
-//! (non-`Send`, exclusive, has-deferred). Bevy removes a running schedule from `Schedules`
-//! (`World::schedule_scope`), so two vantages per world cover each other: `Update`/`PostUpdate`
-//! in main, `ExtractSchedule`/`Render` in the render app. Only the `Main`/`RenderStartup` runners
-//! stay unseen.
+//! `WOW_SCHED_CENSUS=1`: per schedule, every system with its executor flags (non-`Send`,
+//! exclusive, has-deferred). Bevy removes a running schedule from `Schedules`
+//! (`World::schedule_scope`), so two vantages cover each other: `Update` and `PostUpdate`. Only
+//! the `Main` runner stays unseen.
 
 use bevy::prelude::*;
-use bevy::render::{ExtractSchedule, Render, RenderApp};
 
 /// The frame to dump at: late enough that every schedule has run once.
 const CENSUS_FRAME: u32 = 10;
 
-/// The frame the run exits at; the pipelined render app runs a frame behind [`CENSUS_FRAME`].
+/// The frame the run exits at, well after [`CENSUS_FRAME`].
 const EXIT_FRAME: u32 = 40;
 
 /// The census; the graph is fixed once plugins build, so a login-screen run answers for all states.
@@ -22,13 +20,6 @@ impl Plugin for SchedCensusPlugin {
             .add_systems(Update, census_vantage("main", "Update"))
             .add_systems(PostUpdate, census_vantage("main", "PostUpdate"))
             .add_systems(Last, census_exit);
-        // The render app is still a sub-app here; pipelining detaches it at cleanup.
-        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app
-                .init_resource::<DumpedSchedules>()
-                .add_systems(ExtractSchedule, census_vantage("render", "Extract"))
-                .add_systems(Render, census_vantage("render", "Render"));
-        }
     }
 }
 
@@ -111,7 +102,7 @@ fn dump_schedule(
     }
 }
 
-/// Exits once both worlds have printed.
+/// Exits once both vantages have printed.
 fn census_exit(mut frame: Local<u32>, mut exit: MessageWriter<AppExit>) {
     *frame += 1;
     if *frame == EXIT_FRAME {

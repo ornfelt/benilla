@@ -15,7 +15,6 @@ use benilla_assets::coords::wow_to_bevy;
 use crate::boot;
 use crate::build_id::BuildId;
 use crate::terrain_stream::SPAWN_XY;
-use crate::thread_qos;
 
 /// Where the viewer opens, in WoW world coords: Northshire, the client's own boot anchor
 /// ([`crate::terrain_stream::SPAWN_XY`]), so both binaries stream the same tiles.
@@ -114,7 +113,6 @@ pub fn run(build: BuildId) -> AppExit {
         },
         ..default()
     }))
-    .add_plugins(thread_qos::ThreadQosPlugin)
     .add_plugins(crate::bgwin::BgWinPlugin)
     // macOS `Cmd+Q` is wired to `terminate:`, which leaves the event loop with no `AppExit`, and
     // `report_check` needs one for the exit code.

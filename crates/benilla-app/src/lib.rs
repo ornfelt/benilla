@@ -94,7 +94,6 @@ mod shaders;
 
 mod game_tip;
 mod name_persist;
-mod opaque2d;
 /// Where "the client is going down" is observed, in `Last`; every system that persists state on the
 /// way out registers through it.
 mod shutdown;
@@ -354,7 +353,6 @@ pub fn run(build: BuildId) -> AppExit {
         },
         ..default()
     }))
-    .add_plugins(benilla_world::thread_qos::ThreadQosPlugin)
     // Undoes winit's forced macOS app activation for background runs; the window-side half is the
     // `Window` above.
     .add_plugins(benilla_world::bgwin::BgWinPlugin)
@@ -380,28 +378,6 @@ pub fn run(build: BuildId) -> AppExit {
 
     // benilla-assets' loaders go into the live `AssetServer`, so they register after `AssetPlugin`.
     benilla_assets::register_asset_loaders(&mut app);
-
-    // `ExtractSchedule` runs single-threaded too: bevy_render leaves it multi-threaded, with no
-    // non-Send member, and single-threaded measured faster. `WOW_MT_EXTRACT=1` restores it.
-    //
-    // `Render` stays multi-threaded: under pipelined rendering that executor is also bevy's route
-    // for non-Send systems to the main thread, and `create_surfaces` needs it because macOS makes a
-    // Metal layer only on the UI thread (the single-threaded executor panics at startup).
-    //
-    // Set here because the render sub-app exists only once the plugin chain has built.
-    if std::env::var_os("WOW_MT_EXTRACT").is_none() {
-        if let Some(render_app) = app.get_sub_app_mut(bevy::render::RenderApp) {
-            render_app.edit_schedule(bevy::render::ExtractSchedule, |s| {
-                s.set_executor_kind(bevy::ecs::schedule::ExecutorKind::SingleThreaded);
-            });
-            println!(
-                "executor: ExtractSchedule -> single-threaded (the default; WOW_MT_EXTRACT=1 for MT)"
-            );
-        } else {
-            // A missing sub-app would silently flip nothing.
-            eprintln!("executor: no render app — ExtractSchedule flip NOT applied");
-        }
-    }
 
     // The probe fleet, last so it observes the fully-built app; compiled out by
     // `--no-default-features`.

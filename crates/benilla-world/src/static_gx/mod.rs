@@ -21,7 +21,6 @@ mod bake;
 mod cull;
 mod gfx;
 mod pick;
-mod pool;
 mod render;
 
 /// The doodad spatial cell, a quarter ADT tile (133⅓ yd), as `terrain_stream::merge::CELL`.
@@ -101,13 +100,8 @@ pub(crate) fn gx_perf_enabled() -> bool {
     *ON.get_or_init(|| std::env::var_os("WOW_GX_PERF").is_some())
 }
 
-/// Lifetime bytes of texture-array VRAM the pool has allocated, never decremented.
-pub(crate) static GX_VRAM: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// Nanosecond accumulators: flush, cull, publish, prepare, node.
-pub(crate) static GX_PERF: [std::sync::atomic::AtomicU64; 5] = [
-    std::sync::atomic::AtomicU64::new(0),
-    std::sync::atomic::AtomicU64::new(0),
+/// Nanosecond accumulators: flush, cull, publish.
+pub(crate) static GX_PERF: [std::sync::atomic::AtomicU64; 3] = [
     std::sync::atomic::AtomicU64::new(0),
     std::sync::atomic::AtomicU64::new(0),
     std::sync::atomic::AtomicU64::new(0),
@@ -140,7 +134,7 @@ struct GxItem {
     /// The owner tile, read only by [`StaticGx::release_owner`]; regions follow their instance.
     owner: (i32, i32),
     texture: Option<AssetId<bevy::image::Image>>,
-    /// Keeps the render world's `GpuImage` alive under the baked cell; the id alone holds nothing.
+    /// Keeps the image alive under the baked cell; the id alone holds nothing.
     _texture_handle: Option<Handle<bevy::image::Image>>,
     cutout: bool,
     two_sided: bool,

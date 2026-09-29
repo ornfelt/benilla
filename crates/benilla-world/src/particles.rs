@@ -653,8 +653,7 @@ pub struct ParticlePlugin;
 
 impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(render::EffectLanePlugin)
-            .init_resource::<ParticleTuning>()
+        app.init_resource::<ParticleTuning>()
             .init_resource::<buffer::EffectQuads>()
             // After the billboard joint palette: an emitter on a billboarded bone must read this
             // frame's replaced pose, which an `Update` read loses (avian's fixed-loop sync

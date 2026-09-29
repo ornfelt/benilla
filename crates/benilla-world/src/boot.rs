@@ -29,8 +29,7 @@ pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
         })
         // Asset loads parse synchronously on the IO pool, and Bevy's default 4 threads saturate on
         // a dense teleport. Workers spawn at default QoS, behind any background build:
-        // compute is user-interactive, IO and async compute user-initiated, and
-        // `ThreadQosPlugin` promotes the render thread from inside.
+        // compute is user-interactive, IO and async compute user-initiated.
         .set(TaskPoolPlugin {
             task_pool_options: TaskPoolOptions {
                 io: bevy::app::TaskPoolThreadAssignmentPolicy {

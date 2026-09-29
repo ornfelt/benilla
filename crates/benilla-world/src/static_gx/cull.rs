@@ -289,7 +289,7 @@ pub(super) fn cull_cells(
         cell.settled = if unarmed_left { None } else { verdict };
         if bits_changed {
             if let Some(draw) = world.cells.get_mut(&key) {
-                // Copy-on-write: the region is shared with the render world's extracted clone.
+                // Copy-on-write: the region is shared with the published `GxWorld`.
                 let draw = std::sync::Arc::make_mut(draw);
                 // Rebuilt whole from the states, so a re-bake's new indices cannot drift.
                 draw.killed.iter_mut().for_each(|w| *w = 0);
@@ -545,14 +545,8 @@ pub(super) fn cull_cells(
             .map(|a| a.swap(0, Relaxed) as f64 / 64.0 / 1.0e6)
             .collect();
         println!(
-            "GX_PERF ms/frame flush={:.3} cull={:.3} publish={:.3} prepare={:.3} node={:.3} \
-             arrays_mb={}",
-            ms[0],
-            ms[1],
-            ms[2],
-            ms[3],
-            ms[4],
-            super::GX_VRAM.load(Relaxed) / (1024 * 1024)
+            "GX_PERF ms/frame flush={:.3} cull={:.3} publish={:.3}",
+            ms[0], ms[1], ms[2],
         );
     }
 }

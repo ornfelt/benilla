@@ -12,9 +12,6 @@ use bevy::math::Affine3A;
 use bevy::mesh::skinning::SkinnedMeshInverseBindposes;
 use bevy::platform::collections::HashSet;
 use bevy::prelude::*;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::renderer::RenderQueue;
-use bevy::render::{Render, RenderApp, RenderSystems};
 
 use crate::mesh_tag::MAX_RIG_SLOTS;
 use crate::vis_chain::VisChainOnly;
@@ -69,8 +66,6 @@ pub struct RigPalettes {
     /// Slot → the world position its rows are measured from, written with the rows.
     origins: Arc<Vec<[f32; 4]>>,
     origin_generation: u64,
-    /// Bumped only for a mirrored slot's origin, so world traffic skips the booth buffers.
-    origin_mirror_generation: u64,
     /// Per-slot bone count; 0 = free slot.
     slot_len: Vec<u32>,
     free_slots: Vec<u16>,
@@ -104,7 +99,6 @@ impl Default for RigPalettes {
             table: Arc::new(vec![0; MAX_RIG_SLOTS]),
             origins: Arc::new(vec![[0.0; 4]; MAX_RIG_SLOTS]),
             origin_generation: 0,
-            origin_mirror_generation: 0,
             slot_len: vec![0; MAX_RIG_SLOTS],
             mirrored: vec![false; MAX_RIG_SLOTS],
             free_slots: Vec::new(),
@@ -288,9 +282,6 @@ impl RigPalettes {
         }
         Arc::make_mut(&mut self.origins)[s] = word;
         self.origin_generation += 1;
-        if self.mirrored[s] {
-            self.origin_mirror_generation += 1;
-        }
     }
 
     /// Rewrite one rig's rows from its joints' globals relative to `origin`, the holder's
@@ -413,9 +404,6 @@ impl RigPalettes {
         if let Some(m) = self.mirrored.get_mut(slot as usize) {
             *m = true;
         }
-        // Push the origin table to the mirrors unconditionally: the generation only moves for an
-        // already-mirrored slot, so an origin written before this call would never reach them.
-        self.origin_mirror_generation += 1;
     }
 
     /// The mouseover picker's read: the slot's world-space palette, origin added back.
@@ -642,8 +630,8 @@ fn compute_rig_palettes(
     }
 }
 
-/// The render-world mirror: `Arc` bumps and the frame's dirty ranges.
-#[derive(Resource, Clone, ExtractResource)]
+/// The published palette: `Arc` bumps and the frame's dirty ranges.
+#[derive(Resource, Clone)]
 struct RigPaletteExtract {
     rows: Arc<Vec<[f32; 4]>>,
     table: Arc<Vec<u32>>,
@@ -651,7 +639,6 @@ struct RigPaletteExtract {
     dirty: Arc<Vec<(u32, u32, bool)>>,
     table_generation: u64,
     origin_generation: u64,
-    origin_mirror_generation: u64,
 }
 
 impl Default for RigPaletteExtract {
@@ -664,12 +651,11 @@ impl Default for RigPaletteExtract {
             // != RigPalettes' initial 0, so the first publish uploads even an empty table.
             table_generation: u64::MAX,
             origin_generation: u64::MAX,
-            origin_mirror_generation: u64::MAX,
         }
     }
 }
 
-/// Main world, after the compute: hand the frame's dirty ranges and the shared rows to extraction.
+/// Main world, after the compute: publish the frame's dirty ranges and the shared rows.
 fn publish_rig_palettes(mut palettes: ResMut<RigPalettes>, mut out: ResMut<RigPaletteExtract>) {
     if palettes.dirty.is_empty()
         && out.table_generation == palettes.table_generation
@@ -694,10 +680,9 @@ fn publish_rig_palettes(mut palettes: ResMut<RigPalettes>, mut out: ResMut<RigPa
     out.dirty = Arc::new(std::mem::take(&mut p.dirty));
     out.table_generation = p.table_generation;
     out.origin_generation = p.origin_generation;
-    out.origin_mirror_generation = p.origin_mirror_generation;
 }
 
-/// For gfx: the published palette as [`upload_rig_palettes`] reads it.
+/// For gfx: the published palette.
 pub(crate) struct GfxPaletteView<'a> {
     pub rows: &'a [[f32; 4]],
     pub table: &'a [u32],
@@ -724,131 +709,10 @@ pub(crate) fn gfx_palettes(world: &World) -> Option<GfxPaletteView<'_>> {
 }
 
 /// The glue and portrait booths' studio light buffers, which mirror the palette regions.
-#[derive(Resource, Clone, Default, ExtractResource)]
+#[derive(Resource, Clone, Default)]
 pub struct RigPaletteMirrors(
     pub std::collections::HashMap<&'static str, bevy::render::render_resource::Buffer>,
 );
-
-/// What the last upload put on the GPU; `dirty` is the published `Arc`'s pointer.
-#[derive(Default)]
-struct UploadedGenerations {
-    table: Option<u64>,
-    dirty: u64,
-    origin: Option<u64>,
-    origin_mirror: Option<u64>,
-}
-
-/// Render world (`PrepareResources`): write the dirty rows, and on change the slot and origin
-/// tables, into the shared buffer and every mirror.
-fn upload_rig_palettes(
-    queue: Res<RenderQueue>,
-    shared: Option<Res<crate::lighting::SharedLightBuffer>>,
-    mirrors: Option<Res<RigPaletteMirrors>>,
-    data: Option<Res<RigPaletteExtract>>,
-    mut last: Local<UploadedGenerations>,
-) {
-    let Some(data) = data else { return };
-    // The extract clones every frame, so gate on content.
-    let dirty_ptr = Arc::as_ptr(&data.dirty) as u64;
-    let table_new = last.table != Some(data.table_generation);
-    let dirty_new = last.dirty != dirty_ptr && !data.dirty.is_empty();
-    // The 32 KB origin table is written whole; the mirrors gate on their own generation.
-    let origin_new = last.origin != Some(data.origin_generation) && !data.origins.is_empty();
-    let origin_mirror_new =
-        last.origin_mirror != Some(data.origin_mirror_generation) && !data.origins.is_empty();
-    if !table_new && !dirty_new && !origin_new && !origin_mirror_new {
-        return;
-    }
-    *last = UploadedGenerations {
-        table: Some(data.table_generation),
-        dirty: dirty_ptr,
-        origin: Some(data.origin_generation),
-        origin_mirror: Some(data.origin_mirror_generation),
-    };
-    let cost_t0 = rig_cost_enabled().then(std::time::Instant::now);
-    let mut cost_calls = 0u32;
-    let mut cost_bytes = 0u64;
-    // Coalesce first: each `write_buffer` call costs far more than its bytes.
-    let all = coalesce_ranges(data.dirty.iter().map(|&(b, l, _)| (b, l)).collect());
-    let mirrored_only = coalesce_ranges(
-        data.dirty
-            .iter()
-            .filter(|&&(_, _, m)| m)
-            .map(|&(b, l, _)| (b, l))
-            .collect(),
-    );
-    // Every target takes the slot table; the booth mirrors take only the mirrored ranges.
-    let targets = shared
-        .iter()
-        .map(|s| (&s.0, false))
-        .chain(mirrors.iter().flat_map(|m| m.0.values().map(|b| (b, true))));
-    for (buffer, mirror_only) in targets {
-        if table_new && !data.table.is_empty() {
-            queue.write_buffer(
-                buffer,
-                rig_table_region_offset(),
-                bytemuck::cast_slice(&data.table),
-            );
-        }
-        if if mirror_only {
-            origin_mirror_new
-        } else {
-            origin_new
-        } {
-            queue.write_buffer(
-                buffer,
-                rig_origin_region_offset(),
-                bytemuck::cast_slice(&data.origins),
-            );
-            cost_calls += 1;
-            cost_bytes += rig_origin_region_bytes();
-        }
-        if dirty_new {
-            let ranges = if mirror_only { &mirrored_only } else { &all };
-            for &(base, len) in ranges {
-                let rows = &data.rows[3 * base as usize..3 * (base + len) as usize];
-                queue.write_buffer(
-                    buffer,
-                    palette_region_offset() + base as u64 * BONE_BYTES,
-                    bytemuck::cast_slice(rows),
-                );
-                cost_calls += 1;
-                cost_bytes += len as u64 * BONE_BYTES;
-            }
-        }
-    }
-    if let Some(t0) = cost_t0 {
-        eprintln!(
-            "[rig-upload] calls={cost_calls} kb={} ms={:.3}",
-            cost_bytes / 1024,
-            t0.elapsed().as_secs_f32() * 1000.0
-        );
-    }
-}
-
-/// The widest gap, in bones, two dirty runs may leave and still upload as one `write_buffer`: a
-/// call's fixed cost (a staging buffer each) is about what re-sending this many live rows costs.
-const COALESCE_GAP_BONES: u32 = 256;
-
-/// Merge `(base, len)` bone ranges that overlap or lie within [`COALESCE_GAP_BONES`] into runs.
-fn coalesce_ranges(ranges: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
-    coalesce_ranges_with_gap(ranges, COALESCE_GAP_BONES)
-}
-
-fn coalesce_ranges_with_gap(mut ranges: Vec<(u32, u32)>, gap: u32) -> Vec<(u32, u32)> {
-    ranges.sort_unstable_by_key(|r| r.0);
-    let mut out: Vec<(u32, u32)> = Vec::with_capacity(ranges.len());
-    for (base, len) in ranges {
-        if let Some(last) = out.last_mut() {
-            if base <= last.0 + last.1 + gap {
-                last.1 = (base + len).max(last.0 + last.1) - last.0;
-                continue;
-            }
-        }
-        out.push((base, len));
-    }
-    out
-}
 
 /// `WOW_RIG_CENSUS=<secs>` (unparseable: 5): a periodic line of who holds the palette's slots, by
 /// lane, with a bones-per-slot histogram, denials, and the prop-probe table's occupancy: probes
@@ -937,8 +801,6 @@ pub fn plugin(app: &mut App) {
     app.init_resource::<RigPalettes>()
         .init_resource::<RigPaletteExtract>()
         .init_resource::<RigPaletteMirrors>()
-        .add_plugins(ExtractResourcePlugin::<RigPaletteExtract>::default())
-        .add_plugins(ExtractResourcePlugin::<RigPaletteMirrors>::default())
         .add_systems(Update, census_rig_palettes)
         .add_systems(
             PostUpdate,
@@ -952,12 +814,6 @@ pub fn plugin(app: &mut App) {
                 // which rewrites joint `GlobalTransform`s in place.
                 .after(crate::billboard::BillboardPlace),
         );
-    if let Some(render) = app.get_sub_app_mut(RenderApp) {
-        render.add_systems(
-            Render,
-            upload_rig_palettes.in_set(RenderSystems::PrepareResources),
-        );
-    }
 }
 
 /// Spawn one entity per bone of a model's rest skeleton, each with a [`RigJoint`] to `holder`,
@@ -1198,35 +1054,6 @@ mod tests {
         assert_ne!(p.origins[slot as usize], [0.0; 4]);
         p.free(slot);
         assert_eq!(p.origins[slot as usize], [0.0; 4]);
-    }
-
-    #[test]
-    fn dirty_ranges_coalesce_into_runs() {
-        // Adjacent and overlapping merge, a hole splits, input order does not matter.
-        assert_eq!(
-            coalesce_ranges_with_gap(vec![(70, 5), (0, 10), (10, 20), (25, 10), (40, 5)], 0),
-            vec![(0, 35), (40, 5), (70, 5)]
-        );
-        assert_eq!(coalesce_ranges(Vec::new()), Vec::new());
-    }
-
-    #[test]
-    fn dirty_ranges_bridge_small_gaps_but_not_large_ones() {
-        // A parked rig between two live ones is bridged; a wider gap still splits.
-        assert_eq!(
-            coalesce_ranges_with_gap(vec![(0, 10), (14, 6), (30, 5)], 4),
-            vec![(0, 20), (30, 5)]
-        );
-        // The shipped tolerance bridges a gap of exactly its size and no more.
-        let g = COALESCE_GAP_BONES;
-        assert_eq!(
-            coalesce_ranges(vec![(0, 10), (10 + g, 5)]),
-            vec![(0, 15 + g)]
-        );
-        assert_eq!(
-            coalesce_ranges(vec![(0, 10), (11 + g, 5)]),
-            vec![(0, 10), (11 + g, 5)]
-        );
     }
 
     #[test]

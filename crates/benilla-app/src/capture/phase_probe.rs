@@ -3,15 +3,7 @@
 //! submitted. `WOW_PHASE_AT=<secs>` (default 20) and `WOW_PHASE_COUNT=<n>` (default 1) shape the
 //! sampling like the screenshot burst and the ray pick. Only the main 3D view's phases are read.
 
-use bevy::core_pipeline::core_3d::{AlphaMask3d, Opaque3d, Transparent3d};
 use bevy::prelude::*;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::mesh::RenderMesh;
-use bevy::render::render_asset::RenderAssets;
-use bevy::render::render_phase::{ViewBinnedRenderPhases, ViewSortedRenderPhases};
-use bevy::render::sync_world::MainEntity;
-use bevy::render::texture::GpuImage;
-use bevy::render::{Render, RenderApp, RenderSystems};
 
 use super::probes::ProbeClock;
 use benilla_assets::materials::WowModelMaterial;
@@ -64,23 +56,13 @@ impl Plugin for PhaseProbePlugin {
             batches: Vec::new(),
             armed: false,
         })
-        .add_systems(Update, (collect_batches, collect_emitters))
-        .add_plugins(ExtractResourcePlugin::<PhaseWatch>::default());
-        // Under gfx there is no render app: the draw keeps its phase lists itself.
-        if app.get_sub_app(RenderApp).is_none() {
-            gfx::build(app);
-            return;
-        }
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            warn!("phase: no render app — inert");
-            return;
-        };
-        // After `PhaseSort`, so membership and order are final.
-        render_app.add_systems(Render, report_phases.after(RenderSystems::PhaseSort));
+        .add_systems(Update, (collect_batches, collect_emitters));
+        // The gfx draw keeps its phase lists itself.
+        gfx::build(app);
     }
 }
 
-/// The watch list and the sampling window, cloned into the render world.
+/// The watch list and the sampling window.
 #[derive(Resource, Clone)]
 struct PhaseWatch {
     /// The placement `uniqueId` whose batches to follow.
@@ -96,15 +78,8 @@ struct PhaseWatch {
     armed: bool,
 }
 
-impl ExtractResource for PhaseWatch {
-    type Source = PhaseWatch;
-    fn extract_resource(source: &Self::Source) -> Self {
-        source.clone()
-    }
-}
-
 /// One watched batch: entity, WMO batch order (or emitter bone), how it draws, and in particles
-/// mode the mesh and texture asset ids the render half resolves to GPU-side state.
+/// mode the mesh and texture asset ids the report resolves to device-side state.
 type WatchedBatch = (
     Entity,
     i32,
@@ -241,141 +216,4 @@ fn collect_emitters(
     );
     watch.batches = found;
     watch.armed = true;
-}
-
-/// Where each watched batch sits in each phase, this frame.
-fn report_phases(
-    watch: Option<Res<PhaseWatch>>,
-    opaque: Res<ViewBinnedRenderPhases<Opaque3d>>,
-    alpha_mask: Res<ViewBinnedRenderPhases<AlphaMask3d>>,
-    transparent: Res<ViewSortedRenderPhases<Transparent3d>>,
-    render_meshes: Res<RenderAssets<RenderMesh>>,
-    gpu_images: Res<RenderAssets<GpuImage>>,
-    mut seen: Local<u32>,
-) {
-    let Some(watch) = watch else { return };
-    if !watch.armed || *seen >= watch.count {
-        return;
-    }
-    let frame = *seen;
-    *seen += 1;
-    // The whole-frame census first, which sees draws outside the watch list.
-    let transparent_total: usize = transparent.values().map(|p| p.items.len()).sum();
-    info!(
-        "phase#{frame} CENSUS opaque {} alphamask {} transparent {}",
-        binned_total(&opaque),
-        binned_total(&alpha_mask),
-        transparent_total,
-    );
-    // `particles` mode: the last 25 transparent items, drawn over everything else.
-    if watch.particles {
-        if let Some(phase) = transparent.values().max_by_key(|p| p.items.len()) {
-            let n = phase.items.len();
-            for (i, item) in phase.items.iter().enumerate().skip(n.saturating_sub(25)) {
-                info!(
-                    "phase#{frame} tail @{i} {:?} dist {:.3}",
-                    item.entity.1, item.distance
-                );
-            }
-        }
-    }
-    for &(entity, submesh, ref blend, assets) in &watch.batches {
-        // What the GPU-side copies hold: an item with no `RenderMesh`, or whose texture never
-        // became a `GpuImage` (no material bind group), silently draws nothing.
-        let gpu = assets.map(|(mesh_id, tex_id)| {
-            let mesh = match mesh_id {
-                // The shared effect lane: no per-emitter mesh asset exists to check.
-                None => "shared-lane".to_string(),
-                Some(id) => match render_meshes.get(id) {
-                    None => "gpu_mesh MISSING".to_string(),
-                    Some(m) => format!("gpu_verts {}", m.vertex_count),
-                },
-            };
-            let tex = match gpu_images.get(tex_id) {
-                None => "gpu_tex MISSING".to_string(),
-                Some(img) => format!("gpu_tex {:?}", img.texture_format),
-            };
-            format!("{mesh} {tex}")
-        });
-        let main = MainEntity::from(entity);
-        let mut found = Vec::new();
-        // The main view is the phase map holding the most entities; shadow and prepass bin subsets.
-        if let Some(pos) = binned_position::<Opaque3d>(&opaque, main) {
-            found.push(format!("Opaque3d @{pos}"));
-        }
-        if let Some(pos) = binned_position::<AlphaMask3d>(&alpha_mask, main) {
-            found.push(format!("AlphaMask3d @{pos}"));
-        }
-        for phase in transparent.values() {
-            if let Some(pos) = phase.items.iter().position(|item| item.entity.1 == main) {
-                // The sort key too: view-space z plus the material's depth bias, ascending =
-                // farthest first (`benilla_world::sky_order`).
-                found.push(format!(
-                    "Transparent3d @{pos} d {:.3}",
-                    phase.items[pos].distance
-                ));
-            }
-        }
-        // Keyed by entity: batch order is per WMO group, so one placement repeats orders.
-        info!(
-            "phase#{frame} {entity} batch order {submesh:3} {blend:10} {} -> {}",
-            gpu.as_deref().unwrap_or(""),
-            if found.is_empty() {
-                "NOT SUBMITTED".to_string()
-            } else {
-                found.join(", ")
-            }
-        );
-    }
-}
-
-/// The entity's draw position within the largest binned phase for `BPI`, in bin iteration order.
-fn binned_position<BPI>(phases: &ViewBinnedRenderPhases<BPI>, main: MainEntity) -> Option<usize>
-where
-    BPI: bevy::render::render_phase::BinnedPhaseItem,
-{
-    let phase = phases.values().max_by_key(|p| {
-        p.multidrawable_meshes
-            .values()
-            .map(|bins| bins.values().map(|b| b.entities().len()).sum::<usize>())
-            .sum::<usize>()
-            + p.batchable_meshes
-                .values()
-                .map(|b| b.entities().len())
-                .sum::<usize>()
-    })?;
-    let mut n = 0usize;
-    for bins in phase.multidrawable_meshes.values() {
-        for bin in bins.values() {
-            if let Some(i) = bin.entities().get_index_of(&main) {
-                return Some(n + i);
-            }
-            n += bin.entities().len();
-        }
-    }
-    for bin in phase.batchable_meshes.values() {
-        if let Some(i) = bin.entities().get_index_of(&main) {
-            return Some(n + i);
-        }
-        n += bin.entities().len();
-    }
-    None
-}
-
-/// How many entities the largest binned phase for `BPI` holds this frame.
-fn binned_total<BPI>(phases: &ViewBinnedRenderPhases<BPI>) -> usize
-where
-    BPI: bevy::render::render_phase::BinnedPhaseItem,
-{
-    let count = |p: &bevy::render::render_phase::BinnedRenderPhase<BPI>| {
-        p.multidrawable_meshes
-            .values()
-            .map(|bins| bins.values().map(|b| b.entities().len()).sum::<usize>())
-            .sum::<usize>()
-            + p.batchable_meshes
-                .values()
-                .map(|b| b.entities().len())
-                .sum::<usize>()
-    };
-    phases.values().map(count).max().unwrap_or(0)
 }

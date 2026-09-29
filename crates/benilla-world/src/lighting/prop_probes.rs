@@ -10,7 +10,6 @@ use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::math::Vec4;
 use bevy::prelude::*;
-use bevy::render::extract_resource::ExtractResource;
 
 /// Capacity of the probe table, mirrored by `wow_model.wgsl`'s `prop_probes` array (keep in sync):
 /// a city WMO streams in thousands of lit interior props at once.
@@ -28,7 +27,7 @@ impl ProbeKey {
 
 /// The main-world slot table: a slab whose freed slots recycle first, with identical probes sharing
 /// a refcounted slot (without it a login scene's prop WMOs overflow the table). The rows sit behind
-/// an `Arc`: the render extract is a pointer bump, and `make_mut` copies when a change races it.
+/// an `Arc`: the publish is a pointer bump, and `make_mut` copies when a change races it.
 #[derive(Resource)]
 pub struct PropProbes {
     rows: Arc<Vec<[[f32; 4]; 7]>>,
@@ -154,8 +153,8 @@ impl PropProbes {
     }
 }
 
-/// The render-world mirror of the probe table, an `Arc` bump per frame.
-#[derive(Resource, Clone, ExtractResource)]
+/// The published probe table, an `Arc` bump per change.
+#[derive(Resource, Clone)]
 pub(crate) struct PropProbeExtract {
     rows: Arc<Vec<[[f32; 4]; 7]>>,
     high: usize,
@@ -176,7 +175,7 @@ impl Default for PropProbeExtract {
     }
 }
 
-/// Main world, after the spawners: publishes the table for extraction when it changed.
+/// Main world, after the spawners: publishes the table when it changed.
 pub(super) fn publish_prop_probes(
     mut probes: ResMut<PropProbes>,
     mut out: ResMut<PropProbeExtract>,
@@ -195,7 +194,7 @@ pub(super) fn publish_prop_probes(
     }
 }
 
-/// For gfx: the published probe table as [`upload_prop_probes`] reads it: the rows, the
+/// For gfx: the published probe table: the rows, the
 /// allocated span, the generation and the span it changed (`None`: everything).
 #[allow(clippy::type_complexity)]
 pub(crate) fn gfx_prop_probes(
@@ -209,40 +208,6 @@ pub(crate) fn gfx_prop_probes(
 /// Byte offset of the probe region in the shared light buffer, right after the per-frame blob.
 pub fn prop_probe_region_offset() -> u64 {
     super::global_light::per_frame_blob_bytes()
-}
-
-/// Render world, in `PrepareResources`: writes the probe region when the table changed; the
-/// per-frame upload writes only the prefix, so the region persists between changes.
-pub(super) fn upload_prop_probes(
-    queue: Res<bevy::render::renderer::RenderQueue>,
-    buffer: Option<Res<super::SharedLightBuffer>>,
-    data: Option<Res<PropProbeExtract>>,
-    mut last: Local<Option<u64>>,
-) {
-    let (Some(buffer), Some(data)) = (buffer, data) else {
-        return;
-    };
-    if *last == Some(data.generation) {
-        return;
-    }
-    // Only the changed span when this follows the last upload; the whole allocated span on the
-    // first upload and after an unseen generation, so the GPU never keeps a rewritten row.
-    let high = data.high.min(data.rows.len());
-    let (lo, hi) = match (data.dirty, *last) {
-        (Some((lo, hi)), Some(seen)) if seen.wrapping_add(1) == data.generation => {
-            (lo.min(high), hi.min(high))
-        }
-        _ => (0, high),
-    };
-    *last = Some(data.generation);
-    let rows = &data.rows[lo..hi];
-    if !rows.is_empty() {
-        queue.write_buffer(
-            &buffer.0,
-            prop_probe_region_offset() + (lo * std::mem::size_of::<[[f32; 4]; 7]>()) as u64,
-            bytemuck::cast_slice(rows),
-        );
-    }
 }
 
 /// On one entity per lit interior prop; its hook returns the slot to the table. `on_replace`, not

@@ -19,9 +19,6 @@
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::renderer::RenderQueue;
-use bevy::render::{Render, RenderApp, RenderSystems};
 
 use crate::mesh_tag::MAX_RIG_SLOTS;
 
@@ -54,14 +51,14 @@ pub fn pack(rgb: [u8; 3]) -> u32 {
 /// `0x525261` via `0x47a230`), so a ghost's portrait is untinted, and ours carry the world unit's
 /// rig slot. The glue scene is on it: its character is the instance the reference tints
 /// (`0x472939` into `0x710cf0`, the char-select ghost) and has a slot of its own.
-#[derive(Resource, Clone, Default, ExtractResource)]
+#[derive(Resource, Clone, Default)]
 pub struct InstanceTintMirrors(
     pub std::collections::HashMap<&'static str, bevy::render::render_resource::Buffer>,
 );
 
-/// The per-slot tint table, indexed by the `MeshTag` rig slot; `Arc`-shared for a cheap extract
+/// The per-slot tint table, indexed by the `MeshTag` rig slot; `Arc`-shared for a cheap clone
 /// and generation-stamped so an untinted world uploads nothing.
-#[derive(Resource, Clone, ExtractResource)]
+#[derive(Resource, Clone)]
 pub struct InstanceTints {
     slots: Arc<Vec<u32>>,
     generation: u64,
@@ -102,47 +99,15 @@ impl InstanceTints {
 }
 
 impl InstanceTints {
-    /// For gfx: every slot's word and the generation, as [`upload_instance_tints`] reads them.
+    /// For gfx: every slot's word and the generation, which gates the upload.
     pub(crate) fn gfx_slots(&self) -> (&[u32], u64) {
         (self.slots.as_slice(), self.generation)
     }
 }
 
-/// Render world (`PrepareResources`): writes the whole 8 KB region when the generation changed.
-fn upload_instance_tints(
-    queue: Res<RenderQueue>,
-    shared: Option<Res<crate::lighting::SharedLightBuffer>>,
-    mirrors: Option<Res<InstanceTintMirrors>>,
-    tints: Option<Res<InstanceTints>>,
-    mut last: Local<Option<u64>>,
-) {
-    let Some(tints) = tints else { return };
-    // The mirror count is in the gate, so a mirror registered after the last write still fills.
-    let mirrors = mirrors
-        .map(|m| m.0.values().cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
-    let gate = tints.generation ^ ((mirrors.len() as u64) << 40);
-    if *last == Some(gate) {
-        return;
-    }
-    *last = Some(gate);
-    let words = bytemuck::cast_slice(tints.slots.as_slice());
-    for buffer in shared.iter().map(|s| &s.0).chain(mirrors.iter()) {
-        queue.write_buffer(buffer, region_offset(), words);
-    }
-}
-
 pub fn plugin(app: &mut App) {
     app.init_resource::<InstanceTints>()
-        .init_resource::<InstanceTintMirrors>()
-        .add_plugins(ExtractResourcePlugin::<InstanceTints>::default())
-        .add_plugins(ExtractResourcePlugin::<InstanceTintMirrors>::default());
-    if let Some(render) = app.get_sub_app_mut(RenderApp) {
-        render.add_systems(
-            Render,
-            upload_instance_tints.in_set(RenderSystems::PrepareResources),
-        );
-    }
+        .init_resource::<InstanceTintMirrors>();
 }
 
 #[cfg(test)]
