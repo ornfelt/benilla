@@ -169,10 +169,6 @@ version = "0.2"
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"
 
-[target.'cfg(target_os = "android")'.dependencies.bevy_android]
-version = "0.18.0"
-default-features = false
-
 [lints.clippy]
 alloc_instead_of_core = "warn"
 allow_attributes = "warn"

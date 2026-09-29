@@ -30,9 +30,23 @@ repository files (`.github/`, `.gitignore`, `.cargo/`, lint and format configs, 
 `CONTRIBUTING.md` and the like). `avian_derive` publishes no licence files; it has `avian3d`'s,
 the same repository's.
 
-Four crates stay in `Cargo.lock` from crates.io and are never compiled: `bevy_audio`,
-`bevy_dev_tools`, `bevy_feathers` and `bevy_ui_widgets`, optional dependencies of `bevy_internal`
-behind features benilla leaves off. They leave the lock when `bevy_internal` is trimmed.
+## What is cut
+
+- **Whole crates:** `bevy_gltf`, `bevy_gilrs`, `bevy_anti_alias` and `bevy_android`. benilla names
+  `GltfPlugin`, `GilrsPlugin` and `AntiAliasPlugin` only to disable them in `DefaultPlugins`, so
+  each is an empty stand-in in `bevy_internal/src/cut.rs` at its old path (`bevy::gltf`,
+  `bevy::gilrs`, `bevy::anti_alias`) and in its old slot of the group; `bevy_asset`, `bevy_winit`
+  and `bevy_derive` lost the Android branches that named `bevy_android` (benilla builds for
+  Linux, Windows and macOS).
+- **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
+  manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
+  avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each
+  enabling what it did minus the cut crates; `bevy`'s examples, tests, dev-dependencies, profiles
+  and `dynamic_linking` are gone. The optional dependencies no kept feature reaches left with them
+  (`bevy_audio`, `bevy_dev_tools`, `bevy_feathers`, `bevy_ui_widgets`, `bevy_solari`,
+  `bevy_remote`, `bevy_camera_controller`; `bevy_winit` stays a crate for bevy_egui and
+  benilla-gfx, not a `bevy` feature), and so did every crate only they pulled (gltf, gilrs, cpal,
+  rodio and their platform crates).
 
 ## How to check
 

@@ -476,12 +476,10 @@ impl AssetSource {
         _path: String,
     ) -> impl FnMut() -> Box<dyn ErasedAssetReader> + Send + Sync {
         move || {
-            #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+            #[cfg(not(target_arch = "wasm32"))]
             return Box::new(super::file::FileAssetReader::new(&_path));
             #[cfg(target_arch = "wasm32")]
             return Box::new(super::wasm::HttpWasmAssetReader::new(&_path));
-            #[cfg(target_os = "android")]
-            return Box::new(super::android::AndroidAssetReader);
         }
     }
 
@@ -491,12 +489,12 @@ impl AssetSource {
         _path: String,
     ) -> impl FnMut(bool) -> Option<Box<dyn ErasedAssetWriter>> + Send + Sync {
         move |_create_root: bool| {
-            #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+            #[cfg(not(target_arch = "wasm32"))]
             return Some(Box::new(super::file::FileAssetWriter::new(
                 &_path,
                 _create_root,
             )));
-            #[cfg(any(target_arch = "wasm32", target_os = "android"))]
+            #[cfg(target_arch = "wasm32")]
             return None;
         }
     }
@@ -505,19 +503,9 @@ impl AssetSource {
     pub fn get_default_watch_warning() -> &'static str {
         #[cfg(target_arch = "wasm32")]
         return "Web does not currently support watching assets.";
-        #[cfg(target_os = "android")]
-        return "Android does not currently support watching assets.";
-        #[cfg(all(
-            not(target_arch = "wasm32"),
-            not(target_os = "android"),
-            not(feature = "file_watcher")
-        ))]
+        #[cfg(all(not(target_arch = "wasm32"), not(feature = "file_watcher")))]
         return "Consider enabling the `file_watcher` feature.";
-        #[cfg(all(
-            not(target_arch = "wasm32"),
-            not(target_os = "android"),
-            feature = "file_watcher"
-        ))]
+        #[cfg(all(not(target_arch = "wasm32"), feature = "file_watcher"))]
         return "Consider adding an \"assets\" directory.";
     }
 
@@ -527,14 +515,10 @@ impl AssetSource {
     /// Higher durations reduce duplicates but increase the amount of time before a change event is processed. If the
     /// duration is set too low, some systems might surface events _before_ their filesystem has the changes.
     #[cfg_attr(
-        any(
-            not(feature = "file_watcher"),
-            target_arch = "wasm32",
-            target_os = "android"
-        ),
+        any(not(feature = "file_watcher"), target_arch = "wasm32"),
         expect(
             unused_variables,
-            reason = "The `path` and `file_debounce_wait_time` arguments are unused when on WASM, Android, or if the `file_watcher` feature is disabled."
+            reason = "The `path` and `file_debounce_wait_time` arguments are unused when on WASM, or if the `file_watcher` feature is disabled."
         )
     )]
     pub fn get_default_watcher(
@@ -543,11 +527,7 @@ impl AssetSource {
     ) -> impl FnMut(async_channel::Sender<AssetSourceEvent>) -> Option<Box<dyn AssetWatcher>> + Send + Sync
     {
         move |sender: async_channel::Sender<AssetSourceEvent>| {
-            #[cfg(all(
-                feature = "file_watcher",
-                not(target_arch = "wasm32"),
-                not(target_os = "android")
-            ))]
+            #[cfg(all(feature = "file_watcher", not(target_arch = "wasm32")))]
             {
                 let path = super::file::get_base_path().join(path.clone());
                 if path.exists() {
@@ -566,11 +546,7 @@ impl AssetSource {
                     None
                 }
             }
-            #[cfg(any(
-                not(feature = "file_watcher"),
-                target_arch = "wasm32",
-                target_os = "android"
-            ))]
+            #[cfg(any(not(feature = "file_watcher"), target_arch = "wasm32"))]
             return None;
         }
     }

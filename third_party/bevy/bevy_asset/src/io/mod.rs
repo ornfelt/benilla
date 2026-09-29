@@ -5,8 +5,6 @@ compile_error!(
     when compiling to Wasm"
 );
 
-#[cfg(target_os = "android")]
-pub mod android;
 pub mod embedded;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod file;
@@ -775,11 +773,11 @@ pub(crate) fn get_meta_path(path: &Path) -> PathBuf {
     meta_path
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+#[cfg(target_arch = "wasm32")]
 /// A [`PathBuf`] [`Stream`] implementation that immediately returns nothing.
 struct EmptyPathStream;
 
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+#[cfg(target_arch = "wasm32")]
 impl Stream for EmptyPathStream {
     type Item = PathBuf;
 

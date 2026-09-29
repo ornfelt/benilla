@@ -40,10 +40,6 @@ pub use bevy_derive::{bevy_main, Deref, DerefMut};
 pub use crate::asset::prelude::*;
 
 #[doc(hidden)]
-#[cfg(feature = "bevy_audio")]
-pub use crate::audio::prelude::*;
-
-#[doc(hidden)]
 #[cfg(feature = "bevy_animation")]
 pub use crate::animation::prelude::*;
 
@@ -94,10 +90,6 @@ pub use crate::gilrs::*;
 #[doc(hidden)]
 #[cfg(feature = "bevy_state")]
 pub use crate::state::prelude::*;
-
-#[doc(hidden)]
-#[cfg(feature = "bevy_gltf")]
-pub use crate::gltf::prelude::*;
 
 #[doc(hidden)]
 #[cfg(feature = "bevy_picking")]

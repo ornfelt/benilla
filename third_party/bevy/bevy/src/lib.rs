@@ -50,12 +50,3 @@
 #![no_std]
 
 pub use bevy_internal::*;
-
-// Wasm does not support dynamic linking.
-#[cfg(all(feature = "dynamic_linking", not(target_family = "wasm")))]
-#[expect(
-    unused_imports,
-    clippy::single_component_path_imports,
-    reason = "This causes Bevy to be compiled as a dylib when using dynamic linking and therefore cannot be removed or changed without affecting dynamic linking."
-)]
-use bevy_dylib;

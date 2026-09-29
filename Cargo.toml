@@ -61,10 +61,8 @@ kira = { path = "third_party/kira" }
 # (`third_party/bevy/BENILLA.md`).
 bevy = { path = "third_party/bevy/bevy" }
 bevy_a11y = { path = "third_party/bevy/bevy_a11y" }
-bevy_android = { path = "third_party/bevy/bevy_android" }
 bevy_animation = { path = "third_party/bevy/bevy_animation" }
 bevy_animation_macros = { path = "third_party/bevy/bevy_animation_macros" }
-bevy_anti_alias = { path = "third_party/bevy/bevy_anti_alias" }
 bevy_app = { path = "third_party/bevy/bevy_app" }
 bevy_asset = { path = "third_party/bevy/bevy_asset" }
 bevy_asset_macros = { path = "third_party/bevy/bevy_asset_macros" }
@@ -76,11 +74,9 @@ bevy_diagnostic = { path = "third_party/bevy/bevy_diagnostic" }
 bevy_ecs = { path = "third_party/bevy/bevy_ecs" }
 bevy_ecs_macros = { path = "third_party/bevy/bevy_ecs_macros" }
 bevy_encase_derive = { path = "third_party/bevy/bevy_encase_derive" }
-bevy_gilrs = { path = "third_party/bevy/bevy_gilrs" }
 bevy_gizmos = { path = "third_party/bevy/bevy_gizmos" }
 bevy_gizmos_macros = { path = "third_party/bevy/bevy_gizmos_macros" }
 bevy_gizmos_render = { path = "third_party/bevy/bevy_gizmos_render" }
-bevy_gltf = { path = "third_party/bevy/bevy_gltf" }
 bevy_image = { path = "third_party/bevy/bevy_image" }
 bevy_input = { path = "third_party/bevy/bevy_input" }
 bevy_input_focus = { path = "third_party/bevy/bevy_input_focus" }

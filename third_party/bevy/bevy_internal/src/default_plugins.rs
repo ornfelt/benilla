@@ -1,5 +1,12 @@
 use bevy_app::{plugin_group, Plugin};
 
+#[cfg(feature = "bevy_anti_alias")]
+use crate::anti_alias;
+#[cfg(feature = "bevy_gilrs")]
+use crate::gilrs;
+#[cfg(feature = "bevy_gltf")]
+use crate::gltf;
+
 plugin_group! {
     /// This plugin group will add all the default plugins for a *Bevy* application:
     pub struct DefaultPlugins {
@@ -21,19 +28,10 @@ plugin_group! {
         #[cfg(feature = "std")]
         #[custom(cfg(any(all(unix, not(target_os = "horizon")), windows)))]
         bevy_app:::TerminalCtrlCHandlerPlugin,
-        // NOTE: Load this before AssetPlugin to properly register http asset sources.
-        #[cfg(feature = "bevy_asset")]
-        #[custom(cfg(any(feature = "http", feature = "https")))]
-        bevy_asset::io::web:::WebAssetPlugin,
         #[cfg(feature = "bevy_asset")]
         bevy_asset:::AssetPlugin,
         #[cfg(feature = "bevy_scene")]
         bevy_scene:::ScenePlugin,
-        // NOTE: WinitPlugin needs to be after AssetPlugin because of custom cursors.
-        #[cfg(feature = "bevy_winit")]
-        bevy_winit:::WinitPlugin,
-        #[custom(cfg(all(feature = "dlss", not(feature = "force_disable_dlss"))))]
-        bevy_anti_alias::dlss:::DlssInitPlugin,
         #[cfg(feature = "bevy_render")]
         bevy_render:::RenderPlugin,
         // NOTE: Load this after renderer initialization so that it knows about the supported
@@ -54,7 +52,7 @@ plugin_group! {
         #[cfg(feature = "bevy_post_process")]
         bevy_post_process:::PostProcessPlugin,
         #[cfg(feature = "bevy_anti_alias")]
-        bevy_anti_alias:::AntiAliasPlugin,
+        anti_alias:::AntiAliasPlugin,
         #[cfg(feature = "bevy_sprite")]
         bevy_sprite:::SpritePlugin,
         #[cfg(feature = "bevy_sprite_render")]
@@ -67,14 +65,11 @@ plugin_group! {
         bevy_ui_render:::UiRenderPlugin,
         #[cfg(feature = "bevy_pbr")]
         bevy_pbr:::PbrPlugin,
-        // NOTE: Load this after renderer initialization so that it knows about the supported
-        // compressed texture formats.
+        // A stand-in, as are `AntiAliasPlugin` and `GilrsPlugin` (`crate::cut`).
         #[cfg(feature = "bevy_gltf")]
-        bevy_gltf:::GltfPlugin,
-        #[cfg(feature = "bevy_audio")]
-        bevy_audio:::AudioPlugin,
+        gltf:::GltfPlugin,
         #[cfg(feature = "bevy_gilrs")]
-        bevy_gilrs:::GilrsPlugin,
+        gilrs:::GilrsPlugin,
         #[cfg(feature = "bevy_animation")]
         bevy_animation:::AnimationPlugin,
         #[cfg(feature = "bevy_gizmos")]
@@ -83,10 +78,6 @@ plugin_group! {
         bevy_gizmos_render:::GizmoRenderPlugin,
         #[cfg(feature = "bevy_state")]
         bevy_state::app:::StatesPlugin,
-        #[cfg(feature = "bevy_ci_testing")]
-        bevy_dev_tools::ci_testing:::CiTestingPlugin,
-        #[cfg(feature = "hotpatching")]
-        bevy_app::hotpatch:::HotPatchPlugin,
         #[plugin_group]
         #[cfg(feature = "bevy_picking")]
         bevy_picking:::DefaultPickingPlugins,
@@ -141,8 +132,6 @@ plugin_group! {
         bevy_diagnostic:::FrameCountPlugin,
         bevy_time:::TimePlugin,
         bevy_app:::ScheduleRunnerPlugin,
-        #[cfg(feature = "bevy_ci_testing")]
-        bevy_dev_tools::ci_testing:::CiTestingPlugin,
     }
     /// This plugin group represents the absolute minimum, bare-bones, bevy application.
     /// Use this if you want to have absolute control over the plugins used.
