@@ -65,11 +65,6 @@ version = "0.18.0"
 [dependencies.bevy_mesh]
 version = "0.18.0"
 
-[dependencies.bevy_platform]
-version = "0.18.0"
-features = ["std"]
-default-features = false
-
 [dependencies.bevy_reflect]
 version = "0.18.0"
 
@@ -82,15 +77,13 @@ version = "0.18.0"
 [dependencies.bevy_sprite]
 version = "0.18.0"
 
-[dependencies.bevy_transform]
-version = "0.18.0"
-
 [dependencies.bevy_utils]
 version = "0.18.0"
 
 [dependencies.bitflags]
 version = "2.3"
 
+# Unused here: it keeps bytemuck's `must_cast` feature on for the whole build.
 [dependencies.bytemuck]
 version = "1"
 features = [
@@ -101,11 +94,6 @@ features = [
 [dependencies.derive_more]
 version = "2"
 features = ["from"]
-default-features = false
-
-[dependencies.tracing]
-version = "0.1"
-features = ["std"]
 default-features = false
 
 [lints.clippy]

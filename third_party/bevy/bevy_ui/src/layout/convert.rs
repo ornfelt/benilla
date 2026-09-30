@@ -1,10 +1,8 @@
 use taffy::style_helpers;
 
 use crate::{
-    AlignContent, AlignItems, AlignSelf, BoxSizing, Display, FlexDirection, FlexWrap, GridAutoFlow,
-    GridPlacement, GridTrack, GridTrackRepetition, JustifyContent, JustifyItems, JustifySelf,
-    MaxTrackSizingFunction, MinTrackSizingFunction, Node, OverflowAxis, PositionType,
-    RepeatedGridTrack, UiRect, Val,
+    AlignContent, AlignItems, AlignSelf, BoxSizing, Display, FlexDirection, FlexWrap,
+    JustifyContent, Node, OverflowAxis, PositionType, UiRect, Val,
 };
 
 use super::LayoutContext;
@@ -76,9 +74,7 @@ pub fn from_node(node: &Node, context: &LayoutContext, ignore_border: bool) -> t
         flex_direction: node.flex_direction.into(),
         flex_wrap: node.flex_wrap.into(),
         align_items: node.align_items.into(),
-        justify_items: node.justify_items.into(),
         align_self: node.align_self.into(),
-        justify_self: node.justify_self.into(),
         align_content: node.align_content.into(),
         justify_content: node.justify_content.into(),
         inset: taffy::Rect {
@@ -121,29 +117,10 @@ pub fn from_node(node: &Node, context: &LayoutContext, ignore_border: bool) -> t
             width: node.column_gap.into_length_percentage(context),
             height: node.row_gap.into_length_percentage(context),
         },
-        grid_auto_flow: node.grid_auto_flow.into(),
-        grid_template_rows: node
-            .grid_template_rows
-            .iter()
-            .map(|track| track.clone_into_repeated_taffy_track(context))
-            .collect::<Vec<_>>(),
-        grid_template_columns: node
-            .grid_template_columns
-            .iter()
-            .map(|track| track.clone_into_repeated_taffy_track(context))
-            .collect::<Vec<_>>(),
-        grid_auto_rows: node
-            .grid_auto_rows
-            .iter()
-            .map(|track| track.into_taffy_track(context))
-            .collect::<Vec<_>>(),
-        grid_auto_columns: node
-            .grid_auto_columns
-            .iter()
-            .map(|track| track.into_taffy_track(context))
-            .collect::<Vec<_>>(),
-        grid_row: node.grid_row.into(),
-        grid_column: node.grid_column.into(),
+        // A UI root is an item of its implicit grid viewport; `GridPlacement`'s default
+        // (no start or end, span 1) converted to `span 1` on both lines, not taffy's `auto`.
+        grid_row: style_helpers::span(1),
+        grid_column: style_helpers::span(1),
         ..Default::default()
     }
 }
@@ -163,19 +140,6 @@ impl From<AlignItems> for Option<taffy::style::AlignItems> {
     }
 }
 
-impl From<JustifyItems> for Option<taffy::style::JustifyItems> {
-    fn from(value: JustifyItems) -> Self {
-        match value {
-            JustifyItems::Default => None,
-            JustifyItems::Start => taffy::style::JustifyItems::Start.into(),
-            JustifyItems::End => taffy::style::JustifyItems::End.into(),
-            JustifyItems::Center => taffy::style::JustifyItems::Center.into(),
-            JustifyItems::Baseline => taffy::style::JustifyItems::Baseline.into(),
-            JustifyItems::Stretch => taffy::style::JustifyItems::Stretch.into(),
-        }
-    }
-}
-
 impl From<AlignSelf> for Option<taffy::style::AlignSelf> {
     fn from(value: AlignSelf) -> Self {
         match value {
@@ -187,19 +151,6 @@ impl From<AlignSelf> for Option<taffy::style::AlignSelf> {
             AlignSelf::Center => taffy::style::AlignSelf::Center.into(),
             AlignSelf::Baseline => taffy::style::AlignSelf::Baseline.into(),
             AlignSelf::Stretch => taffy::style::AlignSelf::Stretch.into(),
-        }
-    }
-}
-
-impl From<JustifySelf> for Option<taffy::style::JustifySelf> {
-    fn from(value: JustifySelf) -> Self {
-        match value {
-            JustifySelf::Auto => None,
-            JustifySelf::Start => taffy::style::JustifySelf::Start.into(),
-            JustifySelf::End => taffy::style::JustifySelf::End.into(),
-            JustifySelf::Center => taffy::style::JustifySelf::Center.into(),
-            JustifySelf::Baseline => taffy::style::JustifySelf::Baseline.into(),
-            JustifySelf::Stretch => taffy::style::JustifySelf::Stretch.into(),
         }
     }
 }
@@ -242,7 +193,6 @@ impl From<Display> for taffy::style::Display {
     fn from(value: Display) -> Self {
         match value {
             Display::Flex => taffy::style::Display::Flex,
-            Display::Grid => taffy::style::Display::Grid,
             Display::Block => taffy::style::Display::Block,
             Display::None => taffy::style::Display::None,
         }
@@ -299,151 +249,6 @@ impl From<FlexWrap> for taffy::style::FlexWrap {
     }
 }
 
-impl From<GridAutoFlow> for taffy::style::GridAutoFlow {
-    fn from(value: GridAutoFlow) -> Self {
-        match value {
-            GridAutoFlow::Row => taffy::style::GridAutoFlow::Row,
-            GridAutoFlow::RowDense => taffy::style::GridAutoFlow::RowDense,
-            GridAutoFlow::Column => taffy::style::GridAutoFlow::Column,
-            GridAutoFlow::ColumnDense => taffy::style::GridAutoFlow::ColumnDense,
-        }
-    }
-}
-
-impl From<GridPlacement> for taffy::geometry::Line<taffy::style::GridPlacement<String>> {
-    fn from(value: GridPlacement) -> Self {
-        let span = value.get_span().unwrap_or(1);
-        match (value.get_start(), value.get_end()) {
-            (Some(start), Some(end)) => taffy::geometry::Line {
-                start: style_helpers::line(start),
-                end: style_helpers::line(end),
-            },
-            (Some(start), None) => taffy::geometry::Line {
-                start: style_helpers::line(start),
-                end: style_helpers::span(span),
-            },
-            (None, Some(end)) => taffy::geometry::Line {
-                start: style_helpers::span(span),
-                end: style_helpers::line(end),
-            },
-            (None, None) => style_helpers::span(span),
-        }
-    }
-}
-
-impl MinTrackSizingFunction {
-    fn into_taffy(self, context: &LayoutContext) -> taffy::style::MinTrackSizingFunction {
-        match self {
-            MinTrackSizingFunction::Px(val) => Val::Px(val).into_length_percentage(context).into(),
-            MinTrackSizingFunction::Percent(val) => {
-                Val::Percent(val).into_length_percentage(context).into()
-            }
-            MinTrackSizingFunction::Auto => taffy::style::MinTrackSizingFunction::auto(),
-            MinTrackSizingFunction::MinContent => {
-                taffy::style::MinTrackSizingFunction::min_content()
-            }
-            MinTrackSizingFunction::MaxContent => {
-                taffy::style::MinTrackSizingFunction::max_content()
-            }
-            MinTrackSizingFunction::VMin(val) => {
-                Val::VMin(val).into_length_percentage(context).into()
-            }
-            MinTrackSizingFunction::VMax(val) => {
-                Val::VMax(val).into_length_percentage(context).into()
-            }
-            MinTrackSizingFunction::Vh(val) => Val::Vh(val).into_length_percentage(context).into(),
-            MinTrackSizingFunction::Vw(val) => Val::Vw(val).into_length_percentage(context).into(),
-        }
-    }
-}
-
-impl MaxTrackSizingFunction {
-    fn into_taffy(self, context: &LayoutContext) -> taffy::style::MaxTrackSizingFunction {
-        match self {
-            MaxTrackSizingFunction::Px(val) => Val::Px(val).into_length_percentage(context).into(),
-            MaxTrackSizingFunction::Percent(val) => {
-                Val::Percent(val).into_length_percentage(context).into()
-            }
-            MaxTrackSizingFunction::Auto => taffy::style::MaxTrackSizingFunction::auto(),
-            MaxTrackSizingFunction::MinContent => {
-                taffy::style::MaxTrackSizingFunction::min_content()
-            }
-            MaxTrackSizingFunction::MaxContent => {
-                taffy::style::MaxTrackSizingFunction::max_content()
-            }
-            MaxTrackSizingFunction::FitContentPx(val) => {
-                taffy::style::MaxTrackSizingFunction::fit_content_px(
-                    Val::Px(val)
-                        .into_length_percentage(context)
-                        .into_raw()
-                        .value(),
-                )
-            }
-            MaxTrackSizingFunction::FitContentPercent(val) => {
-                taffy::style::MaxTrackSizingFunction::fit_content_percent(
-                    Val::Percent(val)
-                        .into_length_percentage(context)
-                        .into_raw()
-                        .value(),
-                )
-            }
-            MaxTrackSizingFunction::Fraction(fraction) => {
-                taffy::style::MaxTrackSizingFunction::fr(fraction)
-            }
-            MaxTrackSizingFunction::VMin(val) => {
-                Val::VMin(val).into_length_percentage(context).into()
-            }
-            MaxTrackSizingFunction::VMax(val) => {
-                Val::VMax(val).into_length_percentage(context).into()
-            }
-            MaxTrackSizingFunction::Vh(val) => Val::Vh(val).into_length_percentage(context).into(),
-            MaxTrackSizingFunction::Vw(val) => Val::Vw(val).into_length_percentage(context).into(),
-        }
-    }
-}
-
-impl GridTrack {
-    fn into_taffy_track(self, context: &LayoutContext) -> taffy::style::TrackSizingFunction {
-        let min = self.min_sizing_function.into_taffy(context);
-        let max = self.max_sizing_function.into_taffy(context);
-        style_helpers::minmax(min, max)
-    }
-}
-
-impl RepeatedGridTrack {
-    fn clone_into_repeated_taffy_track(
-        &self,
-        context: &LayoutContext,
-    ) -> taffy::style::GridTemplateComponent<String> {
-        if self.tracks.len() == 1 && self.repetition == GridTrackRepetition::Count(1) {
-            let min = self.tracks[0].min_sizing_function.into_taffy(context);
-            let max = self.tracks[0].max_sizing_function.into_taffy(context);
-            let taffy_track = style_helpers::minmax(min, max);
-            taffy::GridTemplateComponent::Single(taffy_track)
-        } else {
-            let taffy_tracks: Vec<_> = self
-                .tracks
-                .iter()
-                .map(|track| {
-                    let min = track.min_sizing_function.into_taffy(context);
-                    let max = track.max_sizing_function.into_taffy(context);
-                    style_helpers::minmax(min, max)
-                })
-                .collect();
-
-            match self.repetition {
-                GridTrackRepetition::Count(count) => style_helpers::repeat(count, taffy_tracks),
-                GridTrackRepetition::AutoFit => {
-                    style_helpers::repeat(taffy::style::RepetitionCount::AutoFit, taffy_tracks)
-                }
-                GridTrackRepetition::AutoFill => {
-                    style_helpers::repeat(taffy::style::RepetitionCount::AutoFill, taffy_tracks)
-                }
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use bevy_math::Vec2;
@@ -470,8 +275,6 @@ mod tests {
             align_items: AlignItems::Baseline,
             align_self: AlignSelf::Start,
             align_content: AlignContent::SpaceAround,
-            justify_items: JustifyItems::Default,
-            justify_self: JustifySelf::Center,
             justify_content: JustifyContent::SpaceEvenly,
             margin: UiRect {
                 left: Val::ZERO,
@@ -507,25 +310,6 @@ mod tests {
             scrollbar_width: 7.,
             column_gap: Val::ZERO,
             row_gap: Val::ZERO,
-            grid_auto_flow: GridAutoFlow::ColumnDense,
-            grid_template_rows: vec![
-                GridTrack::px(10.0),
-                GridTrack::percent(50.0),
-                GridTrack::fr(1.0),
-            ],
-            grid_template_columns: RepeatedGridTrack::px(5, 10.0),
-            grid_auto_rows: vec![
-                GridTrack::fit_content_px(10.0),
-                GridTrack::fit_content_percent(25.0),
-                GridTrack::flex(2.0),
-            ],
-            grid_auto_columns: vec![
-                GridTrack::auto(),
-                GridTrack::min_content(),
-                GridTrack::max_content(),
-            ],
-            grid_column: GridPlacement::start(4),
-            grid_row: GridPlacement::span(3),
         };
         let viewport_values = LayoutContext::new(1.0, Vec2::new(800., 600.));
         let taffy_style = from_node(&node, &viewport_values, false);
@@ -565,11 +349,6 @@ mod tests {
         assert_eq!(
             taffy_style.justify_content,
             Some(taffy::style::JustifyContent::SpaceEvenly)
-        );
-        assert_eq!(taffy_style.justify_items, None);
-        assert_eq!(
-            taffy_style.justify_self,
-            Some(taffy::style::JustifySelf::Center)
         );
         assert_eq!(
             taffy_style.margin.left,
@@ -629,38 +408,8 @@ mod tests {
         assert_eq!(taffy_style.scrollbar_width, 7.);
         assert_eq!(taffy_style.gap.width, taffy::style::LengthPercentage::ZERO);
         assert_eq!(taffy_style.gap.height, taffy::style::LengthPercentage::ZERO);
-        assert_eq!(
-            taffy_style.grid_auto_flow,
-            taffy::style::GridAutoFlow::ColumnDense
-        );
-        assert_eq!(
-            taffy_style.grid_template_rows,
-            vec![sh::length(10.0), sh::percent(0.5), sh::fr(1.0)]
-        );
-        assert_eq!(
-            taffy_style.grid_template_columns,
-            vec![sh::repeat(5, vec![sh::length(10.0)])]
-        );
-        assert_eq!(
-            taffy_style.grid_auto_rows,
-            vec![
-                sh::fit_content(taffy::style::LengthPercentage::length(10.0)),
-                sh::fit_content(taffy::style::LengthPercentage::percent(0.25)),
-                sh::minmax(sh::length(0.0), sh::fr(2.0)),
-            ]
-        );
-        assert_eq!(
-            taffy_style.grid_auto_columns,
-            vec![sh::auto(), sh::min_content(), sh::max_content()]
-        );
-        assert_eq!(
-            taffy_style.grid_column,
-            taffy::geometry::Line {
-                start: sh::line(4),
-                end: sh::span(1)
-            }
-        );
-        assert_eq!(taffy_style.grid_row, sh::span(3));
+        assert_eq!(taffy_style.grid_column, sh::span(1));
+        assert_eq!(taffy_style.grid_row, sh::span(1));
     }
 
     #[test]

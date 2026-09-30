@@ -11,10 +11,7 @@ use bevy_reflect::prelude::*;
 use bevy_sprite::BorderRect;
 use bevy_utils::once;
 use bevy_window::{PrimaryWindow, WindowRef};
-use core::{f32, num::NonZero};
-use derive_more::derive::From;
-use smallvec::SmallVec;
-use thiserror::Error;
+use core::f32;
 use tracing::warn;
 
 /// Provides the computed size and layout properties of the node.
@@ -361,7 +358,7 @@ impl From<BVec2> for IgnoreScroll {
 ///
 /// When defining new types of UI entities, require [`Node`] to make them behave like UI nodes.
 ///
-/// Nodes can be laid out using either Flexbox or CSS Grid Layout.
+/// Nodes are laid out using Flexbox or block layout.
 ///
 /// See below for general learning resources and for documentation on the individual style properties.
 ///
@@ -370,12 +367,6 @@ impl From<BVec2> for IgnoreScroll {
 /// - [MDN: Basic Concepts of Flexbox](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Flexible_Box_Layout/Basic_Concepts_of_Flexbox)
 /// - [A Complete Guide To Flexbox](https://css-tricks.com/snippets/css/a-guide-to-flexbox/) by CSS Tricks. This is detailed guide with illustrations and comprehensive written explanation of the different Flexbox properties and how they work.
 /// - [Flexbox Froggy](https://flexboxfroggy.com/). An interactive tutorial/game that teaches the essential parts of Flexbox in a fun engaging way.
-///
-/// ### CSS Grid
-///
-/// - [MDN: Basic Concepts of Grid Layout](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout/Basic_Concepts_of_Grid_Layout)
-/// - [A Complete Guide To CSS Grid](https://css-tricks.com/snippets/css/complete-guide-grid/) by CSS Tricks. This is detailed guide with illustrations and comprehensive written explanation of the different CSS Grid properties and how they work.
-/// - [CSS Grid Garden](https://cssgridgarden.com/). An interactive tutorial/game that teaches the essential parts of CSS Grid in a fun engaging way.
 ///
 /// # See also
 ///
@@ -403,7 +394,6 @@ impl From<BVec2> for IgnoreScroll {
 pub struct Node {
     /// Which layout algorithm to use when laying out this node's contents:
     ///   - [`Display::Flex`]: Use the Flexbox layout algorithm
-    ///   - [`Display::Grid`]: Use the CSS Grid layout algorithm
     ///   - [`Display::None`]: Hide this node and perform layout as if it does not exist.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/display>
@@ -419,7 +409,7 @@ pub struct Node {
     pub box_sizing: BoxSizing,
 
     /// Whether a node should be laid out in-flow with, or independently of its siblings:
-    ///  - [`PositionType::Relative`]: Layout this node in-flow with other nodes using the usual (flexbox/grid) layout algorithm.
+    ///  - [`PositionType::Relative`]: Layout this node in-flow with other nodes using the usual (flexbox) layout algorithm.
     ///  - [`PositionType::Absolute`]: Layout this node on top and independently of other nodes.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/position>
@@ -503,50 +493,28 @@ pub struct Node {
 
     /// Used to control how each individual item is aligned by default within the space they're given.
     /// - For Flexbox containers, sets default cross axis alignment of the child items.
-    /// - For CSS Grid containers, controls block (vertical) axis alignment of children of this grid container within their grid areas.
     ///
     /// This value is overridden if [`AlignSelf`] on the child node is set.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-items>
     pub align_items: AlignItems,
 
-    /// Used to control how each individual item is aligned by default within the space they're given.
-    /// - For Flexbox containers, this property has no effect. See `justify_content` for main axis alignment of flex items.
-    /// - For CSS Grid containers, sets default inline (horizontal) axis alignment of child items within their grid areas.
-    ///
-    /// This value is overridden if [`JustifySelf`] on the child node is set.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-items>
-    pub justify_items: JustifyItems,
-
     /// Used to control how the specified item is aligned within the space it's given.
     /// - For Flexbox items, controls cross axis alignment of the item.
-    /// - For CSS Grid items, controls block (vertical) axis alignment of a grid item within its grid area.
     ///
     /// If set to `Auto`, alignment is inherited from the value of [`AlignItems`] set on the parent node.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-self>
     pub align_self: AlignSelf,
 
-    /// Used to control how the specified item is aligned within the space it's given.
-    /// - For Flexbox items, this property has no effect. See `justify_content` for main axis alignment of flex items.
-    /// - For CSS Grid items, controls inline (horizontal) axis alignment of a grid item within its grid area.
-    ///
-    /// If set to `Auto`, alignment is inherited from the value of [`JustifyItems`] set on the parent node.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-self>
-    pub justify_self: JustifySelf,
-
     /// Used to control how items are distributed.
     /// - For Flexbox containers, controls alignment of lines if `flex_wrap` is set to [`FlexWrap::Wrap`] and there are multiple lines of items.
-    /// - For CSS Grid containers, controls alignment of grid rows.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-content>
     pub align_content: AlignContent,
 
     /// Used to control how items are distributed.
     /// - For Flexbox containers, controls alignment of items in the main axis.
-    /// - For CSS Grid containers, controls alignment of grid columns.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-content>
     pub justify_content: JustifyContent,
@@ -643,12 +611,12 @@ pub struct Node {
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius>
     pub border_radius: BorderRadius,
 
-    /// Whether a Flexbox container should be a row or a column. This property has no effect on Grid nodes.
+    /// Whether a Flexbox container should be a row or a column.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/flex-direction>
     pub flex_direction: FlexDirection,
 
-    /// Whether a Flexbox container should wrap its contents onto multiple lines if they overflow. This property has no effect on Grid nodes.
+    /// Whether a Flexbox container should wrap its contents onto multiple lines if they overflow.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/flex-wrap>
     pub flex_wrap: FlexWrap,
@@ -670,58 +638,19 @@ pub struct Node {
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/flex-basis>
     pub flex_basis: Val,
 
-    /// The size of the gutters between items in a vertical flexbox layout or between rows in a grid layout.
+    /// The size of the gutters between items in a vertical flexbox layout or between wrapped lines in a horizontal flexbox layout.
     ///
     /// Note: Values of `Val::Auto` are not valid and are treated as zero.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/row-gap>
     pub row_gap: Val,
 
-    /// The size of the gutters between items in a horizontal flexbox layout or between column in a grid layout.
+    /// The size of the gutters between items in a horizontal flexbox layout or between wrapped lines in a vertical flexbox layout.
     ///
     /// Note: Values of `Val::Auto` are not valid and are treated as zero.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/column-gap>
     pub column_gap: Val,
-
-    /// Controls whether automatically placed grid items are placed row-wise or column-wise as well as whether the sparse or dense packing algorithm is used.
-    /// Only affects Grid layouts.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-auto-flow>
-    pub grid_auto_flow: GridAutoFlow,
-
-    /// Defines the number of rows a grid has and the sizes of those rows. If grid items are given explicit placements then more rows may
-    /// be implicitly generated by items that are placed out of bounds. The sizes of those rows are controlled by `grid_auto_rows` property.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-rows>
-    pub grid_template_rows: Vec<RepeatedGridTrack>,
-
-    /// Defines the number of columns a grid has and the sizes of those columns. If grid items are given explicit placements then more columns may
-    /// be implicitly generated by items that are placed out of bounds. The sizes of those columns are controlled by `grid_auto_columns` property.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-columns>
-    pub grid_template_columns: Vec<RepeatedGridTrack>,
-
-    /// Defines the size of implicitly created rows. Rows are created implicitly when grid items are given explicit placements that are out of bounds
-    /// of the rows explicitly created using `grid_template_rows`.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-auto-rows>
-    pub grid_auto_rows: Vec<GridTrack>,
-    /// Defines the size of implicitly created columns. Columns are created implicitly when grid items are given explicit placements that are out of bounds
-    /// of the columns explicitly created using `grid_template_columns`.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-auto-columns>
-    pub grid_auto_columns: Vec<GridTrack>,
-
-    /// The row in which a grid item starts and how many rows it spans.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-row>
-    pub grid_row: GridPlacement,
-
-    /// The column in which a grid item starts and how many columns it spans.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-column>
-    pub grid_column: GridPlacement,
 }
 
 impl Node {
@@ -736,9 +665,7 @@ impl Node {
         flex_direction: FlexDirection::DEFAULT,
         flex_wrap: FlexWrap::DEFAULT,
         align_items: AlignItems::DEFAULT,
-        justify_items: JustifyItems::DEFAULT,
         align_self: AlignSelf::DEFAULT,
-        justify_self: JustifySelf::DEFAULT,
         align_content: AlignContent::DEFAULT,
         justify_content: JustifyContent::DEFAULT,
         margin: UiRect::DEFAULT,
@@ -760,13 +687,6 @@ impl Node {
         scrollbar_width: 0.,
         row_gap: Val::ZERO,
         column_gap: Val::ZERO,
-        grid_auto_flow: GridAutoFlow::DEFAULT,
-        grid_template_rows: Vec::new(),
-        grid_template_columns: Vec::new(),
-        grid_auto_rows: Vec::new(),
-        grid_auto_columns: Vec::new(),
-        grid_column: GridPlacement::DEFAULT,
-        grid_row: GridPlacement::DEFAULT,
     };
 }
 
@@ -778,7 +698,6 @@ impl Default for Node {
 
 /// Used to control how each individual item is aligned by default within the space they're given.
 /// - For Flexbox containers, sets default cross axis alignment of the child items.
-/// - For CSS Grid containers, controls block (vertical) axis alignment of children of this grid container within their grid areas.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-items>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
@@ -819,46 +738,8 @@ impl Default for AlignItems {
     }
 }
 
-/// Used to control how each individual item is aligned by default within the space they're given.
-/// - For Flexbox containers, this property has no effect. See `justify_content` for main axis alignment of flex items.
-/// - For CSS Grid containers, sets default inline (horizontal) axis alignment of child items within their grid areas.
-///
-/// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-items>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub enum JustifyItems {
-    /// The items are packed in their default position as if no alignment was applied.
-    Default,
-    /// The items are packed towards the start of the axis.
-    Start,
-    /// The items are packed towards the end of the axis.
-    End,
-    /// The items are packed along the center of the axis
-    Center,
-    /// The items are packed such that their baselines align.
-    Baseline,
-    /// The items are stretched to fill the space they're given.
-    Stretch,
-}
-
-impl JustifyItems {
-    pub const DEFAULT: Self = Self::Default;
-}
-
-impl Default for JustifyItems {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
 /// Used to control how the specified item is aligned within the space it's given.
 /// - For Flexbox items, controls cross axis alignment of the item.
-/// - For CSS Grid items, controls block (vertical) axis alignment of a grid item within its grid area.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-self>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
@@ -899,46 +780,8 @@ impl Default for AlignSelf {
     }
 }
 
-/// Used to control how the specified item is aligned within the space it's given.
-/// - For children of flex nodes, this property has no effect. See `justify_content` for main axis alignment of flex items.
-/// - For CSS Grid items, controls inline (horizontal) axis alignment of a grid item within its grid area.
-///
-/// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-self>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub enum JustifySelf {
-    /// Use the parent node's [`JustifyItems`] value to determine how this item should be aligned.
-    Auto,
-    /// This item will be aligned with the start of the axis.
-    Start,
-    /// This item will be aligned with the end of the axis.
-    End,
-    /// This item will be aligned along the center of the axis.
-    Center,
-    /// This item will be aligned at the baseline.
-    Baseline,
-    /// This item will be stretched to fill the space it's given.
-    Stretch,
-}
-
-impl JustifySelf {
-    pub const DEFAULT: Self = Self::Auto;
-}
-
-impl Default for JustifySelf {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
 /// Used to control how items are distributed.
 /// - For Flexbox containers, controls alignment of lines if `flex_wrap` is set to [`FlexWrap::Wrap`] and there are multiple lines of items.
-/// - For CSS Grid containers, controls alignment of grid rows.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-content>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
@@ -985,7 +828,6 @@ impl Default for AlignContent {
 
 /// Used to control how items are distributed.
 /// - For Flexbox containers, controls alignment of items in the main axis.
-/// - For CSS Grid containers, controls alignment of grid columns.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-content>
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
@@ -1043,8 +885,6 @@ impl Default for JustifyContent {
 pub enum Display {
     /// Use Flexbox layout model to determine the position of this [`Node`]'s children.
     Flex,
-    /// Use CSS Grid layout model to determine the position of this [`Node`]'s children.
-    Grid,
     /// Use CSS Block layout model to determine the position of this [`Node`]'s children.
     Block,
     /// Use no layout, don't render this node and its children.
@@ -1325,467 +1165,6 @@ impl Default for FlexWrap {
     fn default() -> Self {
         Self::DEFAULT
     }
-}
-
-/// Controls whether grid items are placed row-wise or column-wise as well as whether the sparse or dense packing algorithm is used.
-///
-/// The "dense" packing algorithm attempts to fill in holes earlier in the grid, if smaller items come up later.
-/// This may cause items to appear out-of-order when doing so would fill in holes left by larger items.
-///
-/// Defaults to [`GridAutoFlow::Row`].
-///
-/// <https://developer.mozilla.org/en-US/docs/Web/CSS/grid-auto-flow>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub enum GridAutoFlow {
-    /// Items are placed by filling each row in turn, adding new rows as necessary.
-    Row,
-    /// Items are placed by filling each column in turn, adding new columns as necessary.
-    Column,
-    /// Combines `Row` with the dense packing algorithm.
-    RowDense,
-    /// Combines `Column` with the dense packing algorithm.
-    ColumnDense,
-}
-
-impl GridAutoFlow {
-    pub const DEFAULT: Self = Self::Row;
-}
-
-impl Default for GridAutoFlow {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
-#[derive(Default, Copy, Clone, PartialEq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub enum MinTrackSizingFunction {
-    /// Track minimum size should be a fixed pixel value
-    Px(f32),
-    /// Track minimum size should be a percentage value
-    Percent(f32),
-    /// Track minimum size should be content sized under a min-content constraint
-    MinContent,
-    /// Track minimum size should be content sized under a max-content constraint
-    MaxContent,
-    /// Track minimum size should be automatically sized
-    #[default]
-    Auto,
-    /// Track minimum size should be a percent of the viewport's smaller dimension.
-    VMin(f32),
-    /// Track minimum size should be a percent of the viewport's larger dimension.
-    VMax(f32),
-    /// Track minimum size should be a percent of the viewport's height dimension.
-    Vh(f32),
-    /// Track minimum size should be a percent of the viewport's width dimension.
-    Vw(f32),
-}
-
-#[derive(Default, Copy, Clone, PartialEq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub enum MaxTrackSizingFunction {
-    /// Track maximum size should be a fixed pixel value
-    Px(f32),
-    /// Track maximum size should be a percentage value
-    Percent(f32),
-    /// Track maximum size should be content sized under a min-content constraint
-    MinContent,
-    /// Track maximum size should be content sized under a max-content constraint
-    MaxContent,
-    /// Track maximum size should be sized according to the fit-content formula with a fixed pixel limit
-    FitContentPx(f32),
-    /// Track maximum size should be sized according to the fit-content formula with a percentage limit
-    FitContentPercent(f32),
-    /// Track maximum size should be automatically sized
-    #[default]
-    Auto,
-    /// The dimension as a fraction of the total available grid space (`fr` units in CSS)
-    /// Specified value is the numerator of the fraction. Denominator is the sum of all fractions specified in that grid dimension.
-    ///
-    /// Spec: <https://www.w3.org/TR/css3-grid-layout/#fr-unit>
-    Fraction(f32),
-    /// Track maximum size should be a percent of the viewport's smaller dimension.
-    VMin(f32),
-    /// Track maximum size should be a percent of the viewport's smaller dimension.
-    VMax(f32),
-    /// Track maximum size should be a percent of the viewport's height dimension.
-    Vh(f32),
-    /// Track maximum size should be a percent of the viewport's width dimension.
-    Vw(f32),
-}
-
-/// A [`GridTrack`] is a Row or Column of a CSS Grid. This struct specifies what size the track should be.
-/// See below for the different "track sizing functions" you can specify.
-#[derive(Copy, Clone, PartialEq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub struct GridTrack {
-    pub(crate) min_sizing_function: MinTrackSizingFunction,
-    pub(crate) max_sizing_function: MaxTrackSizingFunction,
-}
-
-impl GridTrack {
-    pub const DEFAULT: Self = Self {
-        min_sizing_function: MinTrackSizingFunction::Auto,
-        max_sizing_function: MaxTrackSizingFunction::Auto,
-    };
-
-    /// Create a grid track with a fixed pixel size
-    pub fn px<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Px(value),
-            max_sizing_function: MaxTrackSizingFunction::Px(value),
-        }
-        .into()
-    }
-
-    /// Create a grid track with a percentage size
-    pub fn percent<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Percent(value),
-            max_sizing_function: MaxTrackSizingFunction::Percent(value),
-        }
-        .into()
-    }
-
-    /// Create a grid track with an `fr` size.
-    /// Note that this will give the track a content-based minimum size.
-    /// Usually you are best off using `GridTrack::flex` instead which uses a zero minimum size.
-    pub fn fr<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Auto,
-            max_sizing_function: MaxTrackSizingFunction::Fraction(value),
-        }
-        .into()
-    }
-
-    /// Create a grid track with a `minmax(0, Nfr)` size.
-    pub fn flex<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Px(0.0),
-            max_sizing_function: MaxTrackSizingFunction::Fraction(value),
-        }
-        .into()
-    }
-
-    /// Create a grid track which is automatically sized to fit its contents.
-    pub fn auto<T: From<Self>>() -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Auto,
-            max_sizing_function: MaxTrackSizingFunction::Auto,
-        }
-        .into()
-    }
-
-    /// Create a grid track which is automatically sized to fit its contents when sized at their "min-content" sizes
-    pub fn min_content<T: From<Self>>() -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::MinContent,
-            max_sizing_function: MaxTrackSizingFunction::MinContent,
-        }
-        .into()
-    }
-
-    /// Create a grid track which is automatically sized to fit its contents when sized at their "max-content" sizes
-    pub fn max_content<T: From<Self>>() -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::MaxContent,
-            max_sizing_function: MaxTrackSizingFunction::MaxContent,
-        }
-        .into()
-    }
-
-    /// Create a `fit-content()` grid track with fixed pixel limit.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/fit-content_function>
-    pub fn fit_content_px<T: From<Self>>(limit: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Auto,
-            max_sizing_function: MaxTrackSizingFunction::FitContentPx(limit),
-        }
-        .into()
-    }
-
-    /// Create a `fit-content()` grid track with percentage limit.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/fit-content_function>
-    pub fn fit_content_percent<T: From<Self>>(limit: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Auto,
-            max_sizing_function: MaxTrackSizingFunction::FitContentPercent(limit),
-        }
-        .into()
-    }
-}
-
-impl Default for GridTrack {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Debug, Reflect, From)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-/// How many times to repeat a repeated grid track
-///
-/// <https://developer.mozilla.org/en-US/docs/Web/CSS/repeat>
-pub enum GridTrackRepetition {
-    /// Repeat the track fixed number of times
-    Count(u16),
-    /// Repeat the track to fill available space
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/repeat#auto-fill>
-    AutoFill,
-    /// Repeat the track to fill available space but collapse any tracks that do not end up with
-    /// an item placed in them.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/repeat#auto-fit>
-    AutoFit,
-}
-
-impl Default for GridTrackRepetition {
-    fn default() -> Self {
-        Self::Count(1)
-    }
-}
-
-impl From<i32> for GridTrackRepetition {
-    fn from(count: i32) -> Self {
-        Self::Count(count as u16)
-    }
-}
-
-impl From<usize> for GridTrackRepetition {
-    fn from(count: usize) -> Self {
-        Self::Count(count as u16)
-    }
-}
-
-/// Represents a *possibly* repeated [`GridTrack`].
-///
-/// The repetition parameter can either be:
-///   - The integer `1`, in which case the track is non-repeated.
-///   - a `u16` count to repeat the track N times.
-///   - A `GridTrackRepetition::AutoFit` or `GridTrackRepetition::AutoFill`.
-///
-/// Note: that in the common case you want a non-repeating track (repetition count 1), you may use the constructor methods on [`GridTrack`]
-/// to create a `RepeatedGridTrack`. i.e. `GridTrack::px(10.0)` is equivalent to `RepeatedGridTrack::px(1, 10.0)`.
-///
-/// You may only use one auto-repetition per track list. And if your track list contains an auto repetition
-/// then all tracks (in and outside of the repetition) must be fixed size (px or percent). Integer repetitions are just shorthand for writing out
-/// N tracks longhand and are not subject to the same limitations.
-#[derive(Clone, PartialEq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub struct RepeatedGridTrack {
-    pub(crate) repetition: GridTrackRepetition,
-    pub(crate) tracks: SmallVec<[GridTrack; 1]>,
-}
-
-impl RepeatedGridTrack {
-    /// Create a repeating set of grid tracks with a fixed pixel size
-    pub fn px<T: From<Self>>(repetition: impl Into<GridTrackRepetition>, value: f32) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_buf([GridTrack::px(value)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with min-content size
-    pub fn min_content<T: From<Self>>(repetition: u16) -> T {
-        Self {
-            repetition: GridTrackRepetition::Count(repetition),
-            tracks: SmallVec::from_buf([GridTrack::min_content()]),
-        }
-        .into()
-    }
-}
-
-impl Default for RepeatedGridTrack {
-    fn default() -> Self {
-        Self {
-            repetition: Default::default(),
-            tracks: SmallVec::from_buf([GridTrack::default()]),
-        }
-    }
-}
-
-impl From<GridTrack> for RepeatedGridTrack {
-    fn from(track: GridTrack) -> Self {
-        Self {
-            repetition: GridTrackRepetition::Count(1),
-            tracks: SmallVec::from_buf([track]),
-        }
-    }
-}
-
-impl From<GridTrack> for Vec<GridTrack> {
-    fn from(track: GridTrack) -> Self {
-        vec![track]
-    }
-}
-
-impl From<GridTrack> for Vec<RepeatedGridTrack> {
-    fn from(track: GridTrack) -> Self {
-        vec![RepeatedGridTrack {
-            repetition: GridTrackRepetition::Count(1),
-            tracks: SmallVec::from_buf([track]),
-        }]
-    }
-}
-
-impl From<RepeatedGridTrack> for Vec<RepeatedGridTrack> {
-    fn from(track: RepeatedGridTrack) -> Self {
-        vec![track]
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-/// Represents the position of a grid item in a single axis.
-///
-/// There are 3 fields which may be set:
-///   - `start`: which grid line the item should start at
-///   - `end`: which grid line the item should end at
-///   - `span`: how many tracks the item should span
-///
-/// The default `span` is 1. If neither `start` or `end` is set then the item will be placed automatically.
-///
-/// Generally, at most two fields should be set. If all three fields are specified then `span` will be ignored. If `end` specifies an earlier
-/// grid line than `start` then `end` will be ignored and the item will have a span of 1.
-///
-/// <https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout/Line-based_Placement_with_CSS_Grid>
-pub struct GridPlacement {
-    /// The grid line at which the item should start.
-    /// Lines are 1-indexed.
-    /// Negative indexes count backwards from the end of the grid.
-    /// Zero is not a valid index.
-    pub(crate) start: Option<NonZero<i16>>,
-    /// How many grid tracks the item should span.
-    /// Defaults to 1.
-    pub(crate) span: Option<NonZero<u16>>,
-    /// The grid line at which the item should end.
-    /// Lines are 1-indexed.
-    /// Negative indexes count backwards from the end of the grid.
-    /// Zero is not a valid index.
-    pub(crate) end: Option<NonZero<i16>>,
-}
-
-impl GridPlacement {
-    pub const DEFAULT: Self = Self {
-        start: None,
-        span: NonZero::<u16>::new(1),
-        end: None,
-    };
-
-    /// Place the grid item automatically (letting the `span` default to `1`).
-    pub fn auto() -> Self {
-        Self::DEFAULT
-    }
-
-    /// Place the grid item automatically, specifying how many tracks it should `span`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `span` is `0`.
-    pub fn span(span: u16) -> Self {
-        Self {
-            start: None,
-            end: None,
-            span: try_into_grid_span(span).expect("Invalid span value of 0."),
-        }
-    }
-
-    /// Place the grid item specifying the `start` grid line (letting the `span` default to `1`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `start` is `0`.
-    pub fn start(start: i16) -> Self {
-        Self {
-            start: try_into_grid_index(start).expect("Invalid start value of 0."),
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Returns the grid line at which the item should start, or `None` if not set.
-    pub fn get_start(self) -> Option<i16> {
-        self.start.map(NonZero::<i16>::get)
-    }
-
-    /// Returns the grid line at which the item should end, or `None` if not set.
-    pub fn get_end(self) -> Option<i16> {
-        self.end.map(NonZero::<i16>::get)
-    }
-
-    /// Returns span for this grid item, or `None` if not set.
-    pub fn get_span(self) -> Option<u16> {
-        self.span.map(NonZero::<u16>::get)
-    }
-}
-
-impl Default for GridPlacement {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
-/// Convert an `i16` to `NonZero<i16>`, fails on `0` and returns the `InvalidZeroIndex` error.
-fn try_into_grid_index(index: i16) -> Result<Option<NonZero<i16>>, GridPlacementError> {
-    Ok(Some(
-        NonZero::<i16>::new(index).ok_or(GridPlacementError::InvalidZeroIndex)?,
-    ))
-}
-
-/// Convert a `u16` to `NonZero<u16>`, fails on `0` and returns the `InvalidZeroSpan` error.
-fn try_into_grid_span(span: u16) -> Result<Option<NonZero<u16>>, GridPlacementError> {
-    Ok(Some(
-        NonZero::<u16>::new(span).ok_or(GridPlacementError::InvalidZeroSpan)?,
-    ))
-}
-
-/// Errors that occur when setting constraints for a `GridPlacement`
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Error)]
-pub enum GridPlacementError {
-    #[error("Zero is not a valid grid position")]
-    InvalidZeroIndex,
-    #[error("Spans cannot be zero length")]
-    InvalidZeroSpan,
 }
 
 /// The background color of the node
@@ -2372,22 +1751,5 @@ impl ComputedUiRenderTargetInfo {
     /// Returns the size of the target camera's viewport in logical pixels.
     pub fn logical_size(&self) -> Vec2 {
         self.physical_size.as_vec2() / self.scale_factor
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::GridPlacement;
-
-    #[test]
-    fn invalid_grid_placement_values() {
-        assert!(std::panic::catch_unwind(|| GridPlacement::span(0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::start(0)).is_err());
-    }
-
-    #[test]
-    fn grid_placement_accessors() {
-        assert_eq!(GridPlacement::start(5).get_start(), Some(5));
-        assert_eq!(GridPlacement::span(2).get_span(), Some(2));
     }
 }

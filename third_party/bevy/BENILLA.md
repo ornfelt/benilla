@@ -330,6 +330,23 @@ the same repository's.
   `experimental::ghost_hierarchy` (`GhostNode`, the ghost-aware `UiChildren`), and the
   non-ghost `UiChildren`'s uncalled `get_parent` and `is_ui_node`. **Stand-in** in PostUpdate:
   `update_viewport_render_target_size`, with its place, sets and ambiguities.
+- **`bevy_ui`'s grid layout API.** No `Node` is a grid container: `Display::Grid`, `Node`'s
+  `justify_items`, `justify_self` and seven `grid_*` fields, `JustifyItems`, `JustifySelf`,
+  `GridAutoFlow`, `GridTrack`, `RepeatedGridTrack`, `GridTrackRepetition`, `GridPlacement` with
+  `GridPlacementError`, the track sizing functions and their taffy conversions went, and so did
+  the `derive_more` dependency. **taffy's `grid` feature stays**: each UI root is the one item of
+  an implicit taffy grid viewport (`ui_surface.rs`), so the grid algorithm still lays out every
+  root. `from_node` sets the root's `grid_row`/`grid_column` to the `span 1` that
+  `GridPlacement`'s default converted to (taffy's own default is `auto`); the other removed
+  fields converted to taffy's defaults. `ui_rounding_test` lays its two children out in a flex
+  row instead of a two-column grid.
+- **`bevy_sprite_render`'s tilemap chunk.** Nothing spawns a `TilemapChunk`. Gone:
+  `TilemapChunk` with its insert hook, `TilemapChunkTileData`, `TileData`, `PackedTileData`,
+  `make_chunk_tile_data_image`, `TilemapChunkMeshCache`. `TilemapChunkMaterial` and its
+  `Material2dPlugin` stay (the frame names its asset systems). **Stand-in** in Update:
+  `update_tilemap_chunk_indices`. The manifest drops `bevy_platform`, `bevy_transform` and
+  `tracing`; `bytemuck` stays, unused, because dropping it turns its `must_cast` feature off for
+  the whole build.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

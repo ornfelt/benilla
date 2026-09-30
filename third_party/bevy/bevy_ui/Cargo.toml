@@ -98,11 +98,6 @@ version = "0.18.0"
 [dependencies.bevy_window]
 version = "0.18.0"
 
-[dependencies.derive_more]
-version = "2"
-features = ["from"]
-default-features = false
-
 [dependencies.serde]
 version = "1"
 features = ["derive"]

@@ -1025,15 +1025,12 @@ mod tests {
 
         let parent = world
             .spawn(Node {
-                display: Display::Grid,
-                grid_template_columns: RepeatedGridTrack::min_content(2),
                 margin: UiRect::all(Val::Px(4.0)),
                 ..default()
             })
             .with_children(|commands| {
                 for _ in 0..2 {
                     commands.spawn(Node {
-                        display: Display::Grid,
                         width: Val::Px(160.),
                         height: Val::Px(160.),
                         ..default()
