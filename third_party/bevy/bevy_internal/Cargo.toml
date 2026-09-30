@@ -83,6 +83,7 @@ bevy_image = [
     "bevy_color",
     "bevy_asset",
 ]
+bevy_input_focus = []
 bevy_light = [
     "dep:bevy_light",
     "bevy_camera",
@@ -149,7 +150,6 @@ critical-section = [
     "bevy_diagnostic/critical-section",
     "bevy_ecs/critical-section",
     "bevy_input/critical-section",
-    "bevy_input_focus?/critical-section",
     "bevy_platform/critical-section",
     "bevy_reflect/critical-section",
     "bevy_state?/critical-section",
@@ -162,7 +162,6 @@ debug = [
 default_font = ["bevy_text?/default_font"]
 gamepad = [
     "bevy_input/gamepad",
-    "bevy_input_focus?/gamepad",
 ]
 gltf_animation = ["bevy_animation"]
 hdr = ["bevy_image/hdr"]
@@ -170,7 +169,6 @@ ktx2 = ["bevy_image/ktx2"]
 libm = [
     "bevy_color?/libm",
     "bevy_input/libm",
-    "bevy_input_focus?/libm",
     "bevy_math/libm",
     "bevy_transform/libm",
     "bevy_window?/libm",
@@ -224,7 +222,6 @@ std = [
     "bevy_diagnostic/std",
     "bevy_ecs/std",
     "bevy_input/std",
-    "bevy_input_focus?/std",
     "bevy_math/std",
     "bevy_platform/std",
     "bevy_reflect/std",
@@ -326,12 +323,6 @@ optional = true
 [dependencies.bevy_input]
 version = "0.18.0"
 features = ["bevy_reflect"]
-default-features = false
-
-[dependencies.bevy_input_focus]
-version = "0.18.0"
-features = ["bevy_reflect"]
-optional = true
 default-features = false
 
 [dependencies.bevy_light]

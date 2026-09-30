@@ -78,9 +78,6 @@ version = "0.18.0"
 [dependencies.bevy_input]
 version = "0.18.0"
 
-[dependencies.bevy_input_focus]
-version = "0.18.0"
-
 [dependencies.bevy_math]
 version = "0.18.0"
 

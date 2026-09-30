@@ -25,57 +25,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf203f9d3bd8f29f98833d1fbef628df18f759248a547e7e01cfbf63cda36a99"
 
 [[package]]
-name = "accesskit_consumer"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db81010a6895d8707f9072e6ce98070579b43b717193d2614014abd5cb17dd43"
-dependencies = [
- "accesskit",
- "hashbrown 0.15.5",
-]
-
-[[package]]
-name = "accesskit_macos"
-version = "0.22.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0089e5c0ac0ca281e13ea374773898d9354cc28d15af9f0f7394d44a495b575"
-dependencies = [
- "accesskit",
- "accesskit_consumer",
- "hashbrown 0.15.5",
- "objc2 0.5.2",
- "objc2-app-kit 0.2.2",
- "objc2-foundation 0.2.2",
-]
-
-[[package]]
-name = "accesskit_windows"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2d63dd5041e49c363d83f5419a896ecb074d309c414036f616dc0b04faca971"
-dependencies = [
- "accesskit",
- "accesskit_consumer",
- "hashbrown 0.15.5",
- "static_assertions",
- "windows 0.61.3",
- "windows-core 0.61.2",
-]
-
-[[package]]
-name = "accesskit_winit"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8cfabe59d0eaca7412bfb1f70198dd31e3b0496fee7e15b066f9c36a1a140a0"
-dependencies = [
- "accesskit",
- "accesskit_macos",
- "accesskit_windows",
- "raw-window-handle",
- "winit",
-]
-
-[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1050,20 +999,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_input_focus"
-version = "0.18.1"
-dependencies = [
- "bevy_app",
- "bevy_ecs",
- "bevy_input",
- "bevy_math",
- "bevy_reflect",
- "bevy_window",
- "log",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "bevy_internal"
 version = "0.18.1"
 dependencies = [
@@ -1080,7 +1015,6 @@ dependencies = [
  "bevy_gizmos",
  "bevy_image",
  "bevy_input",
- "bevy_input_focus",
  "bevy_light",
  "bevy_log",
  "bevy_math",
@@ -1528,7 +1462,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_image",
  "bevy_input",
- "bevy_input_focus",
  "bevy_math",
  "bevy_platform",
  "bevy_reflect",
@@ -1589,30 +1522,11 @@ dependencies = [
 name = "bevy_winit"
 version = "0.18.1"
 dependencies = [
- "accesskit",
- "accesskit_winit",
- "approx",
- "bevy_a11y",
- "bevy_app",
- "bevy_asset",
  "bevy_derive",
  "bevy_ecs",
- "bevy_image",
- "bevy_input",
- "bevy_input_focus",
- "bevy_log",
- "bevy_math",
  "bevy_platform",
  "bevy_reflect",
- "bevy_tasks",
  "bevy_window",
- "bytemuck",
- "cfg-if",
- "js-sys",
- "tracing",
- "wasm-bindgen",
- "web-sys",
- "wgpu-types",
  "winit",
 ]
 

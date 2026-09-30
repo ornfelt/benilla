@@ -35,27 +35,8 @@ rustdoc-args = [
 all-features = true
 
 [features]
-accesskit_unix = [
-    "accesskit_winit/accesskit_unix",
-    "accesskit_winit/async-io",
-    "bevy_tasks/async-io",
-]
-android-game-activity = ["winit/android-game-activity"]
-android-native-activity = ["winit/android-native-activity"]
-custom_cursor = [
-    "bevy_window/custom_cursor",
-    "bevy_image",
-    "bevy_asset",
-    "wgpu-types",
-    "bytemuck",
-]
+custom_cursor = ["bevy_window/custom_cursor"]
 default = ["x11"]
-serialize = [
-    "bevy_input/serialize",
-    "bevy_window/serialize",
-    "bevy_platform/serialize",
-]
-trace = []
 wayland = [
     "winit/wayland",
     "winit/wayland-csd-adwaita",
@@ -66,48 +47,10 @@ x11 = ["winit/x11"]
 name = "bevy_winit"
 path = "src/lib.rs"
 
-[dependencies.accesskit]
-version = "0.21"
-
-[dependencies.accesskit_winit]
-version = "0.29"
-features = ["rwh_06"]
-default-features = false
-
-[dependencies.approx]
-version = "0.5"
-default-features = false
-
-[dependencies.bevy_a11y]
-version = "0.18.0"
-
-[dependencies.bevy_app]
-version = "0.18.0"
-
-[dependencies.bevy_asset]
-version = "0.18.0"
-optional = true
-
 [dependencies.bevy_derive]
 version = "0.18.0"
 
 [dependencies.bevy_ecs]
-version = "0.18.0"
-
-[dependencies.bevy_image]
-version = "0.18.0"
-optional = true
-
-[dependencies.bevy_input]
-version = "0.18.0"
-
-[dependencies.bevy_input_focus]
-version = "0.18.0"
-
-[dependencies.bevy_log]
-version = "0.18.0"
-
-[dependencies.bevy_math]
 version = "0.18.0"
 
 [dependencies.bevy_platform]
@@ -118,56 +61,13 @@ default-features = false
 [dependencies.bevy_reflect]
 version = "0.18.0"
 
-[dependencies.bevy_tasks]
-version = "0.18.0"
-
 [dependencies.bevy_window]
 version = "0.18.0"
-
-[dependencies.bytemuck]
-version = "1.5"
-optional = true
-
-[dependencies.cfg-if]
-version = "1.0"
-
-[dependencies.tracing]
-version = "0.1"
-features = ["std"]
-default-features = false
-
-[dependencies.wgpu-types]
-version = "27"
-optional = true
 
 [dependencies.winit]
 version = "0.30"
 features = ["rwh_06"]
 default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.bevy_app]
-version = "0.18.0"
-features = ["web"]
-default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.bevy_platform]
-version = "0.18.0"
-features = ["web"]
-default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.bevy_reflect]
-version = "0.18.0"
-features = ["web"]
-default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.js-sys]
-version = "0.3"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
-version = "0.2"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3"
 
 [lints.clippy]
 alloc_instead_of_core = "warn"

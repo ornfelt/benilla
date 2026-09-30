@@ -54,6 +54,22 @@ the same repository's.
   `bevy_picking` feature (`PhysicsPickingPlugin`, which benilla never adds, and its diagnostics
   row). The `bevy` features `picking`, `bevy_picking`, `mesh_picking`, `sprite_picking` and
   `ui_picking` stay as names enabling nothing.
+- **`bevy_input_focus`**: nothing adds its plugins (`InputDispatchPlugin`, the tab and directional
+  navigation plugins are not in `DefaultPlugins`) and benilla names none of its types, so the crate
+  is deleted with its `bevy::input_focus` re-export, its patch line and `bevy_ui`'s
+  `auto_directional_navigation` module (a system parameter over it that nothing uses); the
+  `bevy_input_focus` feature stays as a name enabling nothing. Its `Reflect` types leave the
+  auto-registered type registry.
+- **`bevy_winit`**, to what bevy_egui names: the gfx library owns the window and nothing adds
+  `WinitPlugin`, so the plugin, its runner and event loop, window and monitor creation and sync,
+  the converters, the cursor plugin, `WinitSettings` and the AccessKit adapters are gone. Kept:
+  `WINIT_WINDOWS` with `WinitWindows` and `get_window` (always empty; bevy_egui's IME system looks
+  a window up in it), `WinitUserEvent` and `EventLoopProxyWrapper` (never inserted; bevy_egui
+  takes it as an `Option`). The features `custom_cursor` (now only `bevy_window/custom_cursor`),
+  `x11`, `wayland` and the default stay, and bevy_egui's `accesskit` feature (off, and its two
+  systems reached into the AccessKit adapters) is gone with its `bevy_a11y` dependency.
+  `bevy_a11y` and `bevy_ui`'s accessibility plugin stay: its four systems are in the recorded
+  `PostUpdate`, and removing them reorders the systems that stay.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
@@ -163,7 +179,7 @@ the same repository's.
   and `dynamic_linking` are gone. The optional dependencies no kept feature reaches left with them
   (`bevy_audio`, `bevy_dev_tools`, `bevy_feathers`, `bevy_ui_widgets`, `bevy_solari`,
   `bevy_remote`, `bevy_camera_controller`; `bevy_winit` stays a crate for bevy_egui and
-  benilla-gfx, not a `bevy` feature), and so did every crate only they pulled (gltf, gilrs, cpal,
+  benilla-gfx, not a `bevy` feature, and is itself trimmed above), and so did every crate only they pulled (gltf, gilrs, cpal,
   rodio and their platform crates).
 
 ## How to check

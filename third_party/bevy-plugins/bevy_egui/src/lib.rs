@@ -953,24 +953,12 @@ impl Plugin for EguiPlugin {
             )
                 .chain(),
         );
-        #[cfg(not(feature = "accesskit"))]
         app.configure_sets(
             PostUpdate,
             (
                 EguiPostUpdateSet::EndPass,
                 EguiPostUpdateSet::ProcessOutput,
                 EguiPostUpdateSet::PostProcessOutput,
-            )
-                .chain(),
-        );
-        #[cfg(feature = "accesskit")]
-        app.configure_sets(
-            PostUpdate,
-            (
-                EguiPostUpdateSet::EndPass,
-                EguiPostUpdateSet::ProcessOutput,
-                EguiPostUpdateSet::PostProcessOutput
-                    .before(bevy_a11y::AccessibilitySystems::Update),
             )
                 .chain(),
         );
@@ -1000,8 +988,6 @@ impl Plugin for EguiPlugin {
                 WindowToEguiContextMap::on_egui_context_added_system,
                 WindowToEguiContextMap::on_egui_context_removed_system,
                 ApplyDeferred,
-                #[cfg(feature = "accesskit")]
-                setup_accesskit_system,
                 update_ui_size_and_scale_system,
             )
                 .chain()
@@ -1153,12 +1139,6 @@ impl Plugin for EguiPlugin {
             update_egui_textures_system.in_set(EguiPostUpdateSet::PostProcessOutput),
         )
         .add_systems(Last, free_egui_textures_system);
-
-        #[cfg(feature = "accesskit")]
-        app.add_systems(
-            PostUpdate,
-            update_accessibility_system.in_set(EguiPostUpdateSet::PostProcessOutput),
-        );
     }
 }
 
@@ -1207,29 +1187,6 @@ pub fn setup_primary_egui_context_system(
     }
 
     Ok(())
-}
-
-/// Enables accesskit for newly created egui contexts.
-#[cfg(feature = "accesskit")]
-pub fn setup_accesskit_system(
-    new_contexts: Query<(Entity, &mut EguiContext), Added<EguiContext>>,
-    window_to_egui_context_map: Res<WindowToEguiContextMap>,
-    mut manage_accessibility_updates: ResMut<bevy_a11y::ManageAccessibilityUpdates>,
-    _non_send_marker: bevy_ecs::system::NonSendMarker,
-) {
-    bevy_winit::accessibility::ACCESS_KIT_ADAPTERS.with_borrow(|adapters| {
-        for (new_context_entity, context) in new_contexts.iter() {
-            if let Some(window_entity) = window_to_egui_context_map
-                .context_to_window
-                .get(&new_context_entity)
-            {
-                if adapters.contains_key(window_entity) {
-                    context.ctx.enable_accesskit();
-                    **manage_accessibility_updates = false;
-                }
-            }
-        }
-    });
 }
 
 #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
@@ -1547,34 +1504,6 @@ pub fn end_pass_system(
         if !egui_settings.run_manually {
             **full_output = Some(ctx.get_mut().end_pass());
         }
-    }
-}
-
-/// Updates the states of [`bevy_a11y::ManageAccessibilityUpdates`] and [`bevy_winit::accessibility::AccessKitAdapters`].
-#[cfg(feature = "accesskit")]
-pub fn update_accessibility_system(
-    requested: Res<bevy_a11y::AccessibilityRequested>,
-    mut manage_accessibility_updates: ResMut<bevy_a11y::ManageAccessibilityUpdates>,
-    window_to_egui_context_map: Res<WindowToEguiContextMap>,
-    outputs: Query<(Entity, &EguiOutput)>,
-    _non_send_marker: bevy_ecs::system::NonSendMarker,
-) {
-    if requested.get() {
-        bevy_winit::accessibility::ACCESS_KIT_ADAPTERS.with_borrow_mut(|adapters| {
-            for (entity, output) in &outputs {
-                if let Some(window_entity) =
-                    window_to_egui_context_map.context_to_window.get(&entity)
-                    && let Some(adapter) = adapters.get_mut(window_entity)
-                {
-                    if let Some(update) = &output.platform_output.accesskit_update {
-                        **manage_accessibility_updates = false;
-                        adapter.update_if_active(|| update.clone());
-                    } else if !**manage_accessibility_updates {
-                        **manage_accessibility_updates = true;
-                    }
-                }
-            }
-        });
     }
 }
 
