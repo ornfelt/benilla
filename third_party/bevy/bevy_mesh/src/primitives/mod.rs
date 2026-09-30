@@ -7,15 +7,12 @@
 //! ```
 //! # use bevy_asset::Assets;
 //! # use bevy_ecs::prelude::ResMut;
-//! # use bevy_math::prelude::Circle;
+//! # use bevy_math::prelude::Rectangle;
 //! # use bevy_mesh::*;
 //! #
 //! # fn setup(mut meshes: ResMut<Assets<Mesh>>) {
-//! // Create circle mesh with default configuration
-//! let circle = meshes.add(Circle { radius: 25.0 });
-//!
-//! // Specify number of vertices
-//! let circle = meshes.add(Circle { radius: 25.0 }.mesh().resolution(64));
+//! // Create rectangle mesh with default configuration
+//! let rectangle = meshes.add(Rectangle::new(2.0, 1.0));
 //! # }
 //! ```
 
@@ -24,9 +21,6 @@ pub use dim2::*;
 
 mod dim3;
 pub use dim3::*;
-
-mod extrusion;
-pub use extrusion::*;
 
 use super::Mesh;
 

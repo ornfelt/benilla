@@ -37,10 +37,6 @@ all-features = true
 [features]
 default = []
 morph = ["dep:bevy_image"]
-serialize = [
-    "dep:serde",
-    "wgpu-types/serde",
-]
 
 [lib]
 name = "bevy_mesh"
@@ -98,12 +94,6 @@ default-features = false
 [dependencies.hexasphere]
 version = "16.0"
 
-[dependencies.serde]
-version = "1"
-features = ["derive"]
-optional = true
-default-features = false
-
 [dependencies.thiserror]
 version = "2"
 default-features = false
@@ -116,9 +106,6 @@ default-features = false
 [dependencies.wgpu-types]
 version = "27"
 default-features = false
-
-[dev-dependencies.serde_json]
-version = "1.0.140"
 
 [lints.clippy]
 alloc_instead_of_core = "warn"

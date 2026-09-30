@@ -1,14 +1,8 @@
 use alloc::sync::Arc;
 use bevy_derive::EnumVariantMeta;
-use bevy_ecs::resource::Resource;
 use bevy_math::Vec3;
-#[cfg(feature = "serialize")]
-use bevy_platform::collections::HashMap;
-use bevy_platform::collections::HashSet;
 use bytemuck::cast_slice;
 use core::hash::{Hash, Hasher};
-#[cfg(feature = "serialize")]
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use wgpu_types::{BufferAddress, VertexAttribute, VertexFormat, VertexStepMode};
 
@@ -26,37 +20,6 @@ pub struct MeshVertexAttribute {
     pub format: VertexFormat,
 }
 
-#[cfg(feature = "serialize")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct SerializedMeshVertexAttribute {
-    pub(crate) name: String,
-    pub(crate) id: MeshVertexAttributeId,
-    pub(crate) format: VertexFormat,
-}
-
-#[cfg(feature = "serialize")]
-impl SerializedMeshVertexAttribute {
-    pub(crate) fn from_mesh_vertex_attribute(attribute: MeshVertexAttribute) -> Self {
-        Self {
-            name: attribute.name.to_string(),
-            id: attribute.id,
-            format: attribute.format,
-        }
-    }
-
-    pub(crate) fn try_into_mesh_vertex_attribute(
-        self,
-        possible_attributes: &HashMap<Box<str>, MeshVertexAttribute>,
-    ) -> Option<MeshVertexAttribute> {
-        let attr = possible_attributes.get(self.name.as_str())?;
-        if attr.id == self.id {
-            Some(*attr)
-        } else {
-            None
-        }
-    }
-}
-
 impl MeshVertexAttribute {
     pub const fn new(name: &'static str, id: u64, format: VertexFormat) -> Self {
         Self {
@@ -72,7 +35,6 @@ impl MeshVertexAttribute {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
-#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct MeshVertexAttributeId(u64);
 
 impl From<MeshVertexAttribute> for MeshVertexAttributeId {
@@ -88,26 +50,9 @@ pub struct MeshVertexBufferLayout {
 }
 
 impl MeshVertexBufferLayout {
-    pub fn new(attribute_ids: Vec<MeshVertexAttributeId>, layout: VertexBufferLayout) -> Self {
-        Self {
-            attribute_ids,
-            layout,
-        }
-    }
-
     #[inline]
     pub fn contains(&self, attribute_id: impl Into<MeshVertexAttributeId>) -> bool {
         self.attribute_ids.contains(&attribute_id.into())
-    }
-
-    #[inline]
-    pub fn attribute_ids(&self) -> &[MeshVertexAttributeId] {
-        &self.attribute_ids
-    }
-
-    #[inline]
-    pub fn layout(&self) -> &VertexBufferLayout {
-        &self.layout
     }
 
     pub fn get_layout(
@@ -174,56 +119,6 @@ pub(crate) struct MeshAttributeData {
     pub(crate) values: VertexAttributeValues,
 }
 
-#[cfg(feature = "serialize")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct SerializedMeshAttributeData {
-    pub(crate) attribute: SerializedMeshVertexAttribute,
-    pub(crate) values: VertexAttributeValues,
-}
-
-#[cfg(feature = "serialize")]
-impl SerializedMeshAttributeData {
-    pub(crate) fn from_mesh_attribute_data(data: MeshAttributeData) -> Self {
-        Self {
-            attribute: SerializedMeshVertexAttribute::from_mesh_vertex_attribute(data.attribute),
-            values: data.values,
-        }
-    }
-
-    pub(crate) fn try_into_mesh_attribute_data(
-        self,
-        possible_attributes: &HashMap<Box<str>, MeshVertexAttribute>,
-    ) -> Option<MeshAttributeData> {
-        let attribute = self
-            .attribute
-            .try_into_mesh_vertex_attribute(possible_attributes)?;
-        Some(MeshAttributeData {
-            attribute,
-            values: self.values,
-        })
-    }
-}
-
-/// Compute a vector whose direction is the normal of the triangle formed by
-/// points a, b, c, and whose magnitude is double the area of the triangle. This
-/// is useful for computing smooth normals where the contributing normals are
-/// proportionate to the areas of the triangles as [discussed
-/// here](https://iquilezles.org/articles/normals/).
-///
-/// Question: Why double the area? Because the area of a triangle _A_ is
-/// determined by this equation:
-///
-/// _A = |(b - a) x (c - a)| / 2_
-///
-/// By computing _2 A_ we avoid a division operation, and when calculating the
-/// the sum of these vectors which are then normalized, a constant multiple has
-/// no effect.
-#[inline]
-pub fn triangle_area_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
-    let (a, b, c) = (Vec3::from(a), Vec3::from(b), Vec3::from(c));
-    (b - a).cross(c - a).into()
-}
-
 /// Compute the normal of a face made of three points: a, b, and c.
 #[inline]
 pub fn triangle_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
@@ -234,7 +129,6 @@ pub fn triangle_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
 /// Contains an array where each entry describes a property of a single vertex.
 /// Matches the [`VertexFormats`](VertexFormat).
 #[derive(Clone, Debug, EnumVariantMeta, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum VertexAttributeValues {
     Float32(Vec<f32>),
     Sint32(Vec<i32>),
@@ -406,43 +300,6 @@ pub struct VertexBufferLayout {
     pub attributes: Vec<VertexAttribute>,
 }
 
-impl VertexBufferLayout {
-    /// Creates a new densely packed [`VertexBufferLayout`] from an iterator of vertex formats.
-    /// Iteration order determines the `shader_location` and `offset` of the [`VertexAttributes`](VertexAttribute).
-    /// The first iterated item will have a `shader_location` and `offset` of zero.
-    /// The `array_stride` is the sum of the size of the iterated [`VertexFormats`](VertexFormat) (in bytes).
-    pub fn from_vertex_formats<T: IntoIterator<Item = VertexFormat>>(
-        step_mode: VertexStepMode,
-        vertex_formats: T,
-    ) -> Self {
-        let mut offset = 0;
-        let mut attributes = Vec::new();
-        for (shader_location, format) in vertex_formats.into_iter().enumerate() {
-            attributes.push(VertexAttribute {
-                format,
-                offset,
-                shader_location: shader_location as u32,
-            });
-            offset += format.size();
-        }
-
-        VertexBufferLayout {
-            array_stride: offset,
-            step_mode,
-            attributes,
-        }
-    }
-
-    /// Returns a [`VertexBufferLayout`] with the shader location of every attribute offset by
-    /// `location`.
-    pub fn offset_locations_by(mut self, location: u32) -> Self {
-        self.attributes.iter_mut().for_each(|attr| {
-            attr.shader_location += location;
-        });
-        self
-    }
-}
-
 /// Describes the layout of the mesh vertices in GPU memory.
 ///
 /// At most one copy of a mesh vertex buffer layout ever exists in GPU memory at
@@ -454,27 +311,6 @@ impl VertexBufferLayout {
 /// expensive.
 #[derive(Clone, Debug)]
 pub struct MeshVertexBufferLayoutRef(pub Arc<MeshVertexBufferLayout>);
-
-/// Stores the single copy of each mesh vertex buffer layout.
-#[derive(Clone, Default, Resource)]
-pub struct MeshVertexBufferLayouts(HashSet<Arc<MeshVertexBufferLayout>>);
-
-impl MeshVertexBufferLayouts {
-    /// Inserts a new mesh vertex buffer layout in the store and returns a
-    /// reference to it, reusing the existing reference if this mesh vertex
-    /// buffer layout was already in the store.
-    pub fn insert(&mut self, layout: MeshVertexBufferLayout) -> MeshVertexBufferLayoutRef {
-        // Because the special `PartialEq` and `Hash` implementations that
-        // compare by pointer are on `MeshVertexBufferLayoutRef`, not on
-        // `Arc<MeshVertexBufferLayout>`, this compares the mesh vertex buffer
-        // structurally, not by pointer.
-        MeshVertexBufferLayoutRef(
-            self.0
-                .get_or_insert_with(&layout, |layout| Arc::new(layout.clone()))
-                .clone(),
-        )
-    }
-}
 
 impl PartialEq for MeshVertexBufferLayoutRef {
     fn eq(&self, other: &Self) -> bool {

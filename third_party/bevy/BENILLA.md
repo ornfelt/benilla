@@ -222,6 +222,25 @@ the same repository's.
   `as_wgpu` with the conversions to and from wgpu's sampler types,
   `CompressedImageFormats::from_features`, `TEXTURE_ASSET_INDEX`/`SAMPLER_ASSET_INDEX`,
   `TextureError::InvalidImageMimeType`, and the tests of removed code. No system went.
+- **`bevy_mesh`, to the shapes something meshes and the API anything calls.** Primitive meshing
+  keeps `Rectangle`, `Cuboid`, `Plane3d` and `Sphere` (benilla, its `parity` example, bevy_pbr's
+  fog and decal meshes, avian3d's `collider-from-mesh` tests); the other 2D and 3D builders
+  (circle through ring, capsule, cone, conical frustum, cylinder, polylines, segments,
+  tetrahedron, torus, triangles) and extrusion (`Extrudable`, `ExtrusionBuilder`,
+  `PerimeterSegment`) went, with `PlaneMeshBuilder::new`/`from_size`/`from_length`/`normal`,
+  `SphereMeshBuilder::new`/`kind` and `RectangleMeshBuilder::new`. `Mesh` keeps what is called:
+  construction, attribute and index access, `count_vertices`, `compute_normals` (with the flat and
+  angle-weighted smooth paths it takes), tangent generation and `rotated_by`; gone are the
+  removers, the mutable index and attribute-map access, the vertex-buffer packing and layout
+  (`get_mesh_vertex_buffer_layout`, `MeshVertexBufferLayouts`, `VertexBufferLayout`'s
+  constructors), `duplicate_vertices`, winding inversion, area-weighted normals, `merge`, the
+  transform/translate/scale family with `Transform * Mesh`, `normalize_joint_weights`,
+  `triangles`, `take_gpu_data` (the render-world extraction, so a mesh's data is never in the
+  extracted state), the morph-target accessors, `MorphTargetImage`, `MorphAttributes`,
+  `MorphBuildError` and the weights' constructors (nothing builds morph targets; `MorphWeights`
+  and `MeshMorphWeights` keep what bevy_animation and bevy_render read), `serialize`
+  (`SerializedMesh`, `MeshDeserializer`; bevy_render's `serialize` stays a name enabling
+  nothing), `triangle_area_normal`, and the tests of removed code. No system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

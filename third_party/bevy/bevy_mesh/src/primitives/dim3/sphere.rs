@@ -58,22 +58,6 @@ pub struct SphereMeshBuilder {
 }
 
 impl SphereMeshBuilder {
-    /// Creates a new [`SphereMeshBuilder`] from a radius and [`SphereKind`].
-    #[inline]
-    pub const fn new(radius: f32, kind: SphereKind) -> Self {
-        Self {
-            sphere: Sphere { radius },
-            kind,
-        }
-    }
-
-    /// Sets the [`SphereKind`] that will be used for building the mesh.
-    #[inline]
-    pub const fn kind(mut self, kind: SphereKind) -> Self {
-        self.kind = kind;
-        self
-    }
-
     /// Creates an icosphere mesh with the given number of subdivisions.
     ///
     /// The number of faces quadruples with each subdivision.
