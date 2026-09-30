@@ -57,15 +57,6 @@ version = "0.18.0"
 [dependencies.bevy_camera]
 version = "0.18.0"
 
-[dependencies.bevy_color]
-version = "0.18.0"
-
-[dependencies.bevy_derive]
-version = "0.18.0"
-
-[dependencies.bevy_diagnostic]
-version = "0.18.0"
-
 [dependencies.bevy_ecs]
 version = "0.18.0"
 
@@ -89,34 +80,11 @@ version = "0.18.0"
 [dependencies.bevy_render]
 version = "0.18.0"
 
-[dependencies.bevy_shader]
-version = "0.18.0"
-
-[dependencies.bevy_transform]
-version = "0.18.0"
-
 [dependencies.bevy_utils]
 version = "0.18.0"
 
 [dependencies.bevy_window]
 version = "0.18.0"
-
-[dependencies.bitflags]
-version = "2.3"
-
-[dependencies.nonmax]
-version = "0.5"
-
-[dependencies.radsort]
-version = "0.1"
-
-[dependencies.smallvec]
-version = "1"
-default-features = false
-
-[dependencies.thiserror]
-version = "2"
-default-features = false
 
 [dependencies.tracing]
 version = "0.1"

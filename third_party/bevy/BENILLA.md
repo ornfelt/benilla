@@ -76,6 +76,17 @@ the same repository's.
     lighting-id system, the atmosphere probe system, the forward decal's material and mesh, the
     meshes and the placeholder image the plugins add to their assets, and the components users
     add (fog, SSAO, SSR, atmosphere, lightmap, `ScatteringMedium`).
+  - `bevy_core_pipeline`: the 2D and 3D phase items, their extraction, sorting, depth,
+    transmission and prepass textures and graph nodes, the prepass and deferred passes, the skybox,
+    tonemapping, upscaling, blit and OIT resolve pipelines, the fullscreen material and shader, the
+    depth-pyramid mip generation, and all WGSL. The plugins left with nothing in the main world
+    (`BlitPlugin`, `UpscalingPlugin`, `CopyDeferredLightingIdPlugin`, `MipGenerationPlugin`,
+    `OitResolvePlugin`) are gone, and the Skybox's `ExtractComponentPlugin` (its extraction built
+    the render-world uniform) became its `SyncComponentPlugin`. Kept: the `Core2d`/`Core3d` graph
+    labels (`CameraRenderGraph` and bevy_egui name them), the cameras' required components, the
+    MSAA checks and the OIT depth-usage system, `Tonemapping`, `DebandDither`, `TonemappingLuts`
+    with the three LUT images added to `Assets<Image>`, `Skybox`, the OIT settings, the prepass
+    markers and `PreviousViewData`.
 
   The manifests drop the dependencies no kept code uses; no crate's resolved features change.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
