@@ -27,8 +27,6 @@ use thiserror::Error;
 /// should be loaded.
 ///
 /// This trait is generally used in concert with [`AssetReader`](crate::io::AssetReader) to load assets from a byte source.
-///
-/// For a complementary version of this trait that can save assets, see [`AssetSaver`](crate::saver::AssetSaver).
 pub trait AssetLoader: TypePath + Send + Sync + 'static {
     /// The top level [`Asset`] loaded by this [`AssetLoader`].
     type Asset: Asset;
@@ -104,12 +102,12 @@ where
     }
 
     fn deserialize_meta(&self, meta: &[u8]) -> Result<Box<dyn AssetMetaDyn>, DeserializeMetaError> {
-        let meta = AssetMeta::<L, ()>::deserialize(meta)?;
+        let meta = AssetMeta::<L>::deserialize(meta)?;
         Ok(Box::new(meta))
     }
 
     fn default_meta(&self) -> Box<dyn AssetMetaDyn> {
-        Box::new(AssetMeta::<L, ()>::new(crate::meta::AssetAction::Load {
+        Box::new(AssetMeta::<L>::new(crate::meta::AssetAction::Load {
             loader: self.type_path().to_string(),
             settings: L::Settings::default(),
         }))
@@ -502,7 +500,6 @@ impl<'a> LoadContext<'a> {
         let mut reader = asset_reader.read(path.path()).await?;
         let hash = if self.populate_hashes {
             // NOTE: ensure meta is read while the asset bytes reader is still active to ensure transactionality
-            // See `ProcessorGatedReader` for more info
             let meta_bytes = asset_reader.read_meta_bytes(path.path()).await?;
             let minimal: ProcessedInfoMinimal = ron::de::from_bytes(&meta_bytes)
                 .map_err(DeserializeMetaError::DeserializeMinimal)?;
@@ -578,7 +575,7 @@ impl<'a> LoadContext<'a> {
     /// If the current context is a normal [`AssetServer::load`], an actual asset load will be kicked off immediately, which ensures the load happens
     /// as soon as possible.
     /// "Normal loads" kicked from within a normal Bevy App will generally configure the context to kick off loads immediately.
-    /// If the current context is configured to not load dependencies automatically (ex: [`AssetProcessor`](crate::processor::AssetProcessor)),
+    /// If the current context is configured to not load dependencies automatically,
     /// a load will not be kicked off automatically. It is then the calling context's responsibility to begin a load if necessary.
     ///
     /// If you need to override asset settings, asset type, or load directly, please see [`LoadContext::loader`].

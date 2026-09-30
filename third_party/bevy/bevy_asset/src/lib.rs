@@ -134,9 +134,6 @@
 //!
 //! After the loader is implemented, it needs to be registered with the [`AssetServer`] using [`App::register_asset_loader`](AssetApp::register_asset_loader).
 //! Once your asset type is loaded, you can use it in your game like any other asset type!
-//!
-//! If you want to save your assets back to disk, you should implement [`AssetSaver`](saver::AssetSaver) as well.
-//! This trait mirrors [`AssetLoader`] in structure, and works in tandem with [`AssetWriter`](io::AssetWriter), which mirrors [`AssetReader`](io::AssetReader).
 
 #![expect(missing_docs, reason = "Not all docs are written yet, see #3492.")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -154,9 +151,6 @@ extern crate self as bevy_asset;
 
 pub mod io;
 pub mod meta;
-pub mod processor;
-pub mod saver;
-pub mod transformer;
 
 /// The asset prelude.
 ///
@@ -206,9 +200,8 @@ pub use server::*;
 
 pub use uuid;
 
-use crate::{
-    io::{embedded::EmbeddedAssetRegistry, AssetSourceBuilder, AssetSourceBuilders, AssetSourceId},
-    processor::{AssetProcessor, Process},
+use crate::io::{
+    embedded::EmbeddedAssetRegistry, AssetSourceBuilder, AssetSourceBuilders, AssetSourceId,
 };
 use alloc::{
     string::{String, ToString},
@@ -224,7 +217,6 @@ use bevy_ecs::{
 };
 use bevy_platform::collections::HashSet;
 use bevy_reflect::{FromReflect, GetTypeRegistration, Reflect, TypePath};
-use core::any::TypeId;
 use tracing::error;
 
 /// Provides "asset" loading and processing functionality. An [`Asset`] is a "runtime value" that is loaded from an [`AssetSource`],
@@ -246,12 +238,6 @@ pub struct AssetPlugin {
     /// Most use cases should leave this set to [`None`] and enable a specific watcher feature such as `file_watcher` to enable
     /// watching for dev-scenarios.
     pub watch_for_changes_override: Option<bool>,
-    /// If set, will override the default "use asset processor" setting. By default "use asset
-    /// processor" will be `false` unless the `asset_processor` cargo feature is set.
-    ///
-    /// Most use cases should leave this set to [`None`] and enable the `asset_processor` cargo
-    /// feature.
-    pub use_asset_processor_override: Option<bool>,
     /// The [`AssetMode`] to use for this server.
     pub mode: AssetMode,
     /// How/If asset meta files should be checked.
@@ -305,11 +291,8 @@ pub enum AssetMode {
     /// Assets will be read from their unprocessed [`AssetSource`] (defaults to the `assets` folder),
     /// processed according to their [`AssetMeta`], and written to their processed [`AssetSource`] (defaults to the `imported_assets/Default` folder).
     ///
-    /// By default, this assumes the processor _has already been run_. It will load assets from their final processed [`AssetReader`].
-    ///
-    /// When developing an app, you should enable the `asset_processor` cargo feature, which will run the asset processor at startup. This should generally
-    /// be used in combination with the `file_watcher` cargo feature, which enables hot-reloading of assets that have changed. When both features are enabled,
-    /// changes to "original/source assets" will be detected, the asset will be re-processed, and then the final processed asset will be hot-reloaded in the app.
+    /// This build has no asset processor: this mode assumes the processor _has already been run_ and loads assets from their final
+    /// processed [`AssetReader`].
     ///
     /// [`AssetMeta`]: meta::AssetMeta
     /// [`AssetSource`]: io::AssetSource
@@ -337,7 +320,6 @@ impl Default for AssetPlugin {
             file_path: Self::DEFAULT_UNPROCESSED_FILE_PATH.to_string(),
             processed_file_path: Self::DEFAULT_PROCESSED_FILE_PATH.to_string(),
             watch_for_changes_override: None,
-            use_asset_processor_override: None,
             meta_check: AssetMetaCheck::default(),
             unapproved_path_mode: UnapprovedPathMode::default(),
         }
@@ -383,34 +365,15 @@ impl Plugin for AssetPlugin {
                     ));
                 }
                 AssetMode::Processed => {
-                    let use_asset_processor = self
-                        .use_asset_processor_override
-                        .unwrap_or(false);
-                    if use_asset_processor {
-                        let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
-                        let (processor, sources) = AssetProcessor::new(&mut builders, watch);
-                        // the main asset server shares loaders with the processor asset server
-                        app.insert_resource(AssetServer::new_with_loaders(
-                            sources,
-                            processor.server().data.loaders.clone(),
-                            AssetServerMode::Processed,
-                            AssetMetaCheck::Always,
-                            watch,
-                            self.unapproved_path_mode.clone(),
-                        ))
-                        .insert_resource(processor)
-                        .add_systems(bevy_app::Startup, AssetProcessor::start);
-                    } else {
-                        let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
-                        let sources = builders.build_sources(false, watch);
-                        app.insert_resource(AssetServer::new_with_meta_check(
-                            Arc::new(sources),
-                            AssetServerMode::Processed,
-                            AssetMetaCheck::Always,
-                            watch,
-                            self.unapproved_path_mode.clone(),
-                        ));
-                    }
+                    let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
+                    let sources = builders.build_sources(false, watch);
+                    app.insert_resource(AssetServer::new_with_meta_check(
+                        Arc::new(sources),
+                        AssetServerMode::Processed,
+                        AssetMetaCheck::Always,
+                        watch,
+                        self.unapproved_path_mode.clone(),
+                    ));
                 }
             }
         }
@@ -552,8 +515,6 @@ impl VisitAssetDependencies for HashSet<UntypedHandle> {
 pub trait AssetApp {
     /// Registers the given `loader` in the [`App`]'s [`AssetServer`].
     fn register_asset_loader<L: AssetLoader>(&mut self, loader: L) -> &mut Self;
-    /// Registers the given `processor` in the [`App`]'s [`AssetProcessor`].
-    fn register_asset_processor<P: Process>(&mut self, processor: P) -> &mut Self;
     /// Registers the given [`AssetSourceBuilder`] with the given `id`.
     ///
     /// Note that asset sources must be registered before adding [`AssetPlugin`] to your application,
@@ -563,8 +524,6 @@ pub trait AssetApp {
         id: impl Into<AssetSourceId<'static>>,
         source: AssetSourceBuilder,
     ) -> &mut Self;
-    /// Sets the default asset processor for the given `extension`.
-    fn set_default_asset_processor<P: Process>(&mut self, extension: &str) -> &mut Self;
     /// Initializes the given loader in the [`App`]'s [`AssetServer`].
     fn init_asset_loader<L: AssetLoader + FromWorld>(&mut self) -> &mut Self;
     /// Initializes the given [`Asset`] in the [`App`] by:
@@ -595,13 +554,6 @@ impl AssetApp for App {
         self
     }
 
-    fn register_asset_processor<P: Process>(&mut self, processor: P) -> &mut Self {
-        if let Some(asset_processor) = self.world().get_resource::<AssetProcessor>() {
-            asset_processor.register_processor(processor);
-        }
-        self
-    }
-
     fn register_asset_source(
         &mut self,
         id: impl Into<AssetSourceId<'static>>,
@@ -622,13 +574,6 @@ impl AssetApp for App {
         self
     }
 
-    fn set_default_asset_processor<P: Process>(&mut self, extension: &str) -> &mut Self {
-        if let Some(asset_processor) = self.world().get_resource::<AssetProcessor>() {
-            asset_processor.set_default_processor::<P>(extension);
-        }
-        self
-    }
-
     fn init_asset_loader<L: AssetLoader + FromWorld>(&mut self) -> &mut Self {
         let loader = L::from_world(self.world_mut());
         self.register_asset_loader(loader)
@@ -639,18 +584,6 @@ impl AssetApp for App {
         self.world()
             .resource::<AssetServer>()
             .register_asset(&assets);
-        if self.world().contains_resource::<AssetProcessor>() {
-            let processor = self.world().resource::<AssetProcessor>();
-            // The processor should have its own handle provider separate from the Asset storage
-            // to ensure the id spaces are entirely separate. Not _strictly_ necessary, but
-            // desirable.
-            processor
-                .server()
-                .register_handle_provider(AssetHandleProvider::new(
-                    TypeId::of::<A>(),
-                    Arc::new(AssetIndexAllocator::default()),
-                ));
-        }
         self.insert_resource(assets)
             .allow_ambiguous_resource::<Assets<A>>()
             .add_message::<AssetEvent<A>>()
@@ -923,7 +856,6 @@ mod tests {
             TaskPoolPlugin::default(),
             AssetPlugin {
                 watch_for_changes_override: Some(false),
-                use_asset_processor_override: Some(false),
                 ..Default::default()
             },
             DiagnosticsPlugin,

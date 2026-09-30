@@ -758,30 +758,6 @@ impl AssetInfos {
 
         true
     }
-
-    /// Consumes all current handle drop events. This will update information in [`AssetInfos`], but it
-    /// will not affect [`Assets`] storages. For normal use cases, prefer `Assets::track_assets()`
-    /// This should only be called if `Assets` storage isn't being used (such as in [`AssetProcessor`](crate::processor::AssetProcessor))
-    ///
-    /// [`Assets`]: crate::Assets
-    pub(crate) fn consume_handle_drop_events(&mut self) {
-        for provider in self.handle_providers.values() {
-            while let Ok(drop_event) = provider.drop_receiver.try_recv() {
-                let id = drop_event.index;
-                if drop_event.asset_server_managed {
-                    Self::process_handle_drop_internal(
-                        &mut self.infos,
-                        &mut self.path_to_index,
-                        &mut self.loader_dependents,
-                        &mut self.living_labeled_assets,
-                        &mut self.pending_tasks,
-                        self.watching_for_changes,
-                        id,
-                    );
-                }
-            }
-        }
-    }
 }
 /// Determines how a handle should be initialized
 #[derive(Copy, Clone, PartialEq, Eq)]

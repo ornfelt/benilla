@@ -1,7 +1,6 @@
 pub mod embedded;
 pub mod file;
 pub mod memory;
-pub mod processor_gated;
 
 #[cfg(test)]
 pub mod gated;
@@ -170,7 +169,7 @@ where
 /// `path`. This trait is not object safe, if needed use a dyn [`ErasedAssetReader`] instead.
 ///
 /// This trait defines asset-agnostic mechanisms to read bytes from a storage system.
-/// For the per-asset-type saving/loading logic, see [`AssetSaver`](crate::saver::AssetSaver) and [`AssetLoader`](crate::loader::AssetLoader).
+/// For the per-asset-type loading logic, see [`AssetLoader`](crate::loader::AssetLoader).
 ///
 /// For a complementary version of this trait that can write assets to storage, see [`AssetWriter`].
 pub trait AssetReader: Send + Sync + 'static {
@@ -310,7 +309,7 @@ pub enum AssetWriterError {
 /// `path`. This trait is not object safe, if needed use a dyn [`ErasedAssetWriter`] instead.
 ///
 /// This trait defines asset-agnostic mechanisms to write bytes to a storage system.
-/// For the per-asset-type saving/loading logic, see [`AssetSaver`](crate::saver::AssetSaver) and [`AssetLoader`](crate::loader::AssetLoader).
+/// For the per-asset-type loading logic, see [`AssetLoader`](crate::loader::AssetLoader).
 ///
 /// For a complementary version of this trait that can read assets from storage, see [`AssetReader`].
 pub trait AssetWriter: Send + Sync + 'static {

@@ -38,7 +38,6 @@ all-features = true
 basis-universal = ["dep:basis-universal"]
 bevy_reflect = ["bevy_math/bevy_reflect"]
 bmp = ["image/bmp"]
-compressed_image_saver = ["basis-universal"]
 dds = ["ddsfile"]
 default = ["bevy_reflect"]
 exr = ["image/exr"]

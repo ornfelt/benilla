@@ -23,8 +23,6 @@ mod serialized_image;
 pub use self::serialized_image::*;
 #[cfg(feature = "basis-universal")]
 mod basis;
-#[cfg(feature = "compressed_image_saver")]
-mod compressed_image_saver;
 #[cfg(feature = "dds")]
 mod dds;
 mod dynamic_texture_atlas_builder;
@@ -38,8 +36,6 @@ mod ktx2;
 mod texture_atlas;
 mod texture_atlas_builder;
 
-#[cfg(feature = "compressed_image_saver")]
-pub use compressed_image_saver::*;
 #[cfg(feature = "dds")]
 pub use dds::*;
 pub use dynamic_texture_atlas_builder::*;

@@ -87,10 +87,6 @@ impl ReaderRef<'_> {
 ///   referenced asset, or you are building a collection of assets. This will
 ///   add the path of the asset as a "load dependency".
 ///
-///   If the current loader is used in a [`Process`] "asset preprocessor",
-///   such as a [`LoadTransformAndSave`] preprocessor, changing a "load
-///   dependency" will result in re-processing of the asset.
-///
 /// # Load kickoff
 ///
 /// If the current context is a normal [`AssetServer::load`], an actual asset
@@ -98,8 +94,8 @@ impl ReaderRef<'_> {
 /// as possible. "Normal loads" kicked from within a normal Bevy App will
 /// generally configure the context to kick off loads immediately.
 ///
-/// If the current context is configured to not load dependencies automatically
-/// (ex: [`AssetProcessor`]), a load will not be kicked off automatically. It is
+/// If the current context is configured to not load dependencies automatically,
+/// a load will not be kicked off automatically. It is
 /// then the calling context's responsibility to begin a load if necessary.
 ///
 /// # Lifetimes
@@ -112,9 +108,6 @@ impl ReaderRef<'_> {
 /// [`load`]: Self::load
 /// [`with_dynamic_type`]: Self::with_dynamic_type
 /// [`AssetServer::load`]: crate::AssetServer::load
-/// [`AssetProcessor`]: crate::processor::AssetProcessor
-/// [`Process`]: crate::processor::Process
-/// [`LoadTransformAndSave`]: crate::processor::LoadTransformAndSave
 pub struct NestedLoader<'ctx, 'builder, T, M> {
     load_context: &'builder mut LoadContext<'ctx>,
     meta_transform: Option<MetaTransform>,

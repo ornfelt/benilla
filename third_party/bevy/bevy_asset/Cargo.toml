@@ -102,10 +102,6 @@ default-features = false
 version = "2.3"
 default-features = false
 
-[dependencies.blake3]
-version = "1.8"
-default-features = false
-
 [dependencies.crossbeam-channel]
 version = "0.5"
 features = ["std"]

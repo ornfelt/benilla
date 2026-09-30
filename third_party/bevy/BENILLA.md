@@ -161,6 +161,16 @@ the same repository's.
   `embedded_watcher`, `watch`, `http`, `https`, `web_asset_cache` and `asset_processor` (the
   file and embedded watchers, the web reader); `AssetPlugin` reads `false` where it read those
   features, as it did, and the processor itself waits for its own trim. No system went.
+- **`bevy_asset`'s processor.** `processor/` (`AssetProcessor`, `Process`,
+  `LoadTransformAndSave`, the transaction log and its tests), `io/processor_gated.rs`,
+  `saver.rs` and `transformer.rs`, with `AssetPlugin::use_asset_processor_override` (unset, it
+  read `false`), `AssetApp::register_asset_processor`/`set_default_asset_processor`, the
+  processor's handle provider in `init_asset`, `AssetSource`'s gating (`gate_on_processor`, the
+  ungated reader, `should_process`, `iter_processed(_mut)`), the asset hashing only the processor
+  ran, and `blake3`. `AssetMode::Processed` keeps its no-processor branch (it loads from the
+  processed reader). The meta format stays: `AssetMeta<L>` reads a `Process` action with `()`
+  settings, as `AssetMeta<L, ()>` did, and `ProcessedInfo` stays as data. `bevy_image`'s
+  `compressed_image_saver` feature (off) went with its module. No system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

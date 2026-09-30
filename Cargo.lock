@@ -682,7 +682,6 @@ dependencies = [
  "bevy_tasks",
  "bevy_utils",
  "bitflags 2.11.1",
- "blake3",
  "crossbeam-channel",
  "derive_more",
  "disqualified",

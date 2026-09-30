@@ -1,7 +1,4 @@
-use crate::{
-    io::{processor_gated::ProcessorGatedReader, AssetSourceEvent, AssetWatcher},
-    processor::ProcessingState,
-};
+use crate::io::{AssetSourceEvent, AssetWatcher};
 use alloc::{
     boxed::Box,
     string::{String, ToString},
@@ -185,7 +182,6 @@ impl AssetSourceBuilder {
                 .as_mut()
                 .map(|r| r())
                 .map(Into::<Arc<_>>::into),
-            ungated_processed_reader: None,
             processed_writer,
             event_receiver: None,
             watcher: None,
@@ -392,11 +388,6 @@ pub struct AssetSource {
     reader: Box<dyn ErasedAssetReader>,
     writer: Option<Box<dyn ErasedAssetWriter>>,
     processed_reader: Option<Arc<dyn ErasedAssetReader>>,
-    /// The ungated version of `processed_reader`.
-    ///
-    /// This allows the processor to read all the processed assets to initialize itself without
-    /// being gated on itself (causing a deadlock).
-    ungated_processed_reader: Option<Arc<dyn ErasedAssetReader>>,
     processed_writer: Option<Box<dyn ErasedAssetWriter>>,
     watcher: Option<Box<dyn AssetWatcher>>,
     processed_watcher: Option<Box<dyn AssetWatcher>>,
@@ -435,13 +426,6 @@ impl AssetSource {
             .ok_or_else(|| MissingProcessedAssetReaderError(self.id.clone_owned()))
     }
 
-    /// Return's this source's ungated processed [`AssetReader`](crate::io::AssetReader), if it
-    /// exists.
-    #[inline]
-    pub(crate) fn ungated_processed_reader(&self) -> Option<&dyn ErasedAssetReader> {
-        self.ungated_processed_reader.as_deref()
-    }
-
     /// Return's this source's processed [`AssetWriter`](crate::io::AssetWriter), if it exists.
     #[inline]
     pub fn processed_writer(
@@ -462,12 +446,6 @@ impl AssetSource {
     #[inline]
     pub fn processed_event_receiver(&self) -> Option<&async_channel::Receiver<AssetSourceEvent>> {
         self.processed_event_receiver.as_ref()
-    }
-
-    /// Returns true if the assets in this source should be processed.
-    #[inline]
-    pub fn should_process(&self) -> bool {
-        self.processed_writer.is_some()
     }
 
     /// Returns a builder function for this platform's default [`AssetReader`](crate::io::AssetReader). `path` is the relative path to
@@ -508,19 +486,6 @@ impl AssetSource {
     {
         move |_sender: async_channel::Sender<AssetSourceEvent>| None
     }
-
-    /// This will cause processed [`AssetReader`](crate::io::AssetReader) futures (such as [`AssetReader::read`](crate::io::AssetReader::read)) to wait until
-    /// the [`AssetProcessor`](crate::AssetProcessor) has finished processing the requested asset.
-    pub(crate) fn gate_on_processor(&mut self, processing_state: Arc<ProcessingState>) {
-        if let Some(reader) = self.processed_reader.take() {
-            self.ungated_processed_reader = Some(reader.clone());
-            self.processed_reader = Some(Arc::new(ProcessorGatedReader::new(
-                self.id(),
-                reader,
-                processing_state,
-            )));
-        }
-    }
 }
 
 /// A collection of [`AssetSource`]s.
@@ -554,30 +519,12 @@ impl AssetSources {
         self.sources.values_mut().chain(Some(&mut self.default))
     }
 
-    /// Iterates all processed asset sources in the collection (including the default source).
-    pub fn iter_processed(&self) -> impl Iterator<Item = &AssetSource> {
-        self.iter().filter(|p| p.should_process())
-    }
-
-    /// Mutably iterates all processed asset sources in the collection (including the default source).
-    pub fn iter_processed_mut(&mut self) -> impl Iterator<Item = &mut AssetSource> {
-        self.iter_mut().filter(|p| p.should_process())
-    }
-
     /// Iterates over the [`AssetSourceId`] of every [`AssetSource`] in the collection (including the default source).
     pub fn ids(&self) -> impl Iterator<Item = AssetSourceId<'static>> + '_ {
         self.sources
             .keys()
             .map(|k| AssetSourceId::Name(k.clone_owned()))
             .chain(Some(AssetSourceId::Default))
-    }
-
-    /// This will cause processed [`AssetReader`](crate::io::AssetReader) futures (such as [`AssetReader::read`](crate::io::AssetReader::read)) to wait until
-    /// the [`AssetProcessor`](crate::AssetProcessor) has finished processing the requested asset.
-    pub(crate) fn gate_on_processor(&mut self, processing_state: Arc<ProcessingState>) {
-        for source in self.iter_processed_mut() {
-            source.gate_on_processor(processing_state.clone());
-        }
     }
 }
 

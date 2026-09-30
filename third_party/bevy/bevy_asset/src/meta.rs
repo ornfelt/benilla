@@ -1,15 +1,10 @@
+use crate::{
+    io::Reader, loader::AssetLoader, Asset, AssetPath, DeserializeMetaError, VisitAssetDependencies,
+};
 use alloc::{
     boxed::Box,
     string::{String, ToString},
     vec::Vec,
-};
-use futures_lite::AsyncReadExt;
-
-use crate::{
-    io::{AssetReaderError, Reader},
-    loader::AssetLoader,
-    processor::Process,
-    Asset, AssetPath, DeserializeMetaError, VisitAssetDependencies,
 };
 use downcast_rs::{impl_downcast, Downcast};
 use ron::ser::PrettyConfig;
@@ -22,24 +17,22 @@ pub type MetaTransform = Box<dyn Fn(&mut dyn AssetMetaDyn) + Send + Sync>;
 /// Asset metadata that informs how an [`Asset`] should be handled by the asset system.
 ///
 /// `L` is the [`AssetLoader`] (if one is configured) for the [`AssetAction`]. This can be `()` if it is not required.
-/// `P` is the [`Process`] processor, if one is configured for the [`AssetAction`]. This can be `()` if it is not required.
+/// This build has no asset processor, so a [`AssetAction::Process`] action carries `()` settings.
 #[derive(Serialize, Deserialize)]
-pub struct AssetMeta<L: AssetLoader, P: Process> {
+pub struct AssetMeta<L: AssetLoader> {
     /// The version of the meta format being used. This will change whenever a breaking change is made to
     /// the meta format.
     pub meta_format_version: String,
-    /// Information produced by the [`AssetProcessor`] _after_ processing this asset.
+    /// Information produced by the asset processor _after_ processing this asset.
     /// This will only exist alongside processed versions of assets. You should not manually set it in your asset source files.
-    ///
-    /// [`AssetProcessor`]: crate::processor::AssetProcessor
     #[serde(skip_serializing_if = "Option::is_none")]
     pub processed_info: Option<ProcessedInfo>,
     /// How to handle this asset in the asset system. See [`AssetAction`].
-    pub asset: AssetAction<L::Settings, P::Settings>,
+    pub asset: AssetAction<L::Settings, ()>,
 }
 
-impl<L: AssetLoader, P: Process> AssetMeta<L, P> {
-    pub fn new(asset: AssetAction<L::Settings, P::Settings>) -> Self {
+impl<L: AssetLoader> AssetMeta<L> {
+    pub fn new(asset: AssetAction<L::Settings, ()>) -> Self {
         Self {
             meta_format_version: META_FORMAT_VERSION.to_string(),
             processed_info: None,
@@ -63,9 +56,6 @@ pub enum AssetAction<LoaderSettings, ProcessSettings> {
         settings: LoaderSettings,
     },
     /// Process the asset with the given processor and settings.
-    /// See [`Process`] and [`AssetProcessor`].
-    ///
-    /// [`AssetProcessor`]: crate::processor::AssetProcessor
     Process {
         processor: String,
         settings: ProcessSettings,
@@ -74,10 +64,8 @@ pub enum AssetAction<LoaderSettings, ProcessSettings> {
     Ignore,
 }
 
-/// Info produced by the [`AssetProcessor`] for a given processed asset. This is used to determine if an
+/// Info produced by the asset processor for a given processed asset. This is used to determine if an
 /// asset source file (or its dependencies) has changed.
-///
-/// [`AssetProcessor`]: crate::processor::AssetProcessor
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ProcessedInfo {
     /// A hash of the asset bytes and the asset .meta data
@@ -130,17 +118,13 @@ pub trait AssetMetaDyn: Downcast + Send + Sync {
     fn loader_settings(&self) -> Option<&dyn Settings>;
     /// Returns a mutable reference to the [`AssetLoader`] settings, if they exist.
     fn loader_settings_mut(&mut self) -> Option<&mut dyn Settings>;
-    /// Returns a reference to the [`Process`] settings, if they exist.
-    fn process_settings(&self) -> Option<&dyn Settings>;
     /// Serializes the internal [`AssetMeta`].
     fn serialize(&self) -> Vec<u8>;
     /// Returns a reference to the [`ProcessedInfo`] if it exists.
     fn processed_info(&self) -> &Option<ProcessedInfo>;
-    /// Returns a mutable reference to the [`ProcessedInfo`] if it exists.
-    fn processed_info_mut(&mut self) -> &mut Option<ProcessedInfo>;
 }
 
-impl<L: AssetLoader, P: Process> AssetMetaDyn for AssetMeta<L, P> {
+impl<L: AssetLoader> AssetMetaDyn for AssetMeta<L> {
     fn loader_settings(&self) -> Option<&dyn Settings> {
         if let AssetAction::Load { settings, .. } = &self.asset {
             Some(settings)
@@ -155,13 +139,6 @@ impl<L: AssetLoader, P: Process> AssetMetaDyn for AssetMeta<L, P> {
             None
         }
     }
-    fn process_settings(&self) -> Option<&dyn Settings> {
-        if let AssetAction::Process { settings, .. } = &self.asset {
-            Some(settings)
-        } else {
-            None
-        }
-    }
     fn serialize(&self) -> Vec<u8> {
         ron::ser::to_string_pretty(&self, PrettyConfig::default())
             .expect("type is convertible to ron")
@@ -170,36 +147,16 @@ impl<L: AssetLoader, P: Process> AssetMetaDyn for AssetMeta<L, P> {
     fn processed_info(&self) -> &Option<ProcessedInfo> {
         &self.processed_info
     }
-    fn processed_info_mut(&mut self) -> &mut Option<ProcessedInfo> {
-        &mut self.processed_info
-    }
 }
 
 impl_downcast!(AssetMetaDyn);
 
-/// Settings used by the asset system, such as by [`AssetLoader`], [`Process`], and [`AssetSaver`]
-///
-/// [`AssetSaver`]: crate::saver::AssetSaver
+/// Settings used by the asset system, such as by [`AssetLoader`]
 pub trait Settings: Downcast + Send + Sync + 'static {}
 
 impl<T: 'static> Settings for T where T: Send + Sync {}
 
 impl_downcast!(Settings);
-
-/// The () processor should never be called. This implementation exists to make the meta format nicer to work with.
-impl Process for () {
-    type Settings = ();
-    type OutputLoader = ();
-
-    async fn process(
-        &self,
-        _context: &mut bevy_asset::processor::ProcessContext<'_>,
-        _settings: &Self::Settings,
-        _writer: &mut bevy_asset::io::Writer,
-    ) -> Result<(), bevy_asset::processor::ProcessError> {
-        unreachable!()
-    }
-}
 
 impl Asset for () {}
 
@@ -251,35 +208,3 @@ pub(crate) fn loader_settings_meta_transform<S: Settings>(
 }
 
 pub type AssetHash = [u8; 32];
-
-/// NOTE: changing the hashing logic here is a _breaking change_ that requires a [`META_FORMAT_VERSION`] bump.
-pub(crate) async fn get_asset_hash(
-    meta_bytes: &[u8],
-    asset_reader: &mut impl Reader,
-) -> Result<AssetHash, AssetReaderError> {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(meta_bytes);
-    let mut buffer = [0; blake3::CHUNK_LEN];
-    loop {
-        let bytes_read = asset_reader.read(&mut buffer).await?;
-        hasher.update(&buffer[..bytes_read]);
-        if bytes_read == 0 {
-            // This means we've reached EOF, so we're done consuming asset bytes.
-            break;
-        }
-    }
-    Ok(*hasher.finalize().as_bytes())
-}
-
-/// NOTE: changing the hashing logic here is a _breaking change_ that requires a [`META_FORMAT_VERSION`] bump.
-pub(crate) fn get_full_asset_hash(
-    asset_hash: AssetHash,
-    dependency_hashes: impl Iterator<Item = AssetHash>,
-) -> AssetHash {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(&asset_hash);
-    for hash in dependency_hashes {
-        hasher.update(&hash);
-    }
-    *hasher.finalize().as_bytes()
-}
