@@ -23,15 +23,6 @@ impl Texture {
     }
 }
 
-impl From<wgpu::Texture> for Texture {
-    fn from(value: wgpu::Texture) -> Self {
-        Texture {
-            id: TextureId::new(),
-            value: WgpuWrapper::new(value),
-        }
-    }
-}
-
 impl Deref for Texture {
     type Target = wgpu::Texture;
 
@@ -50,16 +41,6 @@ pub struct TextureView {
     value: WgpuWrapper<wgpu::TextureView>,
 }
 
-pub struct SurfaceTexture {
-    value: WgpuWrapper<wgpu::SurfaceTexture>,
-}
-
-impl SurfaceTexture {
-    pub fn present(self) {
-        match *self.value {}
-    }
-}
-
 impl TextureView {
     /// Returns the [`TextureViewId`].
     #[inline]
@@ -68,34 +49,8 @@ impl TextureView {
     }
 }
 
-impl From<wgpu::TextureView> for TextureView {
-    fn from(value: wgpu::TextureView) -> Self {
-        TextureView {
-            id: TextureViewId::new(),
-            value: WgpuWrapper::new(value),
-        }
-    }
-}
-
-impl From<wgpu::SurfaceTexture> for SurfaceTexture {
-    fn from(value: wgpu::SurfaceTexture) -> Self {
-        SurfaceTexture {
-            value: WgpuWrapper::new(value),
-        }
-    }
-}
-
 impl Deref for TextureView {
     type Target = wgpu::TextureView;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-
-impl Deref for SurfaceTexture {
-    type Target = wgpu::SurfaceTexture;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -121,15 +76,6 @@ impl Sampler {
     #[inline]
     pub fn id(&self) -> SamplerId {
         self.id
-    }
-}
-
-impl From<wgpu::Sampler> for Sampler {
-    fn from(value: wgpu::Sampler) -> Self {
-        Sampler {
-            id: SamplerId::new(),
-            value: WgpuWrapper::new(value),
-        }
     }
 }
 

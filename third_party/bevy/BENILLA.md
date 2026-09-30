@@ -77,6 +77,12 @@ the same repository's.
   ordering, and the recorded frame is byte-identical. `interaction_states`' six observers, which
   mirrored `InteractionDisabled`/`Checked` into the `AccessibilityNode`, are empty stand-ins too
   (still registered, so the observer entities are spawned as before).
+- **`bevy_egui`'s web and Android code** (benilla builds for Linux, Windows and macOS): the
+  mobile-web text agent and web clipboard (`text_agent.rs`, `web_clipboard.rs`), the
+  `SubscribedEvents` listeners and every `wasm32`/`android` branch, so the clipboard is arboard's
+  under `manage_clipboard` alone and `ModifierKeysState` reads macOS from the target; the manifest
+  lost its wasm-only dependencies, its example list and its dev-dependencies. No system benilla's
+  targets add went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
@@ -193,10 +199,23 @@ the same repository's.
     re-export nothing names (`naga::ShaderStage` among them). wgpu, wgpu-core, wgpu-hal and
     their platform crates left the build; naga stays for `bevy_shader`'s `naga_oil`, without
     the `hlsl-out`, `msl-out` and `spv-out` writers only wgpu-core enabled.
+  - `bevy_render`'s render-world remainder (the fifth piece): `ExtractedView` and
+    `RetainedViewEntity`, `ExtractedWindow(s)` with the surface texture, the render targets'
+    texture-view lookups (`NormalizedRenderTargetExt` keeps `get_render_target_info` and
+    `is_changed`, which `camera_system` calls), the shadow views' occlusion-culling components,
+    `ReadbackComplete` and `Readback`'s constructors, `TemporaryRenderEntity`, the render and
+    compute pipeline wrappers with `ComputePipelineDescriptor`, the uncallable `From<wgpu::..>`
+    impls on the wrappers, the `binding_types` helpers the bindless descriptors do not call, and
+    the methods nothing calls on `ViewTarget` (it keeps the five benilla-world's final pass uses),
+    `ColorAttachment`, `OutputColorAttachment`, `ColorGrading`, `GpuImage` and
+    `ShaderStorageBuffer`; `TemporalJitter` (a camera component nothing adds) with them. Types
+    only: no plugin's build changed. `ReadbackComplete`, `TemporaryRenderEntity` and
+    `TemporalJitter` leave the auto-registered type registry.
 
   The manifests drop the dependencies no kept code uses; no crate's resolved features change
   (`fixedbitset`, `nonmax` and `slotmap` lose `default`, which only enabled `std`, still on)
-  except naga's (above) and `web-sys`'s WebGL features, which only wasm builds compile.
+  except naga's (above), `web-sys`'s WebGL, clipboard and input-event features and
+  `getrandom`'s `wasm_js`, which only wasm builds compile.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
   avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each

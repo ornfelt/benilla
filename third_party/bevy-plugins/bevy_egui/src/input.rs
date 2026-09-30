@@ -1,5 +1,3 @@
-#[cfg(target_arch = "wasm32")]
-use crate::text_agent::{is_mobile_safari, update_text_agent};
 use crate::{
     EguiContext, EguiContextSettings, EguiGlobalSettings, EguiInput, EguiOutput,
     helpers::{QueryHelper, vec2_into_egui_pos2},
@@ -112,18 +110,7 @@ impl Default for ModifierKeysState {
             is_macos: false,
         };
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            state.is_macos = cfg!(target_os = "macos");
-        }
-
-        #[cfg(target_arch = "wasm32")]
-        if let Some(window) = web_sys::window()
-            && let Ok(user_agent) = window.navigator().user_agent()
-            && user_agent.to_ascii_lowercase().contains("mac")
-        {
-            state.is_macos = true;
-        }
+        state.is_macos = cfg!(target_os = "macos");
 
         state
     }
@@ -560,12 +547,7 @@ pub fn write_mouse_wheel_messages_system(
 /// Reads [`KeyboardInput`] messages and wraps them into [`EguiInputEvent`], can redirect messages to [`FocusedNonWindowEguiContext`].
 pub fn write_keyboard_input_messages_system(
     modifier_keys_state: Res<ModifierKeysState>,
-    #[cfg(all(
-        feature = "manage_clipboard",
-        not(target_os = "android"),
-        not(target_arch = "wasm32")
-    ))]
-    mut egui_clipboard: ResMut<crate::EguiClipboard>,
+    #[cfg(feature = "manage_clipboard")] mut egui_clipboard: ResMut<crate::EguiClipboard>,
     mut keyboard_input_reader: EguiContextMessageReader<KeyboardInput>,
     mut egui_input_message_writer: MessageWriter<EguiInputEvent>,
     egui_contexts: Query<&EguiContextSettings, With<EguiContext>>,
@@ -626,11 +608,7 @@ pub fn write_keyboard_input_messages_system(
 
         // We also check that it's a `ButtonState::Pressed` message, as we don't want to
         // copy, cut or paste on the key release.
-        #[cfg(all(
-            feature = "manage_clipboard",
-            not(target_os = "android"),
-            not(target_arch = "wasm32")
-        ))]
+        #[cfg(feature = "manage_clipboard")]
         if modifiers.command && message.state.is_pressed() {
             match key {
                 egui::Key::C => {
@@ -1080,14 +1058,6 @@ fn write_touch_message(
                     context,
                     event: egui::Event::PointerGone,
                 });
-
-                #[cfg(target_arch = "wasm32")]
-                if !is_mobile_safari() {
-                    update_text_agent(
-                        _output.platform_output.ime.is_some()
-                            || _output.platform_output.mutable_text_under_cursor,
-                    );
-                }
             }
             bevy_input::touch::TouchPhase::Canceled => {
                 context_pointer_touch_id.pointer_touch_id = None;

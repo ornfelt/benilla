@@ -59,29 +59,6 @@ impl ShaderStorageBuffer {
         storage.asset_usage = asset_usage;
         storage
     }
-
-    /// Creates a new storage buffer with the given size and asset usage.
-    pub fn with_size(size: usize, asset_usage: RenderAssetUsages) -> Self {
-        let mut storage = ShaderStorageBuffer {
-            data: None,
-            ..default()
-        };
-        storage.buffer_description.size = size as u64;
-        storage.buffer_description.mapped_at_creation = false;
-        storage.asset_usage = asset_usage;
-        storage
-    }
-
-    /// Sets the data of the storage buffer to the given [`ShaderType`].
-    pub fn set_data<T>(&mut self, value: T)
-    where
-        T: ShaderType + WriteInto,
-    {
-        let size = value.size().get() as usize;
-        let mut wrapper = encase::StorageBuffer::<Vec<u8>>::new(Vec::with_capacity(size));
-        wrapper.write(&value).unwrap();
-        self.data = Some(wrapper.into_inner());
-    }
 }
 
 impl<T> From<T> for ShaderStorageBuffer

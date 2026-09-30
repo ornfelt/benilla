@@ -124,12 +124,6 @@ pub mod output;
 /// Rendering Egui with [`bevy_render`].
 #[cfg(feature = "render")]
 pub mod render;
-/// Mobile web keyboard input support.
-#[cfg(target_arch = "wasm32")]
-pub mod text_agent;
-/// Clipboard management for web.
-#[cfg(all(feature = "manage_clipboard", target_arch = "wasm32",))]
-pub mod web_clipboard;
 
 /// Commonly-used items.
 pub mod prelude {
@@ -144,16 +138,7 @@ pub mod prelude {
 pub use egui;
 
 use crate::input::*;
-#[cfg(target_arch = "wasm32")]
-use crate::text_agent::{
-    SafariVirtualKeyboardTouchState, TextAgentChannel, VirtualTouchInfo, install_text_agent_system,
-    is_mobile_safari, process_safari_virtual_keyboard_system,
-    write_text_agent_channel_events_system,
-};
-#[cfg(all(
-    feature = "manage_clipboard",
-    not(any(target_arch = "wasm32", target_os = "android"))
-))]
+#[cfg(feature = "manage_clipboard")]
 use arboard::Clipboard;
 use bevy_app::prelude::*;
 #[cfg(feature = "render")]
@@ -179,13 +164,8 @@ use bevy_reflect::Reflect;
 #[cfg(feature = "render")]
 use bevy_render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use output::process_output_system;
-#[cfg(all(
-    feature = "manage_clipboard",
-    not(any(target_arch = "wasm32", target_os = "android"))
-))]
+#[cfg(feature = "manage_clipboard")]
 use std::cell::{RefCell, RefMut};
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 /// Adds all Egui resources and render graph nodes.
 pub struct EguiPlugin {
@@ -464,12 +444,6 @@ pub struct EguiInputSystemSettings {
     pub run_write_ime_messages_system: bool,
     /// Controls running of the [`write_file_dnd_messages_system`] system.
     pub run_write_file_dnd_messages_system: bool,
-    /// Controls running of the [`write_text_agent_channel_messages_system`] system.
-    #[cfg(target_arch = "wasm32")]
-    pub run_write_text_agent_channel_messages_system: bool,
-    /// Controls running of the [`web_clipboard::write_web_clipboard_messages_system`] system.
-    #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-    pub run_write_web_clipboard_messages_system: bool,
 }
 
 impl Default for EguiInputSystemSettings {
@@ -485,10 +459,6 @@ impl Default for EguiInputSystemSettings {
             run_write_keyboard_input_messages_system: true,
             run_write_ime_messages_system: true,
             run_write_file_dnd_messages_system: true,
-            #[cfg(target_arch = "wasm32")]
-            run_write_text_agent_channel_messages_system: true,
-            #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-            run_write_web_clipboard_messages_system: true,
         }
     }
 }
@@ -539,13 +509,10 @@ pub struct EguiFullOutput(pub Option<egui::FullOutput>);
 /// A resource for accessing clipboard.
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
-#[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+#[cfg(feature = "manage_clipboard")]
 #[derive(Default, Resource)]
 pub struct EguiClipboard {
-    #[cfg(not(target_arch = "wasm32"))]
     clipboard: thread_local::ThreadLocal<Option<RefCell<Clipboard>>>,
-    #[cfg(target_arch = "wasm32")]
-    clipboard: web_clipboard::WebClipboard,
 }
 
 /// Is used for storing Egui shapes and textures delta.
@@ -928,10 +895,7 @@ impl Plugin for EguiPlugin {
             >::default());
         }
 
-        #[cfg(target_arch = "wasm32")]
-        app.init_non_send_resource::<SubscribedEvents>();
-
-        #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+        #[cfg(feature = "manage_clipboard")]
         app.init_resource::<EguiClipboard>();
 
         app.configure_sets(
@@ -964,10 +928,6 @@ impl Plugin for EguiPlugin {
         );
 
         // Startup systems.
-        #[cfg(all(feature = "manage_clipboard", target_arch = "wasm32"))]
-        {
-            app.add_systems(PreStartup, web_clipboard::startup_setup_web_events_system);
-        }
         app.add_systems(
             PreStartup,
             (
@@ -1051,69 +1011,6 @@ impl Plugin for EguiPlugin {
             begin_pass_system.in_set(EguiPreUpdateSet::BeginPass),
         );
 
-        // Web-specific resources and systems.
-        #[cfg(target_arch = "wasm32")]
-        {
-            use std::sync::{LazyLock, Mutex};
-
-            let maybe_window_plugin = app.get_added_plugins::<bevy_window::WindowPlugin>();
-
-            if !maybe_window_plugin.is_empty()
-                && maybe_window_plugin[0].primary_window.is_some()
-                && maybe_window_plugin[0]
-                    .primary_window
-                    .as_ref()
-                    .unwrap()
-                    .prevent_default_event_handling
-            {
-                app.init_resource::<TextAgentChannel>();
-
-                let (sender, receiver) = crossbeam_channel::unbounded();
-                static TOUCH_INFO: LazyLock<Mutex<VirtualTouchInfo>> =
-                    LazyLock::new(|| Mutex::new(VirtualTouchInfo::default()));
-
-                app.insert_resource(SafariVirtualKeyboardTouchState {
-                    sender,
-                    receiver,
-                    touch_info: &TOUCH_INFO,
-                });
-
-                app.add_systems(
-                    PreStartup,
-                    install_text_agent_system.in_set(EguiStartupSet::InitContexts),
-                );
-
-                app.add_systems(
-                    PreUpdate,
-                    write_text_agent_channel_events_system
-                        .run_if(input_system_is_enabled(|s| {
-                            s.run_write_text_agent_channel_messages_system
-                        }))
-                        .in_set(EguiPreUpdateSet::ProcessInput)
-                        .in_set(EguiInputSet::ReadBevyMessages),
-                );
-
-                if is_mobile_safari() {
-                    app.add_systems(
-                        PostUpdate,
-                        process_safari_virtual_keyboard_system
-                            .in_set(EguiPostUpdateSet::PostProcessOutput),
-                    );
-                }
-            }
-
-            #[cfg(feature = "manage_clipboard")]
-            app.add_systems(
-                PreUpdate,
-                web_clipboard::write_web_clipboard_events_system
-                    .run_if(input_system_is_enabled(|s| {
-                        s.run_write_web_clipboard_messages_system
-                    }))
-                    .in_set(EguiPreUpdateSet::ProcessInput)
-                    .in_set(EguiInputSet::ReadBevyMessages),
-            );
-        }
-
         // PostUpdate systems.
         app.add_systems(
             PostUpdate,
@@ -1189,7 +1086,7 @@ pub fn setup_primary_egui_context_system(
     Ok(())
 }
 
-#[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+#[cfg(feature = "manage_clipboard")]
 impl EguiClipboard {
     /// Places the text onto the clipboard.
     pub fn set_text(&mut self, contents: &str) {
@@ -1198,11 +1095,6 @@ impl EguiClipboard {
 
     /// Sets the internal buffer of clipboard contents.
     /// This buffer is used to remember the contents of the last "Paste" event.
-    #[cfg(target_arch = "wasm32")]
-    pub fn set_text_internal(&mut self, text: &str) {
-        self.clipboard.set_text_internal(text);
-    }
-
     /// Gets clipboard text content. Returns [`None`] if clipboard provider is unavailable or returns an error.
     #[must_use]
     pub fn get_text(&mut self) -> Option<String> {
@@ -1215,12 +1107,6 @@ impl EguiClipboard {
     }
 
     /// Receives a clipboard event sent by the `copy`/`cut`/`paste` listeners.
-    #[cfg(target_arch = "wasm32")]
-    pub fn try_receive_clipboard_event(&self) -> Option<web_clipboard::WebClipboardEvent> {
-        self.clipboard.try_receive_clipboard_event()
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
     fn set_text_impl(&mut self, contents: &str) {
         if let Some(mut clipboard) = self.get()
             && let Err(err) = clipboard.set_text(contents.to_owned())
@@ -1229,12 +1115,6 @@ impl EguiClipboard {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn set_text_impl(&mut self, contents: &str) {
-        self.clipboard.set_text(contents);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
     fn get_text_impl(&mut self) -> Option<String> {
         if let Some(mut clipboard) = self.get() {
             match clipboard.get_text() {
@@ -1247,13 +1127,6 @@ impl EguiClipboard {
         None
     }
 
-    #[cfg(target_arch = "wasm32")]
-    #[allow(clippy::unnecessary_wraps)]
-    fn get_text_impl(&mut self) -> Option<String> {
-        self.clipboard.get_text()
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
     fn set_image_impl(&mut self, image: &egui::ColorImage) {
         if let Some(mut clipboard) = self.get()
             && let Err(err) = clipboard.set_image(arboard::ImageData {
@@ -1266,12 +1139,6 @@ impl EguiClipboard {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn set_image_impl(&mut self, image: &egui::ColorImage) {
-        self.clipboard.set_image(image);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
     fn get(&self) -> Option<RefMut<'_, Clipboard>> {
         self.clipboard
             .get_or(|| {
@@ -1384,63 +1251,6 @@ pub fn free_egui_textures_system(
     for message in image_event_reader.read() {
         if let AssetEvent::Removed { id } = message {
             egui_user_textures.remove_image(EguiTextureHandle::Weak(*id));
-        }
-    }
-}
-
-/// Helper function for outputting a String from a JsValue
-#[cfg(target_arch = "wasm32")]
-pub fn string_from_js_value(value: &JsValue) -> String {
-    value.as_string().unwrap_or_else(|| format!("{value:#?}"))
-}
-
-#[cfg(target_arch = "wasm32")]
-struct EventClosure<T> {
-    target: web_sys::EventTarget,
-    event_name: String,
-    closure: wasm_bindgen::closure::Closure<dyn FnMut(T)>,
-}
-
-/// Stores event listeners.
-#[cfg(target_arch = "wasm32")]
-#[derive(Default)]
-pub struct SubscribedEvents {
-    #[cfg(feature = "manage_clipboard")]
-    clipboard_event_closures: Vec<EventClosure<web_sys::ClipboardEvent>>,
-    composition_event_closures: Vec<EventClosure<web_sys::CompositionEvent>>,
-    keyboard_event_closures: Vec<EventClosure<web_sys::KeyboardEvent>>,
-    input_event_closures: Vec<EventClosure<web_sys::InputEvent>>,
-    touch_event_closures: Vec<EventClosure<web_sys::TouchEvent>>,
-}
-
-#[cfg(target_arch = "wasm32")]
-impl SubscribedEvents {
-    /// Use this method to unsubscribe from all stored events, this can be useful
-    /// for gracefully destroying a Bevy instance in a page.
-    pub fn unsubscribe_from_all_events(&mut self) {
-        #[cfg(feature = "manage_clipboard")]
-        Self::unsubscribe_from_events(&mut self.clipboard_event_closures);
-        Self::unsubscribe_from_events(&mut self.composition_event_closures);
-        Self::unsubscribe_from_events(&mut self.keyboard_event_closures);
-        Self::unsubscribe_from_events(&mut self.input_event_closures);
-        Self::unsubscribe_from_events(&mut self.touch_event_closures);
-    }
-
-    fn unsubscribe_from_events<T>(events: &mut Vec<EventClosure<T>>) {
-        let events_to_unsubscribe = std::mem::take(events);
-
-        if !events_to_unsubscribe.is_empty() {
-            for event in events_to_unsubscribe {
-                if let Err(err) = event.target.remove_event_listener_with_callback(
-                    event.event_name.as_str(),
-                    event.closure.as_ref().unchecked_ref(),
-                ) {
-                    log::error!(
-                        "Failed to unsubscribe from event: {}",
-                        string_from_js_value(&err)
-                    );
-                }
-            }
         }
     }
 }

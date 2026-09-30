@@ -44,15 +44,6 @@ impl BindGroupLayout {
     }
 }
 
-impl From<wgpu::BindGroupLayout> for BindGroupLayout {
-    fn from(value: wgpu::BindGroupLayout) -> Self {
-        BindGroupLayout {
-            id: BindGroupLayoutId::new(),
-            value: WgpuWrapper::new(value),
-        }
-    }
-}
-
 impl Deref for BindGroupLayout {
     type Target = wgpu::BindGroupLayout;
 

@@ -1,15 +1,11 @@
 use crate::{
     extract_component::{ExtractComponent, ExtractComponentPlugin},
     extract_resource::{ExtractResource, ExtractResourcePlugin},
-    render_asset::RenderAssets,
     render_graph::{InternedRenderSubGraph, RenderSubGraph},
-    render_resource::TextureView,
     sync_world::SyncToRenderWorld,
-    texture::{GpuImage, ManualTextureViews},
-    view::{ColorGrading, ExtractedWindows, Msaa},
+    texture::ManualTextureViews,
+    view::{ColorGrading, Msaa},
 };
-
-use crate::wgpu::TextureFormat;
 use bevy_app::{App, Plugin, PostStartup, PostUpdate};
 use bevy_asset::{AssetEvent, AssetEventSystems, AssetId, Assets};
 use bevy_camera::{
@@ -34,7 +30,7 @@ use bevy_ecs::{
     world::DeferredWorld,
 };
 use bevy_image::Image;
-use bevy_math::{uvec2, vec2, Mat4, UVec2, Vec2};
+use bevy_math::{uvec2, UVec2};
 use bevy_platform::collections::HashSet;
 use bevy_reflect::prelude::*;
 use bevy_window::{PrimaryWindow, Window, WindowCreated, WindowResized, WindowScaleFactorChanged};
@@ -130,21 +126,6 @@ impl CameraRenderGraph {
 }
 
 pub trait NormalizedRenderTargetExt {
-    fn get_texture_view<'a>(
-        &self,
-        windows: &'a ExtractedWindows,
-        images: &'a RenderAssets<GpuImage>,
-        manual_texture_views: &'a ManualTextureViews,
-    ) -> Option<&'a TextureView>;
-
-    /// Retrieves the [`TextureFormat`] of this render target, if it exists.
-    fn get_texture_view_format<'a>(
-        &self,
-        windows: &'a ExtractedWindows,
-        images: &'a RenderAssets<GpuImage>,
-        manual_texture_views: &'a ManualTextureViews,
-    ) -> Option<TextureFormat>;
-
     fn get_render_target_info<'a>(
         &self,
         resolutions: impl IntoIterator<Item = (Entity, &'a Window)>,
@@ -161,47 +142,6 @@ pub trait NormalizedRenderTargetExt {
 }
 
 impl NormalizedRenderTargetExt for NormalizedRenderTarget {
-    fn get_texture_view<'a>(
-        &self,
-        windows: &'a ExtractedWindows,
-        images: &'a RenderAssets<GpuImage>,
-        manual_texture_views: &'a ManualTextureViews,
-    ) -> Option<&'a TextureView> {
-        match self {
-            NormalizedRenderTarget::Window(window_ref) => windows
-                .get(&window_ref.entity())
-                .and_then(|window| window.swap_chain_texture_view.as_ref()),
-            NormalizedRenderTarget::Image(image_target) => images
-                .get(&image_target.handle)
-                .map(|image| &image.texture_view),
-            NormalizedRenderTarget::TextureView(id) => {
-                manual_texture_views.get(id).map(|tex| &tex.texture_view)
-            }
-            NormalizedRenderTarget::None { .. } => None,
-        }
-    }
-
-    /// Retrieves the texture view's [`TextureFormat`] of this render target, if it exists.
-    fn get_texture_view_format<'a>(
-        &self,
-        windows: &'a ExtractedWindows,
-        images: &'a RenderAssets<GpuImage>,
-        manual_texture_views: &'a ManualTextureViews,
-    ) -> Option<TextureFormat> {
-        match self {
-            NormalizedRenderTarget::Window(window_ref) => windows
-                .get(&window_ref.entity())
-                .and_then(|window| window.swap_chain_texture_view_format),
-            NormalizedRenderTarget::Image(image_target) => images
-                .get(&image_target.handle)
-                .map(|image| image.texture_view_format.unwrap_or(image.texture_format)),
-            NormalizedRenderTarget::TextureView(id) => {
-                manual_texture_views.get(id).map(|tex| tex.view_format)
-            }
-            NormalizedRenderTarget::None { .. } => None,
-        }
-    }
-
     fn get_render_target_info<'a>(
         &self,
         resolutions: impl IntoIterator<Item = (Entity, &'a Window)>,
@@ -396,31 +336,6 @@ pub struct ExtractedCamera {
     pub sorted_camera_index_for_target: usize,
     pub exposure: f32,
     pub hdr: bool,
-}
-
-/// A subpixel offset to jitter a perspective camera's frustum by.
-///
-/// Useful for temporal rendering techniques.
-#[derive(Component, Clone, Default, Reflect)]
-#[reflect(Default, Component, Clone)]
-pub struct TemporalJitter {
-    /// Offset is in range [-0.5, 0.5].
-    pub offset: Vec2,
-}
-
-impl TemporalJitter {
-    pub fn jitter_projection(&self, clip_from_view: &mut Mat4, view_size: Vec2) {
-        // https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/d7531ae47d8b36a5d4025663e731a47a38be882f/docs/techniques/media/super-resolution-temporal/jitter-space.svg
-        let mut jitter = (self.offset * vec2(2.0, -2.0)) / view_size;
-
-        // orthographic
-        if clip_from_view.w_axis.w == 1.0 {
-            jitter *= vec2(clip_from_view.x_axis.x, clip_from_view.y_axis.y) * 0.5;
-        }
-
-        clip_from_view.z_axis.x += jitter.x;
-        clip_from_view.z_axis.y += jitter.y;
-    }
 }
 
 /// Camera component specifying a mip bias to apply when sampling from material textures.

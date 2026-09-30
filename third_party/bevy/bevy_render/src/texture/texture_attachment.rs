@@ -13,7 +13,6 @@ pub struct ColorAttachment {
     pub texture: CachedTexture,
     pub resolve_target: Option<CachedTexture>,
     pub previous_frame_texture: Option<CachedTexture>,
-    clear_color: Option<LinearRgba>,
     is_first_call: Arc<AtomicBool>,
 }
 
@@ -22,60 +21,12 @@ impl ColorAttachment {
         texture: CachedTexture,
         resolve_target: Option<CachedTexture>,
         previous_frame_texture: Option<CachedTexture>,
-        clear_color: Option<LinearRgba>,
     ) -> Self {
         Self {
             texture,
             resolve_target,
             previous_frame_texture,
-            clear_color,
             is_first_call: Arc::new(AtomicBool::new(true)),
-        }
-    }
-
-    /// Get this texture view as an attachment. The attachment will be cleared with a value of
-    /// `clear_color` if this is the first time calling this function, otherwise it will be loaded.
-    ///
-    /// The returned attachment will always have writing enabled (`store: StoreOp::Load`).
-    pub fn get_attachment(&self) -> RenderPassColorAttachment<'_> {
-        if let Some(resolve_target) = self.resolve_target.as_ref() {
-            let first_call = self.is_first_call.fetch_and(false, Ordering::SeqCst);
-
-            RenderPassColorAttachment {
-                view: &resolve_target.default_view,
-                depth_slice: None,
-                resolve_target: Some(&self.texture.default_view),
-                ops: Operations {
-                    load: match (self.clear_color, first_call) {
-                        (Some(clear_color), true) => LoadOp::Clear(clear_color.into()),
-                        (None, _) | (Some(_), false) => LoadOp::Load,
-                    },
-                    store: StoreOp::Store,
-                },
-            }
-        } else {
-            self.get_unsampled_attachment()
-        }
-    }
-
-    /// Get this texture view as an attachment, without the resolve target. The attachment will be cleared with
-    /// a value of `clear_color` if this is the first time calling this function, otherwise it will be loaded.
-    ///
-    /// The returned attachment will always have writing enabled (`store: StoreOp::Load`).
-    pub fn get_unsampled_attachment(&self) -> RenderPassColorAttachment<'_> {
-        let first_call = self.is_first_call.fetch_and(false, Ordering::SeqCst);
-
-        RenderPassColorAttachment {
-            view: &self.texture.default_view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: Operations {
-                load: match (self.clear_color, first_call) {
-                    (Some(clear_color), true) => LoadOp::Clear(clear_color.into()),
-                    (None, _) | (Some(_), false) => LoadOp::Load,
-                },
-                store: StoreOp::Store,
-            },
         }
     }
 
@@ -161,12 +112,5 @@ impl OutputColorAttachment {
                 store: StoreOp::Store,
             },
         }
-    }
-
-    /// Returns `true` if this attachment has been written to by a render pass.
-    // we re-use is_first_call atomic to track usage, which assumes that calls to get_attachment
-    // are always consumed by a render pass that writes to the attachment
-    pub fn needs_present(&self) -> bool {
-        !self.is_first_call.load(Ordering::SeqCst)
     }
 }

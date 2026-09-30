@@ -22,8 +22,9 @@ pub fn process_output_system(
         &mut EguiOutput,
         &EguiContextSettings,
     )>,
-    #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
-    mut egui_clipboard: bevy_ecs::system::ResMut<crate::EguiClipboard>,
+    #[cfg(feature = "manage_clipboard")] mut egui_clipboard: bevy_ecs::system::ResMut<
+        crate::EguiClipboard,
+    >,
     mut request_redraw_writer: MessageWriter<RequestRedraw>,
     mut last_cursor_icon: Local<HashMap<Entity, egui::CursorIcon>>,
     egui_global_settings: Res<EguiGlobalSettings>,
@@ -58,13 +59,13 @@ pub fn process_output_system(
             match command {
                 egui::OutputCommand::CopyText(_text) =>
                 {
-                    #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+                    #[cfg(feature = "manage_clipboard")]
                     if !_text.is_empty() {
                         egui_clipboard.set_text(_text);
                     }
                 }
                 egui::OutputCommand::CopyImage(_image) => {
-                    #[cfg(all(feature = "manage_clipboard", not(target_os = "android")))]
+                    #[cfg(feature = "manage_clipboard")]
                     egui_clipboard.set_image(_image);
                 }
                 egui::OutputCommand::OpenUrl(_url) => {

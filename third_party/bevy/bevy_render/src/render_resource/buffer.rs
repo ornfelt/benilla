@@ -18,15 +18,6 @@ impl Buffer {
     }
 }
 
-impl From<wgpu::Buffer> for Buffer {
-    fn from(value: wgpu::Buffer) -> Self {
-        Buffer {
-            id: BufferId::new(),
-            value: WgpuWrapper::new(value),
-        }
-    }
-}
-
 impl Deref for Buffer {
     type Target = wgpu::Buffer;
 

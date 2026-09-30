@@ -25,12 +25,9 @@ handles!(
     Buffer,
     Texture,
     TextureView,
-    SurfaceTexture,
     Sampler,
     BindGroup,
     BindGroupLayout,
-    RenderPipeline,
-    ComputePipeline,
 );
 
 pub type BufferDescriptor<'a> = wgpu_types::BufferDescriptor<Label<'a>>;

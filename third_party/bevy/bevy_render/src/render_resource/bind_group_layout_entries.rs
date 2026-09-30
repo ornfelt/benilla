@@ -67,33 +67,9 @@ pub mod binding_types {
     use crate::render_resource::{
         BufferBindingType, SamplerBindingType, TextureSampleType, TextureViewDimension,
     };
-    use crate::wgpu::{StorageTextureAccess, TextureFormat};
     use core::num::NonZero;
-    use encase::ShaderType;
 
     use super::*;
-
-    pub fn storage_buffer<T: ShaderType>(has_dynamic_offset: bool) -> BindGroupLayoutEntryBuilder {
-        storage_buffer_sized(has_dynamic_offset, Some(T::min_size()))
-    }
-
-    pub fn storage_buffer_sized(
-        has_dynamic_offset: bool,
-        min_binding_size: Option<NonZero<u64>>,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::Buffer {
-            ty: BufferBindingType::Storage { read_only: false },
-            has_dynamic_offset,
-            min_binding_size,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn storage_buffer_read_only<T: ShaderType>(
-        has_dynamic_offset: bool,
-    ) -> BindGroupLayoutEntryBuilder {
-        storage_buffer_read_only_sized(has_dynamic_offset, Some(T::min_size()))
-    }
 
     pub fn storage_buffer_read_only_sized(
         has_dynamic_offset: bool,
@@ -101,22 +77,6 @@ pub mod binding_types {
     ) -> BindGroupLayoutEntryBuilder {
         BindingType::Buffer {
             ty: BufferBindingType::Storage { read_only: true },
-            has_dynamic_offset,
-            min_binding_size,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn uniform_buffer<T: ShaderType>(has_dynamic_offset: bool) -> BindGroupLayoutEntryBuilder {
-        uniform_buffer_sized(has_dynamic_offset, Some(T::min_size()))
-    }
-
-    pub fn uniform_buffer_sized(
-        has_dynamic_offset: bool,
-        min_binding_size: Option<NonZero<u64>>,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::Buffer {
-            ty: BufferBindingType::Uniform,
             has_dynamic_offset,
             min_binding_size,
         }
@@ -141,15 +101,6 @@ pub mod binding_types {
         .into_bind_group_layout_entry_builder()
     }
 
-    pub fn texture_2d_multisampled(sample_type: TextureSampleType) -> BindGroupLayoutEntryBuilder {
-        BindingType::Texture {
-            sample_type,
-            view_dimension: TextureViewDimension::D2,
-            multisampled: true,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
     pub fn texture_2d_array(sample_type: TextureSampleType) -> BindGroupLayoutEntryBuilder {
         BindingType::Texture {
             sample_type,
@@ -159,41 +110,11 @@ pub mod binding_types {
         .into_bind_group_layout_entry_builder()
     }
 
-    pub fn texture_2d_array_multisampled(
-        sample_type: TextureSampleType,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::Texture {
-            sample_type,
-            view_dimension: TextureViewDimension::D2Array,
-            multisampled: true,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn texture_depth_2d() -> BindGroupLayoutEntryBuilder {
-        texture_2d(TextureSampleType::Depth).into_bind_group_layout_entry_builder()
-    }
-
-    pub fn texture_depth_2d_multisampled() -> BindGroupLayoutEntryBuilder {
-        texture_2d_multisampled(TextureSampleType::Depth).into_bind_group_layout_entry_builder()
-    }
-
     pub fn texture_cube(sample_type: TextureSampleType) -> BindGroupLayoutEntryBuilder {
         BindingType::Texture {
             sample_type,
             view_dimension: TextureViewDimension::Cube,
             multisampled: false,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn texture_cube_multisampled(
-        sample_type: TextureSampleType,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::Texture {
-            sample_type,
-            view_dimension: TextureViewDimension::Cube,
-            multisampled: true,
         }
         .into_bind_group_layout_entry_builder()
     }
@@ -207,17 +128,6 @@ pub mod binding_types {
         .into_bind_group_layout_entry_builder()
     }
 
-    pub fn texture_cube_array_multisampled(
-        sample_type: TextureSampleType,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::Texture {
-            sample_type,
-            view_dimension: TextureViewDimension::CubeArray,
-            multisampled: true,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
     pub fn texture_3d(sample_type: TextureSampleType) -> BindGroupLayoutEntryBuilder {
         BindingType::Texture {
             sample_type,
@@ -227,66 +137,7 @@ pub mod binding_types {
         .into_bind_group_layout_entry_builder()
     }
 
-    pub fn texture_3d_multisampled(sample_type: TextureSampleType) -> BindGroupLayoutEntryBuilder {
-        BindingType::Texture {
-            sample_type,
-            view_dimension: TextureViewDimension::D3,
-            multisampled: true,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
     pub fn sampler(sampler_binding_type: SamplerBindingType) -> BindGroupLayoutEntryBuilder {
         BindingType::Sampler(sampler_binding_type).into_bind_group_layout_entry_builder()
-    }
-
-    pub fn texture_storage_2d(
-        format: TextureFormat,
-        access: StorageTextureAccess,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::StorageTexture {
-            access,
-            format,
-            view_dimension: TextureViewDimension::D2,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn texture_storage_2d_array(
-        format: TextureFormat,
-        access: StorageTextureAccess,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::StorageTexture {
-            access,
-            format,
-            view_dimension: TextureViewDimension::D2Array,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn texture_storage_3d(
-        format: TextureFormat,
-        access: StorageTextureAccess,
-    ) -> BindGroupLayoutEntryBuilder {
-        BindingType::StorageTexture {
-            access,
-            format,
-            view_dimension: TextureViewDimension::D3,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn acceleration_structure() -> BindGroupLayoutEntryBuilder {
-        BindingType::AccelerationStructure {
-            vertex_return: false,
-        }
-        .into_bind_group_layout_entry_builder()
-    }
-
-    pub fn acceleration_structure_vertex_return() -> BindGroupLayoutEntryBuilder {
-        BindingType::AccelerationStructure {
-            vertex_return: true,
-        }
-        .into_bind_group_layout_entry_builder()
     }
 }

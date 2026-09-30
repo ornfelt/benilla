@@ -55,15 +55,6 @@ impl core::hash::Hash for BindGroup {
     }
 }
 
-impl From<wgpu::BindGroup> for BindGroup {
-    fn from(value: wgpu::BindGroup) -> Self {
-        BindGroup {
-            id: BindGroupId::new(),
-            value: WgpuWrapper::new(value),
-        }
-    }
-}
-
 impl<'a> From<&'a BindGroup> for Option<&'a wgpu::BindGroup> {
     fn from(value: &'a BindGroup) -> Self {
         Some(value.deref())

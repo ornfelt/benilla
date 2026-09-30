@@ -9,17 +9,14 @@ use crate::{
     experimental::occlusion_culling::OcclusionCulling,
     extract_component::ExtractComponentPlugin,
     render_resource::{Texture, TextureView},
-    sync_world::MainEntity,
     texture::{ColorAttachment, OutputColorAttachment},
 };
 use alloc::sync::Arc;
 use bevy_app::{App, Plugin};
 use bevy_color::LinearRgba;
 use bevy_ecs::prelude::*;
-use bevy_math::{Mat4, UVec4};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render_macros::ExtractComponent;
-use bevy_transform::components::GlobalTransform;
 use core::{
     ops::Range,
     sync::atomic::{AtomicUsize, Ordering},
@@ -96,122 +93,6 @@ impl Msaa {
 )]
 #[reflect(Component, Default, PartialEq, Hash, Debug)]
 pub struct Hdr;
-
-/// An identifier for a view that is stable across frames.
-///
-/// We can't use [`Entity`] for this because render world entities aren't
-/// stable, and we can't use just [`MainEntity`] because some main world views
-/// extract to multiple render world views. For example, a directional light
-/// extracts to one render world view per cascade, and a point light extracts to
-/// one render world view per cubemap face. So we pair the main entity with an
-/// *auxiliary entity* and a *subview index*, which *together* uniquely identify
-/// a view in the render world in a way that's stable from frame to frame.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct RetainedViewEntity {
-    /// The main entity that this view corresponds to.
-    pub main_entity: MainEntity,
-
-    /// Another entity associated with the view entity.
-    ///
-    /// This is currently used for shadow cascades. If there are multiple
-    /// cameras, each camera needs to have its own set of shadow cascades. Thus
-    /// the light and subview index aren't themselves enough to uniquely
-    /// identify a shadow cascade: we need the camera that the cascade is
-    /// associated with as well. This entity stores that camera.
-    ///
-    /// If not present, this will be `MainEntity(Entity::PLACEHOLDER)`.
-    pub auxiliary_entity: MainEntity,
-
-    /// The index of the view corresponding to the entity.
-    ///
-    /// For example, for point lights that cast shadows, this is the index of
-    /// the cubemap face (0 through 5 inclusive). For directional lights, this
-    /// is the index of the cascade.
-    pub subview_index: u32,
-}
-
-impl RetainedViewEntity {
-    /// Creates a new [`RetainedViewEntity`] from the given main world entity,
-    /// auxiliary main world entity, and subview index.
-    ///
-    /// See [`RetainedViewEntity::subview_index`] for an explanation of what
-    /// `auxiliary_entity` and `subview_index` are.
-    pub fn new(
-        main_entity: MainEntity,
-        auxiliary_entity: Option<MainEntity>,
-        subview_index: u32,
-    ) -> Self {
-        Self {
-            main_entity,
-            auxiliary_entity: auxiliary_entity.unwrap_or(Entity::PLACEHOLDER.into()),
-            subview_index,
-        }
-    }
-}
-
-/// Describes a camera in the render world.
-///
-/// Each entity in the main world can potentially extract to multiple subviews,
-/// each of which has a [`RetainedViewEntity::subview_index`]. For instance, 3D
-/// cameras extract to both a 3D camera subview with index 0 and a special UI
-/// subview with index 1. Likewise, point lights with shadows extract to 6
-/// subviews, one for each side of the shadow cubemap.
-#[derive(Component)]
-pub struct ExtractedView {
-    /// The entity in the main world corresponding to this render world view.
-    pub retained_view_entity: RetainedViewEntity,
-    /// Typically a column-major right-handed projection matrix, one of either:
-    ///
-    /// Perspective (infinite reverse z)
-    /// ```text
-    /// f = 1 / tan(fov_y_radians / 2)
-    ///
-    /// ⎡ f / aspect  0   0     0 ⎤
-    /// ⎢          0  f   0     0 ⎥
-    /// ⎢          0  0   0  near ⎥
-    /// ⎣          0  0  -1     0 ⎦
-    /// ```
-    ///
-    /// Orthographic
-    /// ```text
-    /// w = right - left
-    /// h = top - bottom
-    /// d = far - near
-    /// cw = -right - left
-    /// ch = -top - bottom
-    ///
-    /// ⎡ 2 / w      0      0   cw / w ⎤
-    /// ⎢     0  2 / h      0   ch / h ⎥
-    /// ⎢     0      0  1 / d  far / d ⎥
-    /// ⎣     0      0      0        1 ⎦
-    /// ```
-    ///
-    /// `clip_from_view[3][3] == 1.0` is the standard way to check if a projection is orthographic
-    ///
-    /// Glam matrices are column major, so for example getting the near plane of a perspective projection is `clip_from_view[3][2]`
-    ///
-    /// Custom projections are also possible however.
-    pub clip_from_view: Mat4,
-    pub world_from_view: GlobalTransform,
-    // The view-projection matrix. When provided it is used instead of deriving it from
-    // `projection` and `transform` fields, which can be helpful in cases where numerical
-    // stability matters and there is a more direct way to derive the view-projection matrix.
-    pub clip_from_world: Option<Mat4>,
-    pub hdr: bool,
-    // uvec4(origin.x, origin.y, width, height)
-    pub viewport: UVec4,
-    pub color_grading: ColorGrading,
-
-    /// Whether to switch culling mode so that materials that request backface
-    /// culling cull front faces, and vice versa.
-    ///
-    /// This is typically used for cameras that mirror the world that they
-    /// render across a plane, because doing that flips the winding of each
-    /// polygon.
-    ///
-    /// This setting doesn't affect materials that disable backface culling.
-    pub invert_culling: bool,
-}
 
 /// Configures filmic color grading parameters to adjust the image appearance.
 ///
@@ -378,37 +259,6 @@ impl Default for ColorGradingSection {
     }
 }
 
-impl ColorGrading {
-    /// Creates a new [`ColorGrading`] instance in which shadows, midtones, and
-    /// highlights all have the same set of color grading values.
-    pub fn with_identical_sections(
-        global: ColorGradingGlobal,
-        section: ColorGradingSection,
-    ) -> ColorGrading {
-        ColorGrading {
-            global,
-            highlights: section,
-            midtones: section,
-            shadows: section,
-        }
-    }
-
-    /// Returns an iterator that visits the shadows, midtones, and highlights
-    /// sections, in that order.
-    pub fn all_sections(&self) -> impl Iterator<Item = &ColorGradingSection> {
-        [&self.shadows, &self.midtones, &self.highlights].into_iter()
-    }
-
-    /// Applies the given mutating function to the shadows, midtones, and
-    /// highlights sections, in that order.
-    ///
-    /// Returns an array composed of the results of such evaluation, in that
-    /// order.
-    pub fn all_sections_mut(&mut self) -> impl Iterator<Item = &mut ColorGradingSection> {
-        [&mut self.shadows, &mut self.midtones, &mut self.highlights].into_iter()
-    }
-}
-
 #[derive(Component, Clone)]
 pub struct ViewTarget {
     main_textures: MainTargetTextures,
@@ -444,49 +294,6 @@ pub struct PostProcessWrite<'a> {
 pub struct NoIndirectDrawing;
 
 impl ViewTarget {
-    pub const TEXTURE_FORMAT_HDR: TextureFormat = TextureFormat::Rgba16Float;
-
-    /// Retrieve this target's main texture's color attachment.
-    pub fn get_color_attachment(&self) -> RenderPassColorAttachment<'_> {
-        if self.main_texture.load(Ordering::SeqCst) == 0 {
-            self.main_textures.a.get_attachment()
-        } else {
-            self.main_textures.b.get_attachment()
-        }
-    }
-
-    /// Retrieve this target's "unsampled" main texture's color attachment.
-    pub fn get_unsampled_color_attachment(&self) -> RenderPassColorAttachment<'_> {
-        if self.main_texture.load(Ordering::SeqCst) == 0 {
-            self.main_textures.a.get_unsampled_attachment()
-        } else {
-            self.main_textures.b.get_unsampled_attachment()
-        }
-    }
-
-    /// The "main" unsampled texture.
-    pub fn main_texture(&self) -> &Texture {
-        if self.main_texture.load(Ordering::SeqCst) == 0 {
-            &self.main_textures.a.texture.texture
-        } else {
-            &self.main_textures.b.texture.texture
-        }
-    }
-
-    /// The _other_ "main" unsampled texture.
-    /// In most cases you should use [`Self::main_texture`] instead and never this.
-    /// The textures will naturally be swapped when [`Self::post_process_write`] is called.
-    ///
-    /// A use case for this is to be able to prepare a bind group for all main textures
-    /// ahead of time.
-    pub fn main_texture_other(&self) -> &Texture {
-        if self.main_texture.load(Ordering::SeqCst) == 0 {
-            &self.main_textures.b.texture.texture
-        } else {
-            &self.main_textures.a.texture.texture
-        }
-    }
-
     /// The "main" unsampled texture.
     pub fn main_texture_view(&self) -> &TextureView {
         if self.main_texture.load(Ordering::SeqCst) == 0 {
@@ -496,53 +303,9 @@ impl ViewTarget {
         }
     }
 
-    /// The _other_ "main" unsampled texture view.
-    /// In most cases you should use [`Self::main_texture_view`] instead and never this.
-    /// The textures will naturally be swapped when [`Self::post_process_write`] is called.
-    ///
-    /// A use case for this is to be able to prepare a bind group for all main textures
-    /// ahead of time.
-    pub fn main_texture_other_view(&self) -> &TextureView {
-        if self.main_texture.load(Ordering::SeqCst) == 0 {
-            &self.main_textures.b.texture.default_view
-        } else {
-            &self.main_textures.a.texture.default_view
-        }
-    }
-
-    /// The "main" sampled texture.
-    pub fn sampled_main_texture(&self) -> Option<&Texture> {
-        self.main_textures
-            .a
-            .resolve_target
-            .as_ref()
-            .map(|sampled| &sampled.texture)
-    }
-
-    /// The "main" sampled texture view.
-    pub fn sampled_main_texture_view(&self) -> Option<&TextureView> {
-        self.main_textures
-            .a
-            .resolve_target
-            .as_ref()
-            .map(|sampled| &sampled.default_view)
-    }
-
     #[inline]
     pub fn main_texture_format(&self) -> TextureFormat {
         self.main_texture_format
-    }
-
-    /// Returns `true` if and only if the main texture is [`Self::TEXTURE_FORMAT_HDR`]
-    #[inline]
-    pub fn is_hdr(&self) -> bool {
-        self.main_texture_format == ViewTarget::TEXTURE_FORMAT_HDR
-    }
-
-    /// The final texture this view will render to.
-    #[inline]
-    pub fn out_texture(&self) -> &TextureView {
-        &self.out_texture.view
     }
 
     pub fn out_texture_color_attachment(
@@ -550,11 +313,6 @@ impl ViewTarget {
         clear_color: Option<LinearRgba>,
     ) -> RenderPassColorAttachment<'_> {
         self.out_texture.get_attachment(clear_color)
-    }
-
-    /// Whether the final texture this view will render to needs to be presented.
-    pub fn needs_present(&self) -> bool {
-        self.out_texture.needs_present()
     }
 
     /// The format of the final texture this view will render to

@@ -2,14 +2,13 @@ use bevy_app::Plugin;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     component::Component,
-    entity::{ContainsEntity, Entity, EntityEquivalent, EntityHash},
+    entity::{ContainsEntity, Entity, EntityEquivalent},
     lifecycle::{Add, Remove},
     observer::On,
     reflect::ReflectComponent,
     resource::Resource,
     system::{Query, ResMut},
 };
-use bevy_platform::collections::{HashMap, HashSet};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 /// A plugin that synchronizes entities with [`SyncToRenderWorld`] between the main world and the render world.
@@ -177,17 +176,6 @@ impl ContainsEntity for MainEntity {
 
 // SAFETY: RenderEntity is a newtype around Entity that derives its comparison traits.
 unsafe impl EntityEquivalent for MainEntity {}
-
-/// A [`HashMap`] pre-configured to use [`EntityHash`] hashing with a [`MainEntity`].
-pub type MainEntityHashMap<V> = HashMap<MainEntity, V, EntityHash>;
-
-/// A [`HashSet`] pre-configured to use [`EntityHash`] hashing with a [`MainEntity`]..
-pub type MainEntityHashSet = HashSet<MainEntity, EntityHash>;
-
-/// Marker component that indicates that its entity needs to be despawned at the end of the frame.
-#[derive(Component, Copy, Clone, Debug, Default, Reflect)]
-#[reflect(Component, Default, Clone)]
-pub struct TemporaryRenderEntity;
 
 /// A record enum to what entities with [`SyncToRenderWorld`] have been added or removed.
 #[derive(Debug)]
