@@ -378,11 +378,6 @@ fn update_mass_properties(
     }
 }
 
-type ShouldWarn = (
-    Without<ColliderConstructor>,
-    Without<ColliderConstructorHierarchy>,
-);
-
 /// Logs warnings when dynamic bodies have invalid [`Mass`] or [`AngularInertia`].
 fn warn_invalid_mass(
     mut bodies: Query<
@@ -392,10 +387,7 @@ fn warn_invalid_mass(
             Ref<ComputedMass>,
             Ref<ComputedAngularInertia>,
         ),
-        (
-            Or<(Changed<ComputedMass>, Changed<ComputedAngularInertia>)>,
-            ShouldWarn,
-        ),
+        Or<(Changed<ComputedMass>, Changed<ComputedAngularInertia>)>,
     >,
 ) {
     for (entity, rb, mass, inertia) in &mut bodies {

@@ -398,6 +398,20 @@ the same repository's.
   `ComputedAngularInertia::inverse_mut`/`inverse_tensor_mut`). Kept for avian3d's own tests:
   `Gravity::ZERO`, `MassPropertiesBundle` with `MassPropertiesExt` and the error enums of the kept
   `try_new`s. No system, set or plugin benilla's frame names changed.
+- **avian3d's casters and collider constructors.** benilla spawns no `RayCaster`, `ShapeCaster`,
+  `ColliderConstructor` or `ColliderConstructorHierarchy`, so the four caster systems in
+  `PhysicsSchedule` and the two constructor systems in `Update` found nothing each frame. Both
+  schedules run single-threaded (avian3d sets `PhysicsSchedule`'s executor itself), so the six stay
+  as empty stand-ins at their places, the two in `Update` keeping their `Commands`. Gone: the
+  components with `RayHits`/`ShapeHits`, their hooks and position queries, `constructor.rs` with the
+  two ready events and the hierarchy config, `Collider::try_from_constructor`, the collider cache
+  (`ColliderCachePlugin` stays, empty; its `PreUpdate` system went), the caster timers of
+  `SpatialQueryDiagnostics` (the resource and its reset system stay), `warn_invalid_mass`'s
+  `Without` filter on the two constructors. The A4af pass over the result then named what only
+  these reached: twenty `Collider` constructors (`compound`, `cylinder`, `heightfield`, the
+  convex-decomposition, voxel and mesh-built shapes), `SpatialQuery`'s `ray_hits`, `cast_shape`,
+  `shape_hits` and their callbacks, `ColliderTree`'s `ray_traverse_all`/`sweep_traverse_all`, with
+  `VhacdParameters`, `FillMode`, `TrimeshFlags` and the `IVector` alias.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

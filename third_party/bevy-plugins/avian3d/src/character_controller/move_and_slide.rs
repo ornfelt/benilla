@@ -428,7 +428,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///
     /// # Related methods
     ///
-    /// - [`SpatialQuery::cast_shape`]
+    /// - [`SpatialQuery::cast_shape_predicate`]
     #[must_use]
     #[doc(alias = "sweep")]
     pub fn cast_move(

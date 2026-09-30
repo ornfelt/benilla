@@ -27,12 +27,6 @@ pub use layers::*;
 mod parry;
 pub use parry::*;
 
-mod constructor;
-pub use constructor::{
-    ColliderConstructor, ColliderConstructorHierarchy, ColliderConstructorHierarchyConfig,
-    ColliderConstructorHierarchyReady, ColliderConstructorReady,
-};
-
 /// A trait for creating colliders from other types.
 pub trait IntoCollider<C: AnyCollider> {
     /// Creates a collider from `self`.

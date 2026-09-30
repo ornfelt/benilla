@@ -17,9 +17,6 @@ pub const DIM: usize = 3;
 /// The `f32` vector type chosen based on the dimension.
 pub(crate) use bevy_math::Vec3 as VectorF32;
 
-/// The `i32` vector type chosen based on the dimension.
-pub(crate) use bevy_math::IVec3 as IVector;
-
 /// The ray type chosen based on the dimension.
 pub(crate) type Ray = Ray3d;
 

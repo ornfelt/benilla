@@ -4,13 +4,11 @@
 
 use core::marker::PhantomData;
 
-use crate::collision::collider::cache::ColliderCache;
 use crate::{
     collision::collider::EnlargedAabb,
     physics_transform::{PhysicsTransformConfig, PhysicsTransformSystems, init_physics_transform},
     prelude::*,
 };
-use bevy::scene::SceneInstance;
 use bevy::{
     ecs::{intern::Interned, schedule::ScheduleLabel},
     prelude::*,
@@ -19,7 +17,7 @@ use mass_properties::{MassPropertySystems, components::RecomputeMassProperties};
 
 /// A plugin for handling generic collider backend logic.
 ///
-/// - Initializes colliders, handles [`ColliderConstructor`] and [`ColliderConstructorHierarchy`].
+/// - Initializes colliders.
 /// - Updates [`ColliderAabb`]s.
 /// - Updates collider scale based on `Transform` scale.
 /// - Updates [`ColliderMassProperties`].
@@ -247,193 +245,13 @@ impl<C: ScalableCollider> Plugin for ColliderBackendPlugin<C> {
 #[reflect(Component, Debug, Default)]
 pub struct ColliderMarker;
 
-/// Generates [`Collider`]s based on [`ColliderConstructor`]s.
-///
-/// If a [`ColliderConstructor`] requires a mesh, the system keeps running
-/// until the mesh associated with the mesh handle is available.
-///
-/// # Panics
-///
-/// Panics if the [`ColliderConstructor`] requires a mesh but no mesh handle is found.
-fn init_collider_constructors(
-    mut commands: Commands,
-    meshes: Res<Assets<Mesh>>,
-    mesh_handles: Query<&Mesh3d>,
-    mut collider_cache: Option<ResMut<ColliderCache>>,
-    constructors: Query<(
-        Entity,
-        Option<&Collider>,
-        Option<&Name>,
-        &ColliderConstructor,
-    )>,
-) {
-    for (entity, existing_collider, name, constructor) in constructors.iter() {
-        let name = pretty_name(name, entity);
-        if existing_collider.is_some() {
-            warn!(
-                "Tried to add a collider to entity {name} via {constructor:#?}, \
-                but that entity already holds a collider. Skipping.",
-            );
-            commands.entity(entity).remove::<ColliderConstructor>();
-            continue;
-        }
-        let collider = if constructor.requires_mesh() {
-            let mesh_handle = mesh_handles.get(entity).unwrap_or_else(|_| panic!(
-                "Tried to add a collider to entity {name} via {constructor:#?} that requires a mesh, \
-                but no mesh handle was found"));
-            let Some(mesh) = meshes.get(mesh_handle) else {
-                // Mesh required, but not loaded yet
-                continue;
-            };
-            collider_cache
-                .as_mut()
-                .map(|cache| cache.get_or_insert(mesh_handle, mesh, constructor.clone()))
-                .unwrap_or_else(|| Collider::try_from_constructor(constructor.clone(), Some(mesh)))
-        } else {
-            Collider::try_from_constructor(constructor.clone(), None)
-        };
+// Stand-in for the system that built each `ColliderConstructor`'s collider; its `Commands` keeps
+// the sync point after it.
+fn init_collider_constructors(_commands: Commands) {}
 
-        if let Some(collider) = collider {
-            commands.entity(entity).insert(collider);
-            commands.trigger(ColliderConstructorReady { entity })
-        } else {
-            error!(
-                "Tried to add a collider to entity {name} via {constructor:#?}, \
-                but the collider could not be generated. Skipping.",
-            );
-        }
-        commands.entity(entity).remove::<ColliderConstructor>();
-    }
-}
-
-/// Generates [`Collider`]s for descendants of entities with the [`ColliderConstructorHierarchy`] component.
-///
-/// If an entity has a `SceneInstance`, its collider hierarchy is only generated once the scene is ready.
-fn init_collider_constructor_hierarchies(
-    mut commands: Commands,
-    meshes: Res<Assets<Mesh>>,
-    mesh_handles: Query<&Mesh3d>,
-    mut collider_cache: Option<ResMut<ColliderCache>>,
-    scene_spawner: Res<SceneSpawner>,
-    scenes: Query<&SceneRoot>,
-    scene_instances: Query<&SceneInstance>,
-    collider_constructors: Query<(Entity, &ColliderConstructorHierarchy)>,
-    children: Query<&Children>,
-    child_query: Query<(Option<&Name>, Option<&Collider>)>,
-) {
-    use super::ColliderConstructorHierarchyConfig;
-
-    for (scene_entity, collider_constructor_hierarchy) in collider_constructors.iter() {
-        {
-            if scenes.contains(scene_entity) {
-                if let Ok(scene_instance) = scene_instances.get(scene_entity) {
-                    if !scene_spawner.instance_is_ready(**scene_instance) {
-                        // Wait for the scene to be ready
-                        continue;
-                    }
-                } else {
-                    // SceneInstance is added in the SpawnScene schedule, so it might not be available yet
-                    continue;
-                }
-            }
-        }
-
-        for child_entity in children.iter_descendants(scene_entity) {
-            let Ok((name, existing_collider)) = child_query.get(child_entity) else {
-                continue;
-            };
-
-            let pretty_name = pretty_name(name, child_entity);
-
-            let default_collider = || {
-                Some(ColliderConstructorHierarchyConfig {
-                    constructor: collider_constructor_hierarchy.default_constructor.clone(),
-                    ..default()
-                })
-            };
-
-            let collider_data = if let Some(name) = name {
-                collider_constructor_hierarchy
-                    .config
-                    .get(name.as_str())
-                    .cloned()
-                    .unwrap_or_else(default_collider)
-            } else if existing_collider.is_some() {
-                warn!(
-                    "Tried to add a collider to entity {pretty_name} via {collider_constructor_hierarchy:#?}, \
-                        but that entity already holds a collider. Skipping. \
-                        If this was intentional, add the name of the collider to overwrite to `ColliderConstructorHierarchy.config`."
-                );
-                continue;
-            } else {
-                default_collider()
-            };
-
-            // If the configuration is explicitly set to `None`, skip this entity.
-            let Some(collider_data) = collider_data else {
-                continue;
-            };
-
-            // Use the configured constructor if specified, otherwise use the default constructor.
-            // If both are `None`, skip this entity.
-            let Some(constructor) = collider_data
-                .constructor
-                .or_else(|| collider_constructor_hierarchy.default_constructor.clone())
-            else {
-                continue;
-            };
-
-            let collider = if constructor.requires_mesh() {
-                let Ok(mesh_handle) = mesh_handles.get(child_entity) else {
-                    // This child entity does not have a mesh, so we skip it.
-                    continue;
-                };
-                let Some(mesh) = meshes.get(mesh_handle) else {
-                    // Mesh required, but not loaded yet
-                    continue;
-                };
-                collider_cache
-                    .as_mut()
-                    .map(|cache| cache.get_or_insert(mesh_handle, mesh, constructor.clone()))
-                    .unwrap_or_else(|| {
-                        Collider::try_from_constructor(constructor.clone(), Some(mesh))
-                    })
-            } else {
-                Collider::try_from_constructor(constructor.clone(), None)
-            };
-
-            if let Some(collider) = collider {
-                commands.entity(child_entity).insert((
-                    collider,
-                    collider_data
-                        .layers
-                        .unwrap_or(collider_constructor_hierarchy.default_layers),
-                    collider_data
-                        .density
-                        .unwrap_or(collider_constructor_hierarchy.default_density),
-                ));
-            } else {
-                error!(
-                    "Tried to add a collider to entity {pretty_name} via {collider_constructor_hierarchy:#?}, \
-                        but the collider could not be generated. Skipping.",
-                );
-            }
-        }
-
-        commands
-            .entity(scene_entity)
-            .remove::<ColliderConstructorHierarchy>();
-
-        commands.trigger(ColliderConstructorHierarchyReady {
-            entity: scene_entity,
-        })
-    }
-}
-
-fn pretty_name(name: Option<&Name>, entity: Entity) -> String {
-    name.map(|n| n.to_string())
-        .unwrap_or_else(|| format!("<unnamed entity {}>", entity.index()))
-}
+// Stand-in for the system that built the colliders of each `ColliderConstructorHierarchy`; its
+// `Commands` keeps the sync point after it.
+fn init_collider_constructor_hierarchies(_commands: Commands) {}
 
 /// Updates the scale of colliders based on [`Transform`] scale.
 #[allow(clippy::type_complexity)]

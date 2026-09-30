@@ -965,92 +965,91 @@ schedule PreStartup
   0 benilla_world::view::grant_gfx_msaa
 
 schedule PreUpdate
-  0 bevy_pbr::prepass::update_mesh_previous_global_transforms
-  1 benilla_app::ui_script::lifecycle::run_pending_reload
-  2 benilla_app::ui_script::lifecycle::run_pending_entry_load
-  3 benilla_world::liquid::spatial::maintain_water_index
+  0 benilla_app::ui_script::lifecycle::run_pending_reload
+  1 benilla_app::ui_script::lifecycle::run_pending_entry_load
+  2 benilla_world::liquid::spatial::maintain_water_index
+  3 bevy_pbr::prepass::update_mesh_previous_global_transforms
   4 bevy_pbr::prepass::update_previous_view_data
-  5 avian3d::collision::collider::cache::clear_unused_colliders
-  6 benilla_app::sound::feed_world_hold
-  7 bevy_asset::server::handle_internal_asset_events
-  8 bevy_asset::assets::Assets<bevy_scene::dynamic_scene::DynamicScene>::track_assets
+  5 bevy_asset::server::handle_internal_asset_events
+  6 bevy_asset::assets::Assets<bevy_scene::dynamic_scene::DynamicScene>::track_assets
     in AssetTrackingSystems
-  9 bevy_asset::assets::Assets<bevy_scene::scene::Scene>::track_assets
+  7 bevy_asset::assets::Assets<bevy_scene::scene::Scene>::track_assets
     in AssetTrackingSystems
-  10 bevy_asset::assets::Assets<bevy_shader::shader::Shader>::track_assets
+  8 bevy_asset::assets::Assets<bevy_shader::shader::Shader>::track_assets
     in AssetTrackingSystems
-  11 bevy_asset::assets::Assets<bevy_render::storage::ShaderStorageBuffer>::track_assets
+  9 bevy_asset::assets::Assets<bevy_render::storage::ShaderStorageBuffer>::track_assets
     in AssetTrackingSystems
-  12 bevy_asset::assets::Assets<bevy_image::image::Image>::track_assets
+  10 bevy_asset::assets::Assets<bevy_image::image::Image>::track_assets
     in AssetTrackingSystems
-  13 bevy_asset::assets::Assets<bevy_mesh::mesh::Mesh>::track_assets
+  11 bevy_asset::assets::Assets<bevy_mesh::mesh::Mesh>::track_assets
     in AssetTrackingSystems
-  14 bevy_asset::assets::Assets<bevy_mesh::skinning::SkinnedMeshInverseBindposes>::track_assets
+  12 bevy_asset::assets::Assets<bevy_mesh::skinning::SkinnedMeshInverseBindposes>::track_assets
     in AssetTrackingSystems
-  15 bevy_asset::assets::Assets<bevy_image::texture_atlas::TextureAtlasLayout>::track_assets
+  13 bevy_asset::assets::Assets<bevy_image::texture_atlas::TextureAtlasLayout>::track_assets
     in AssetTrackingSystems
-  16 bevy_asset::assets::Assets<bevy_sprite_render::mesh2d::color_material::ColorMaterial>::track_assets
+  14 bevy_asset::assets::Assets<bevy_sprite_render::mesh2d::color_material::ColorMaterial>::track_assets
     in AssetTrackingSystems
-  17 bevy_asset::assets::Assets<bevy_sprite_render::tilemap_chunk::tilemap_chunk_material::TilemapChunkMaterial>::track_assets
+  15 bevy_asset::assets::Assets<bevy_sprite_render::tilemap_chunk::tilemap_chunk_material::TilemapChunkMaterial>::track_assets
     in AssetTrackingSystems
-  18 bevy_asset::assets::Assets<bevy_text::font::Font>::track_assets
+  16 bevy_asset::assets::Assets<bevy_text::font::Font>::track_assets
     in AssetTrackingSystems
-  19 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, bevy_pbr::decal::forward::ForwardDecalMaterialExt>>::track_assets
+  17 bevy_asset::assets::Assets<bevy_pbr::medium::ScatteringMedium>::track_assets
     in AssetTrackingSystems
-  20 bevy_asset::assets::Assets<bevy_animation::AnimationClip>::track_assets
+  18 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::TerrainExtension>>::track_assets
     in AssetTrackingSystems
-  21 bevy_asset::assets::Assets<bevy_animation::graph::AnimationGraph>::track_assets
+  19 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::clouds::layer::CloudExt>>::track_assets
     in AssetTrackingSystems
-  22 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WowModelExt>>::track_assets
+  20 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::StarExt>>::track_assets
     in AssetTrackingSystems
-  23 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::clouds::layer::CloudExt>>::track_assets
+  21 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WdlExt>>::track_assets
     in AssetTrackingSystems
-  24 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::LiquidExt>>::track_assets
+  22 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::LiquidExt>>::track_assets
     in AssetTrackingSystems
-  25 bevy_asset::assets::Assets<benilla_app::glue::add_material::AddUiMaterial>::track_assets
+  23 bevy_asset::assets::Assets<benilla_app::glue::add_material::AddUiMaterial>::track_assets
     in AssetTrackingSystems
-  26 bevy_asset::server::publish_asset_server_diagnostics
+  24 bevy_asset::assets::Assets<benilla_app::ui_pass::UiQuadMaterial>::track_assets
+    in AssetTrackingSystems
+  25 bevy_asset::server::publish_asset_server_diagnostics
     if bevy_ecs::schedule::condition::common_conditions::resource_exists<bevy_diagnostic::diagnostic::DiagnosticsStore>
-  27 bevy_asset::assets::Assets<bevy_pbr::pbr_material::StandardMaterial>::track_assets
+  26 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sky::SkyExt>>::track_assets
     in AssetTrackingSystems
-  28 benilla_world::layout_keys::remap
-  29 bevy_asset::assets::Assets<()>::track_assets
+  27 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WowModelExt>>::track_assets
+    in AssetTrackingSystems
+  28 bevy_asset::assets::Assets<()>::track_assets
+    in AssetTrackingSystems
+  29 bevy_asset::assets::Assets<bevy_animation::graph::AnimationGraph>::track_assets
     in AssetTrackingSystems
   30 bevy_asset::assets::Assets<bevy_asset::assets::LoadedUntypedAsset>::track_assets
     in AssetTrackingSystems
-  31 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sky::SkyExt>>::track_assets
+  31 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, bevy_pbr::decal::forward::ForwardDecalMaterialExt>>::track_assets
     in AssetTrackingSystems
-  32 bevy_asset::assets::Assets<bevy_gizmos::GizmoAsset>::track_assets
+  32 bevy_asset::assets::Assets<bevy_pbr::pbr_material::StandardMaterial>::track_assets
     in AssetTrackingSystems
   33 bevy_asset::assets::Assets<bevy_asset::folder::LoadedFolder>::track_assets
     in AssetTrackingSystems
-  34 bevy_asset::assets::Assets<benilla_app::ui_pass::UiQuadMaterial>::track_assets
-    in AssetTrackingSystems
-  35 bevy_input::touch::touch_screen_input_system
+  34 benilla_app::sound::feed_world_hold
+  35 benilla_world::layout_keys::remap
+  36 bevy_input::touch::touch_screen_input_system
     in InputSystems
-  36 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::StarExt>>::track_assets
-    in AssetTrackingSystems
   37 bevy_input::mouse::accumulate_mouse_scroll_system
     in InputSystems
-  38 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WdlExt>>::track_assets
+  38 bevy_asset::assets::Assets<bevy_animation::AnimationClip>::track_assets
     in AssetTrackingSystems
   39 bevy_input::mouse::accumulate_mouse_motion_system
     in InputSystems
-  40 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::TerrainExtension>>::track_assets
+  40 bevy_asset::assets::Assets<bevy_gizmos::GizmoAsset>::track_assets
     in AssetTrackingSystems
   41 bevy_input::mouse::mouse_button_input_system
     in InputSystems
-  42 bevy_asset::assets::Assets<bevy_pbr::medium::ScatteringMedium>::track_assets
+  42 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::CelestialExt>>::track_assets
     in AssetTrackingSystems
-  43 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::CelestialExt>>::track_assets
-    in AssetTrackingSystems
-  44 bevy_input::keyboard::keyboard_input_system
+  43 bevy_input::keyboard::keyboard_input_system
     in InputSystems
-  45 benilla_app::loading_screen::input::swallow_input_under_the_cover
+  44 benilla_app::loading_screen::input::swallow_input_under_the_cover
     in CoverInput
-  46 bevy_ui::focus::ui_focus_system
+  45 bevy_ui::focus::ui_focus_system
     in Focus
-  47 benilla_app::glue::glue_clicks
+  46 benilla_app::glue::glue_clicks
   set AssetTrackingSystems
   set CoverInput
   set Focus

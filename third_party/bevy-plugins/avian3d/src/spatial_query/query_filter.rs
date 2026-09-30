@@ -15,9 +15,6 @@ use crate::prelude::*;
 ///
 ///     // A query filter that has three collision layers and excludes the `object` entity
 ///     let query_filter = SpatialQueryFilter::from_mask(0b1011).with_excluded_entities([object]);
-///
-///     // Spawn a ray caster with the query filter
-///     commands.spawn(RayCaster::default().with_query_filter(query_filter));
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, Reflect)]

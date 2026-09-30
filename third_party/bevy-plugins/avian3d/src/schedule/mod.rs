@@ -204,7 +204,7 @@ pub enum PhysicsStepSystems {
     Solver,
     /// Responsible for controlling when bodies should be deactivated and marked as [`Sleeping`].
     Sleeping,
-    /// Responsible for spatial queries like [raycasting](`RayCaster`) and shapecasting.
+    /// Responsible for spatial queries like raycasting and shapecasting.
     ///
     /// See [`SpatialQueryPlugin`].
     SpatialQuery,

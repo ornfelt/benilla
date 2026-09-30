@@ -1,5 +1,3 @@
-use core::time::Duration;
-
 use bevy::{
     prelude::{ReflectResource, Resource},
     reflect::Reflect,
@@ -7,14 +5,10 @@ use bevy::{
 
 use crate::diagnostics::PhysicsDiagnostics;
 
-/// Diagnostics for spatial queries.
+/// Diagnostics for spatial queries. Its two caster timers went with `RayCaster` and `ShapeCaster`;
+/// the resource and its reset system stay.
 #[derive(Resource, Debug, Default, Reflect)]
 #[reflect(Resource, Debug)]
-pub struct SpatialQueryDiagnostics {
-    /// Time spent updating [`RayCaster`](super::RayCaster) hits.
-    pub update_ray_casters: Duration,
-    /// Time spent updating [`ShapeCaster`](super::ShapeCaster) hits.
-    pub update_shape_casters: Duration,
-}
+pub struct SpatialQueryDiagnostics;
 
 impl PhysicsDiagnostics for SpatialQueryDiagnostics {}

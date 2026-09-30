@@ -55,7 +55,7 @@
 //! | `parry-f64`            | Enables the `f64` version of the Parry collision detection library. Also enables the `default-collider` feature.                                   | No              |
 //! | `xpbd_joints`          | Enables support for [XPBD joints](dynamics::solver::xpbd).                            .                                                            | Yes             |
 //! | `collider-from-mesh`   | Allows you to create [`Collider`]s from `Mesh`es.                                                                                                  | Yes             |
-//! | `bevy_scene`           | Enables [`ColliderConstructorHierarchy`] to wait until a [`Scene`] has loaded before processing it.                                                 | Yes             |
+//! | `bevy_scene`           | Enables `bevy_scene`; the collider constructors that waited on a `Scene` are cut from this copy.                                                   | Yes             |
 //! | `bevy_diagnostic`      | Enables writing [physics diagnostics] to the [`DiagnosticsStore`] with the [`PhysicsDiagnosticsPlugin`]. The plugin must be added separately.       | No              |
 //! | `debug-plugin`         | Enables `bevy_gizmos` and `bevy_render`; the physics debug renderer (`PhysicsDebugPlugin`) is cut from this copy.                                   | Yes             |
 //! | `enhanced-determinism` | Enables cross-platform deterministic math, improving determinism across architectures at a small performance cost.                                  | No              |
@@ -137,7 +137,6 @@
 //!     - [Friction] and [restitution](Restitution) (bounciness)
 //!     - [Collision layers](CollisionLayers)
 //!     - [Sensors](Sensor)
-//! - Generating colliders for meshes and scenes with [`ColliderConstructor`] and [`ColliderConstructorHierarchy`]
 //! - [Get colliding entities](CollidingEntities)
 //! - [Collision events](collision#collision-events)
 //! - [Filtering and modifying contacts with hooks](CollisionHooks)
@@ -162,8 +161,8 @@
 //! ## Spatial Queries
 //!
 //! - [Spatial query types](spatial_query)
-//!     - [Raycasting](spatial_query#raycasting) and [`RayCaster`]
-//!     - [Shapecasting](spatial_query#shapecasting) and [`ShapeCaster`]
+//!     - [Raycasting](spatial_query#raycasting)
+//!     - [Shapecasting](spatial_query#shapecasting)
 //!     - [Point projection](spatial_query#point-projection)
 //!     - [Intersection tests](spatial_query#intersection-tests)
 //! - [Spatial query filters](SpatialQueryFilter)
@@ -478,7 +477,7 @@ use prelude::*;
 /// | [`ColliderBackendPlugin`]         | Handles generic collider backend logic, like initializing colliders and AABBs and updating related components.                                             |
 /// | [`ColliderHierarchyPlugin`]       | Manages [`ColliderOf`] relationships based on the entity hierarchy.                                                                                        |
 /// | [`ColliderTransformPlugin`]       | Propagates and updates transforms for colliders.
-/// | [`ColliderCachePlugin`]           | Caches colliders created from meshes. Requires `collider-from-mesh` and `default-collider` features.                                                       |
+/// | [`ColliderCachePlugin`]           | Empty: it cached the colliders the cut collider constructors built from meshes.                                                                            |
 /// | [`ColliderTreePlugin`]            | Manages [`ColliderTrees`] for broad phase collision detection and spatial queries.                                                                         |
 /// | [`BroadPhaseCorePlugin`]          | The core [broad phase] plugin that sets up the required resources, system sets, and diagnostics.                                                           |
 /// | [`BvhBroadPhasePlugin`]           | A [broad phase] plugin that uses a [Bounding Volume Hierarchy (BVH)][BVH] to efficiently find pairs of colliders with overlapping AABBs.                   |

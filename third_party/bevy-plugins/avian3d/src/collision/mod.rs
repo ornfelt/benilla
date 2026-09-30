@@ -73,6 +73,7 @@ pub use diagnostics::CollisionDiagnostics;
 /// Re-exports common types related to collision detection functionality.
 pub mod prelude {
     pub use super::broad_phase::{BroadPhaseCorePlugin, BroadPhaseSystems, BvhBroadPhasePlugin};
+    pub use super::collider::Collider;
     pub use super::collider::ColliderCachePlugin;
     pub use super::collider::{
         AabbContext, AnyCollider, ColliderAabb, ColliderBackendPlugin, ColliderDisabled,
@@ -81,11 +82,6 @@ pub mod prelude {
         SimpleCollider,
         collider_hierarchy::{ColliderHierarchyPlugin, ColliderOf, RigidBodyColliders},
         collider_transform::{ColliderTransform, ColliderTransformPlugin},
-    };
-    pub use super::collider::{
-        Collider, ColliderConstructor, ColliderConstructorHierarchy,
-        ColliderConstructorHierarchyReady, ColliderConstructorReady, FillMode, TrimeshFlags,
-        VhacdParameters,
     };
     pub use super::collision_events::{CollisionEnd, CollisionEventsEnabled, CollisionStart};
     pub use super::contact_types::{
