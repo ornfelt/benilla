@@ -446,7 +446,6 @@ impl<'builder, 'reader, T> NestedLoader<'_, '_, T, Immediate<'builder, 'reader>>
                 meta.loader_settings().expect("meta corresponds to a load"),
                 &*loader,
                 reader.as_mut(),
-                meta.processed_info().as_ref(),
             )
             .await?;
         Ok((loader, asset))

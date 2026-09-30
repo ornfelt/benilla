@@ -1,12 +1,9 @@
 use crate::{
-    meta::{AssetHash, MetaTransform},
-    Asset, AssetHandleProvider, AssetIndex, AssetLoadError, AssetPath, DependencyLoadState,
-    ErasedAssetIndex, ErasedLoadedAsset, Handle, InternalAssetEvent, LoadState,
-    RecursiveDependencyLoadState, StrongHandle, UntypedHandle,
+    meta::MetaTransform, Asset, AssetHandleProvider, AssetIndex, AssetLoadError, AssetPath,
+    DependencyLoadState, ErasedAssetIndex, ErasedLoadedAsset, Handle, InternalAssetEvent,
+    LoadState, RecursiveDependencyLoadState, StrongHandle, UntypedHandle,
 };
 use alloc::{
-    borrow::ToOwned,
-    boxed::Box,
     sync::{Arc, Weak},
     vec::Vec,
 };
@@ -33,13 +30,6 @@ pub(crate) struct AssetInfo {
     failed_rec_dependencies: HashSet<ErasedAssetIndex>,
     dependents_waiting_on_load: HashSet<ErasedAssetIndex>,
     dependents_waiting_on_recursive_dep_load: HashSet<ErasedAssetIndex>,
-    /// The asset paths required to load this asset. Hashes will only be set for processed assets.
-    /// This is set using the value from [`LoadedAsset`].
-    /// This will only be populated if [`AssetInfos::watching_for_changes`] is set to `true` to
-    /// save memory.
-    ///
-    /// [`LoadedAsset`]: crate::loader::LoadedAsset
-    loader_dependencies: HashMap<AssetPath<'static>, AssetHash>,
     /// The number of handle drops to skip for this asset.
     /// See usage (and comments) in `get_or_create_path_handle` for context.
     handle_drops_to_skip: usize,
@@ -59,7 +49,6 @@ impl AssetInfo {
             failed_dependencies: HashSet::default(),
             loading_rec_dependencies: HashSet::default(),
             failed_rec_dependencies: HashSet::default(),
-            loader_dependencies: HashMap::default(),
             dependents_waiting_on_load: HashSet::default(),
             dependents_waiting_on_recursive_dep_load: HashSet::default(),
             handle_drops_to_skip: 0,
@@ -79,15 +68,9 @@ pub(crate) struct AssetServerStats {
 pub(crate) struct AssetInfos {
     path_to_index: HashMap<AssetPath<'static>, TypeIdMap<AssetIndex>>,
     infos: HashMap<ErasedAssetIndex, AssetInfo>,
-    /// If set to `true`, this informs [`AssetInfos`] to track data relevant to watching for changes (such as `load_dependents`)
-    /// This should only be set at startup.
+    /// Set at startup when the server watches for changes; a watching server prunes its finished
+    /// load tasks each frame (`handle_internal_asset_events`).
     pub(crate) watching_for_changes: bool,
-    /// Tracks assets that depend on the "key" asset path inside their asset loaders ("loader dependencies")
-    /// This should only be set when watching for changes to avoid unnecessary work.
-    pub(crate) loader_dependents: HashMap<AssetPath<'static>, HashSet<AssetPath<'static>>>,
-    /// Tracks living labeled assets for a given source asset.
-    /// This should only be set when watching for changes to avoid unnecessary work.
-    pub(crate) living_labeled_assets: HashMap<AssetPath<'static>, HashSet<Box<str>>>,
     pub(crate) handle_providers: TypeIdMap<AssetHandleProvider>,
     pub(crate) dependency_loaded_event_sender: TypeIdMap<fn(&mut World, AssetIndex)>,
     pub(crate) dependency_failed_event_sender:
@@ -116,8 +99,6 @@ impl AssetInfos {
             Self::create_handle_internal(
                 &mut self.infos,
                 &self.handle_providers,
-                &mut self.living_labeled_assets,
-                self.watching_for_changes,
                 type_id,
                 None,
                 None,
@@ -131,8 +112,6 @@ impl AssetInfos {
     fn create_handle_internal(
         infos: &mut HashMap<ErasedAssetIndex, AssetInfo>,
         handle_providers: &TypeIdMap<AssetHandleProvider>,
-        living_labeled_assets: &mut HashMap<AssetPath<'static>, HashSet<Box<str>>>,
-        watching_for_changes: bool,
         type_id: TypeId,
         path: Option<AssetPath<'static>>,
         meta_transform: Option<MetaTransform>,
@@ -141,14 +120,6 @@ impl AssetInfos {
         let provider = handle_providers
             .get(&type_id)
             .ok_or(MissingHandleProviderError(type_id))?;
-
-        if watching_for_changes && let Some(path) = &path {
-            let mut without_label = path.to_owned();
-            if let Some(label) = without_label.take_label() {
-                let labels = living_labeled_assets.entry(without_label).or_default();
-                labels.insert(label.as_ref().into());
-            }
-        }
 
         let handle = provider.reserve_handle_internal(true, path.clone(), meta_transform);
         let mut info = AssetInfo::new(Arc::downgrade(&handle), path);
@@ -275,8 +246,6 @@ impl AssetInfos {
                 let handle = Self::create_handle_internal(
                     &mut self.infos,
                     &self.handle_providers,
-                    &mut self.living_labeled_assets,
-                    self.watching_for_changes,
                     type_id,
                     Some(path),
                     meta_transform,
@@ -363,35 +332,12 @@ impl AssetInfos {
         Some(UntypedHandle::Strong(strong_handle))
     }
 
-    /// Returns `true` if the asset this path points to is still alive
-    pub(crate) fn is_path_alive<'a>(&self, path: impl Into<AssetPath<'a>>) -> bool {
-        self.get_path_indices(&path.into())
-            .filter_map(|id| self.infos.get(&id))
-            .any(|info| info.weak_handle.strong_count() > 0)
-    }
-
-    /// Returns `true` if the asset at this path should be reloaded
-    pub(crate) fn should_reload(&self, path: &AssetPath) -> bool {
-        if self.is_path_alive(path) {
-            return true;
-        }
-
-        if let Some(living) = self.living_labeled_assets.get(path) {
-            !living.is_empty()
-        } else {
-            false
-        }
-    }
-
     /// Returns `true` if the asset should be removed from the collection.
     pub(crate) fn process_handle_drop(&mut self, index: ErasedAssetIndex) -> bool {
         Self::process_handle_drop_internal(
             &mut self.infos,
             &mut self.path_to_index,
-            &mut self.loader_dependents,
-            &mut self.living_labeled_assets,
             &mut self.pending_tasks,
-            self.watching_for_changes,
             index,
         )
     }
@@ -503,23 +449,6 @@ impl AssetInfos {
         };
 
         let (dependents_waiting_on_load, dependents_waiting_on_rec_load) = {
-            let watching_for_changes = self.watching_for_changes;
-            // if watching for changes, track reverse loader dependencies for hot reloading
-            if watching_for_changes {
-                let info = self
-                    .infos
-                    .get(&loaded_asset_index)
-                    .expect("Asset info should always exist at this point");
-                if let Some(asset_path) = &info.path {
-                    for loader_dependency in loaded_asset.loader_dependencies.keys() {
-                        let dependents = self
-                            .loader_dependents
-                            .entry(loader_dependency.clone())
-                            .or_default();
-                        dependents.insert(asset_path.clone());
-                    }
-                }
-            }
             let info = self
                 .get_mut(loaded_asset_index)
                 .expect("Asset info should always exist at this point");
@@ -530,9 +459,6 @@ impl AssetInfos {
             info.load_state = LoadState::Loaded;
             info.dep_load_state = dep_load_state;
             info.rec_dep_load_state = rec_dep_load_state.clone();
-            if watching_for_changes {
-                info.loader_dependencies = loaded_asset.loader_dependencies;
-            }
 
             let dependents_waiting_on_rec_load =
                 if rec_dep_load_state.is_loaded() || rec_dep_load_state.is_failed() {
@@ -681,42 +607,10 @@ impl AssetInfos {
         }
     }
 
-    fn remove_dependents_and_labels(
-        info: &AssetInfo,
-        loader_dependents: &mut HashMap<AssetPath<'static>, HashSet<AssetPath<'static>>>,
-        path: &AssetPath<'static>,
-        living_labeled_assets: &mut HashMap<AssetPath<'static>, HashSet<Box<str>>>,
-    ) {
-        for loader_dependency in info.loader_dependencies.keys() {
-            if let Some(dependents) = loader_dependents.get_mut(loader_dependency) {
-                dependents.remove(path);
-            }
-        }
-
-        let Some(label) = path.label() else {
-            return;
-        };
-
-        let mut without_label = path.to_owned();
-        without_label.remove_label();
-
-        let Entry::Occupied(mut entry) = living_labeled_assets.entry(without_label) else {
-            return;
-        };
-
-        entry.get_mut().remove(label);
-        if entry.get().is_empty() {
-            entry.remove();
-        }
-    }
-
     fn process_handle_drop_internal(
         infos: &mut HashMap<ErasedAssetIndex, AssetInfo>,
         path_to_id: &mut HashMap<AssetPath<'static>, TypeIdMap<AssetIndex>>,
-        loader_dependents: &mut HashMap<AssetPath<'static>, HashSet<AssetPath<'static>>>,
-        living_labeled_assets: &mut HashMap<AssetPath<'static>, HashSet<Box<str>>>,
         pending_tasks: &mut HashMap<ErasedAssetIndex, Task<()>>,
-        watching_for_changes: bool,
         index: ErasedAssetIndex,
     ) -> bool {
         let Entry::Occupied(mut entry) = infos.entry(index) else {
@@ -738,15 +632,6 @@ impl AssetInfos {
         let Some(path) = &info.path else {
             return true;
         };
-
-        if watching_for_changes {
-            Self::remove_dependents_and_labels(
-                &info,
-                loader_dependents,
-                path,
-                living_labeled_assets,
-            );
-        }
 
         if let Some(map) = path_to_id.get_mut(path) {
             map.remove(&type_id);

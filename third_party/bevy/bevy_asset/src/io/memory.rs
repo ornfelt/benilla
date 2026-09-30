@@ -1,17 +1,16 @@
 use crate::io::{
-    AssetReader, AssetReaderError, AssetWriter, AssetWriterError, PathStream, Reader,
-    ReaderNotSeekableError, SeekableReader,
+    AssetReader, AssetReaderError, PathStream, Reader, ReaderNotSeekableError, SeekableReader,
 };
-use alloc::{borrow::ToOwned, boxed::Box, sync::Arc, vec, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, sync::Arc, vec::Vec};
 use bevy_platform::{
     collections::HashMap,
     sync::{PoisonError, RwLock},
 };
 use core::{pin::Pin, task::Poll};
-use futures_io::{AsyncRead, AsyncWrite};
+use futures_io::AsyncRead;
 use futures_lite::Stream;
 use std::{
-    io::{Error, ErrorKind, SeekFrom},
+    io::SeekFrom,
     path::{Path, PathBuf},
 };
 
@@ -65,22 +64,6 @@ impl Dir {
             );
     }
 
-    /// Removes the stored asset at `path`.
-    ///
-    /// Returns the [`Data`] stored if found, [`None`] otherwise.
-    pub fn remove_asset(&self, path: &Path) -> Option<Data> {
-        let mut dir = self.clone();
-        if let Some(parent) = path.parent() {
-            dir = self.get_or_insert_dir(parent);
-        }
-        let key: Box<str> = path.file_name().unwrap().to_string_lossy().into();
-        dir.0
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .assets
-            .remove(&key)
-    }
-
     pub fn insert_meta(&self, path: &Path, value: impl Into<Value>) {
         let mut dir = self.clone();
         if let Some(parent) = path.parent() {
@@ -99,22 +82,6 @@ impl Dir {
             );
     }
 
-    /// Removes the stored metadata at `path`.
-    ///
-    /// Returns the [`Data`] stored if found, [`None`] otherwise.
-    pub fn remove_metadata(&self, path: &Path) -> Option<Data> {
-        let mut dir = self.clone();
-        if let Some(parent) = path.parent() {
-            dir = self.get_or_insert_dir(parent);
-        }
-        let key: Box<str> = path.file_name().unwrap().to_string_lossy().into();
-        dir.0
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .metadata
-            .remove(&key)
-    }
-
     pub fn get_or_insert_dir(&self, path: &Path) -> Dir {
         let mut dir = self.clone();
         let mut full_path = PathBuf::new();
@@ -130,22 +97,6 @@ impl Dir {
         }
 
         dir
-    }
-
-    /// Removes the dir at `path`.
-    ///
-    /// Returns the [`Dir`] stored if found, [`None`] otherwise.
-    pub fn remove_dir(&self, path: &Path) -> Option<Dir> {
-        let mut dir = self.clone();
-        if let Some(parent) = path.parent() {
-            dir = self.get_or_insert_dir(parent);
-        }
-        let key: Box<str> = path.file_name().unwrap().to_string_lossy().into();
-        dir.0
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .dirs
-            .remove(&key)
     }
 
     pub fn get_dir(&self, path: &Path) -> Option<Dir> {
@@ -252,14 +203,6 @@ impl Stream for DirStream {
 /// This is primarily intended for unit tests.
 #[derive(Default, Clone)]
 pub struct MemoryAssetReader {
-    pub root: Dir,
-}
-
-/// In-memory [`AssetWriter`] implementation.
-///
-/// This is primarily intended for unit tests.
-#[derive(Default, Clone)]
-pub struct MemoryAssetWriter {
     pub root: Dir,
 }
 
@@ -396,183 +339,6 @@ impl AssetReader for MemoryAssetReader {
 
     async fn is_directory<'a>(&'a self, path: &'a Path) -> Result<bool, AssetReaderError> {
         Ok(self.root.get_dir(path).is_some())
-    }
-}
-
-/// A writer that writes into [`Dir`], buffering internally until flushed/closed.
-struct DataWriter {
-    /// The dir to write to.
-    dir: Dir,
-    /// The path to write to.
-    path: PathBuf,
-    /// The current buffer of data.
-    ///
-    /// This will include data that has been flushed already.
-    current_data: Vec<u8>,
-    /// Whether to write to the data or to the meta.
-    is_meta_writer: bool,
-}
-
-impl AsyncWrite for DataWriter {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        _: &mut core::task::Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        self.get_mut().current_data.extend_from_slice(buf);
-        Poll::Ready(Ok(buf.len()))
-    }
-
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _: &mut core::task::Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        // Write the data to our fake disk. This means we will repeatedly reinsert the asset.
-        if self.is_meta_writer {
-            self.dir.insert_meta(&self.path, self.current_data.clone());
-        } else {
-            self.dir.insert_asset(&self.path, self.current_data.clone());
-        }
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(
-        self: Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        // A flush will just write the data to Dir, which is all we need to do for close.
-        self.poll_flush(cx)
-    }
-}
-
-impl AssetWriter for MemoryAssetWriter {
-    async fn write<'a>(&'a self, path: &'a Path) -> Result<Box<super::Writer>, AssetWriterError> {
-        Ok(Box::new(DataWriter {
-            dir: self.root.clone(),
-            path: path.to_owned(),
-            current_data: vec![],
-            is_meta_writer: false,
-        }))
-    }
-
-    async fn write_meta<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> Result<Box<super::Writer>, AssetWriterError> {
-        Ok(Box::new(DataWriter {
-            dir: self.root.clone(),
-            path: path.to_owned(),
-            current_data: vec![],
-            is_meta_writer: true,
-        }))
-    }
-
-    async fn remove<'a>(&'a self, path: &'a Path) -> Result<(), AssetWriterError> {
-        if self.root.remove_asset(path).is_none() {
-            return Err(AssetWriterError::Io(Error::new(
-                ErrorKind::NotFound,
-                "no such file",
-            )));
-        }
-        Ok(())
-    }
-
-    async fn remove_meta<'a>(&'a self, path: &'a Path) -> Result<(), AssetWriterError> {
-        self.root.remove_metadata(path);
-        Ok(())
-    }
-
-    async fn rename<'a>(
-        &'a self,
-        old_path: &'a Path,
-        new_path: &'a Path,
-    ) -> Result<(), AssetWriterError> {
-        let Some(old_asset) = self.root.get_asset(old_path) else {
-            return Err(AssetWriterError::Io(Error::new(
-                ErrorKind::NotFound,
-                "no such file",
-            )));
-        };
-        self.root.insert_asset(new_path, old_asset.value);
-        // Remove the asset after instead of before since otherwise there'd be a moment where the
-        // Dir is unlocked and missing both the old and new paths. This just prevents race
-        // conditions.
-        self.root.remove_asset(old_path);
-        Ok(())
-    }
-
-    async fn rename_meta<'a>(
-        &'a self,
-        old_path: &'a Path,
-        new_path: &'a Path,
-    ) -> Result<(), AssetWriterError> {
-        let Some(old_meta) = self.root.get_metadata(old_path) else {
-            return Err(AssetWriterError::Io(Error::new(
-                ErrorKind::NotFound,
-                "no such file",
-            )));
-        };
-        self.root.insert_meta(new_path, old_meta.value);
-        // Remove the meta after instead of before since otherwise there'd be a moment where the
-        // Dir is unlocked and missing both the old and new paths. This just prevents race
-        // conditions.
-        self.root.remove_metadata(old_path);
-        Ok(())
-    }
-
-    async fn create_directory<'a>(&'a self, path: &'a Path) -> Result<(), AssetWriterError> {
-        // Just pretend we're on a file system that doesn't consider directory re-creation a
-        // failure.
-        self.root.get_or_insert_dir(path);
-        Ok(())
-    }
-
-    async fn remove_directory<'a>(&'a self, path: &'a Path) -> Result<(), AssetWriterError> {
-        if self.root.remove_dir(path).is_none() {
-            return Err(AssetWriterError::Io(Error::new(
-                ErrorKind::NotFound,
-                "no such dir",
-            )));
-        }
-        Ok(())
-    }
-
-    async fn remove_empty_directory<'a>(&'a self, path: &'a Path) -> Result<(), AssetWriterError> {
-        let Some(dir) = self.root.get_dir(path) else {
-            return Err(AssetWriterError::Io(Error::new(
-                ErrorKind::NotFound,
-                "no such dir",
-            )));
-        };
-
-        let dir = dir.0.read().unwrap();
-        if !dir.assets.is_empty() || !dir.metadata.is_empty() || !dir.dirs.is_empty() {
-            return Err(AssetWriterError::Io(Error::new(
-                ErrorKind::DirectoryNotEmpty,
-                "not empty",
-            )));
-        }
-
-        self.root.remove_dir(path);
-        Ok(())
-    }
-
-    async fn remove_assets_in_directory<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> Result<(), AssetWriterError> {
-        let Some(dir) = self.root.get_dir(path) else {
-            return Err(AssetWriterError::Io(Error::new(
-                ErrorKind::NotFound,
-                "no such dir",
-            )));
-        };
-
-        let mut dir = dir.0.write().unwrap();
-        dir.assets.clear();
-        dir.dirs.clear();
-        dir.metadata.clear();
-        Ok(())
     }
 }
 

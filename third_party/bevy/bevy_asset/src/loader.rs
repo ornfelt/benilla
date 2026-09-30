@@ -1,7 +1,7 @@
 use crate::{
     io::{AssetReaderError, MissingAssetSourceError, MissingProcessedAssetReaderError, Reader},
     loader_builders::{Deferred, NestedLoader, StaticTyped},
-    meta::{AssetHash, AssetMeta, AssetMetaDyn, ProcessedInfo, ProcessedInfoMinimal, Settings},
+    meta::{AssetMeta, AssetMetaDyn, Settings},
     path::AssetPath,
     Asset, AssetIndex, AssetLoadError, AssetServer, AssetServerMode, Assets, ErasedAssetIndex,
     Handle, UntypedAssetId, UntypedHandle,
@@ -138,11 +138,9 @@ pub(crate) struct LabeledAsset {
 /// The successful result of an [`AssetLoader::load`] call. This contains the loaded "root" asset and any other "labeled" assets produced
 /// by the loader. It also holds the input [`AssetMeta`] (if it exists) and tracks dependencies:
 /// * normal dependencies: dependencies that must be loaded as part of this asset load (ex: assets a given asset has handles to).
-/// * Loader dependencies: dependencies whose actual asset values are used during the load process
 pub struct LoadedAsset<A: Asset> {
     pub(crate) value: A,
     pub(crate) dependencies: HashSet<ErasedAssetIndex>,
-    pub(crate) loader_dependencies: HashMap<AssetPath<'static>, AssetHash>,
     pub(crate) labeled_assets: HashMap<CowArc<'static, str>, LabeledAsset>,
 }
 
@@ -159,7 +157,6 @@ impl<A: Asset> LoadedAsset<A> {
         LoadedAsset {
             value,
             dependencies,
-            loader_dependencies: HashMap::default(),
             labeled_assets: HashMap::default(),
         }
     }
@@ -198,7 +195,6 @@ impl<A: Asset> From<A> for LoadedAsset<A> {
 pub struct ErasedLoadedAsset {
     pub(crate) value: Box<dyn AssetContainer>,
     pub(crate) dependencies: HashSet<ErasedAssetIndex>,
-    pub(crate) loader_dependencies: HashMap<AssetPath<'static>, AssetHash>,
     pub(crate) labeled_assets: HashMap<CowArc<'static, str>, LabeledAsset>,
 }
 
@@ -207,7 +203,6 @@ impl<A: Asset> From<LoadedAsset<A>> for ErasedLoadedAsset {
         ErasedLoadedAsset {
             value: Box::new(asset.value),
             dependencies: asset.dependencies,
-            loader_dependencies: asset.loader_dependencies,
             labeled_assets: asset.labeled_assets,
         }
     }
@@ -255,7 +250,6 @@ impl ErasedLoadedAsset {
             Ok(value) => Ok(LoadedAsset {
                 value: *value,
                 dependencies: self.dependencies,
-                loader_dependencies: self.loader_dependencies,
                 labeled_assets: self.labeled_assets,
             }),
             Err(value) => {
@@ -323,11 +317,8 @@ pub struct LoadContext<'a> {
     /// This allows us to skip loads for cases where we're never going to use the asset and we just
     /// need the dependency information, for example during asset processing.
     pub(crate) should_load_dependencies: bool,
-    populate_hashes: bool,
     asset_path: AssetPath<'static>,
     pub(crate) dependencies: HashSet<ErasedAssetIndex>,
-    /// Direct dependencies used by this loader.
-    pub(crate) loader_dependencies: HashMap<AssetPath<'static>, AssetHash>,
     pub(crate) labeled_assets: HashMap<CowArc<'static, str>, LabeledAsset>,
 }
 
@@ -337,15 +328,12 @@ impl<'a> LoadContext<'a> {
         asset_server: &'a AssetServer,
         asset_path: AssetPath<'static>,
         should_load_dependencies: bool,
-        populate_hashes: bool,
     ) -> Self {
         Self {
             asset_server,
             asset_path,
-            populate_hashes,
             should_load_dependencies,
             dependencies: HashSet::default(),
-            loader_dependencies: HashMap::default(),
             labeled_assets: HashMap::default(),
         }
     }
@@ -384,7 +372,6 @@ impl<'a> LoadContext<'a> {
             self.asset_server,
             self.asset_path.clone(),
             self.should_load_dependencies,
-            self.populate_hashes,
         )
     }
 
@@ -476,7 +463,6 @@ impl<'a> LoadContext<'a> {
         LoadedAsset {
             value,
             dependencies: self.dependencies,
-            loader_dependencies: self.loader_dependencies,
             labeled_assets: self.labeled_assets,
         }
     }
@@ -498,18 +484,6 @@ impl<'a> LoadContext<'a> {
             AssetServerMode::Processed => source.processed_reader()?,
         };
         let mut reader = asset_reader.read(path.path()).await?;
-        let hash = if self.populate_hashes {
-            // NOTE: ensure meta is read while the asset bytes reader is still active to ensure transactionality
-            let meta_bytes = asset_reader.read_meta_bytes(path.path()).await?;
-            let minimal: ProcessedInfoMinimal = ron::de::from_bytes(&meta_bytes)
-                .map_err(DeserializeMetaError::DeserializeMinimal)?;
-            let processed_info = minimal
-                .processed_info
-                .ok_or(ReadAssetBytesError::MissingAssetHash)?;
-            processed_info.full_hash
-        } else {
-            Default::default()
-        };
         let mut bytes = Vec::new();
         reader
             .read_to_end(&mut bytes)
@@ -518,7 +492,6 @@ impl<'a> LoadContext<'a> {
                 path: path.path().to_path_buf(),
                 source,
             })?;
-        self.loader_dependencies.insert(path.clone_owned(), hash);
         Ok(bytes)
     }
 
@@ -543,7 +516,6 @@ impl<'a> LoadContext<'a> {
         settings: &dyn Settings,
         loader: &dyn ErasedAssetLoader,
         reader: &mut dyn Reader,
-        processed_info: Option<&ProcessedInfo>,
     ) -> Result<ErasedLoadedAsset, LoadDirectError> {
         let loaded_asset = self
             .asset_server
@@ -553,15 +525,12 @@ impl<'a> LoadContext<'a> {
                 loader,
                 reader,
                 self.should_load_dependencies,
-                self.populate_hashes,
             )
             .await
             .map_err(|error| LoadDirectError::LoadError {
                 dependency: path.clone(),
                 error,
             })?;
-        let hash = processed_info.map(|i| i.full_hash).unwrap_or_default();
-        self.loader_dependencies.insert(path, hash);
         Ok(loaded_asset)
     }
 
@@ -588,8 +557,6 @@ impl<'a> LoadContext<'a> {
 #[derive(Error, Debug)]
 pub enum ReadAssetBytesError {
     #[error(transparent)]
-    DeserializeMetaError(#[from] DeserializeMetaError),
-    #[error(transparent)]
     AssetReaderError(#[from] AssetReaderError),
     #[error(transparent)]
     MissingAssetSourceError(#[from] MissingAssetSourceError),
@@ -601,6 +568,4 @@ pub enum ReadAssetBytesError {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[error("The LoadContext for this read_asset_bytes call requires hash metadata, but it was not provided. This is likely an internal implementation error.")]
-    MissingAssetHash,
 }

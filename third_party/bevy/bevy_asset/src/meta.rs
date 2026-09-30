@@ -7,7 +7,6 @@ use alloc::{
     vec::Vec,
 };
 use downcast_rs::{impl_downcast, Downcast};
-use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -104,13 +103,6 @@ pub enum AssetActionMinimal {
     Ignore,
 }
 
-/// This is a minimal counterpart to [`ProcessedInfo`] that exists to speed up serialization in cases where the whole [`ProcessedInfo`] isn't
-/// necessary.
-#[derive(Serialize, Deserialize)]
-pub struct ProcessedInfoMinimal {
-    pub processed_info: Option<ProcessedInfo>,
-}
-
 /// A dynamic type-erased counterpart to [`AssetMeta`] that enables passing around and interacting with [`AssetMeta`] without knowing
 /// its type.
 pub trait AssetMetaDyn: Downcast + Send + Sync {
@@ -118,10 +110,6 @@ pub trait AssetMetaDyn: Downcast + Send + Sync {
     fn loader_settings(&self) -> Option<&dyn Settings>;
     /// Returns a mutable reference to the [`AssetLoader`] settings, if they exist.
     fn loader_settings_mut(&mut self) -> Option<&mut dyn Settings>;
-    /// Serializes the internal [`AssetMeta`].
-    fn serialize(&self) -> Vec<u8>;
-    /// Returns a reference to the [`ProcessedInfo`] if it exists.
-    fn processed_info(&self) -> &Option<ProcessedInfo>;
 }
 
 impl<L: AssetLoader> AssetMetaDyn for AssetMeta<L> {
@@ -138,14 +126,6 @@ impl<L: AssetLoader> AssetMetaDyn for AssetMeta<L> {
         } else {
             None
         }
-    }
-    fn serialize(&self) -> Vec<u8> {
-        ron::ser::to_string_pretty(&self, PrettyConfig::default())
-            .expect("type is convertible to ron")
-            .into_bytes()
-    }
-    fn processed_info(&self) -> &Option<ProcessedInfo> {
-        &self.processed_info
     }
 }
 

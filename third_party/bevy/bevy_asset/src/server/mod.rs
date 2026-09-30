@@ -2,10 +2,8 @@ mod info;
 mod loaders;
 
 use crate::{
-    folder::LoadedFolder,
     io::{
-        AssetReaderError, AssetSource, AssetSourceEvent, AssetSourceId, AssetSources,
-        AssetWriterError, ErasedAssetReader, MissingAssetSourceError, MissingAssetWriterError,
+        AssetReaderError, AssetSource, AssetSourceId, AssetSources, MissingAssetSourceError,
         MissingProcessedAssetReaderError, Reader,
     },
     loader::{AssetLoader, ErasedAssetLoader, LoadContext, LoadedAsset},
@@ -28,20 +26,16 @@ use alloc::{
 use atomicow::CowArc;
 use bevy_diagnostic::{DiagnosticPath, Diagnostics};
 use bevy_ecs::prelude::*;
-use bevy_platform::{
-    collections::HashSet,
-    sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
-};
+use bevy_platform::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use bevy_tasks::IoTaskPool;
-use core::{any::TypeId, future::Future, panic::AssertUnwindSafe, task::Poll};
+use core::{any::TypeId, panic::AssertUnwindSafe, task::Poll};
 use crossbeam_channel::{Receiver, Sender};
 use either::Either;
-use futures_lite::{FutureExt, StreamExt};
+use futures_lite::FutureExt;
 use info::*;
 use loaders::*;
-use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::error;
 
 /// Loads and tracks the state of [`Asset`] values from a configured [`AssetReader`](crate::io::AssetReader).
 /// This can be used to kick off new asset loads and retrieve their current load states.
@@ -88,8 +82,8 @@ impl AssetServer {
     /// The number of loads that have been started by the server.
     pub const STARTED_LOAD_COUNT: DiagnosticPath = DiagnosticPath::const_new("started_load_count");
 
-    /// Create a new instance of [`AssetServer`]. If `watch_for_changes` is true, the [`AssetReader`](crate::io::AssetReader) storage will watch for changes to
-    /// asset sources and hot-reload them.
+    /// Create a new instance of [`AssetServer`]. If `watching_for_changes` is true, the server runs as a watching
+    /// server; no `AssetWatcher` exists in this build, so nothing is hot-reloaded.
     pub fn new(
         sources: Arc<AssetSources>,
         mode: AssetServerMode,
@@ -106,8 +100,8 @@ impl AssetServer {
         )
     }
 
-    /// Create a new instance of [`AssetServer`]. If `watch_for_changes` is true, the [`AssetReader`](crate::io::AssetReader) storage will watch for changes to
-    /// asset sources and hot-reload them.
+    /// Create a new instance of [`AssetServer`]. If `watching_for_changes` is true, the server runs as a watching
+    /// server; no `AssetWatcher` exists in this build, so nothing is hot-reloaded.
     pub fn new_with_meta_check(
         sources: Arc<AssetSources>,
         mode: AssetServerMode,
@@ -556,10 +550,6 @@ impl AssetServer {
     ) {
         infos.stats.started_load_tasks += 1;
 
-        // drop the lock on `AssetInfos` before spawning a task that may block on it in single-threaded
-        #[cfg(not(feature = "multi_threaded"))]
-        drop(infos);
-
         let owned_handle = handle.clone();
         let server = self.clone();
         let task = IoTaskPool::get().spawn(async move {
@@ -572,32 +562,9 @@ impl AssetServer {
             drop(guard);
         });
 
-        #[cfg(feature = "multi_threaded")]
-        {
-            let mut infos = infos;
-            infos
-                .pending_tasks
-                .insert((&handle).try_into().unwrap(), task);
-        }
-
-        #[cfg(not(feature = "multi_threaded"))]
-        task.detach();
-    }
-
-    /// Asynchronously load an asset that you do not know the type of statically. If you _do_ know the type of the asset,
-    /// you should use [`AssetServer::load`]. If you don't know the type of the asset, but you can't use an async method,
-    /// consider using [`AssetServer::load_untyped`].
-    #[must_use = "not using the returned strong handle may result in the unexpected release of the asset"]
-    pub async fn load_untyped_async<'a>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-    ) -> Result<UntypedHandle, AssetLoadError> {
-        self.write_infos().stats.started_load_tasks += 1;
-
-        let path: AssetPath = path.into();
-        self.load_internal(None, path, false, None)
-            .await
-            .map(|h| h.expect("handle must be returned, since we didn't pass in an input handle"))
+        infos
+            .pending_tasks
+            .insert((&handle).try_into().unwrap(), task);
     }
 
     pub(crate) fn load_unknown_type_with_meta_transform<'a>(
@@ -626,10 +593,6 @@ impl AssetServer {
 
         infos.stats.started_load_tasks += 1;
 
-        // drop the lock on `AssetInfos` before spawning a task that may block on it in single-threaded
-        #[cfg(not(feature = "multi_threaded"))]
-        drop(infos);
-
         let server = self.clone();
         let task = IoTaskPool::get().spawn(async move {
             let path_clone = path.clone();
@@ -655,11 +618,7 @@ impl AssetServer {
             };
         });
 
-        #[cfg(feature = "multi_threaded")]
         infos.pending_tasks.insert(index, task);
-
-        #[cfg(not(feature = "multi_threaded"))]
-        task.detach();
 
         handle
     }
@@ -832,7 +791,6 @@ impl AssetServer {
                 &*loader,
                 &mut *reader,
                 true,
-                false,
             )
             .await
         {
@@ -873,48 +831,6 @@ impl AssetServer {
                 Err(err)
             }
         }
-    }
-
-    /// Kicks off a reload of the asset stored at the given path. This will only reload the asset if it currently loaded.
-    pub fn reload<'a>(&self, path: impl Into<AssetPath<'a>>) {
-        self.reload_internal(path, false);
-    }
-
-    fn reload_internal<'a>(&self, path: impl Into<AssetPath<'a>>, log: bool) {
-        let server = self.clone();
-        let path = path.into().into_owned();
-        IoTaskPool::get()
-            .spawn(async move {
-                let mut reloaded = false;
-
-                let requests = server
-                    .read_infos()
-                    .get_path_handles(&path)
-                    .map(|handle| server.load_internal(Some(handle), path.clone(), true, None))
-                    .collect::<Vec<_>>();
-
-                for result in requests {
-                    // Count each reload as a started load.
-                    server.write_infos().stats.started_load_tasks += 1;
-                    match result.await {
-                        Ok(_) => reloaded = true,
-                        Err(err) => error!("{}", err),
-                    }
-                }
-
-                if !reloaded && server.read_infos().should_reload(&path) {
-                    server.write_infos().stats.started_load_tasks += 1;
-                    match server.load_internal(None, path.clone(), true, None).await {
-                        Ok(_) => reloaded = true,
-                        Err(err) => error!("{}", err),
-                    }
-                }
-
-                if log && reloaded {
-                    info!("Reloaded {}", path);
-                }
-            })
-            .detach();
     }
 
     /// Queues a new asset to be tracked by the [`AssetServer`] and returns a [`Handle`] to it. This can be used to track
@@ -961,177 +877,6 @@ impl AssetServer {
             loaded_asset,
         });
         handle
-    }
-
-    /// Queues a new asset to be tracked by the [`AssetServer`] and returns a [`Handle`] to it. This can be used to track
-    /// dependencies of assets created at runtime.
-    ///
-    /// After the asset has been fully loaded, it will show up in the relevant [`Assets`] storage.
-    #[must_use = "not using the returned strong handle may result in the unexpected release of the asset"]
-    pub fn add_async<A: Asset, E: core::error::Error + Send + Sync + 'static>(
-        &self,
-        future: impl Future<Output = Result<A, E>> + Send + 'static,
-    ) -> Handle<A> {
-        let mut infos = self.write_infos();
-        let handle =
-            infos.create_loading_handle_untyped(TypeId::of::<A>(), core::any::type_name::<A>());
-
-        // drop the lock on `AssetInfos` before spawning a task that may block on it in single-threaded
-        #[cfg(not(feature = "multi_threaded"))]
-        drop(infos);
-
-        // `create_loading_handle_untyped` always returns a Strong variant, so this is safe.
-        let index = (&handle).try_into().unwrap();
-
-        let event_sender = self.data.asset_event_sender.clone();
-
-        let task = IoTaskPool::get().spawn(async move {
-            match future.await {
-                Ok(asset) => {
-                    let loaded_asset = LoadedAsset::new_with_dependencies(asset).into();
-                    event_sender
-                        .send(InternalAssetEvent::Loaded {
-                            index,
-                            loaded_asset,
-                        })
-                        .unwrap();
-                }
-                Err(error) => {
-                    let error = AddAsyncError {
-                        error: Arc::new(error),
-                    };
-                    error!("{error}");
-                    event_sender
-                        .send(InternalAssetEvent::Failed {
-                            index,
-                            path: Default::default(),
-                            error: AssetLoadError::AddAsyncError(error),
-                        })
-                        .unwrap();
-                }
-            }
-        });
-
-        #[cfg(feature = "multi_threaded")]
-        infos.pending_tasks.insert(index, task);
-
-        #[cfg(not(feature = "multi_threaded"))]
-        task.detach();
-
-        handle.typed_debug_checked()
-    }
-
-    /// Loads all assets from the specified folder recursively. The [`LoadedFolder`] asset (when it loads) will
-    /// contain handles to all assets in the folder. You can wait for all assets to load by checking the [`LoadedFolder`]'s
-    /// [`RecursiveDependencyLoadState`].
-    ///
-    /// Loading the same folder multiple times will return the same handle. If the `file_watcher`
-    /// feature is enabled, [`LoadedFolder`] handles will reload when a file in the folder is
-    /// removed, added or moved. This includes files in subdirectories and moving, adding,
-    /// or removing complete subdirectories.
-    #[must_use = "not using the returned strong handle may result in the unexpected release of the assets"]
-    pub fn load_folder<'a>(&self, path: impl Into<AssetPath<'a>>) -> Handle<LoadedFolder> {
-        let path = path.into().into_owned();
-        let (handle, should_load) = self
-            .write_infos()
-            .get_or_create_path_handle::<LoadedFolder>(
-                path.clone(),
-                HandleLoadingMode::Request,
-                None,
-            );
-        if !should_load {
-            return handle;
-        }
-        // `get_or_create_path_handle` always returns a Strong variant, so this is safe.
-        let index = (&handle).try_into().unwrap();
-        self.load_folder_internal(index, path);
-
-        handle
-    }
-
-    pub(crate) fn load_folder_internal(&self, index: ErasedAssetIndex, path: AssetPath) {
-        async fn load_folder<'a>(
-            source: AssetSourceId<'static>,
-            path: &'a Path,
-            reader: &'a dyn ErasedAssetReader,
-            server: &'a AssetServer,
-            handles: &'a mut Vec<UntypedHandle>,
-        ) -> Result<(), AssetLoadError> {
-            let is_dir = reader.is_directory(path).await?;
-            if is_dir {
-                let mut path_stream = reader.read_directory(path.as_ref()).await?;
-                while let Some(child_path) = path_stream.next().await {
-                    if reader.is_directory(&child_path).await? {
-                        Box::pin(load_folder(
-                            source.clone(),
-                            &child_path,
-                            reader,
-                            server,
-                            handles,
-                        ))
-                        .await?;
-                    } else {
-                        let path = child_path.to_str().expect("Path should be a valid string.");
-                        let asset_path = AssetPath::parse(path).with_source(source.clone());
-                        match server.load_untyped_async(asset_path).await {
-                            Ok(handle) => handles.push(handle),
-                            // skip assets that cannot be loaded
-                            Err(
-                                AssetLoadError::MissingAssetLoaderForTypeName(_)
-                                | AssetLoadError::MissingAssetLoaderForExtension(_),
-                            ) => {}
-                            Err(err) => return Err(err),
-                        }
-                    }
-                }
-            }
-            Ok(())
-        }
-
-        self.write_infos().stats.started_load_tasks += 1;
-
-        let path = path.into_owned();
-        let server = self.clone();
-        IoTaskPool::get()
-            .spawn(async move {
-                let Ok(source) = server.get_source(path.source()) else {
-                    error!(
-                        "Failed to load {path}. AssetSource {} does not exist",
-                        path.source()
-                    );
-                    return;
-                };
-
-                let asset_reader = match server.data.mode {
-                    AssetServerMode::Unprocessed => source.reader(),
-                    AssetServerMode::Processed => match source.processed_reader() {
-                        Ok(reader) => reader,
-                        Err(_) => {
-                            error!(
-                                "Failed to load {path}. AssetSource {} does not have a processed AssetReader",
-                                path.source()
-                            );
-                            return;
-                        }
-                    },
-                };
-
-                let mut handles = Vec::new();
-                match load_folder(source.id(), path.path(), asset_reader, &server, &mut handles).await {
-                    Ok(_) => server.send_asset_event(InternalAssetEvent::Loaded {
-                        index,
-                        loaded_asset: LoadedAsset::new_with_dependencies(
-                            LoadedFolder { handles },
-                        )
-                        .into(),
-                    }),
-                    Err(err) => {
-                        error!("Failed to load folder. {err}");
-                        server.send_asset_event(InternalAssetEvent::Failed { index, error: err, path });
-                    },
-                }
-            })
-            .detach();
     }
 
     fn send_asset_event(&self, event: InternalAssetEvent) {
@@ -1533,12 +1278,10 @@ impl AssetServer {
         loader: &dyn ErasedAssetLoader,
         reader: &mut dyn Reader,
         load_dependencies: bool,
-        populate_hashes: bool,
     ) -> Result<ErasedLoadedAsset, AssetLoadError> {
         // TODO: experiment with this
         let asset_path = asset_path.clone_owned();
-        let load_context =
-            LoadContext::new(self, asset_path.clone(), load_dependencies, populate_hashes);
+        let load_context = LoadContext::new(self, asset_path.clone(), load_dependencies);
         AssertUnwindSafe(loader.load(reader, settings, load_context))
             .catch_unwind()
             .await
@@ -1683,46 +1426,6 @@ impl AssetServer {
             }
         }
     }
-
-    /// Writes the default loader meta file for the provided `path`.
-    ///
-    /// This function only generates meta files that simply load the path directly.
-    ///
-    /// Note if there is already a meta file for `path`, this function returns
-    /// `Err(WriteDefaultMetaError::MetaAlreadyExists)`.
-    pub async fn write_default_loader_meta_file_for_path(
-        &self,
-        path: impl Into<AssetPath<'_>>,
-    ) -> Result<(), WriteDefaultMetaError> {
-        let path = path.into();
-        let loader = self.get_path_asset_loader(&path).await?;
-
-        let meta = loader.default_meta();
-        let serialized_meta = meta.serialize();
-
-        let source = self.get_source(path.source())?;
-
-        let reader = source.reader();
-        match reader.read_meta_bytes(path.path()).await {
-            Ok(_) => return Err(WriteDefaultMetaError::MetaAlreadyExists),
-            Err(AssetReaderError::NotFound(_)) => {
-                // The meta file couldn't be found so just fall through.
-            }
-            Err(AssetReaderError::Io(err)) => {
-                return Err(WriteDefaultMetaError::IoErrorFromExistingMetaCheck(err))
-            }
-            Err(AssetReaderError::HttpError(err)) => {
-                return Err(WriteDefaultMetaError::HttpErrorFromExistingMetaCheck(err))
-            }
-        }
-
-        let writer = source.writer()?;
-        writer
-            .write_meta_bytes(path.path(), &serialized_meta)
-            .await?;
-
-        Ok(())
-    }
 }
 
 /// A system that manages internal [`AssetServer`] events, such as finalizing asset loads.
@@ -1780,98 +1483,12 @@ pub fn handle_internal_asset_events(world: &mut World) {
             world.write_message_batch(untyped_failures);
         }
 
-        // The following code all deals with hot-reloading, which we can skip if the server isn't
-        // watching for changes.
+        // No `AssetWatcher` exists in this build, so a watching server has no source event to
+        // reload; it only prunes its finished load tasks.
         if !infos.watching_for_changes {
             return;
         }
 
-        fn queue_ancestors(
-            asset_path: &AssetPath,
-            infos: &AssetInfos,
-            paths_to_reload: &mut HashSet<AssetPath<'static>>,
-        ) {
-            if let Some(dependents) = infos.loader_dependents.get(asset_path) {
-                for dependent in dependents {
-                    paths_to_reload.insert(dependent.to_owned());
-                    queue_ancestors(dependent, infos, paths_to_reload);
-                }
-            }
-        }
-
-        let reload_parent_folders = |path: &PathBuf, source: &AssetSourceId<'static>| {
-            for parent in path.ancestors().skip(1) {
-                let parent_asset_path =
-                    AssetPath::from(parent.to_path_buf()).with_source(source.clone());
-                for folder_handle in infos.get_path_handles(&parent_asset_path) {
-                    info!("Reloading folder {parent_asset_path} because the content has changed");
-                    // `get_path_handles` only returns Strong variants, so this is safe.
-                    let index = (&folder_handle).try_into().unwrap();
-                    server.load_folder_internal(index, parent_asset_path.clone());
-                }
-            }
-        };
-
-        let mut paths_to_reload = <HashSet<_>>::default();
-        let mut reload_path = |path: PathBuf, source: &AssetSourceId<'static>| {
-            let path = AssetPath::from(path).with_source(source);
-            queue_ancestors(&path, &infos, &mut paths_to_reload);
-            paths_to_reload.insert(path);
-        };
-
-        let mut handle_event = |source: AssetSourceId<'static>, event: AssetSourceEvent| {
-            match event {
-                AssetSourceEvent::AddedAsset(path) => {
-                    reload_parent_folders(&path, &source);
-                    reload_path(path, &source);
-                }
-                // TODO: if the asset was processed and the processed file was changed, the first modified event
-                // should be skipped?
-                AssetSourceEvent::ModifiedAsset(path) | AssetSourceEvent::ModifiedMeta(path) => {
-                    reload_path(path, &source);
-                }
-                AssetSourceEvent::RenamedFolder { old, new } => {
-                    reload_parent_folders(&old, &source);
-                    reload_parent_folders(&new, &source);
-                }
-                AssetSourceEvent::RemovedAsset(path)
-                | AssetSourceEvent::RemovedFolder(path)
-                | AssetSourceEvent::AddedFolder(path) => {
-                    reload_parent_folders(&path, &source);
-                }
-                _ => {}
-            }
-        };
-
-        for source in server.data.sources.iter() {
-            match server.data.mode {
-                AssetServerMode::Unprocessed => {
-                    if let Some(receiver) = source.event_receiver() {
-                        while let Ok(event) = receiver.try_recv() {
-                            handle_event(source.id(), event);
-                        }
-                    }
-                }
-                AssetServerMode::Processed => {
-                    if let Some(receiver) = source.processed_event_receiver() {
-                        while let Ok(event) = receiver.try_recv() {
-                            handle_event(source.id(), event);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Drop the lock on `AssetInfos` before spawning a task that may block on it in
-        // single-threaded.
-        #[cfg(not(feature = "multi_threaded"))]
-        drop(infos);
-
-        for path in paths_to_reload {
-            server.reload_internal(path, true);
-        }
-
-        #[cfg(feature = "multi_threaded")]
         infos
             .pending_tasks
             .retain(|_, load_task| !load_task.is_finished());
@@ -2064,8 +1681,6 @@ pub enum AssetLoadError {
     },
     #[error(transparent)]
     AssetLoaderError(#[from] AssetLoaderError),
-    #[error(transparent)]
-    AddAsyncError(#[from] AddAsyncError),
     #[error("The file at '{}' does not contain the labeled asset '{}'; it contains the following {} assets: {}",
             base_path,
             label,
@@ -2100,13 +1715,6 @@ impl AssetLoaderError {
     pub fn error(&self) -> &BevyError {
         &self.error
     }
-}
-
-/// An error that occurs while resolving an asset added by `add_async`.
-#[derive(Error, Debug, Clone)]
-#[error("An error occurred while resolving an asset added by `add_async`: {error}")]
-pub struct AddAsyncError {
-    error: Arc<dyn core::error::Error + Send + Sync + 'static>,
 }
 
 /// An error that occurs when an [`AssetLoader`] is not registered for a given extension.
@@ -2168,22 +1776,4 @@ pub enum WaitForAssetError {
     /// A dependency of the asset failed to load.
     #[error(transparent)]
     DependencyFailed(Arc<AssetLoadError>),
-}
-
-#[derive(Error, Debug)]
-pub enum WriteDefaultMetaError {
-    #[error(transparent)]
-    MissingAssetLoader(#[from] MissingAssetLoaderForExtensionError),
-    #[error(transparent)]
-    MissingAssetSource(#[from] MissingAssetSourceError),
-    #[error(transparent)]
-    MissingAssetWriter(#[from] MissingAssetWriterError),
-    #[error("failed to write default asset meta file: {0}")]
-    FailedToWriteMeta(#[from] AssetWriterError),
-    #[error("asset meta file already exists, so avoiding overwrite")]
-    MetaAlreadyExists,
-    #[error("encountered an I/O error while reading the existing meta file: {0}")]
-    IoErrorFromExistingMetaCheck(Arc<std::io::Error>),
-    #[error("encountered HTTP status {0} when reading the existing meta file")]
-    HttpErrorFromExistingMetaCheck(u16),
 }

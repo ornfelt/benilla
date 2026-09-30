@@ -1,9 +1,6 @@
-#[cfg(feature = "multi_threaded")]
 mod file_asset;
-#[cfg(not(feature = "multi_threaded"))]
-mod sync_file_asset;
 
-use tracing::{debug, error};
+use tracing::debug;
 
 use alloc::borrow::ToOwned;
 use std::{
@@ -57,26 +54,5 @@ impl FileAssetReader {
     /// See `get_base_path`.
     pub fn root_path(&self) -> &PathBuf {
         &self.root_path
-    }
-}
-
-/// A writer for the local filesystem.
-pub struct FileAssetWriter {
-    root_path: PathBuf,
-}
-
-impl FileAssetWriter {
-    /// Creates a new [`FileAssetWriter`] at a path relative to the executable's directory, optionally
-    /// watching for changes.
-    pub fn new<P: AsRef<Path> + core::fmt::Debug>(path: P, create_root: bool) -> Self {
-        let root_path = get_base_path().join(path.as_ref());
-        if create_root && let Err(e) = std::fs::create_dir_all(&root_path) {
-            error!(
-                "Failed to create root directory {} for file asset writer: {}",
-                root_path.display(),
-                e
-            );
-        }
-        Self { root_path }
     }
 }

@@ -171,6 +171,27 @@ the same repository's.
   processed reader). The meta format stays: `AssetMeta<L>` reads a `Process` action with `()`
   settings, as `AssetMeta<L, ()>` did, and `ProcessedInfo` stays as data. `bevy_image`'s
   `compressed_image_saver` feature (off) went with its module. No system went.
+- **`bevy_asset`'s writers, watchers and hot reload.** The writer side (`AssetWriter`,
+  `ErasedAssetWriter`, `AssetWriterError`, `io::Writer`, `FileAssetWriter`,
+  `MemoryAssetWriter`, the source builders' `writer`/`processed_writer` slots,
+  `AssetSource::writer`/`processed_writer` with their missing-writer errors, and
+  `AssetServer::write_default_loader_meta_file_for_path` with `WriteDefaultMetaError`); the
+  watcher side (`AssetWatcher`, `AssetSourceEvent`, the builders' `watcher`/`processed_watcher`
+  slots, `AssetSource`'s event receivers, `get_default_watcher`) with hot reload
+  (`AssetServer::reload`, the reload block of `handle_internal_asset_events`, and the bookkeeping
+  only it read: `loader_dependents`, `living_labeled_assets`, `should_reload`, the loaded asset's
+  `loader_dependencies` and `populate_hashes`, which every load passed as `false`, with
+  `ProcessedInfoMinimal`, `ReadAssetBytesError::MissingAssetHash` and `AssetMetaDyn`'s
+  `serialize`/`processed_info`). A source asked to watch still logs its "no `AssetWatcher`"
+  warning, and a watching server still prunes its finished load tasks each frame. Also gone:
+  `load_folder` (`LoadedFolder` stays registered), `load_untyped_async`, `add_async` with
+  `AddAsyncError`, `DirectAssetAccessExt`, the `embedded_asset!`, `load_embedded_asset!` and
+  `load_internal_asset!` macros with `GetAssetServer` and the registry's inserts (the `embedded`
+  source stays registered, empty; `embedded_path!` and `load_internal_binary_asset!` stay),
+  `bevy_shader`'s `load_shader_library!`, and the `not(multi_threaded)` fallbacks
+  (`sync_file_asset.rs`, the detached tasks): the `multi_threaded` feature is always on here, and
+  without it the crate now builds the threaded path. The tests of removed code went with it. No
+  system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
