@@ -1,4 +1,4 @@
-use crate::{define_atomic_id, renderer::WgpuWrapper};
+use crate::{define_atomic_id, renderer::WgpuWrapper, wgpu};
 use core::ops::Deref;
 
 define_atomic_id!(BindGroupLayoutId);

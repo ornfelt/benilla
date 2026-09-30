@@ -4,7 +4,6 @@ mod manual_texture_view;
 mod texture_attachment;
 mod texture_cache;
 
-pub use crate::render_resource::DefaultImageSampler;
 use bevy_image::{CompressedImageFormatSupport, CompressedImageFormats, ImageLoader};
 pub use fallback_image::*;
 pub use gpu_image::*;

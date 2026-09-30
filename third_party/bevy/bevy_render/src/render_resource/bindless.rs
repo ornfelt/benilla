@@ -6,10 +6,10 @@ use core::{
     ops::Range,
 };
 
-use bevy_derive::{Deref, DerefMut};
-use wgpu::{
+use crate::wgpu::{
     BindGroupLayoutEntry, SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension,
 };
+use bevy_derive::{Deref, DerefMut};
 
 use crate::render_resource::binding_types::storage_buffer_read_only_sized;
 

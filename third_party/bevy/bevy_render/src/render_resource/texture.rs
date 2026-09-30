@@ -1,7 +1,6 @@
 use crate::define_atomic_id;
 use crate::renderer::WgpuWrapper;
-use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::resource::Resource;
+use crate::wgpu;
 use core::ops::Deref;
 
 define_atomic_id!(TextureId);
@@ -21,11 +20,6 @@ impl Texture {
     #[inline]
     pub fn id(&self) -> TextureId {
         self.id
-    }
-
-    /// Creates a view of this texture.
-    pub fn create_view(&self, desc: &wgpu::TextureViewDescriptor) -> TextureView {
-        TextureView::from(self.value.create_view(desc))
     }
 }
 
@@ -62,7 +56,7 @@ pub struct SurfaceTexture {
 
 impl SurfaceTexture {
     pub fn present(self) {
-        self.value.into_inner().present();
+        match *self.value {}
     }
 }
 
@@ -147,11 +141,3 @@ impl Deref for Sampler {
         &self.value
     }
 }
-
-/// A rendering resource for the default image sampler which is set during renderer
-/// initialization.
-///
-/// The [`ImagePlugin`](bevy_image::ImagePlugin) can be set during app initialization to change the default
-/// image sampler.
-#[derive(Resource, Debug, Clone, Deref, DerefMut)]
-pub struct DefaultImageSampler(pub(crate) Sampler);

@@ -1,4 +1,5 @@
 use crate::render_resource::{SurfaceTexture, TextureView};
+use crate::wgpu::TextureFormat;
 use bevy_app::{App, Plugin};
 use bevy_ecs::{entity::EntityHashMap, prelude::*};
 use bevy_window::{CompositeAlphaMode, PresentMode, RawHandleWrapper};
@@ -6,7 +7,6 @@ use core::{
     num::NonZero,
     ops::{Deref, DerefMut},
 };
-use wgpu::TextureFormat;
 
 pub mod screenshot;
 

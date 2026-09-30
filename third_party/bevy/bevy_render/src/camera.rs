@@ -9,6 +9,7 @@ use crate::{
     view::{ColorGrading, ExtractedWindows, Msaa},
 };
 
+use crate::wgpu::TextureFormat;
 use bevy_app::{App, Plugin, PostStartup, PostUpdate};
 use bevy_asset::{AssetEvent, AssetEventSystems, AssetId, Assets};
 use bevy_camera::{
@@ -38,7 +39,6 @@ use bevy_platform::collections::HashSet;
 use bevy_reflect::prelude::*;
 use bevy_window::{PrimaryWindow, Window, WindowCreated, WindowResized, WindowScaleFactorChanged};
 use tracing::warn;
-use wgpu::TextureFormat;
 
 #[derive(Default)]
 pub struct CameraPlugin;

@@ -38,22 +38,19 @@ all-features = true
 ci_limits = []
 decoupled_naga = ["bevy_shader/decoupled_naga"]
 detailed_trace = []
-gles = ["wgpu/gles"]
+gles = []
 morph = ["bevy_mesh/morph"]
 multi_threaded = ["bevy_tasks/multi_threaded"]
-raw_vulkan_init = ["wgpu/vulkan"]
+raw_vulkan_init = []
 serialize = ["bevy_mesh/serialize"]
-shader_format_spirv = [
-    "bevy_shader/shader_format_spirv",
-    "wgpu/spirv",
-]
-spirv_shader_passthrough = ["wgpu/spirv"]
-statically-linked-dxc = ["wgpu/static-dxc"]
+shader_format_spirv = ["bevy_shader/shader_format_spirv"]
+spirv_shader_passthrough = []
+statically-linked-dxc = []
 trace = []
 tracing-tracy = []
-vulkan-portability = ["wgpu/vulkan-portability"]
-webgl = ["wgpu/webgl"]
-webgpu = ["wgpu/webgpu"]
+vulkan-portability = []
+webgl = ["wgpu-types/web"]
+webgpu = ["wgpu-types/web"]
 
 [lib]
 name = "bevy_render"
@@ -143,10 +140,6 @@ default-features = false
 version = "0.25.2"
 default-features = false
 
-[dependencies.naga]
-version = "27"
-features = ["wgsl-in"]
-
 [dependencies.thiserror]
 version = "2"
 default-features = false
@@ -156,16 +149,9 @@ version = "0.1"
 features = ["std"]
 default-features = false
 
-[dependencies.wgpu]
+[dependencies.wgpu-types]
 version = "27"
-features = [
-    "wgsl",
-    "dx12",
-    "metal",
-    "vulkan",
-    "naga-ir",
-    "fragile-send-sync-non-atomic-wasm",
-]
+features = ["fragile-send-sync-non-atomic-wasm"]
 default-features = false
 
 [dev-dependencies.proptest]

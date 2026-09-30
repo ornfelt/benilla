@@ -58,6 +58,7 @@ pub mod sync_component;
 pub mod sync_world;
 pub mod texture;
 pub mod view;
+mod wgpu;
 
 /// The render prelude.
 ///

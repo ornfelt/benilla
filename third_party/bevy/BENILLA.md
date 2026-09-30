@@ -169,9 +169,27 @@ the same repository's.
     `unprepared_bind_group` stay), `GlobalsBuffer` (the `GlobalsUniform` resource stays), and the
     view uniforms, `ColorGradingUniform` and `ViewDepthTexture` (`ViewTarget`, which benilla-world's
     final pass reads, stays). No plugin's build changed.
+  - `bevy_render` without wgpu (the fourth piece): no device is ever opened, so no GPU handle is
+    ever created. `bevy_render/src/wgpu.rs` holds the part of wgpu's API the crate names:
+    wgpu-types' plain-data types, wgpu's descriptor aliases, attachment structs and
+    `BufferInitDescriptor`, and an uninhabited enum per handle type (device, buffer, texture,
+    view, surface texture, sampler, bind group and layout, render and compute pipeline), so code
+    holding one is unreachable. The wrappers (`Buffer`, `Texture`, `BindGroup`, ...) keep their
+    ids and shapes; `RenderDevice` keeps the four methods the `AsBindGroup` derive's output and
+    `AsBindGroup::bind_group_layout` call (`features`, `limits`, `create_bind_group_layout`,
+    `create_buffer_with_data`). Gone with the preparation `RenderAssetPlugin` ran: the
+    `RenderAsset` trait's methods (it keeps `SourceAsset`, which `RenderAssets` is keyed by),
+    `PrepareAssetError`, `AssetExtractionError`, the fallback images' construction and the
+    zero, cubemap and MSAA fallbacks (`FallbackImage` stays, the derive's parameter), the
+    render queue, adapter and instance resources, `DefaultImageSampler`, the render-pass-only
+    buffer slice, view creation and `OwnedBindingResource::get_binding`, and every wgpu
+    re-export nothing names (`naga::ShaderStage` among them). wgpu, wgpu-core, wgpu-hal and
+    their platform crates left the build; naga stays for `bevy_shader`'s `naga_oil`, without
+    the `hlsl-out`, `msl-out` and `spv-out` writers only wgpu-core enabled.
 
   The manifests drop the dependencies no kept code uses; no crate's resolved features change
-  (`fixedbitset` and `nonmax` lose `default`, which only enabled `std`, still on).
+  (`fixedbitset`, `nonmax` and `slotmap` lose `default`, which only enabled `std`, still on)
+  except naga's (above) and `web-sys`'s WebGL features, which only wasm builds compile.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
   avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each

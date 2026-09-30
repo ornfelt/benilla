@@ -4,6 +4,7 @@ use crate::{
     render_resource::{BindGroupLayout, Buffer, Sampler, TextureView},
     renderer::{RenderDevice, WgpuWrapper},
     texture::GpuImage,
+    wgpu::{self, BindGroupLayoutEntry, SamplerBindingType, TextureViewDimension},
 };
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::system::{SystemParam, SystemParamItem};
@@ -12,7 +13,6 @@ pub use bevy_render_macros::AsBindGroup;
 use core::ops::Deref;
 use encase::ShaderType;
 use thiserror::Error;
-use wgpu::{BindGroupLayoutEntry, BindingResource, SamplerBindingType, TextureViewDimension};
 
 use super::{BindlessDescriptor, BindlessSlabResourceLimit};
 
@@ -625,24 +625,6 @@ pub enum OwnedBindingResource {
 /// This corresponds to the `#[data]` attribute in `AsBindGroup`.
 #[derive(Debug, Deref, DerefMut)]
 pub struct OwnedData(pub Vec<u8>);
-
-impl OwnedBindingResource {
-    /// Creates a [`BindingResource`] reference to this
-    /// [`OwnedBindingResource`].
-    ///
-    /// Note that this operation panics if passed a
-    /// [`OwnedBindingResource::Data`], because [`OwnedData`] doesn't itself
-    /// correspond to any binding and instead requires the
-    /// `MaterialBindGroupAllocator` to pack it into a buffer.
-    pub fn get_binding(&self) -> BindingResource<'_> {
-        match self {
-            OwnedBindingResource::Buffer(buffer) => buffer.as_entire_binding(),
-            OwnedBindingResource::TextureView(_, view) => BindingResource::TextureView(view),
-            OwnedBindingResource::Sampler(_, sampler) => BindingResource::Sampler(sampler),
-            OwnedBindingResource::Data(_) => panic!("`OwnedData` has no binding resource"),
-        }
-    }
-}
 
 /// Converts a value to a [`ShaderType`] for use in a bind group.
 ///

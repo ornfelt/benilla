@@ -1,11 +1,11 @@
 use super::CachedTexture;
 use crate::render_resource::{TextureFormat, TextureView};
+use crate::wgpu::{
+    LoadOp, Operations, RenderPassColorAttachment, RenderPassDepthStencilAttachment, StoreOp,
+};
 use alloc::sync::Arc;
 use bevy_color::LinearRgba;
 use core::sync::atomic::{AtomicBool, Ordering};
-use wgpu::{
-    LoadOp, Operations, RenderPassColorAttachment, RenderPassDepthStencilAttachment, StoreOp,
-};
 
 /// A wrapper for a [`CachedTexture`] that is used as a [`RenderPassColorAttachment`].
 #[derive(Clone)]

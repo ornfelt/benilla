@@ -18,35 +18,15 @@ pub use pipeline_specializer::*;
 pub use texture::*;
 
 // TODO: decide where re-exports should go
-pub use wgpu::{
-    util::{
-        BufferInitDescriptor, DispatchIndirectArgs, DrawIndexedIndirectArgs, DrawIndirectArgs,
-        TextureDataOrder,
-    },
-    AccelerationStructureFlags, AccelerationStructureGeometryFlags,
-    AccelerationStructureUpdateMode, AdapterInfo as WgpuAdapterInfo, AddressMode, AstcBlock,
-    AstcChannel, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutEntry, BindingResource,
-    BindingType, Blas, BlasBuildEntry, BlasGeometries, BlasGeometrySizeDescriptors,
-    BlasTriangleGeometry, BlasTriangleGeometrySizeDescriptor, BlendComponent, BlendFactor,
-    BlendOperation, BlendState, BufferAddress, BufferAsyncError, BufferBinding, BufferBindingType,
-    BufferDescriptor, BufferSize, BufferUsages, ColorTargetState, ColorWrites, CommandEncoder,
-    CommandEncoderDescriptor, CompareFunction, ComputePass, ComputePassDescriptor,
-    ComputePipelineDescriptor as RawComputePipelineDescriptor, CreateBlasDescriptor,
-    CreateTlasDescriptor, DepthBiasState, DepthStencilState, DownlevelFlags, Extent3d, Face,
-    Features as WgpuFeatures, FilterMode, FragmentState as RawFragmentState, FrontFace,
-    ImageSubresourceRange, IndexFormat, Limits as WgpuLimits, LoadOp, MapMode, MultisampleState,
-    Operations, Origin3d, PipelineCompilationOptions, PipelineLayout, PipelineLayoutDescriptor,
-    PollType, PolygonMode, PrimitiveState, PrimitiveTopology, PushConstantRange,
-    RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
-    RenderPipelineDescriptor as RawRenderPipelineDescriptor, Sampler as WgpuSampler,
-    SamplerBindingType, SamplerDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource,
-    ShaderStages, StencilFaceState, StencilOperation, StencilState, StorageTextureAccess, StoreOp,
-    TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureFormatFeatureFlags,
-    TextureFormatFeatures, TextureSampleType, TextureUsages, TextureView as WgpuTextureView,
-    TextureViewDescriptor, TextureViewDimension, Tlas, TlasInstance, VertexAttribute,
-    VertexBufferLayout as RawVertexBufferLayout, VertexFormat, VertexState as RawVertexState,
-    VertexStepMode, COPY_BUFFER_ALIGNMENT,
+pub use crate::wgpu::{
+    util::{BufferInitDescriptor, TextureDataOrder},
+    BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState,
+    BufferBindingType, BufferDescriptor, BufferUsages, ColorWrites, CompareFunction,
+    DepthBiasState, Extent3d, Face, FilterMode, LoadOp, MultisampleState, Operations,
+    PrimitiveTopology, RenderPassColorAttachment, RenderPassDepthStencilAttachment,
+    SamplerBindingType, SamplerDescriptor, ShaderStages, StorageTextureAccess, StoreOp,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType, TextureUsages,
+    TextureViewDescriptor, TextureViewDimension, VertexFormat,
 };
 
 pub mod encase {
@@ -55,5 +35,3 @@ pub mod encase {
 }
 
 pub use self::encase::{ShaderSize, ShaderType};
-
-pub use naga::ShaderStage;

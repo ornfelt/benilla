@@ -4,6 +4,7 @@ pub mod window;
 pub use visibility::*;
 pub use window::*;
 
+use crate::wgpu::{RenderPassColorAttachment, TextureFormat};
 use crate::{
     experimental::occlusion_culling::OcclusionCulling,
     extract_component::ExtractComponentPlugin,
@@ -23,7 +24,6 @@ use core::{
     ops::Range,
     sync::atomic::{AtomicUsize, Ordering},
 };
-use wgpu::{RenderPassColorAttachment, TextureFormat};
 
 pub struct ViewPlugin;
 

@@ -1,15 +1,13 @@
 use crate::{
-    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset},
+    render_asset::RenderAsset,
     render_resource::{Buffer, BufferUsages},
-    renderer::RenderDevice,
+    wgpu,
 };
 use bevy_app::{App, Plugin};
-use bevy_asset::{Asset, AssetApp, AssetId, RenderAssetUsages};
-use bevy_ecs::system::{lifetimeless::SRes, SystemParamItem};
+use bevy_asset::{Asset, AssetApp, RenderAssetUsages};
 use bevy_reflect::{prelude::ReflectDefault, Reflect};
 use bevy_utils::default;
 use encase::{internal::WriteInto, ShaderType};
-use wgpu::util::BufferInitDescriptor;
 
 /// Adds [`ShaderStorageBuffer`] as an asset that is extracted and uploaded to the GPU.
 #[derive(Default)]
@@ -106,53 +104,4 @@ pub struct GpuShaderStorageBuffer {
 
 impl RenderAsset for GpuShaderStorageBuffer {
     type SourceAsset = ShaderStorageBuffer;
-    type Param = SRes<RenderDevice>;
-
-    fn asset_usage(source_asset: &Self::SourceAsset) -> RenderAssetUsages {
-        source_asset.asset_usage
-    }
-
-    fn take_gpu_data(
-        source: &mut Self::SourceAsset,
-        previous_gpu_asset: Option<&Self>,
-    ) -> Result<Self::SourceAsset, AssetExtractionError> {
-        let data = source.data.take();
-
-        let valid_upload = data.is_some() || previous_gpu_asset.is_none_or(|prev| !prev.had_data);
-
-        valid_upload
-            .then(|| Self::SourceAsset {
-                data,
-                ..source.clone()
-            })
-            .ok_or(AssetExtractionError::AlreadyExtracted)
-    }
-
-    fn prepare_asset(
-        source_asset: Self::SourceAsset,
-        _: AssetId<Self::SourceAsset>,
-        render_device: &mut SystemParamItem<Self::Param>,
-        _: Option<&Self>,
-    ) -> Result<Self, PrepareAssetError<Self::SourceAsset>> {
-        match source_asset.data {
-            Some(data) => {
-                let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-                    label: source_asset.buffer_description.label,
-                    contents: &data,
-                    usage: source_asset.buffer_description.usage,
-                });
-                Ok(GpuShaderStorageBuffer {
-                    buffer,
-                    had_data: true,
-                })
-            }
-            None => {
-                let buffer = render_device.create_buffer(&source_asset.buffer_description);
-                Ok(GpuShaderStorageBuffer {
-                    buffer,
-                    had_data: false,
-                })
-            }
-        }
-    }
 }

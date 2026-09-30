@@ -1,12 +1,11 @@
+use crate::render_resource::TextureView;
+use crate::wgpu::TextureFormat;
 use bevy_camera::ManualTextureViewHandle;
 use bevy_ecs::{prelude::Component, resource::Resource};
 use bevy_image::BevyDefault;
 use bevy_math::UVec2;
 use bevy_platform::collections::HashMap;
 use bevy_render_macros::ExtractResource;
-use wgpu::TextureFormat;
-
-use crate::render_resource::TextureView;
 
 /// A manually managed [`TextureView`] for use as a [`bevy_camera::RenderTarget`].
 #[derive(Debug, Clone, Component)]

@@ -1,5 +1,9 @@
 use crate::define_atomic_id;
 use crate::renderer::WgpuWrapper;
+use crate::wgpu::{
+    self, BindGroupLayoutEntry, ColorTargetState, DepthStencilState, MultisampleState,
+    PrimitiveState, PushConstantRange,
+};
 use alloc::borrow::Cow;
 use bevy_asset::Handle;
 use bevy_mesh::VertexBufferLayout;
@@ -7,10 +11,6 @@ use bevy_shader::{Shader, ShaderDefVal};
 use core::iter;
 use core::ops::Deref;
 use thiserror::Error;
-use wgpu::{
-    BindGroupLayoutEntry, ColorTargetState, DepthStencilState, MultisampleState, PrimitiveState,
-    PushConstantRange,
-};
 
 define_atomic_id!(RenderPipelineId);
 

@@ -1,5 +1,5 @@
+use crate::wgpu::{BindGroupLayoutEntry, BindingType, ShaderStages};
 use core::num::NonZero;
-use wgpu::{BindGroupLayoutEntry, BindingType, ShaderStages};
 
 /// Helper for constructing bind group layouts.
 #[derive(Clone, Copy)]
@@ -67,9 +67,9 @@ pub mod binding_types {
     use crate::render_resource::{
         BufferBindingType, SamplerBindingType, TextureSampleType, TextureViewDimension,
     };
+    use crate::wgpu::{StorageTextureAccess, TextureFormat};
     use core::num::NonZero;
     use encase::ShaderType;
-    use wgpu::{StorageTextureAccess, TextureFormat};
 
     use super::*;
 

@@ -1,6 +1,7 @@
 use crate::define_atomic_id;
 use crate::renderer::WgpuWrapper;
-use core::ops::{Deref, RangeBounds};
+use crate::wgpu;
+use core::ops::Deref;
 
 define_atomic_id!(BufferId);
 
@@ -15,18 +16,6 @@ impl Buffer {
     pub fn id(&self) -> BufferId {
         self.id
     }
-
-    pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> BufferSlice<'_> {
-        BufferSlice {
-            id: self.id,
-            value: self.value.slice(bounds),
-        }
-    }
-
-    #[inline]
-    pub fn unmap(&self) {
-        self.value.unmap();
-    }
 }
 
 impl From<wgpu::Buffer> for Buffer {
@@ -40,28 +29,6 @@ impl From<wgpu::Buffer> for Buffer {
 
 impl Deref for Buffer {
     type Target = wgpu::Buffer;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct BufferSlice<'a> {
-    id: BufferId,
-    value: wgpu::BufferSlice<'a>,
-}
-
-impl<'a> BufferSlice<'a> {
-    #[inline]
-    pub fn id(&self) -> BufferId {
-        self.id
-    }
-}
-
-impl<'a> Deref for BufferSlice<'a> {
-    type Target = wgpu::BufferSlice<'a>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
