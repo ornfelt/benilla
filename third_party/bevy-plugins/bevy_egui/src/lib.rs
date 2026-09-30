@@ -157,7 +157,7 @@ use crate::text_agent::{
 use arboard::Clipboard;
 use bevy_app::prelude::*;
 #[cfg(feature = "render")]
-use bevy_asset::{AssetEvent, AssetId, Assets, Handle, load_internal_asset};
+use bevy_asset::{AssetEvent, AssetId, Assets, Handle};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     lifecycle::HookContext,
@@ -177,11 +177,7 @@ use bevy_platform::collections::HashMap;
 use bevy_platform::collections::HashSet;
 use bevy_reflect::Reflect;
 #[cfg(feature = "render")]
-use bevy_render::{
-    ExtractSchedule, Render, RenderApp, RenderSystems,
-    extract_resource::{ExtractResource, ExtractResourcePlugin},
-    render_resource::SpecializedRenderPipelines,
-};
+use bevy_render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use output::process_output_system;
 #[cfg(all(
     feature = "manage_clipboard",
@@ -321,24 +317,6 @@ pub struct EguiPlugin {
         note = "The option to disable the multi-pass mode is now deprecated, use `EguiPlugin::default` instead"
     )]
     pub enable_multipass_for_primary_context: bool,
-
-    /// Configures whether [`egui`] will be rendered above or below [`bevy_ui_render`](Bevy UI) GUIs.
-    ///
-    /// Defaults to [`UiRenderOrder::EguiAboveBevyUi`], on the assumption that games that use both
-    /// will typically use Bevy UI for the primary game UI, and egui for debug overlays.
-    ///
-    /// Note: this option take effect only if both `bevy_ui` and `bevy_egui` UIs are rendered
-    /// to the same camera.
-    #[cfg(feature = "bevy_ui")]
-    pub ui_render_order: UiRenderOrder,
-
-    /// Configure if bindless mode for rendering can be used on devices that has support for it.
-    ///
-    /// It is useful in cases where multiple textures are used to render UI
-    /// and renderer needs to frequently switch between different textures.
-    /// This avoids the cost of frequently changing bind groups.
-    #[cfg(feature = "render")]
-    pub bindless_mode_array_size: Option<std::num::NonZero<u32>>,
 }
 
 impl Default for EguiPlugin {
@@ -346,24 +324,8 @@ impl Default for EguiPlugin {
         Self {
             #[allow(deprecated)]
             enable_multipass_for_primary_context: true,
-            #[cfg(feature = "bevy_ui")]
-            ui_render_order: UiRenderOrder::EguiAboveBevyUi,
-            #[cfg(feature = "render")]
-            bindless_mode_array_size: std::num::NonZero::new(16),
         }
     }
-}
-
-/// Configures the rendering order between [`egui`] and [`bevy_ui_render`](Bevy UI).
-///
-/// See [`EguiPlugin::ui_render_order`].
-#[cfg(feature = "bevy_ui")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UiRenderOrder {
-    /// [`egui`] UIs are rendered on top of [`bevy_ui_render`](Bevy UI).
-    EguiAboveBevyUi,
-    /// [`bevy_ui_render`](Bevy UI) UIs are rendered on top of [`egui`].
-    BevyUiAboveEgui,
 }
 
 /// A resource for storing global plugin settings.
@@ -592,7 +554,7 @@ pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
     /// The field gets populated during the [`EguiPostUpdateSet::ProcessOutput`] system (belonging to bevy's [`PostUpdate`])
-    /// and processed during [`render::EguiPassNode`]'s `update`.
+    /// and drawn by the renderer.
     pub paint_jobs: Vec<egui::ClippedPrimitive>,
     /// The change in egui textures since last frame.
     pub textures_delta: egui::TexturesDelta,
@@ -892,20 +854,6 @@ impl From<EguiTextureHandle> for AssetId<Image> {
     }
 }
 
-/// Stores physical size and scale factor, is used as a helper to calculate logical size.
-/// The component lives only in the Render world.
-#[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
-pub struct RenderComputedScaleFactor {
-    /// Scale factor ([`EguiContextSettings::scale_factor`] multiplied by [`bevy_camera::Camera::target_scaling_factor`]).
-    pub scale_factor: f32,
-}
-
-/// The names of `bevy_egui` nodes.
-pub mod node {
-    /// The main egui pass.
-    pub const EGUI_PASS: &str = "egui_pass";
-}
-
 #[derive(SystemSet, Clone, Hash, Debug, Eq, PartialEq)]
 /// The `bevy_egui` plugin startup system sets.
 pub enum EguiStartupSet {
@@ -1199,134 +1147,18 @@ impl Plugin for EguiPlugin {
                 .in_set(EguiPostUpdateSet::ProcessOutput),
         );
 
-        // The constants are set to be larger or lower than bevy_ui's ones:
-        // https://github.com/bevyengine/bevy/blob/16a6a96a80aab50dcc14c8bb73ef09520f77c09d/crates/bevy_ui/src/picking_backend.rs#L260-L264.
-
         #[cfg(feature = "render")]
         app.add_systems(
             PostUpdate,
             update_egui_textures_system.in_set(EguiPostUpdateSet::PostProcessOutput),
         )
-        .add_systems(
-            Render,
-            render::systems::prepare_egui_transforms_system.in_set(RenderSystems::Prepare),
-        )
-        .add_systems(
-            Render,
-            render::systems::queue_bind_groups_system.in_set(RenderSystems::Queue),
-        )
-        .add_systems(
-            Render,
-            render::systems::queue_pipelines_system.in_set(RenderSystems::Queue),
-        )
         .add_systems(Last, free_egui_textures_system);
-
-        #[cfg(feature = "render")]
-        {
-            load_internal_asset!(
-                app,
-                render::EGUI_SHADER_HANDLE,
-                "render/egui.wgsl",
-                bevy_shader::Shader::from_wgsl
-            );
-
-            let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-                return;
-            };
-
-            let egui_graph_2d = render::get_egui_graph(render_app);
-            let egui_graph_3d = render::get_egui_graph(render_app);
-            let mut graph = render_app
-                .world_mut()
-                .resource_mut::<bevy_render::render_graph::RenderGraph>();
-
-            if let Some(graph_2d) =
-                graph.get_sub_graph_mut(bevy_core_pipeline::core_2d::graph::Core2d)
-            {
-                graph_2d.add_sub_graph(render::graph::SubGraphEgui, egui_graph_2d);
-                graph_2d.add_node(
-                    render::graph::NodeEgui::EguiPass,
-                    render::RunEguiSubgraphOnEguiViewNode,
-                );
-                graph_2d.add_node_edge(
-                    bevy_core_pipeline::core_2d::graph::Node2d::EndMainPass,
-                    render::graph::NodeEgui::EguiPass,
-                );
-                graph_2d.add_node_edge(
-                    bevy_core_pipeline::core_2d::graph::Node2d::EndMainPassPostProcessing,
-                    render::graph::NodeEgui::EguiPass,
-                );
-                graph_2d.add_node_edge(
-                    render::graph::NodeEgui::EguiPass,
-                    bevy_core_pipeline::core_2d::graph::Node2d::Upscaling,
-                );
-            }
-
-            if let Some(graph_3d) =
-                graph.get_sub_graph_mut(bevy_core_pipeline::core_3d::graph::Core3d)
-            {
-                graph_3d.add_sub_graph(render::graph::SubGraphEgui, egui_graph_3d);
-                graph_3d.add_node(
-                    render::graph::NodeEgui::EguiPass,
-                    render::RunEguiSubgraphOnEguiViewNode,
-                );
-                graph_3d.add_node_edge(
-                    bevy_core_pipeline::core_3d::graph::Node3d::EndMainPass,
-                    render::graph::NodeEgui::EguiPass,
-                );
-                graph_3d.add_node_edge(
-                    bevy_core_pipeline::core_3d::graph::Node3d::EndMainPassPostProcessing,
-                    render::graph::NodeEgui::EguiPass,
-                );
-                graph_3d.add_node_edge(
-                    render::graph::NodeEgui::EguiPass,
-                    bevy_core_pipeline::core_3d::graph::Node3d::Upscaling,
-                );
-            }
-        }
 
         #[cfg(feature = "accesskit")]
         app.add_systems(
             PostUpdate,
             update_accessibility_system.in_set(EguiPostUpdateSet::PostProcessOutput),
         );
-    }
-
-    #[cfg(feature = "render")]
-    fn finish(&self, app: &mut App) {
-        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app
-                .insert_resource(render::EguiRenderSettings {
-                    bindless_mode_array_size: self.bindless_mode_array_size,
-                })
-                .init_resource::<render::EguiPipeline>()
-                .init_resource::<SpecializedRenderPipelines<render::EguiPipeline>>()
-                .init_resource::<render::systems::EguiTransforms>()
-                .init_resource::<render::systems::EguiRenderData>()
-                .add_systems(
-                    // Seems to be just the set to add/remove nodes, as it'll run before
-                    // `RenderSystems::ExtractCommands` where render nodes get updated.
-                    ExtractSchedule,
-                    render::extract_egui_camera_view_system,
-                )
-                .add_systems(
-                    Render,
-                    render::systems::prepare_egui_transforms_system.in_set(RenderSystems::Prepare),
-                )
-                .add_systems(
-                    Render,
-                    render::systems::prepare_egui_render_target_data_system
-                        .in_set(RenderSystems::Prepare),
-                )
-                .add_systems(
-                    Render,
-                    render::systems::queue_bind_groups_system.in_set(RenderSystems::Queue),
-                )
-                .add_systems(
-                    Render,
-                    render::systems::queue_pipelines_system.in_set(RenderSystems::Queue),
-                );
-        }
     }
 }
 

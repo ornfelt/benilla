@@ -69,7 +69,16 @@ the same repository's.
   - `bevy_ui_render`: `UiRenderPlugin` returned before its sub-plugins without a `RenderApp`, so it
     is empty; everything but `UiMaterial`, `UiMaterialKey`, `MaterialNode`, `UiMaterialPlugin`'s
     asset registration, `UiAntiAlias`, `BoxShadowSamples` and `stack_z_offsets` is gone.
-  - `bevy_egui`: the render-graph edge ordering egui against `bevy_ui_render`'s UI pass.
+  - `bevy_egui`: the `render` module's pipeline, pass node, render graph, extraction,
+    render-world systems, paint callbacks and `egui.wgsl`, the graph edges into `Core2d`/`Core3d`
+    (and the one against `bevy_ui_render`'s UI pass), `RenderComputedScaleFactor`, the `node`
+    names, and the `EguiPlugin` fields only the render half read (`ui_render_order`,
+    `bindless_mode_array_size`); also the three render-world systems its `build` added to the
+    main app's `Render` schedule, which nothing runs. Kept: `update_egui_textures_system` (egui's
+    textures as `Assets<Image>`, which benilla-gfx draws) with the helpers it calls,
+    `free_egui_textures_system`, `EguiManagedTextures`, `EguiUserTextures`, and the two
+    `ExtractResourcePlugin`s (with `ExtractedEguiManagedTextures`), which log once that no render
+    app exists. The `render` and `bevy_ui` features stay; `bevy_ui` enables nothing.
   - `bevy_pbr`: the mesh, material, prepass, shadow, light, cluster, fog, skin and morph render
     code, GPU preprocessing, the material bind-group allocator, SSAO, SSR, volumetric fog,
     atmosphere, light probes and environment-map generation, lightmaps, clustered decals, deferred
