@@ -278,18 +278,6 @@ impl<'a> AssetPath<'a> {
         }
     }
 
-    /// Removes a "sub-asset label" from this [`AssetPath`], if one was set.
-    #[inline]
-    pub fn remove_label(&mut self) {
-        self.label = None;
-    }
-
-    /// Takes the "sub-asset label" from this [`AssetPath`], if one was set.
-    #[inline]
-    pub fn take_label(&mut self) -> Option<CowArc<'a, str>> {
-        self.label.take()
-    }
-
     /// Returns this asset path with the given label. This will replace the previous
     /// label if it exists.
     #[inline]

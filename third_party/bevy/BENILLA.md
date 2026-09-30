@@ -192,6 +192,20 @@ the same repository's.
   (`sync_file_asset.rs`, the detached tasks): the `multi_threaded` feature is always on here, and
   without it the crate now builds the threaded path. The tests of removed code went with it. No
   system went.
+- **`bevy_asset`'s uncalled loading API.** `AssetServer`'s `load_untyped` (with the untyped
+  source suffix), the `load_acquire*` family, `load_with_settings_override`, the
+  `wait_for_asset*` futures with `WaitForAssetError` (and the per-asset waker list nothing
+  filled), the path and id handle lookups (`get_handle(s)(_untyped)`, `get_id_handle*`,
+  `get_path_id(s)`, `get_path_and_type_id_handle`, `is_managed`), the loader lookups by
+  extension, path and type (with `AssetLoaders::get_by_*`, their four tests, and the
+  `MissingAssetLoaderForExtension`/`ForTypeId` errors nothing raised); `NestedLoader`'s dynamic
+  and unknown typing, `with_settings`, `with_reader` and `deferred` (`LoadContext::load` and the
+  kept tests use the static deferred and immediate loads); `LoadContext`'s
+  `labeled_asset_scope`, `get_label_handle`, `has_labeled_asset` (`begin_labeled_asset` and
+  `add_loaded_labeled_asset` stay private behind `add_labeled_asset`); `LoadedAsset`'s and
+  `ErasedLoadedAsset`'s `get_labeled`/`iter_labels`; `AssetEvent`'s `is_modified`/`is_removed`/
+  `is_unused`; `AssetPath::take_label`/`remove_label`; `Dir::insert_meta_text`. The accessors the
+  kept tests read (`load_override`, the load-state queries) stay. No system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

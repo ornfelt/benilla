@@ -42,10 +42,6 @@ impl Dir {
         self.insert_asset(path, asset.as_bytes().to_vec());
     }
 
-    pub fn insert_meta_text(&self, path: &Path, asset: &str) {
-        self.insert_meta(path, asset.as_bytes().to_vec());
-    }
-
     pub fn insert_asset(&self, path: &Path, value: impl Into<Value>) {
         let mut dir = self.clone();
         if let Some(parent) = path.parent() {

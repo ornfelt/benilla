@@ -170,19 +170,6 @@ impl<A: Asset> LoadedAsset<A> {
     pub fn get(&self) -> &A {
         &self.value
     }
-
-    /// Returns the [`ErasedLoadedAsset`] for the given label, if it exists.
-    pub fn get_labeled(
-        &self,
-        label: impl Into<CowArc<'static, str>>,
-    ) -> Option<&ErasedLoadedAsset> {
-        self.labeled_assets.get(&label.into()).map(|a| &a.asset)
-    }
-
-    /// Iterate over all labels for "labeled assets" in the loaded asset
-    pub fn iter_labels(&self) -> impl Iterator<Item = &str> {
-        self.labeled_assets.keys().map(|s| &**s)
-    }
 }
 
 impl<A: Asset> From<A> for LoadedAsset<A> {
@@ -228,19 +215,6 @@ impl ErasedLoadedAsset {
     /// Retrieves the `type_name` of the stored [`Asset`] type.
     pub fn asset_type_name(&self) -> &'static str {
         self.value.asset_type_name()
-    }
-
-    /// Returns the [`ErasedLoadedAsset`] for the given label, if it exists.
-    pub fn get_labeled(
-        &self,
-        label: impl Into<CowArc<'static, str>>,
-    ) -> Option<&ErasedLoadedAsset> {
-        self.labeled_assets.get(&label.into()).map(|a| &a.asset)
-    }
-
-    /// Iterate over all labels for "labeled assets" in the loaded asset
-    pub fn iter_labels(&self) -> impl Iterator<Item = &str> {
-        self.labeled_assets.keys().map(|s| &**s)
     }
 
     /// Cast this loaded asset as the given type. If the type does not match,
@@ -338,36 +312,8 @@ impl<'a> LoadContext<'a> {
         }
     }
 
-    /// Begins a new labeled asset load. Use the returned [`LoadContext`] to load
-    /// dependencies for the new asset and call [`LoadContext::finish`] to finalize the asset load.
-    /// When finished, make sure you call [`LoadContext::add_loaded_labeled_asset`] to add the results back to the parent
-    /// context.
-    /// Prefer [`LoadContext::labeled_asset_scope`] when possible, which will automatically add
-    /// the labeled [`LoadContext`] back to the parent context.
-    /// [`LoadContext::begin_labeled_asset`] exists largely to enable parallel asset loading.
-    ///
-    /// See [`AssetPath`] for more on labeled assets.
-    ///
-    /// ```no_run
-    /// # use bevy_asset::{Asset, LoadContext};
-    /// # use bevy_reflect::TypePath;
-    /// # #[derive(Asset, TypePath, Default)]
-    /// # struct Image;
-    /// # let load_context: LoadContext = panic!();
-    /// let mut handles = Vec::new();
-    /// for i in 0..2 {
-    ///     let labeled = load_context.begin_labeled_asset();
-    ///     handles.push(std::thread::spawn(move || {
-    ///         (i.to_string(), labeled.finish(Image::default()))
-    ///     }));
-    /// }
-    ///
-    /// for handle in handles {
-    ///     let (label, loaded_asset) = handle.join().unwrap();
-    ///     load_context.add_loaded_labeled_asset(label, loaded_asset);
-    /// }
-    /// ```
-    pub fn begin_labeled_asset(&self) -> LoadContext<'_> {
+    /// Begins a new labeled asset load, finished by [`LoadContext::finish`].
+    fn begin_labeled_asset(&self) -> LoadContext<'_> {
         LoadContext::new(
             self.asset_server,
             self.asset_path.clone(),
@@ -375,46 +321,21 @@ impl<'a> LoadContext<'a> {
         )
     }
 
-    /// Creates a new [`LoadContext`] for the given `label`. The `load` function is responsible for loading an [`Asset`] of
-    /// type `A`. `load` will be called immediately and the result will be used to finalize the [`LoadContext`], resulting in a new
-    /// [`LoadedAsset`], which is registered under the `label` label.
-    ///
-    /// This exists to remove the need to manually call [`LoadContext::begin_labeled_asset`] and then manually register the
-    /// result with [`LoadContext::add_loaded_labeled_asset`].
-    ///
-    /// See [`AssetPath`] for more on labeled assets.
-    pub fn labeled_asset_scope<A: Asset, E>(
-        &mut self,
-        label: String,
-        load: impl FnOnce(&mut LoadContext) -> Result<A, E>,
-    ) -> Result<Handle<A>, E> {
-        let mut context = self.begin_labeled_asset();
-        let asset = load(&mut context)?;
-        let loaded_asset = context.finish(asset);
-        Ok(self.add_loaded_labeled_asset(label, loaded_asset))
-    }
-
     /// This will add the given `asset` as a "labeled [`Asset`]" with the `label` label.
     ///
     /// # Warning
     ///
-    /// This will not assign dependencies to the given `asset`. If adding an asset
-    /// with dependencies generated from calls such as [`LoadContext::load`], use
-    /// [`LoadContext::labeled_asset_scope`] or [`LoadContext::begin_labeled_asset`] to generate a
-    /// new [`LoadContext`] to track the dependencies for the labeled asset.
+    /// This will not assign dependencies generated from calls such as [`LoadContext::load`]
+    /// to the given `asset`.
     ///
     /// See [`AssetPath`] for more on labeled assets.
     pub fn add_labeled_asset<A: Asset>(&mut self, label: String, asset: A) -> Handle<A> {
-        self.labeled_asset_scope(label, |_| Ok::<_, ()>(asset))
-            .expect("the closure returns Ok")
+        let loaded_asset = self.begin_labeled_asset().finish(asset);
+        self.add_loaded_labeled_asset(label, loaded_asset)
     }
 
     /// Add a [`LoadedAsset`] that is a "labeled sub asset" of the root path of this load context.
-    /// This can be used in combination with [`LoadContext::begin_labeled_asset`] to parallelize
-    /// sub asset loading.
-    ///
-    /// See [`AssetPath`] for more on labeled assets.
-    pub fn add_loaded_labeled_asset<A: Asset>(
+    fn add_loaded_labeled_asset<A: Asset>(
         &mut self,
         label: impl Into<CowArc<'static, str>>,
         loaded_asset: LoadedAsset<A>,
@@ -433,14 +354,6 @@ impl<'a> LoadContext<'a> {
             },
         );
         handle
-    }
-
-    /// Returns `true` if an asset with the label `label` exists in this context.
-    ///
-    /// See [`AssetPath`] for more on labeled assets.
-    pub fn has_labeled_asset<'b>(&self, label: impl Into<CowArc<'b, str>>) -> bool {
-        let path = self.asset_path.clone().with_label(label.into());
-        !self.asset_server.get_handles_untyped(&path).is_empty()
     }
 
     /// "Finishes" this context by populating the final [`Asset`] value.
@@ -493,21 +406,6 @@ impl<'a> LoadContext<'a> {
                 source,
             })?;
         Ok(bytes)
-    }
-
-    /// Returns a handle to an asset of type `A` with the label `label`. This [`LoadContext`] must produce an asset of the
-    /// given type and the given label or the dependencies of this asset will never be considered "fully loaded". However you
-    /// can call this method before _or_ after adding the labeled asset.
-    pub fn get_label_handle<'b, A: Asset>(
-        &mut self,
-        label: impl Into<CowArc<'b, str>>,
-    ) -> Handle<A> {
-        let path = self.asset_path.clone().with_label(label);
-        let handle = self.asset_server.get_or_create_path_handle::<A>(path, None);
-        // `get_or_create_path_handle` always returns a Strong variant, so we are safe to unwrap.
-        let index = (&handle).try_into().unwrap();
-        self.dependencies.insert(index);
-        handle
     }
 
     pub(crate) async fn load_direct_internal(

@@ -70,21 +70,6 @@ impl<A: Asset> AssetEvent<A> {
     pub fn is_added(&self, asset_id: impl Into<AssetId<A>>) -> bool {
         matches!(self, AssetEvent::Added { id } if *id == asset_id.into())
     }
-
-    /// Returns `true` if this event is [`AssetEvent::Modified`] and matches the given `id`.
-    pub fn is_modified(&self, asset_id: impl Into<AssetId<A>>) -> bool {
-        matches!(self, AssetEvent::Modified { id } if *id == asset_id.into())
-    }
-
-    /// Returns `true` if this event is [`AssetEvent::Removed`] and matches the given `id`.
-    pub fn is_removed(&self, asset_id: impl Into<AssetId<A>>) -> bool {
-        matches!(self, AssetEvent::Removed { id } if *id == asset_id.into())
-    }
-
-    /// Returns `true` if this event is [`AssetEvent::Unused`] and matches the given `id`.
-    pub fn is_unused(&self, asset_id: impl Into<AssetId<A>>) -> bool {
-        matches!(self, AssetEvent::Unused { id } if *id == asset_id.into())
-    }
 }
 
 impl<A: Asset> Clone for AssetEvent<A> {

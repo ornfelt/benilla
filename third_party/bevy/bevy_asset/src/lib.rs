@@ -183,9 +183,7 @@ pub use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 pub use handle::*;
 pub use id::*;
 pub use loader::*;
-pub use loader_builders::{
-    Deferred, DynamicTyped, Immediate, NestedLoader, StaticTyped, UnknownTyped,
-};
+pub use loader_builders::{Deferred, Immediate, NestedLoader, StaticTyped};
 pub use path::*;
 pub use reflect::*;
 pub use render_asset::*;
@@ -2404,12 +2402,6 @@ mod tests {
             // loaded.
             Some(())
         });
-    }
-
-    #[expect(dead_code, reason = "used by tests not backported to 0.18")]
-    pub(crate) fn read_asset_as_string(dir: &Dir, path: &Path) -> String {
-        let bytes = dir.get_asset(path).unwrap();
-        str::from_utf8(bytes.value()).unwrap().to_string()
     }
 
     #[test]

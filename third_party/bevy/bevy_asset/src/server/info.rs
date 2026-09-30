@@ -3,15 +3,12 @@ use crate::{
     DependencyLoadState, ErasedAssetIndex, ErasedLoadedAsset, Handle, InternalAssetEvent,
     LoadState, RecursiveDependencyLoadState, StrongHandle, UntypedHandle,
 };
-use alloc::{
-    sync::{Arc, Weak},
-    vec::Vec,
-};
+use alloc::sync::{Arc, Weak};
 use bevy_ecs::world::World;
 use bevy_platform::collections::{hash_map::Entry, HashMap, HashSet};
 use bevy_tasks::Task;
 use bevy_utils::TypeIdMap;
-use core::{any::TypeId, task::Waker};
+use core::any::TypeId;
 use crossbeam_channel::Sender;
 use either::Either;
 use thiserror::Error;
@@ -33,8 +30,6 @@ pub(crate) struct AssetInfo {
     /// The number of handle drops to skip for this asset.
     /// See usage (and comments) in `get_or_create_path_handle` for context.
     handle_drops_to_skip: usize,
-    /// List of tasks waiting for this asset to complete loading
-    pub(crate) waiting_tasks: Vec<Waker>,
 }
 
 impl AssetInfo {
@@ -52,7 +47,6 @@ impl AssetInfo {
             dependents_waiting_on_load: HashSet::default(),
             dependents_waiting_on_recursive_dep_load: HashSet::default(),
             handle_drops_to_skip: 0,
-            waiting_tasks: Vec::new(),
         }
     }
 }
@@ -266,70 +260,8 @@ impl AssetInfos {
         self.infos.get(&index)
     }
 
-    pub(crate) fn contains_key(&self, index: ErasedAssetIndex) -> bool {
-        self.infos.contains_key(&index)
-    }
-
     pub(crate) fn get_mut(&mut self, index: ErasedAssetIndex) -> Option<&mut AssetInfo> {
         self.infos.get_mut(&index)
-    }
-
-    pub(crate) fn get_path_and_type_id_handle(
-        &self,
-        path: &AssetPath<'_>,
-        type_id: TypeId,
-    ) -> Option<UntypedHandle> {
-        let index = *self.path_to_index.get(path)?.get(&type_id)?;
-        self.get_index_handle(ErasedAssetIndex::new(index, type_id))
-    }
-
-    pub(crate) fn get_path_indices<'a>(
-        &'a self,
-        path: &'a AssetPath<'_>,
-    ) -> impl Iterator<Item = ErasedAssetIndex> + 'a {
-        /// Concrete type to allow returning an `impl Iterator` even if `self.path_to_id.get(&path)` is `None`
-        enum HandlesByPathIterator<T> {
-            None,
-            Some(T),
-        }
-
-        impl<T> Iterator for HandlesByPathIterator<T>
-        where
-            T: Iterator<Item = ErasedAssetIndex>,
-        {
-            type Item = ErasedAssetIndex;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    HandlesByPathIterator::None => None,
-                    HandlesByPathIterator::Some(iter) => iter.next(),
-                }
-            }
-        }
-
-        if let Some(type_id_to_id) = self.path_to_index.get(path) {
-            HandlesByPathIterator::Some(
-                type_id_to_id
-                    .iter()
-                    .map(|(type_id, index)| ErasedAssetIndex::new(*index, *type_id)),
-            )
-        } else {
-            HandlesByPathIterator::None
-        }
-    }
-
-    pub(crate) fn get_path_handles<'a>(
-        &'a self,
-        path: &'a AssetPath<'_>,
-    ) -> impl Iterator<Item = UntypedHandle> + 'a {
-        self.get_path_indices(path)
-            .filter_map(|id| self.get_index_handle(id))
-    }
-
-    pub(crate) fn get_index_handle(&self, index: ErasedAssetIndex) -> Option<UntypedHandle> {
-        let info = self.infos.get(&index)?;
-        let strong_handle = info.weak_handle.upgrade()?;
-        Some(UntypedHandle::Strong(strong_handle))
     }
 
     /// Returns `true` if the asset should be removed from the collection.
@@ -582,9 +514,6 @@ impl AssetInfos {
             info.load_state = LoadState::Failed(error.clone());
             info.dep_load_state = DependencyLoadState::Failed(error.clone());
             info.rec_dep_load_state = RecursiveDependencyLoadState::Failed(error.clone());
-            for waker in info.waiting_tasks.drain(..) {
-                waker.wake();
-            }
             (
                 core::mem::take(&mut info.dependents_waiting_on_load),
                 core::mem::take(&mut info.dependents_waiting_on_recursive_dep_load),

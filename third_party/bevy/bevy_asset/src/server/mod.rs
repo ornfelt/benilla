@@ -12,10 +12,9 @@ use crate::{
         MetaTransform, Settings,
     },
     path::AssetPath,
-    Asset, AssetEvent, AssetHandleProvider, AssetId, AssetIndex, AssetLoadFailedEvent,
-    AssetMetaCheck, Assets, DeserializeMetaError, ErasedAssetIndex, ErasedLoadedAsset, Handle,
-    LoadedUntypedAsset, UnapprovedPathMode, UntypedAssetId, UntypedAssetLoadFailedEvent,
-    UntypedHandle,
+    Asset, AssetEvent, AssetHandleProvider, AssetIndex, AssetLoadFailedEvent, AssetMetaCheck,
+    Assets, DeserializeMetaError, ErasedAssetIndex, ErasedLoadedAsset, Handle, UnapprovedPathMode,
+    UntypedAssetId, UntypedAssetLoadFailedEvent, UntypedHandle,
 };
 use alloc::{borrow::ToOwned, boxed::Box, vec, vec::Vec};
 use alloc::{
@@ -23,12 +22,11 @@ use alloc::{
     string::{String, ToString},
     sync::Arc,
 };
-use atomicow::CowArc;
 use bevy_diagnostic::{DiagnosticPath, Diagnostics};
 use bevy_ecs::prelude::*;
 use bevy_platform::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use bevy_tasks::IoTaskPool;
-use core::{any::TypeId, panic::AssertUnwindSafe, task::Poll};
+use core::{any::TypeId, panic::AssertUnwindSafe};
 use crossbeam_channel::{Receiver, Sender};
 use either::Either;
 use futures_lite::FutureExt;
@@ -230,22 +228,6 @@ impl AssetServer {
             .insert(handle_provider.type_id, handle_provider);
     }
 
-    /// Returns the registered [`AssetLoader`] associated with the given extension, if it exists.
-    pub async fn get_asset_loader_with_extension(
-        &self,
-        extension: &str,
-    ) -> Result<Arc<dyn ErasedAssetLoader>, MissingAssetLoaderForExtensionError> {
-        let error = || MissingAssetLoaderForExtensionError {
-            extensions: vec![extension.to_string()],
-        };
-
-        let loader = self
-            .read_loaders()
-            .get_by_extension(extension)
-            .ok_or_else(error)?;
-        loader.get().await.map_err(|_| error())
-    }
-
     /// Returns the registered [`AssetLoader`] associated with the given type name, if it exists.
     pub async fn get_asset_loader_with_type_name(
         &self,
@@ -260,51 +242,6 @@ impl AssetServer {
             .get_by_name(type_name)
             .ok_or_else(error)?;
         loader.get().await.map_err(|_| error())
-    }
-
-    /// Retrieves the default [`AssetLoader`] for the given path, if one can be found.
-    pub async fn get_path_asset_loader<'a>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-    ) -> Result<Arc<dyn ErasedAssetLoader>, MissingAssetLoaderForExtensionError> {
-        let path = path.into();
-
-        let error = || {
-            let Some(full_extension) = path.get_full_extension() else {
-                return MissingAssetLoaderForExtensionError {
-                    extensions: Vec::new(),
-                };
-            };
-
-            let mut extensions = vec![full_extension.clone()];
-            extensions.extend(
-                AssetPath::iter_secondary_extensions(&full_extension).map(ToString::to_string),
-            );
-
-            MissingAssetLoaderForExtensionError { extensions }
-        };
-
-        let loader = self.read_loaders().get_by_path(&path).ok_or_else(error)?;
-        loader.get().await.map_err(|_| error())
-    }
-
-    /// Retrieves the default [`AssetLoader`] for the given [`Asset`] [`TypeId`], if one can be found.
-    pub async fn get_asset_loader_with_asset_type_id(
-        &self,
-        type_id: TypeId,
-    ) -> Result<Arc<dyn ErasedAssetLoader>, MissingAssetLoaderForTypeIdError> {
-        let error = || MissingAssetLoaderForTypeIdError { type_id };
-
-        let loader = self.read_loaders().get_by_type(type_id).ok_or_else(error)?;
-        loader.get().await.map_err(|_| error())
-    }
-
-    /// Retrieves the default [`AssetLoader`] for the given [`Asset`] type, if one can be found.
-    pub async fn get_asset_loader_with_asset_type<A: Asset>(
-        &self,
-    ) -> Result<Arc<dyn ErasedAssetLoader>, MissingAssetLoaderForTypeIdError> {
-        self.get_asset_loader_with_asset_type_id(TypeId::of::<A>())
-            .await
     }
 
     /// Begins loading an [`Asset`] of type `A` stored at `path`. This will not block on the asset load. Instead,
@@ -364,43 +301,6 @@ impl AssetServer {
         self.load_with_meta_transform(path, None, (), true)
     }
 
-    /// Begins loading an [`Asset`] of type `A` stored at `path` while holding a guard item.
-    /// The guard item is dropped when either the asset is loaded or loading has failed.
-    ///
-    /// This function returns a "strong" [`Handle`]. When the [`Asset`] is loaded (and enters [`LoadState::Loaded`]), it will be added to the
-    /// associated [`Assets`] resource.
-    ///
-    /// The guard item should notify the caller in its [`Drop`] implementation. See example `multi_asset_sync`.
-    /// Synchronously this can be a [`Arc<AtomicU32>`] that decrements its counter, asynchronously this can be a `Barrier`.
-    /// This function only guarantees the asset referenced by the [`Handle`] is loaded. If your asset is separated into
-    /// multiple files, sub-assets referenced by the main asset might still be loading, depend on the implementation of the [`AssetLoader`].
-    ///
-    /// Additionally, you can check the asset's load state by reading [`AssetEvent`] events, calling [`AssetServer::load_state`], or checking
-    /// the [`Assets`] storage to see if the [`Asset`] exists yet.
-    ///
-    /// The asset load will fail and an error will be printed to the logs if the asset stored at `path` is not of type `A`.
-    #[must_use = "not using the returned strong handle may result in the unexpected release of the asset"]
-    pub fn load_acquire<'a, A: Asset, G: Send + Sync + 'static>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        guard: G,
-    ) -> Handle<A> {
-        self.load_with_meta_transform(path, None, guard, false)
-    }
-
-    /// Same as [`load`](AssetServer::load_acquire), but you can load assets from unapproved paths
-    /// if [`AssetPlugin::unapproved_path_mode`](super::AssetPlugin::unapproved_path_mode)
-    /// is [`Deny`](UnapprovedPathMode::Deny).
-    ///
-    /// See [`UnapprovedPathMode`] and [`AssetPath::is_unapproved`]
-    pub fn load_acquire_override<'a, A: Asset, G: Send + Sync + 'static>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        guard: G,
-    ) -> Handle<A> {
-        self.load_with_meta_transform(path, None, guard, true)
-    }
-
     /// Begins loading an [`Asset`] of type `A` stored at `path`. The given `settings` function will override the asset's
     /// [`AssetLoader`] settings. The type `S` _must_ match the configured [`AssetLoader::Settings`] or `settings` changes
     /// will be ignored and an error will be printed to the log.
@@ -415,72 +315,6 @@ impl AssetServer {
             Some(loader_settings_meta_transform(settings)),
             (),
             false,
-        )
-    }
-
-    /// Same as [`load`](AssetServer::load_with_settings), but you can load assets from unapproved paths
-    /// if [`AssetPlugin::unapproved_path_mode`](super::AssetPlugin::unapproved_path_mode)
-    /// is [`Deny`](UnapprovedPathMode::Deny).
-    ///
-    /// See [`UnapprovedPathMode`] and [`AssetPath::is_unapproved`]
-    pub fn load_with_settings_override<'a, A: Asset, S: Settings>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        settings: impl Fn(&mut S) + Send + Sync + 'static,
-    ) -> Handle<A> {
-        self.load_with_meta_transform(
-            path,
-            Some(loader_settings_meta_transform(settings)),
-            (),
-            true,
-        )
-    }
-
-    /// Begins loading an [`Asset`] of type `A` stored at `path` while holding a guard item.
-    /// The guard item is dropped when either the asset is loaded or loading has failed.
-    ///
-    /// This function only guarantees the asset referenced by the [`Handle`] is loaded. If your asset is separated into
-    /// multiple files, sub-assets referenced by the main asset might still be loading, depend on the implementation of the [`AssetLoader`].
-    ///
-    /// The given `settings` function will override the asset's
-    /// [`AssetLoader`] settings. The type `S` _must_ match the configured [`AssetLoader::Settings`] or `settings` changes
-    /// will be ignored and an error will be printed to the log.
-    #[must_use = "not using the returned strong handle may result in the unexpected release of the asset"]
-    pub fn load_acquire_with_settings<'a, A: Asset, S: Settings, G: Send + Sync + 'static>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        settings: impl Fn(&mut S) + Send + Sync + 'static,
-        guard: G,
-    ) -> Handle<A> {
-        self.load_with_meta_transform(
-            path,
-            Some(loader_settings_meta_transform(settings)),
-            guard,
-            false,
-        )
-    }
-
-    /// Same as [`load`](AssetServer::load_acquire_with_settings), but you can load assets from unapproved paths
-    /// if [`AssetPlugin::unapproved_path_mode`](super::AssetPlugin::unapproved_path_mode)
-    /// is [`Deny`](UnapprovedPathMode::Deny).
-    ///
-    /// See [`UnapprovedPathMode`] and [`AssetPath::is_unapproved`]
-    pub fn load_acquire_with_settings_override<
-        'a,
-        A: Asset,
-        S: Settings,
-        G: Send + Sync + 'static,
-    >(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        settings: impl Fn(&mut S) + Send + Sync + 'static,
-        guard: G,
-    ) -> Handle<A> {
-        self.load_with_meta_transform(
-            path,
-            Some(loader_settings_meta_transform(settings)),
-            guard,
-            true,
         )
     }
 
@@ -517,30 +351,6 @@ impl AssetServer {
         handle
     }
 
-    pub(crate) fn load_erased_with_meta_transform<'a, G: Send + Sync + 'static>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        type_id: TypeId,
-        meta_transform: Option<MetaTransform>,
-        guard: G,
-    ) -> UntypedHandle {
-        let path = path.into().into_owned();
-        let mut infos = self.write_infos();
-        let (handle, should_load) = infos.get_or_create_path_handle_erased(
-            path.clone(),
-            type_id,
-            None,
-            HandleLoadingMode::Request,
-            meta_transform,
-        );
-
-        if should_load {
-            self.spawn_load_task(handle.clone(), path, infos, guard);
-        }
-
-        handle
-    }
-
     pub(crate) fn spawn_load_task<G: Send + Sync + 'static>(
         &self,
         handle: UntypedHandle,
@@ -565,90 +375,6 @@ impl AssetServer {
         infos
             .pending_tasks
             .insert((&handle).try_into().unwrap(), task);
-    }
-
-    pub(crate) fn load_unknown_type_with_meta_transform<'a>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        meta_transform: Option<MetaTransform>,
-    ) -> Handle<LoadedUntypedAsset> {
-        let path = path.into().into_owned();
-        let untyped_source = AssetSourceId::Name(match path.source() {
-            AssetSourceId::Default => CowArc::Static(UNTYPED_SOURCE_SUFFIX),
-            AssetSourceId::Name(source) => {
-                CowArc::Owned(format!("{source}--{UNTYPED_SOURCE_SUFFIX}").into())
-            }
-        });
-        let mut infos = self.write_infos();
-        let (handle, should_load) = infos.get_or_create_path_handle::<LoadedUntypedAsset>(
-            path.clone().with_source(untyped_source),
-            HandleLoadingMode::Request,
-            meta_transform,
-        );
-
-        if !should_load {
-            return handle;
-        }
-        let index = (&handle).try_into().unwrap();
-
-        infos.stats.started_load_tasks += 1;
-
-        let server = self.clone();
-        let task = IoTaskPool::get().spawn(async move {
-            let path_clone = path.clone();
-            match server
-                .load_internal(None, path, false, None)
-                .await
-                .map(|h| {
-                    h.expect("handle must be returned, since we didn't pass in an input handle")
-                }) {
-                Ok(handle) => server.send_asset_event(InternalAssetEvent::Loaded {
-                    index,
-                    loaded_asset: LoadedAsset::new_with_dependencies(LoadedUntypedAsset { handle })
-                        .into(),
-                }),
-                Err(err) => {
-                    error!("{err}");
-                    server.send_asset_event(InternalAssetEvent::Failed {
-                        index,
-                        path: path_clone,
-                        error: err,
-                    });
-                }
-            };
-        });
-
-        infos.pending_tasks.insert(index, task);
-
-        handle
-    }
-
-    /// Load an asset without knowing its type. The method returns a handle to a [`LoadedUntypedAsset`].
-    ///
-    /// Once the [`LoadedUntypedAsset`] is loaded, an untyped handle for the requested path can be
-    /// retrieved from it.
-    ///
-    /// ```
-    /// use bevy_asset::{Assets, Handle, LoadedUntypedAsset};
-    /// use bevy_ecs::system::Res;
-    /// use bevy_ecs::resource::Resource;
-    ///
-    /// #[derive(Resource)]
-    /// struct LoadingUntypedHandle(Handle<LoadedUntypedAsset>);
-    ///
-    /// fn resolve_loaded_untyped_handle(loading_handle: Res<LoadingUntypedHandle>, loaded_untyped_assets: Res<Assets<LoadedUntypedAsset>>) {
-    ///     if let Some(loaded_untyped_asset) = loaded_untyped_assets.get(&loading_handle.0) {
-    ///         let handle = loaded_untyped_asset.handle.clone();
-    ///         // continue working with `handle` which points to the asset at the originally requested path
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// This indirection enables a non blocking load of an untyped asset, since I/O is
-    /// required to figure out the asset type before a handle can be created.
-    #[must_use = "not using the returned strong handle may result in the unexpected release of the assets"]
-    pub fn load_untyped<'a>(&self, path: impl Into<AssetPath<'a>>) -> Handle<LoadedUntypedAsset> {
-        self.load_unknown_type_with_meta_transform(path, None)
     }
 
     /// Performs an async asset load.
@@ -845,34 +571,19 @@ impl AssetServer {
     pub(crate) fn load_asset<A: Asset>(&self, asset: impl Into<LoadedAsset<A>>) -> Handle<A> {
         let loaded_asset: LoadedAsset<A> = asset.into();
         let erased_loaded_asset: ErasedLoadedAsset = loaded_asset.into();
-        self.load_asset_untyped(None, erased_loaded_asset)
+        self.load_asset_untyped(erased_loaded_asset)
             .typed_debug_checked()
     }
 
     #[must_use = "not using the returned strong handle may result in the unexpected release of the asset"]
-    pub(crate) fn load_asset_untyped(
-        &self,
-        path: Option<AssetPath<'static>>,
-        asset: impl Into<ErasedLoadedAsset>,
-    ) -> UntypedHandle {
+    pub(crate) fn load_asset_untyped(&self, asset: impl Into<ErasedLoadedAsset>) -> UntypedHandle {
         let loaded_asset = asset.into();
-        let handle = if let Some(path) = path {
-            let (handle, _) = self.write_infos().get_or_create_path_handle_erased(
-                path,
-                loaded_asset.asset_type_id(),
-                Some(loaded_asset.asset_type_name()),
-                HandleLoadingMode::NotLoading,
-                None,
-            );
-            handle
-        } else {
-            self.write_infos().create_loading_handle_untyped(
-                loaded_asset.asset_type_id(),
-                loaded_asset.asset_type_name(),
-            )
-        };
+        let handle = self.write_infos().create_loading_handle_untyped(
+            loaded_asset.asset_type_id(),
+            loaded_asset.asset_type_name(),
+        );
         self.send_asset_event(InternalAssetEvent::Loaded {
-            // `get_or_create_path_handle_erased` always returns Strong variant, so this is safe.
+            // `create_loading_handle_untyped` always returns Strong variant, so this is safe.
             index: (&handle).try_into().unwrap(),
             loaded_asset,
         });
@@ -1005,100 +716,6 @@ impl AssetServer {
         )
     }
 
-    /// Returns an active handle for the given path, if the asset at the given path has already started loading,
-    /// or is still "alive".
-    pub fn get_handle<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> Option<Handle<A>> {
-        self.get_path_and_type_id_handle(&path.into(), TypeId::of::<A>())
-            .map(UntypedHandle::typed_debug_checked)
-    }
-
-    /// Get a `Handle` from an `AssetId`.
-    ///
-    /// This only returns `Some` if `id` is derived from a `Handle` that was
-    /// loaded through an `AssetServer`, otherwise it returns `None`.
-    ///
-    /// Consider using [`Assets::get_strong_handle`] in the case the `Handle`
-    /// comes from [`Assets::add`].
-    pub fn get_id_handle<A: Asset>(&self, id: AssetId<A>) -> Option<Handle<A>> {
-        self.get_id_handle_untyped(id.untyped())
-            .map(UntypedHandle::typed)
-    }
-
-    /// Get an `UntypedHandle` from an `UntypedAssetId`.
-    /// See [`AssetServer::get_id_handle`] for details.
-    pub fn get_id_handle_untyped(&self, id: UntypedAssetId) -> Option<UntypedHandle> {
-        let Ok(index) = id.try_into() else {
-            // Always say we don't have Uuid assets.
-            return None;
-        };
-        self.read_infos().get_index_handle(index)
-    }
-
-    /// Returns `true` if the given `id` corresponds to an asset that is managed by this [`AssetServer`].
-    /// Otherwise, returns `false`.
-    pub fn is_managed(&self, id: impl Into<UntypedAssetId>) -> bool {
-        let Ok(index) = id.into().try_into() else {
-            // Always say we don't have Uuid assets.
-            return false;
-        };
-        self.read_infos().contains_key(index)
-    }
-
-    /// Returns an active untyped asset id for the given path, if the asset at the given path has already started loading,
-    /// or is still "alive".
-    /// Returns the first ID in the event of multiple assets being registered against a single path.
-    ///
-    /// # See also
-    /// [`get_path_ids`][Self::get_path_ids] for all handles.
-    pub fn get_path_id<'a>(&self, path: impl Into<AssetPath<'a>>) -> Option<UntypedAssetId> {
-        let infos = self.read_infos();
-        let path = path.into();
-        let mut ids = infos.get_path_indices(&path);
-        ids.next().map(Into::into)
-    }
-
-    /// Returns all active untyped asset IDs for the given path, if the assets at the given path have already started loading,
-    /// or are still "alive".
-    /// Multiple IDs will be returned in the event that a single path is used by multiple [`AssetLoader`]'s.
-    pub fn get_path_ids<'a>(&self, path: impl Into<AssetPath<'a>>) -> Vec<UntypedAssetId> {
-        let path = path.into();
-        self.read_infos()
-            .get_path_indices(&path)
-            .map(Into::into)
-            .collect()
-    }
-
-    /// Returns an active untyped handle for the given path, if the asset at the given path has already started loading,
-    /// or is still "alive".
-    /// Returns the first handle in the event of multiple assets being registered against a single path.
-    ///
-    /// # See also
-    /// [`get_handles_untyped`][Self::get_handles_untyped] for all handles.
-    pub fn get_handle_untyped<'a>(&self, path: impl Into<AssetPath<'a>>) -> Option<UntypedHandle> {
-        let path = path.into();
-        self.read_infos().get_path_handles(&path).next()
-    }
-
-    /// Returns all active untyped handles for the given path, if the assets at the given path have already started loading,
-    /// or are still "alive".
-    /// Multiple handles will be returned in the event that a single path is used by multiple [`AssetLoader`]'s.
-    pub fn get_handles_untyped<'a>(&self, path: impl Into<AssetPath<'a>>) -> Vec<UntypedHandle> {
-        let path = path.into();
-        self.read_infos().get_path_handles(&path).collect()
-    }
-
-    /// Returns an active untyped handle for the given path and [`TypeId`], if the asset at the given path has already started loading,
-    /// or is still "alive".
-    pub fn get_path_and_type_id_handle(
-        &self,
-        path: &AssetPath,
-        type_id: TypeId,
-    ) -> Option<UntypedHandle> {
-        let path = path.into();
-        self.read_infos()
-            .get_path_and_type_id_handle(&path, type_id)
-    }
-
     /// Returns the path for the given `id`, if it has one.
     pub fn get_path(&self, id: impl Into<UntypedAssetId>) -> Option<AssetPath<'_>> {
         let Ok(index) = id.into().try_into() else {
@@ -1132,27 +749,6 @@ impl AssetServer {
         self.write_infos()
             .get_or_create_path_handle::<A>(
                 path.into().into_owned(),
-                HandleLoadingMode::NotLoading,
-                meta_transform,
-            )
-            .0
-    }
-
-    /// Retrieve a handle for the given path, where the asset type ID and name
-    /// are not known statically.
-    ///
-    /// This will create a handle (and [`AssetInfo`]) if it does not exist.
-    pub(crate) fn get_or_create_path_handle_erased<'a>(
-        &self,
-        path: impl Into<AssetPath<'a>>,
-        type_id: TypeId,
-        meta_transform: Option<MetaTransform>,
-    ) -> UntypedHandle {
-        self.write_infos()
-            .get_or_create_path_handle_erased(
-                path.into().into_owned(),
-                type_id,
-                None,
                 HandleLoadingMode::NotLoading,
                 meta_transform,
             )
@@ -1297,135 +893,6 @@ impl AssetServer {
                 })
             })
     }
-
-    /// Returns a future that will suspend until the specified asset and its dependencies finish
-    /// loading.
-    ///
-    /// # Errors
-    ///
-    /// This will return an error if the asset or any of its dependencies fail to load,
-    /// or if the asset has not been queued up to be loaded.
-    pub async fn wait_for_asset<A: Asset>(
-        &self,
-        // NOTE: We take a reference to a handle so we know it will outlive the future,
-        // which ensures the handle won't be dropped while waiting for the asset.
-        handle: &Handle<A>,
-    ) -> Result<(), WaitForAssetError> {
-        self.wait_for_asset_id(handle.id().untyped()).await
-    }
-
-    /// Returns a future that will suspend until the specified asset and its dependencies finish
-    /// loading.
-    ///
-    /// # Errors
-    ///
-    /// This will return an error if the asset or any of its dependencies fail to load,
-    /// or if the asset has not been queued up to be loaded.
-    pub async fn wait_for_asset_untyped(
-        &self,
-        // NOTE: We take a reference to a handle so we know it will outlive the future,
-        // which ensures the handle won't be dropped while waiting for the asset.
-        handle: &UntypedHandle,
-    ) -> Result<(), WaitForAssetError> {
-        self.wait_for_asset_id(handle.id()).await
-    }
-
-    /// Returns a future that will suspend until the specified asset and its dependencies finish
-    /// loading.
-    ///
-    /// Note that since an asset ID does not count as a reference to the asset,
-    /// the future returned from this method will *not* keep the asset alive.
-    /// This may lead to the asset unexpectedly being dropped while you are waiting for it to
-    /// finish loading.
-    ///
-    /// When calling this method, make sure a strong handle is stored elsewhere to prevent the
-    /// asset from being dropped.
-    /// If you have access to an asset's strong [`Handle`], you should prefer to call
-    /// [`AssetServer::wait_for_asset`]
-    /// or [`wait_for_asset_untyped`](Self::wait_for_asset_untyped) to ensure the asset finishes
-    /// loading.
-    ///
-    /// # Errors
-    ///
-    /// This will return an error if the asset or any of its dependencies fail to load,
-    /// or if the asset has not been queued up to be loaded.
-    pub async fn wait_for_asset_id(
-        &self,
-        id: impl Into<UntypedAssetId>,
-    ) -> Result<(), WaitForAssetError> {
-        let Ok(index) = id.into().try_into() else {
-            // Always say we aren't loading Uuid assets.
-            return Err(WaitForAssetError::NotLoaded);
-        };
-        core::future::poll_fn(move |cx| self.wait_for_asset_id_poll_fn(cx, index)).await
-    }
-
-    /// Used by [`wait_for_asset_id`](AssetServer::wait_for_asset_id) in [`poll_fn`](core::future::poll_fn).
-    fn wait_for_asset_id_poll_fn(
-        &self,
-        cx: &mut core::task::Context<'_>,
-        index: ErasedAssetIndex,
-    ) -> Poll<Result<(), WaitForAssetError>> {
-        let infos = self.read_infos();
-
-        let Some(info) = infos.get(index) else {
-            return Poll::Ready(Err(WaitForAssetError::NotLoaded));
-        };
-
-        match (&info.load_state, &info.rec_dep_load_state) {
-            (LoadState::Loaded, RecursiveDependencyLoadState::Loaded) => Poll::Ready(Ok(())),
-            // Return an error immediately if the asset is not in the process of loading
-            (LoadState::NotLoaded, _) => Poll::Ready(Err(WaitForAssetError::NotLoaded)),
-            // If the asset is loading, leave our waker behind
-            (LoadState::Loading, _)
-            | (_, RecursiveDependencyLoadState::Loading)
-            | (LoadState::Loaded, RecursiveDependencyLoadState::NotLoaded) => {
-                // Check if our waker is already there
-                let has_waker = info
-                    .waiting_tasks
-                    .iter()
-                    .any(|waker| waker.will_wake(cx.waker()));
-
-                if has_waker {
-                    return Poll::Pending;
-                }
-
-                let mut infos = {
-                    // Must drop read-only guard to acquire write guard
-                    drop(infos);
-                    self.write_infos()
-                };
-
-                let Some(info) = infos.get_mut(index) else {
-                    return Poll::Ready(Err(WaitForAssetError::NotLoaded));
-                };
-
-                // If the load state changed while reacquiring the lock, immediately
-                // reawaken the task
-                let is_loading = matches!(
-                    (&info.load_state, &info.rec_dep_load_state),
-                    (LoadState::Loading, _)
-                        | (_, RecursiveDependencyLoadState::Loading)
-                        | (LoadState::Loaded, RecursiveDependencyLoadState::NotLoaded)
-                );
-
-                if !is_loading {
-                    cx.waker().wake_by_ref();
-                } else {
-                    // Leave our waker behind
-                    info.waiting_tasks.push(cx.waker().clone());
-                }
-
-                Poll::Pending
-            }
-            (LoadState::Failed(error), _) => {
-                Poll::Ready(Err(WaitForAssetError::Failed(error.clone())))
-            }
-            (_, RecursiveDependencyLoadState::Failed(error)) => {
-                Poll::Ready(Err(WaitForAssetError::DependencyFailed(error.clone())))
-            }
-        }
-    }
 }
 
 /// A system that manages internal [`AssetServer`] events, such as finalizing asset loads.
@@ -1453,11 +920,6 @@ pub fn handle_internal_asset_events(world: &mut World) {
                         .get(&index.type_id)
                         .expect("Asset event sender should exist");
                     sender(world, index.index);
-                    if let Some(info) = infos.get_mut(index) {
-                        for waker in info.waiting_tasks.drain(..) {
-                            waker.wake();
-                        }
-                    }
                 }
                 InternalAssetEvent::Failed { index, path, error } => {
                     infos.process_asset_fail(index, error.clone());
@@ -1650,11 +1112,7 @@ pub enum AssetLoadError {
         asset_path: Option<String>,
     },
     #[error(transparent)]
-    MissingAssetLoaderForExtension(#[from] MissingAssetLoaderForExtensionError),
-    #[error(transparent)]
     MissingAssetLoaderForTypeName(#[from] MissingAssetLoaderForTypeNameError),
-    #[error(transparent)]
-    MissingAssetLoaderForTypeIdError(#[from] MissingAssetLoaderForTypeIdError),
     #[error(transparent)]
     AssetReaderError(#[from] AssetReaderError),
     #[error(transparent)]
@@ -1717,13 +1175,6 @@ impl AssetLoaderError {
     }
 }
 
-/// An error that occurs when an [`AssetLoader`] is not registered for a given extension.
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
-#[error("no `AssetLoader` found{}", format_missing_asset_ext(extensions))]
-pub struct MissingAssetLoaderForExtensionError {
-    extensions: Vec<String>,
-}
-
 /// An error that occurs when an [`AssetLoader`] is not registered for a given [`core::any::type_name`].
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[error("no `AssetLoader` found with the name '{type_name}'")]
@@ -1732,48 +1183,10 @@ pub struct MissingAssetLoaderForTypeNameError {
     pub type_name: String,
 }
 
-/// An error that occurs when an [`AssetLoader`] is not registered for a given [`Asset`] [`TypeId`].
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
-#[error("no `AssetLoader` found with the ID '{type_id:?}'")]
-pub struct MissingAssetLoaderForTypeIdError {
-    /// The type ID that was not found.
-    pub type_id: TypeId,
-}
-
-fn format_missing_asset_ext(exts: &[String]) -> String {
-    if !exts.is_empty() {
-        format!(
-            " for the following extension{}: {}",
-            if exts.len() > 1 { "s" } else { "" },
-            exts.join(", ")
-        )
-    } else {
-        " for file with no extension".to_string()
-    }
-}
-
 impl core::fmt::Debug for AssetServer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("AssetServer")
             .field("info", &self.data.infos.read())
             .finish()
     }
-}
-
-/// This is appended to asset sources when loading a [`LoadedUntypedAsset`]. This provides a unique
-/// source for a given [`AssetPath`].
-const UNTYPED_SOURCE_SUFFIX: &str = "--untyped";
-
-/// An error when attempting to wait asynchronously for an [`Asset`] to load.
-#[derive(Error, Debug, Clone)]
-pub enum WaitForAssetError {
-    /// The asset is not being loaded; waiting for it is meaningless.
-    #[error("tried to wait for an asset that is not being loaded")]
-    NotLoaded,
-    /// The asset failed to load.
-    #[error(transparent)]
-    Failed(Arc<AssetLoadError>),
-    /// A dependency of the asset failed to load.
-    #[error(transparent)]
-    DependencyFailed(Arc<AssetLoadError>),
 }
