@@ -59,7 +59,6 @@
     doc = "| `collider-from-mesh`   | Allows you to create [`Collider`]s from `Mesh`es.                                                                                                  | Yes             |"
 )]
 //! | `bevy_scene`           | Enables [`ColliderConstructorHierarchy`] to wait until a [`Scene`] has loaded before processing it.                                                 | Yes             |
-//! | `bevy_picking`         | Enables physics picking support for [`bevy_picking`] using the [`PhysicsPickingPlugin`]. The plugin must be added separately.                       | Yes             |
 //! | `bevy_diagnostic`      | Enables writing [physics diagnostics] to the [`DiagnosticsStore`] with the [`PhysicsDiagnosticsPlugin`]. The plugin must be added separately.       | No              |
 //! | `diagnostic_ui`        | Enables [physics diagnostics] UI for performance timers and counters using the [`PhysicsDiagnosticsUiPlugin`]. The plugin must be added separately. | No              |
 //! | `debug-plugin`         | Enables physics debug rendering using the [`PhysicsDebugPlugin`]. The plugin must be added separately.                                              | Yes             |
@@ -69,7 +68,6 @@
 //! | `serialize`            | Enables support for serialization and deserialization using Serde.                                                                                  | No              |
 //! | `validate`             | Enables additional correctness checks and validation at the cost of worse performance.                                                              | No              |
 //!
-//! [`bevy_picking`]: bevy::picking
 //! [physics diagnostics]: diagnostics
 //! [`DiagnosticsStore`]: bevy::diagnostic::DiagnosticsStore
 //! [SIMD]: https://en.wikipedia.org/wiki/Single_instruction,_multiple_data
@@ -518,8 +516,6 @@ pub mod dynamics;
 pub mod interpolation;
 pub mod math;
 pub mod physics_transform;
-#[cfg(feature = "bevy_picking")]
-pub mod picking;
 pub mod schedule;
 pub mod spatial_query;
 
@@ -538,10 +534,6 @@ pub mod prelude {
     pub use crate::diagnostics::ui::{PhysicsDiagnosticsUiPlugin, PhysicsDiagnosticsUiSettings};
     #[cfg(feature = "default-collider")]
     pub(crate) use crate::physics_transform::RotationValue;
-    #[cfg(feature = "bevy_picking")]
-    pub use crate::picking::{
-        PhysicsPickable, PhysicsPickingFilter, PhysicsPickingPlugin, PhysicsPickingSettings,
-    };
     #[expect(deprecated)]
     pub use crate::{
         PhysicsPlugins,
@@ -616,7 +608,6 @@ use prelude::*;
 ///
 /// | Plugin                            | Description                                                                                                                                                |
 /// | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-/// | [`PhysicsPickingPlugin`]          | Enables a physics picking backend for [`bevy_picking`](bevy::picking) (only with `bevy_picking` feature enabled).                                          |
 /// | [`PhysicsDebugPlugin`]            | Renders physics objects and events like [AABBs](ColliderAabb) and contacts for debugging purposes (only with `debug-plugin` feature enabled).              |
 /// | [`PhysicsDiagnosticsPlugin`]      | Writes [physics diagnostics](diagnostics) to the [`DiagnosticsStore`] (only with `bevy_diagnostic` feature enabled).                                       |
 /// | [`PhysicsDiagnosticsUiPlugin`]    | Displays [physics diagnostics](diagnostics) with a debug UI overlay (only with `diagnostic_ui` feature enabled).                                           |

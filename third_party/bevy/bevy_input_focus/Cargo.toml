@@ -100,11 +100,6 @@ default-features = false
 version = "0.18.0"
 default-features = false
 
-[dependencies.bevy_picking]
-version = "0.18.0"
-optional = true
-default-features = false
-
 [dependencies.bevy_reflect]
 version = "0.18.0"
 features = ["glam"]

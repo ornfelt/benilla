@@ -267,11 +267,6 @@ fn build_diagnostic_texts(cmd: &mut RelatedSpawnerCommands<ChildOf>) {
     let spatial_query_timers = vec![
         ("Ray Casters", Spatial::UPDATE_RAY_CASTERS),
         ("Shape Casters", Spatial::UPDATE_SHAPE_CASTERS),
-        #[cfg(feature = "bevy_picking")]
-        (
-            "Physics Picking",
-            crate::picking::PhysicsPickingDiagnostics::UPDATE_HITS,
-        ),
     ];
     cmd.diagnostic_group("Spatial Queries")
         .with_children(|cmd| {

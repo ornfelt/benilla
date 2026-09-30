@@ -42,6 +42,18 @@ the same repository's.
   writeback): nothing in benilla or the rest of Bevy names it, and its plugin built only render-app
   halves, so it is deleted with its slot in `DefaultPlugins` and its `bevy::post_process`
   re-export; the `bevy_post_process` feature stays as a name enabling `bevy_core_pipeline`.
+- **`bevy_picking`**: benilla does its own picking (the mouseover and target pick) and reads
+  `bevy_ui`'s `Interaction` (`ui_focus_system`, not a picking system), and names no picking type,
+  so the crate is deleted with `DefaultPickingPlugins`' slot in `DefaultPlugins`, the
+  `bevy::picking` re-export and the picking prelude, and so is every picking backend and hook
+  the other crates compiled under a feature: `bevy_ui`'s `picking_backend` and
+  `viewport_picking` (with `ViewportNode`'s required `PointerId` and the `uuid` dependency it
+  needed), `bevy_sprite`'s `picking_backend`, `bevy_input_focus`'s `click_to_focus` observer and
+  `bevy_egui`'s `picking` feature (its pointer capture system, `EguiPickingOrder`,
+  `EguiContextSettings::capture_pointer_input` and `BevyEguiEntityCommandsExt`) and avian3d's
+  `bevy_picking` feature (`PhysicsPickingPlugin`, which benilla never adds, and its diagnostics
+  row). The `bevy` features `picking`, `bevy_picking`, `mesh_picking`, `sprite_picking` and
+  `ui_picking` stay as names enabling nothing.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

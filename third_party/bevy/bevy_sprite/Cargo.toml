@@ -35,10 +35,6 @@ rustdoc-args = [
 all-features = true
 
 [features]
-bevy_picking = [
-    "dep:bevy_picking",
-    "bevy_window",
-]
 bevy_text = [
     "dep:bevy_text",
     "bevy_window",
@@ -74,10 +70,6 @@ version = "0.18.0"
 
 [dependencies.bevy_mesh]
 version = "0.18.0"
-
-[dependencies.bevy_picking]
-version = "0.18.0"
-optional = true
 
 [dependencies.bevy_reflect]
 version = "0.18.0"

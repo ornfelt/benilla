@@ -43,7 +43,6 @@ features = ["diagnostic_ui"]
 [features]
 3d = []
 bevy_diagnostic = []
-bevy_picking = ["bevy/bevy_picking"]
 bevy_scene = ["bevy/bevy_scene"]
 collider-from-mesh = [
     "bevy/bevy_mesh",
@@ -63,7 +62,6 @@ default = [
     "parallel",
     "collider-from-mesh",
     "bevy_scene",
-    "bevy_picking",
 ]
 default-collider = []
 diagnostic_ui = [
@@ -260,15 +258,6 @@ required-features = [
     "default-collider",
     "collider-from-mesh",
     "bevy_scene",
-]
-
-[[example]]
-name = "picking"
-path = "examples/picking.rs"
-required-features = [
-    "3d",
-    "default-collider",
-    "bevy_picking",
 ]
 
 [[example]]

@@ -74,9 +74,6 @@ plugin_group! {
         bevy_gizmos:::GizmoPlugin,
         #[cfg(feature = "bevy_state")]
         bevy_state::app:::StatesPlugin,
-        #[plugin_group]
-        #[cfg(feature = "bevy_picking")]
-        bevy_picking:::DefaultPickingPlugins,
         #[doc(hidden)]
         :IgnoreAmbiguitiesPlugin,
     }

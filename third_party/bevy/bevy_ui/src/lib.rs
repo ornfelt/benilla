@@ -17,13 +17,9 @@ pub mod update;
 pub mod widget;
 
 pub mod gradients;
-#[cfg(feature = "bevy_picking")]
-pub mod picking_backend;
 pub mod ui_transform;
 
 use bevy_derive::{Deref, DerefMut};
-#[cfg(feature = "bevy_picking")]
-use bevy_picking::PickingSystems;
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 mod accessibility;
 // This module is not re-exported, but is instead made public.
@@ -48,9 +44,6 @@ pub use ui_transform::*;
 ///
 /// This includes the most common types in this crate, re-exported for your convenience.
 pub mod prelude {
-    #[doc(hidden)]
-    #[cfg(feature = "bevy_picking")]
-    pub use crate::picking_backend::{UiPickingCamera, UiPickingPlugin, UiPickingSettings};
     #[doc(hidden)]
     pub use crate::widget::{Text, TextShadow, TextUiReader, TextUiWriter};
     #[doc(hidden)]
@@ -166,13 +159,6 @@ impl Plugin for UiPlugin {
             .add_systems(
                 PreUpdate,
                 ui_focus_system.in_set(UiSystems::Focus).after(InputSystems),
-            );
-
-        #[cfg(feature = "bevy_picking")]
-        app.add_plugins(picking_backend::UiPickingPlugin)
-            .add_systems(
-                First,
-                widget::viewport_picking.in_set(PickingSystems::PostInput),
             );
 
         let ui_layout_system_config = ui_layout_system

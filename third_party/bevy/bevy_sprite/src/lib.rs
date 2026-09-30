@@ -10,8 +10,6 @@
 
 extern crate alloc;
 
-#[cfg(feature = "bevy_picking")]
-mod picking_backend;
 mod sprite;
 #[cfg(feature = "bevy_text")]
 mod text2d;
@@ -21,11 +19,6 @@ mod texture_slice;
 ///
 /// This includes the most common types in this crate, re-exported for your convenience.
 pub mod prelude {
-    #[cfg(feature = "bevy_picking")]
-    #[doc(hidden)]
-    pub use crate::picking_backend::{
-        SpritePickingCamera, SpritePickingMode, SpritePickingPlugin, SpritePickingSettings,
-    };
     #[cfg(feature = "bevy_text")]
     #[doc(hidden)]
     pub use crate::text2d::{Text2d, Text2dReader, Text2dWriter};
@@ -44,8 +37,6 @@ use bevy_camera::{
     visibility::VisibilitySystems,
 };
 use bevy_mesh::{Mesh, Mesh2d};
-#[cfg(feature = "bevy_picking")]
-pub use picking_backend::*;
 pub use sprite::*;
 #[cfg(feature = "bevy_text")]
 pub use text2d::*;
@@ -93,9 +84,6 @@ impl Plugin for SpritePlugin {
                 .in_set(bevy_text::Text2dUpdateSystems)
                 .after(bevy_app::AnimationSystems),
         );
-
-        #[cfg(feature = "bevy_picking")]
-        app.add_plugins(SpritePickingPlugin);
     }
 }
 

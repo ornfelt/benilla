@@ -121,9 +121,6 @@ pub mod helpers;
 pub mod input;
 /// Systems for handling Egui output.
 pub mod output;
-/// `bevy_picking` integration for Egui.
-#[cfg(feature = "picking")]
-pub mod picking;
 /// Rendering Egui with [`bevy_render`].
 #[cfg(feature = "render")]
 pub mod render;
@@ -161,8 +158,6 @@ use arboard::Clipboard;
 use bevy_app::prelude::*;
 #[cfg(feature = "render")]
 use bevy_asset::{AssetEvent, AssetId, Assets, Handle, load_internal_asset};
-#[cfg(feature = "picking")]
-use bevy_camera::NormalizedRenderTarget;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     lifecycle::HookContext,
@@ -177,11 +172,6 @@ use bevy_image::{Image, ImageSampler};
 use bevy_input::InputSystems;
 #[allow(unused_imports)]
 use bevy_log as log;
-#[cfg(feature = "picking")]
-use bevy_picking::{
-    backend::{HitData, PointerHits},
-    pointer::{PointerId, PointerLocation},
-};
 #[cfg(feature = "render")]
 use bevy_platform::collections::HashMap;
 use bevy_platform::collections::HashSet;
@@ -453,9 +443,6 @@ pub struct EguiContextSettings {
     /// If not specified, `_self` will be used. Only matters in a web browser.
     #[cfg(feature = "open_url")]
     pub default_open_url_target: Option<String>,
-    /// Controls if Egui should capture pointer input when using [`bevy_picking`] (i.e. suppress `bevy_picking` events when a pointer is over an Egui window).
-    #[cfg(feature = "picking")]
-    pub capture_pointer_input: bool,
     /// Controls running of the input systems.
     pub input_system_settings: EguiInputSystemSettings,
     /// Controls whether `bevy_egui` updates [`bevy_window::CursorIcon`], enabled by default.
@@ -485,8 +472,6 @@ impl Default for EguiContextSettings {
             scale_factor: 1.0,
             #[cfg(feature = "open_url")]
             default_open_url_target: None,
-            #[cfg(feature = "picking")]
-            capture_pointer_input: true,
             input_system_settings: EguiInputSystemSettings::default(),
             enable_cursor_icon_updates: true,
             enable_ime: true,
@@ -1213,28 +1198,9 @@ impl Plugin for EguiPlugin {
             )
                 .in_set(EguiPostUpdateSet::ProcessOutput),
         );
-        #[cfg(feature = "picking")]
-        if app.is_plugin_added::<bevy_picking::PickingPlugin>() {
-            app.add_systems(PostUpdate, capture_pointer_input_system);
-        } else {
-            log::warn!(
-                "The `bevy_egui/picking` feature is enabled, but `PickingPlugin` is not added (if you use Bevy's `DefaultPlugins`, make sure the `bevy/bevy_picking` feature is enabled too)"
-            );
-        }
 
         // The constants are set to be larger or lower than bevy_ui's ones:
         // https://github.com/bevyengine/bevy/blob/16a6a96a80aab50dcc14c8bb73ef09520f77c09d/crates/bevy_ui/src/picking_backend.rs#L260-L264.
-        #[cfg(all(feature = "bevy_ui", feature = "bevy_picking"))]
-        match self.ui_render_order {
-            UiRenderOrder::EguiAboveBevyUi => {
-                app.insert_resource(EguiPickingOrder(0.6));
-            }
-            UiRenderOrder::BevyUiAboveEgui => {
-                app.insert_resource(EguiPickingOrder(0.4));
-            }
-        }
-        #[cfg(all(not(feature = "bevy_ui"), feature = "bevy_picking"))]
-        app.insert_resource(crate::EguiPickingOrder(0.6));
 
         #[cfg(feature = "render")]
         app.add_systems(
@@ -1328,7 +1294,6 @@ impl Plugin for EguiPlugin {
 
     #[cfg(feature = "render")]
     fn finish(&self, app: &mut App) {
-
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .insert_resource(render::EguiRenderSettings {
@@ -1530,68 +1495,6 @@ impl EguiClipboard {
             })
             .as_ref()
             .map(|cell| cell.borrow_mut())
-    }
-}
-
-/// Contains the order value that we add to [`bevy_camera::Camera::order`] for [`PointerHits`]
-/// messages.
-///
-/// Defaults to `0.6` if [`EguiPlugin::ui_render_order`] is [`UiRenderOrder::EguiAboveBevyUi`]
-/// or the `bevy_ui` feature of `bevy_egui` is disabled.
-/// Defaults to `0.4` if [`EguiPlugin::ui_render_order`] is [`UiRenderOrder::BevyUiAboveEgui`].
-#[cfg(feature = "picking")]
-#[derive(Resource, Debug, Deref)]
-pub struct EguiPickingOrder(pub f32);
-
-/// Captures pointers on Egui windows for [`bevy_picking`].
-#[cfg(feature = "picking")]
-pub fn capture_pointer_input_system(
-    pointers: Query<(&PointerId, &PointerLocation)>,
-    mut egui_context: Query<(
-        Entity,
-        &mut EguiContext,
-        &EguiContextSettings,
-        &bevy_camera::Camera,
-    )>,
-    mut output: MessageWriter<PointerHits>,
-    window_to_egui_context_map: Res<WindowToEguiContextMap>,
-    picking_order: Res<EguiPickingOrder>,
-) {
-    use helpers::QueryHelper;
-
-    for (pointer, location) in pointers
-        .iter()
-        .filter_map(|(i, p)| p.location.as_ref().map(|l| (i, l)))
-    {
-        if let NormalizedRenderTarget::Window(window) = location.target {
-            for window_context_entity in window_to_egui_context_map
-                .window_to_contexts
-                .get(&window.entity())
-                .cloned()
-                .unwrap_or_default()
-            {
-                let Some((entity, mut ctx, settings, camera)) =
-                    egui_context.get_some_mut(window_context_entity)
-                else {
-                    continue;
-                };
-                if !camera
-                    .physical_viewport_rect()
-                    .is_some_and(|rect| rect.as_rect().contains(location.position))
-                {
-                    continue;
-                }
-
-                if settings.capture_pointer_input && ctx.get_mut().wants_pointer_input() {
-                    let entry = (entity, HitData::new(entity, 0.0, None, None));
-                    output.write(PointerHits::new(
-                        *pointer,
-                        Vec::from([entry]),
-                        camera.order as f32 + **picking_order,
-                    ));
-                }
-            }
-        }
     }
 }
 
@@ -1909,23 +1812,6 @@ pub fn run_egui_context_pass_loop_system(world: &mut World) {
     }
     if !used_schedules.contains(&ScheduleLabel::intern(&EguiPrimaryContextPass)) {
         let _ = world.try_run_schedule(EguiPrimaryContextPass);
-    }
-}
-
-/// Extension for the [`EntityCommands`] trait.
-#[cfg(feature = "picking")]
-pub trait BevyEguiEntityCommandsExt {
-    /// Makes an entity [`bevy_picking::Pickable`] and adds observers to react to pointer messages by linking them with an Egui context.
-    fn add_picking_observers_for_context(&mut self, context: Entity) -> &mut Self;
-}
-
-#[cfg(feature = "picking")]
-impl<'a> BevyEguiEntityCommandsExt for EntityCommands<'a> {
-    fn add_picking_observers_for_context(&mut self, context: Entity) -> &mut Self {
-        self.insert(picking::PickableEguiContext(context))
-            .observe(picking::handle_over_system)
-            .observe(picking::handle_out_system)
-            .observe(picking::handle_move_system)
     }
 }
 

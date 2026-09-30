@@ -57,12 +57,10 @@
 //! - [`CollisionDiagnostics`]: Diagnostics for collision detection.
 //! - [`SolverDiagnostics`]: Diagnostics for the physics solver.
 //! - [`SpatialQueryDiagnostics`]: Diagnostics for spatial queries.
-//! - [`PhysicsPickingDiagnostics`]: Diagnostics for physics picking.
 //!
 //! [`CollisionDiagnostics`]: crate::collision::CollisionDiagnostics
 //! [`SolverDiagnostics`]: crate::dynamics::solver::SolverDiagnostics
 //! [`SpatialQueryDiagnostics`]: crate::spatial_query::SpatialQueryDiagnostics
-//! [`PhysicsPickingDiagnostics`]: crate::picking::PhysicsPickingDiagnostics
 
 #[cfg(feature = "bevy_diagnostic")]
 mod entity_counters;

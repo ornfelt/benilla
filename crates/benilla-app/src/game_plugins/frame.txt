@@ -6,34 +6,17 @@ fixed FixedFirst FixedPreUpdate FixedUpdate FixedPostUpdate FixedLast
 
 schedule First
   0 benilla_app::loading_screen::count_entry_cover
-  1 bevy_time::time_system
+  1 benilla_world::collision::track_collider_removals
+  2 bevy_time::time_system
     in TimeSystems
-  2 benilla_world::frame_pace::pace_virtual_time
-  3 benilla_world::collision::track_collider_removals
+  3 benilla_world::frame_pace::pace_virtual_time
   4 bevy_ecs::message::update::message_update_system
     in MessageUpdateSystems
     if bevy_ecs::message::update::message_update_condition
   5 bevy_render::view::window::screenshot::clear_screenshots
-  6 bevy_picking::input::mouse_pick_events
-    in Input
-    if bevy_picking::input::PointerInputSettings::is_mouse_enabled
-  7 bevy_picking::input::touch_pick_events
-    in Input
-    if bevy_picking::input::PointerInputSettings::is_touch_enabled
-  8 bevy_ecs::apply_deferred
-  9 bevy_ui::widget::viewport::viewport_picking
-    in PostInput
-  set Input
   set MessageUpdateSystems
-  set PostInput
   set TimeSystems
-  Input -> PostInput
-  MessageUpdateSystems -> Input
-  MessageUpdateSystems -> PostInput
-  TimeSystems -> Input
-  TimeSystems -> PostInput
   TimeSystems -> benilla_world::frame_pace::pace_virtual_time
-  bevy_picking::input::mouse_pick_events -> bevy_picking::input::touch_pick_events
   bevy_render::view::window::screenshot::clear_screenshots -> SystemTypeSet(fn bevy_ecs::schedule::executor::ApplyDeferred())
   type(bevy_ecs::message::update::message_update_system) -> bevy_render::view::window::screenshot::clear_screenshots
 
@@ -200,43 +183,41 @@ schedule GfxRender
 
 schedule Last
   0 benilla_app::ui_text::engine::gpu::publish_sheet
-  1 benilla_gfx::window::sync_windows
-  2 benilla_gfx::window::sync_cursor_options
-  3 benilla_app::ui_script::lifecycle::shutdown_on_exit
+  1 benilla_app::ui_chat::settings::save_chat_looks
     in OnAppExit
-  4 bevy_picking::input::deactivate_touch_pointers
-    if bevy_picking::input::PointerInputSettings::is_touch_enabled
-  5 benilla_gfx::window::sync_cursor_icon
-  6 benilla_app::cvars::save_config
+  2 benilla_gfx::window::sync_windows
+  3 benilla_gfx::window::sync_cursor_options
+  4 benilla_world::dev_state::count_still_inputs
+  5 benilla_app::ui_script::lifecycle::shutdown_on_exit
     in OnAppExit
-  7 bevy_gizmos::propagate_gizmos<bevy_gizmos::light::LightGizmoConfigGroup, bevy_time::fixed::Fixed>
-  8 benilla_app::player::camera_saved::save_on_exit
+  6 bevy_gizmos::propagate_gizmos<bevy_gizmos::light::LightGizmoConfigGroup, bevy_time::fixed::Fixed>
+  7 benilla_app::name_persist::save_on_exit
     in OnAppExit
-  9 bevy_gizmos::global::flush_global_gizmos
-  10 benilla_app::pipe_warm::record_warmed_views
-  11 benilla_app::ui_pass::count_material_events
-  12 bevy_gizmos::propagate_gizmos<bevy_gizmos::aabb::AabbGizmoConfigGroup, bevy_time::fixed::Fixed>
+  8 bevy_gizmos::global::flush_global_gizmos
+  9 benilla_app::pipe_warm::record_warmed_views
+  10 benilla_app::cvars::save_config
+    in OnAppExit
+  11 bevy_gizmos::propagate_gizmos<bevy_gizmos::aabb::AabbGizmoConfigGroup, bevy_time::fixed::Fixed>
+  12 benilla_gfx::window::sync_cursor_icon
   13 benilla_app::ui_text::engine::gpu::hand_cells_to_gfx
-  14 benilla_gfx::window::check_keyboard_focus_lost
-  15 benilla_world::dev_state::count_still_inputs
-  16 bevy_gizmos::propagate_gizmos<bevy_gizmos::config::DefaultGizmoConfigGroup, bevy_time::fixed::Fixed>
-  17 bevy_ecs::apply_deferred
-  18 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::config::DefaultGizmoConfigGroup>
-    in GizmoMeshSystems
-  19 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::aabb::AabbGizmoConfigGroup>
-    in GizmoMeshSystems
-  20 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::light::LightGizmoConfigGroup>
-    in GizmoMeshSystems
-  21 benilla_world::particles::buffer::clear_effect_frame_flag
-  22 bevy_text::pipeline::trim_cosmic_cache
-  23 benilla_app::name_persist::save_on_exit
+  14 benilla_app::player::camera_saved::save_on_exit
     in OnAppExit
-  24 bevy_core_pipeline::oit::configure_depth_texture_usages
-  25 benilla_app::ui_chat::settings::save_chat_looks
-    in OnAppExit
-  26 bevy_diagnostic::frame_count_diagnostics_plugin::update_frame_count
-  27 benilla_app::pipe_warm::census_view_classes
-  28 bevy_app::task_pool_plugin::tick_global_task_pools
+  15 bevy_gizmos::propagate_gizmos<bevy_gizmos::config::DefaultGizmoConfigGroup, bevy_time::fixed::Fixed>
+  16 bevy_ecs::apply_deferred
+  17 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::config::DefaultGizmoConfigGroup>
+    in GizmoMeshSystems
+  18 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::aabb::AabbGizmoConfigGroup>
+    in GizmoMeshSystems
+  19 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::light::LightGizmoConfigGroup>
+    in GizmoMeshSystems
+  20 benilla_world::particles::buffer::clear_effect_frame_flag
+  21 bevy_text::pipeline::trim_cosmic_cache
+  22 benilla_app::pipe_warm::census_view_classes
+  23 bevy_core_pipeline::oit::configure_depth_texture_usages
+  24 benilla_app::ui_pass::count_material_events
+  25 bevy_diagnostic::frame_count_diagnostics_plugin::update_frame_count
+  26 benilla_gfx::window::check_keyboard_focus_lost
+  27 bevy_app::task_pool_plugin::tick_global_task_pools
   set GizmoMeshSystems
   set OnAppExit
     if benilla_app::shutdown::the_exit_frame
@@ -987,151 +968,110 @@ schedule PreStartup
   0 benilla_world::view::grant_gfx_msaa
 
 schedule PreUpdate
-  0 bevy_pbr::prepass::update_previous_view_data
-  1 bevy_pbr::prepass::update_mesh_previous_global_transforms
-  2 benilla_world::layout_keys::remap
-  3 bevy_asset::server::handle_internal_asset_events
-  4 bevy_asset::assets::Assets<bevy_scene::dynamic_scene::DynamicScene>::track_assets
+  0 benilla_app::ui_script::lifecycle::run_pending_reload
+  1 benilla_world::liquid::spatial::maintain_water_index
+  2 bevy_pbr::prepass::update_mesh_previous_global_transforms
+  3 bevy_pbr::prepass::update_previous_view_data
+  4 bevy_asset::server::handle_internal_asset_events
+  5 bevy_asset::assets::Assets<bevy_scene::dynamic_scene::DynamicScene>::track_assets
     in AssetTrackingSystems
-  5 bevy_asset::assets::Assets<bevy_scene::scene::Scene>::track_assets
+  6 bevy_asset::assets::Assets<bevy_scene::scene::Scene>::track_assets
     in AssetTrackingSystems
-  6 bevy_asset::assets::Assets<bevy_shader::shader::Shader>::track_assets
+  7 bevy_asset::assets::Assets<bevy_shader::shader::Shader>::track_assets
     in AssetTrackingSystems
-  7 bevy_asset::assets::Assets<bevy_render::storage::ShaderStorageBuffer>::track_assets
+  8 bevy_asset::assets::Assets<bevy_render::storage::ShaderStorageBuffer>::track_assets
     in AssetTrackingSystems
-  8 bevy_asset::assets::Assets<bevy_image::image::Image>::track_assets
+  9 bevy_asset::assets::Assets<bevy_image::image::Image>::track_assets
     in AssetTrackingSystems
-  9 bevy_asset::assets::Assets<bevy_mesh::mesh::Mesh>::track_assets
+  10 bevy_asset::assets::Assets<bevy_mesh::mesh::Mesh>::track_assets
     in AssetTrackingSystems
-  10 bevy_asset::assets::Assets<bevy_mesh::skinning::SkinnedMeshInverseBindposes>::track_assets
+  11 bevy_asset::assets::Assets<bevy_mesh::skinning::SkinnedMeshInverseBindposes>::track_assets
     in AssetTrackingSystems
-  11 bevy_asset::assets::Assets<bevy_image::texture_atlas::TextureAtlasLayout>::track_assets
+  12 bevy_asset::assets::Assets<bevy_image::texture_atlas::TextureAtlasLayout>::track_assets
     in AssetTrackingSystems
-  12 bevy_asset::assets::Assets<bevy_sprite_render::mesh2d::color_material::ColorMaterial>::track_assets
+  13 bevy_asset::assets::Assets<bevy_sprite_render::mesh2d::color_material::ColorMaterial>::track_assets
     in AssetTrackingSystems
-  13 bevy_asset::assets::Assets<bevy_sprite_render::tilemap_chunk::tilemap_chunk_material::TilemapChunkMaterial>::track_assets
+  14 bevy_asset::assets::Assets<bevy_sprite_render::tilemap_chunk::tilemap_chunk_material::TilemapChunkMaterial>::track_assets
     in AssetTrackingSystems
-  14 bevy_asset::assets::Assets<bevy_text::font::Font>::track_assets
-    in AssetTrackingSystems
-  15 bevy_asset::assets::Assets<bevy_pbr::pbr_material::StandardMaterial>::track_assets
+  15 bevy_asset::assets::Assets<bevy_text::font::Font>::track_assets
     in AssetTrackingSystems
   16 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, bevy_pbr::decal::forward::ForwardDecalMaterialExt>>::track_assets
     in AssetTrackingSystems
   17 bevy_asset::assets::Assets<bevy_pbr::medium::ScatteringMedium>::track_assets
     in AssetTrackingSystems
-  18 bevy_asset::assets::Assets<bevy_animation::graph::AnimationGraph>::track_assets
+  18 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::TerrainExtension>>::track_assets
     in AssetTrackingSystems
-  19 bevy_asset::assets::Assets<bevy_gizmos::GizmoAsset>::track_assets
+  19 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sky::SkyExt>>::track_assets
     in AssetTrackingSystems
-  20 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::TerrainExtension>>::track_assets
+  20 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::clouds::layer::CloudExt>>::track_assets
     in AssetTrackingSystems
-  21 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WowModelExt>>::track_assets
+  21 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::LiquidExt>>::track_assets
     in AssetTrackingSystems
-  22 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sky::SkyExt>>::track_assets
+  22 bevy_asset::assets::Assets<benilla_app::glue::add_material::AddUiMaterial>::track_assets
     in AssetTrackingSystems
-  23 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::CelestialExt>>::track_assets
+  23 bevy_asset::server::publish_asset_server_diagnostics
+    if bevy_ecs::schedule::condition::common_conditions::resource_exists<bevy_diagnostic::diagnostic::DiagnosticsStore>
+  24 bevy_asset::assets::Assets<bevy_pbr::pbr_material::StandardMaterial>::track_assets
     in AssetTrackingSystems
-  24 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::StarExt>>::track_assets
+  25 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::StarExt>>::track_assets
     in AssetTrackingSystems
-  25 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WdlExt>>::track_assets
-    in AssetTrackingSystems
-  26 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::LiquidExt>>::track_assets
+  26 bevy_asset::assets::Assets<()>::track_assets
     in AssetTrackingSystems
   27 bevy_asset::assets::Assets<benilla_app::ui_pass::UiQuadMaterial>::track_assets
     in AssetTrackingSystems
-  28 bevy_asset::server::publish_asset_server_diagnostics
-    if bevy_ecs::schedule::condition::common_conditions::resource_exists<bevy_diagnostic::diagnostic::DiagnosticsStore>
+  28 bevy_asset::assets::Assets<bevy_asset::assets::LoadedUntypedAsset>::track_assets
+    in AssetTrackingSystems
   29 avian3d::collision::collider::cache::clear_unused_colliders
-  30 bevy_asset::assets::Assets<()>::track_assets
+  30 bevy_asset::assets::Assets<bevy_animation::graph::AnimationGraph>::track_assets
     in AssetTrackingSystems
-  31 bevy_picking::pointer::PointerInput::receive
-    in ProcessInput
-  32 bevy_picking::backend::ray::RayMap::repopulate
-    in ProcessInput
-  33 bevy_asset::assets::Assets<bevy_asset::assets::LoadedUntypedAsset>::track_assets
+  31 bevy_asset::assets::Assets<bevy_asset::folder::LoadedFolder>::track_assets
     in AssetTrackingSystems
-  34 bevy_asset::assets::Assets<benilla_app::glue::add_material::AddUiMaterial>::track_assets
+  32 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WowModelExt>>::track_assets
     in AssetTrackingSystems
-  35 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::clouds::layer::CloudExt>>::track_assets
+  33 benilla_app::ui_script::lifecycle::run_pending_entry_load
+  34 benilla_world::layout_keys::remap
+  35 bevy_input::touch::touch_screen_input_system
+    in InputSystems
+  36 bevy_input::gamepad::gamepad_connection_system
+    in InputSystems
+  37 benilla_app::sound::feed_world_hold
+  38 bevy_input::mouse::accumulate_mouse_scroll_system
+    in InputSystems
+  39 bevy_asset::assets::Assets<bevy_animation::AnimationClip>::track_assets
     in AssetTrackingSystems
-  36 bevy_asset::assets::Assets<bevy_asset::folder::LoadedFolder>::track_assets
+  40 bevy_input::mouse::accumulate_mouse_motion_system
+    in InputSystems
+  41 bevy_asset::assets::Assets<bevy_gizmos::GizmoAsset>::track_assets
     in AssetTrackingSystems
-  37 bevy_input::touch::touch_screen_input_system
+  42 bevy_input::mouse::mouse_button_input_system
     in InputSystems
-  38 benilla_app::ui_script::lifecycle::run_pending_reload
-  39 benilla_app::ui_script::lifecycle::run_pending_entry_load
-  40 bevy_input::gamepad::gamepad_connection_system
-    in InputSystems
-  41 bevy_input::mouse::accumulate_mouse_scroll_system
-    in InputSystems
-  42 benilla_app::sound::feed_world_hold
-  43 bevy_input::mouse::accumulate_mouse_motion_system
-    in InputSystems
-  44 bevy_picking::pointer::update_pointer_map
-    in ProcessInput
-  45 bevy_sprite::picking_backend::sprite_picking
-    in Backend
-  46 bevy_ui::picking_backend::ui_picking
-    in Backend
-  47 bevy_picking::window::update_window_hits
-    in Backend
-    if bevy_picking::PickingSettings::window_picking_should_run
-  48 bevy_picking::hover::generate_hovermap
-    in Hover
-  49 bevy_picking::hover::update_interactions
-    in Hover
-  50 bevy_input::mouse::mouse_button_input_system
-    in InputSystems
-  51 bevy_asset::assets::Assets<bevy_animation::AnimationClip>::track_assets
+  43 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_assets::materials::WdlExt>>::track_assets
     in AssetTrackingSystems
-  52 benilla_world::liquid::spatial::maintain_water_index
-  53 bevy_input::keyboard::keyboard_input_system
+  44 bevy_asset::assets::Assets<bevy_pbr::extended_material::ExtendedMaterial<bevy_pbr::pbr_material::StandardMaterial, benilla_world::sun::materials::CelestialExt>>::track_assets
+    in AssetTrackingSystems
+  45 bevy_input::keyboard::keyboard_input_system
     in InputSystems
-  54 bevy_ecs::apply_deferred@54
-  55 bevy_picking::hover::update_is_hovered
-    in Hover
-  56 bevy_picking::hover::update_is_directly_hovered
-    in Hover
-  57 bevy_ecs::apply_deferred@57
-  58 bevy_picking::events::pointer_events
-    in Hover
-  59 bevy_input::gamepad::gamepad_event_processing_system
+  46 bevy_ecs::apply_deferred
+  47 bevy_input::gamepad::gamepad_event_processing_system
     in InputSystems
-  60 benilla_app::loading_screen::input::swallow_input_under_the_cover
+  48 benilla_app::loading_screen::input::swallow_input_under_the_cover
     in CoverInput
-  61 bevy_ui::focus::ui_focus_system
+  49 bevy_ui::focus::ui_focus_system
     in Focus
-  62 benilla_app::glue::glue_clicks
+  50 benilla_app::glue::glue_clicks
   set AssetTrackingSystems
-  set Backend
   set CoverInput
   set Focus
-  set Hover
-    if bevy_picking::PickingSettings::hover_should_run
   set InputSystems
-  set Last
-  set PostHover
-  set ProcessInput
-    if bevy_picking::PickingSettings::input_should_run
-  Backend -> Hover
   Focus -> benilla_app::glue::glue_clicks
-  Hover -> PostHover
   InputSystems -> benilla_app::loading_screen::input::swallow_input_under_the_cover
   InputSystems -> bevy_ui::focus::ui_focus_system
-  PostHover -> Last
-  ProcessInput -> Backend
   benilla_app::loading_screen::input::swallow_input_under_the_cover -> Focus
   benilla_app::ui_script::lifecycle::run_pending_reload -> benilla_app::ui_script::lifecycle::run_pending_entry_load
   benilla_world::layout_keys::remap -> InputSystems
   bevy_asset::server::handle_internal_asset_events -> bevy_asset::server::publish_asset_server_diagnostics
-  bevy_picking::hover::generate_hovermap -> bevy_picking::hover::update_interactions
-  bevy_picking::hover::update_interactions -> bevy_picking::hover::update_is_directly_hovered
-  bevy_picking::hover::update_interactions -> bevy_picking::hover::update_is_hovered
-  bevy_picking::hover::update_is_directly_hovered -> bevy_picking::events::pointer_events
-  bevy_picking::hover::update_is_hovered -> bevy_picking::events::pointer_events
   type(bevy_asset::server::handle_internal_asset_events) -> AssetTrackingSystems
   type(bevy_input::gamepad::gamepad_connection_system) -> bevy_input::gamepad::gamepad_event_processing_system
-  type(bevy_picking::pointer::PointerInput::receive) -> bevy_picking::backend::ray::RayMap::repopulate
 
 schedule RunFixedMainLoop
   0 bevy_gizmos::start_gizmo_context<bevy_gizmos::config::DefaultGizmoConfigGroup, bevy_time::fixed::Fixed>
@@ -1164,98 +1104,97 @@ schedule SpawnScene
   bevy_scene::scene_spawner::scene_spawner -> bevy_scene::scene_spawner::scene_spawner_system
 
 schedule Startup
-  0 benilla_app::portrait::setup_booths
+  0 benilla_app::target::reticle::setup_reticle
   1 benilla_app::minimap::composite::setup_composite
-  2 benilla_app::cinematic::spawn_letterbox
-  3 benilla_app::video::log_display_session
+  2 benilla_app::portrait::setup_booths
+  3 benilla_app::cinematic::spawn_letterbox
   4 benilla_app::screen_fade::spawn_cover
-  5 benilla_app::video::check_window_pinned
+  5 benilla_app::ui_models::setup_tiles
   6 benilla_app::blob_shadow::setup_shadow_assets
-  7 benilla_app::target::reticle::setup_reticle
-  8 benilla_app::world_backdrop::setup_backdrop
+  7 benilla_app::world_backdrop::setup_backdrop
+  8 benilla_app::video::log_display_session
   9 benilla_app::weapon_trail::init_trail_white
   10 benilla_world::gfx::effect::init
-  11 benilla_app::ui_pass::init_white_texture
+  11 benilla_gfx::bevy_ui::init_streams
   12 benilla_app::cvars::load_config
     in CvarLoad
   13 benilla_app::cvars::publish_filter_policy
     in CvarLoad
   14 benilla_app::player::camera_view::load_saved_views
-  15 benilla_app::ui_models::setup_tiles
-  16 benilla_world::assets::open_world_assets
+  15 benilla_app::video::check_window_pinned
+  16 benilla_app::target::ring::setup_ring
+  17 benilla_app::ui_pass::init_white_texture
+  18 benilla_app::ui_pass::spawn_ui_camera
+  19 benilla_world::assets::open_world_assets
     in Open
-  17 bevy_ecs::apply_deferred
-  18 benilla_app::ui_chat::broadcast::load_server_messages
-  19 benilla_app::ui_chat::feed::load_emote_texts
-  20 benilla_app::ui_chat::channels::load_chat_channels
-  21 benilla_app::ui_quest_log::load_quest_tag_names
-  22 benilla_app::ui_quest_log::load_quest_header_names
-  23 benilla_app::ui_tradeskill::load_spell_focus
-  24 benilla_app::ui_items::load_item_dbcs
-  25 benilla_app::chat_bubble::load_bubble_art
-  26 benilla_app::chr_classes::load_chr_classes
-  27 benilla_app::ui_talent::load_talents
-  28 benilla_app::ui_spellbook::load_skill_lines
-  29 benilla_app::ui_action::load_spell_mechanics
-  30 benilla_app::ui_action::load_spells
-  31 benilla_app::ui_gm_ticket::load_gm_ticket_dbc
-  32 benilla_app::text_filter::load_text_filter_lists
-  33 benilla_app::game_tip::load_game_tips
-  34 benilla_app::ui_script::lifecycle::setup_script
-  35 benilla_app::area_trigger::load_area_triggers
-  36 benilla_app::world_state_ui::load_world_state_ui
-  37 benilla_app::area_poi::load_area_poi
-  38 benilla_app::area::load_area_table
-  39 benilla_app::minimap::setup_minimap
-  40 benilla_app::loading_screen::setup_loading_screen
-  41 benilla_app::transport::setup_taxi_nodes
-  42 benilla_app::target::scan::load_creature_types
-  43 benilla_app::target::ring::load_factions
-  44 benilla_app::sound::sheathe::load_sheathe_sounds
-  45 benilla_app::sound::reverb::load_providers
-  46 benilla_app::sound::vocal::load_vocal_ui_sounds
-  47 benilla_app::sound::ui::load_item_sounds
-  48 benilla_app::sound::greeting::load_npc_greetings
-  49 benilla_app::sound::emote::load_emote_sounds
-  50 benilla_app::sound::death_thud::load_death_thuds
-  51 benilla_app::sound::footsteps::load_footsteps
-  52 benilla_app::sound::combat::load_weapon_swings
-  53 benilla_app::sound::combat::load_weapon_impacts
-  54 benilla_app::sound::creature::load_creature_voices
-  55 benilla_app::sound::gameobject::load_go_sounds
-  56 benilla_app::sound::zone::load_area_sounds
-  57 benilla_app::sound::liquid_loop::load_water_sounds
-  58 benilla_app::sound::kit::load_sound_kits
-  59 benilla_app::sound::load_materials
-  60 benilla_app::realm_select::category::load_categories
-  61 benilla_app::glue_strings::load_glue_strings
-  62 benilla_app::cursor::other::setup
-  63 benilla_app::cinematic::load_catalog
-  64 benilla_app::footprints::load_ink
-  65 benilla_app::camera_shake::load_shakes
-  66 benilla_app::creature_anim::env_damage::load_env_damage_table
-  67 benilla_app::creature_anim::blood::load_blood_tables
-  68 benilla_app::creature_anim::spell_visual::load_spell_visuals
-  69 benilla_app::creature_anim::sheath::load_anim_data
-  70 benilla_app::entities::setup_entities
-  71 benilla_world::water_fx::setup_water_fx
-  72 benilla_world::liquid::surface::setup_liquid
-  73 benilla_world::wdl::setup_wdl
-  74 benilla_world::clutter::setup_clutter
-  75 benilla_world::wmo_portal::interior::load_wmo_areas
-  76 benilla_world::sun::setup::setup_sun
-  77 benilla_world::clouds::layer::setup_cloud_layer
-  78 benilla_world::sky::setup_sky
-  79 benilla_world::lighting::resolve::setup_lighting
-  80 benilla_world::world_map::load_world_map
+  20 bevy_ecs::apply_deferred
+  21 benilla_app::ui_chat::broadcast::load_server_messages
+  22 benilla_app::ui_chat::feed::load_emote_texts
+  23 benilla_app::ui_chat::channels::load_chat_channels
+  24 benilla_app::ui_quest_log::load_quest_tag_names
+  25 benilla_app::ui_quest_log::load_quest_header_names
+  26 benilla_app::ui_tradeskill::load_spell_focus
+  27 benilla_app::ui_items::load_item_dbcs
+  28 benilla_app::chat_bubble::load_bubble_art
+  29 benilla_app::chr_classes::load_chr_classes
+  30 benilla_app::ui_talent::load_talents
+  31 benilla_app::ui_spellbook::load_skill_lines
+  32 benilla_app::ui_action::load_spell_mechanics
+  33 benilla_app::ui_action::load_spells
+  34 benilla_app::text_filter::load_text_filter_lists
+  35 benilla_app::game_tip::load_game_tips
+  36 benilla_app::ui_script::lifecycle::setup_script
+  37 benilla_app::area_trigger::load_area_triggers
+  38 benilla_app::world_state_ui::load_world_state_ui
+  39 benilla_app::area_poi::load_area_poi
+  40 benilla_app::area::load_area_table
+  41 benilla_app::minimap::setup_minimap
+  42 benilla_app::loading_screen::setup_loading_screen
+  43 benilla_app::transport::setup_taxi_nodes
+  44 benilla_app::target::scan::load_creature_types
+  45 benilla_app::target::ring::load_factions
+  46 benilla_app::sound::sheathe::load_sheathe_sounds
+  47 benilla_app::sound::reverb::load_providers
+  48 benilla_app::sound::ui::load_item_sounds
+  49 benilla_app::sound::greeting::load_npc_greetings
+  50 benilla_app::sound::emote::load_emote_sounds
+  51 benilla_app::sound::death_thud::load_death_thuds
+  52 benilla_app::sound::footsteps::load_footsteps
+  53 benilla_app::sound::combat::load_weapon_swings
+  54 benilla_app::sound::combat::load_weapon_impacts
+  55 benilla_app::sound::creature::load_creature_voices
+  56 benilla_app::sound::gameobject::load_go_sounds
+  57 benilla_app::sound::zone::load_area_sounds
+  58 benilla_app::sound::liquid_loop::load_water_sounds
+  59 benilla_app::sound::kit::load_sound_kits
+  60 benilla_app::sound::load_materials
+  61 benilla_app::realm_select::category::load_categories
+  62 benilla_app::glue_strings::load_glue_strings
+  63 benilla_app::cursor::other::setup
+  64 benilla_app::cinematic::load_catalog
+  65 benilla_app::footprints::load_ink
+  66 benilla_app::camera_shake::load_shakes
+  67 benilla_app::creature_anim::env_damage::load_env_damage_table
+  68 benilla_app::creature_anim::blood::load_blood_tables
+  69 benilla_app::creature_anim::spell_visual::load_spell_visuals
+  70 benilla_app::creature_anim::sheath::load_anim_data
+  71 benilla_app::entities::setup_entities
+  72 benilla_world::water_fx::setup_water_fx
+  73 benilla_world::liquid::surface::setup_liquid
+  74 benilla_world::wdl::setup_wdl
+  75 benilla_world::clutter::setup_clutter
+  76 benilla_world::wmo_portal::interior::load_wmo_areas
+  77 benilla_world::sun::setup::setup_sun
+  78 benilla_world::clouds::layer::setup_cloud_layer
+  79 benilla_world::sky::setup_sky
+  80 benilla_world::lighting::resolve::setup_lighting
+  81 benilla_world::world_map::load_world_map
     in WorldMapLoad
-  81 benilla_app::player::setup::setup_player
-  82 benilla_app::ui_pass::spawn_ui_camera
-  83 benilla_world::art_scope::configure_art_scope
-  84 benilla_gfx::bevy_ui::init_streams
-  85 benilla_gfx::gizmos::init
-  86 benilla_app::target::ring::setup_ring
-  87 bevy_picking::input::spawn_mouse_pointer
+  82 benilla_app::player::setup::setup_player
+  83 benilla_app::sound::vocal::load_vocal_ui_sounds
+  84 benilla_world::art_scope::configure_art_scope
+  85 benilla_app::ui_gm_ticket::load_gm_ticket_dbc
+  86 benilla_gfx::gizmos::init
   set CvarLoad
   set Open
   set WorldMapLoad

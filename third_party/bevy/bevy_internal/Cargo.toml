@@ -98,10 +98,7 @@ bevy_pbr = [
     "bevy_light",
     "bevy_core_pipeline",
 ]
-bevy_picking = [
-    "dep:bevy_picking",
-    "bevy_input_focus?/bevy_picking",
-]
+bevy_picking = []
 bevy_post_process = ["bevy_core_pipeline"]
 bevy_render = [
     "dep:bevy_render",
@@ -178,10 +175,7 @@ libm = [
     "bevy_transform/libm",
     "bevy_window?/libm",
 ]
-mesh_picking = [
-    "bevy_picking",
-    "bevy_picking/mesh_picking",
-]
+mesh_picking = ["bevy_picking"]
 morph = [
     "bevy_mesh?/morph",
     "bevy_render?/morph",
@@ -222,10 +216,7 @@ smaa_luts = [
     "ktx2",
     "bevy_image/zstd",
 ]
-sprite_picking = [
-    "bevy_picking",
-    "bevy_sprite?/bevy_picking",
-]
+sprite_picking = ["bevy_picking"]
 std = [
     "bevy_a11y?/std",
     "bevy_app/std",
@@ -262,10 +253,7 @@ trace_tracy = [
     "bevy_render?/tracing-tracy",
     "bevy_log/tracing-tracy",
 ]
-ui_picking = [
-    "bevy_picking",
-    "bevy_ui?/bevy_picking",
-]
+ui_picking = ["bevy_picking"]
 webgl = [
     "bevy_core_pipeline?/webgl",
     "bevy_pbr?/webgl",
@@ -367,10 +355,6 @@ version = "0.18.0"
 optional = true
 
 [dependencies.bevy_pbr]
-version = "0.18.0"
-optional = true
-
-[dependencies.bevy_picking]
 version = "0.18.0"
 optional = true
 

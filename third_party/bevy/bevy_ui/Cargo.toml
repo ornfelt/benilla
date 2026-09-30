@@ -35,10 +35,6 @@ rustdoc-args = [
 all-features = true
 
 [features]
-bevy_picking = [
-    "dep:bevy_picking",
-    "dep:uuid",
-]
 default = []
 ghost_nodes = []
 serialize = [
@@ -87,10 +83,6 @@ version = "0.18.0"
 
 [dependencies.bevy_math]
 version = "0.18.0"
-
-[dependencies.bevy_picking]
-version = "0.18.0"
-optional = true
 
 [dependencies.bevy_platform]
 version = "0.18.0"
@@ -150,11 +142,6 @@ default-features = false
 version = "0.1"
 features = ["std"]
 default-features = false
-
-[dependencies.uuid]
-version = "1.1"
-features = ["v4"]
-optional = true
 
 [dev-dependencies.bevy_core_pipeline]
 version = "0.18.0"
