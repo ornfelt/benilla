@@ -60,8 +60,6 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 #![doc = include_str!("./images/joint_frame.svg")]
 //!
 //! Storing the frames in local space allows the initial configuration to be preserved even when the bodies are moved.
-//! The frames can also be specified in global coordinates using [`JointFrame::global`], but they are automatically converted
-//! to local frames during the next simulation step.
 //!
 //! Below is an example of configuring [`JointFrame`]s for a [`RevoluteJoint`].
 //!
@@ -291,7 +289,6 @@ impl DistanceLimit {
     pub const fn new(min: Scalar, max: Scalar) -> Self {
         Self { min, max }
     }
-
     /// Returns the direction and magnitude of the positional correction required
     /// to limit the given `separation` to be within the distance limit.
     pub fn compute_correction(&self, separation: Vector) -> (Vector, Scalar) {
@@ -605,37 +602,6 @@ pub struct JointForces {
 }
 
 impl JointForces {
-    /// Creates a new [`JointForces`] for reading the forces applied by a joint.
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            force: Vector::ZERO,
-            torque: AngularVector::ZERO,
-            motor_force: 0.0,
-        }
-    }
-
-    /// Returns the force applied by the joint.
-    #[inline]
-    pub const fn force(&self) -> Vector {
-        self.force
-    }
-
-    /// Returns the torque applied by the joint.
-    #[inline]
-    pub const fn torque(&self) -> AngularVector {
-        self.torque
-    }
-
-    /// Returns the force or torque applied by the motor, if any.
-    ///
-    /// For angular motors ([`AngularMotor`]), this is the torque in N·m.
-    /// For linear motors ([`LinearMotor`]), this is the force in N.
-    #[inline]
-    pub const fn motor_force(&self) -> Scalar {
-        self.motor_force
-    }
-
     /// Sets the force applied by the joint.
     ///
     /// This should be done automatically by the joint solver.
@@ -675,8 +641,6 @@ impl JointForces {
 #[doc = include_str!("./images/joint_frame.svg")]
 ///
 /// Storing the frames in local space allows the initial configuration to be preserved even when the bodies are moved.
-/// The frames can also be specified in global coordinates using [`JointFrame::global`], but they are automatically converted
-/// to local frames during the next simulation step.
 ///
 /// [reference frame]: https://en.wikipedia.org/wiki/Frame_of_reference
 ///
@@ -722,65 +686,6 @@ impl JointFrame {
         anchor: JointAnchor::ZERO,
         basis: JointBasis::IDENTITY,
     };
-
-    /// Creates a [`JointFrame`] with the given local isometry.
-    #[inline]
-    pub fn local(isometry: impl Into<Isometry>) -> Self {
-        let isometry: Isometry = isometry.into();
-        let anchor = Vec3::from(isometry.translation).adjust_precision();
-        Self {
-            anchor: JointAnchor::Local(anchor),
-            basis: JointBasis::Local(isometry.rotation.adjust_precision()),
-        }
-    }
-
-    /// Creates a [`JointFrame`] with the given global isometry.
-    ///
-    /// The global frame will be converted to a local frame relative to the body transform
-    /// during the next simulation step.
-    #[inline]
-    pub fn global(isometry: impl Into<Isometry>) -> Self {
-        let isometry: Isometry = isometry.into();
-        let anchor = Vec3::from(isometry.translation).adjust_precision();
-        Self {
-            anchor: JointAnchor::FromGlobal(anchor),
-            basis: JointBasis::FromGlobal(isometry.rotation.adjust_precision()),
-        }
-    }
-
-    /// Returns the joint frame as a local isometry.
-    ///
-    /// If the frame is specified in global coordinates, this returns `None`.
-    #[inline]
-    #[allow(clippy::unnecessary_cast)]
-    pub fn get_local_isometry(&self) -> Option<Isometry> {
-        let translation = match self.anchor {
-            JointAnchor::Local(anchor) => anchor.f32(),
-            JointAnchor::FromGlobal(_) => return None,
-        };
-        let rotation = match self.basis {
-            JointBasis::Local(basis) => basis.f32(),
-            JointBasis::FromGlobal(_) => return None,
-        };
-        Some(Isometry::new(translation, rotation))
-    }
-
-    /// Returns the joint frame as a global isometry.
-    ///
-    /// If the frame is specified in local coordinates, this returns `None`.
-    #[inline]
-    #[allow(clippy::unnecessary_cast)]
-    pub fn get_global_isometry(&self) -> Option<Isometry> {
-        let translation = match self.anchor {
-            JointAnchor::FromGlobal(anchor) => anchor.f32(),
-            JointAnchor::Local(_) => return None,
-        };
-        let rotation = match self.basis {
-            JointBasis::FromGlobal(basis) => basis.f32(),
-            JointBasis::Local(_) => return None,
-        };
-        Some(Isometry::new(translation, rotation))
-    }
 
     /// Computes a local frames for the given [`JointFrame`]s
     /// corresponding to the transforms of two bodies constrained by a joint.
@@ -918,54 +823,6 @@ impl JointBasis {
     ///
     /// This represents a basis that aligns with the body transform.
     pub const IDENTITY: Self = Self::Local(Rot::IDENTITY);
-
-    /// Creates a [`JointBasis::Local`] from the given local `x_axis` and `y_axis`.
-    ///
-    /// The z-axis is computed as the cross product of the x and y axes.
-    #[inline]
-    pub fn from_local_xy(x_axis: Vector, y_axis: Vector) -> Self {
-        Self::Local(orthonormal_basis([x_axis, y_axis, x_axis.cross(y_axis)]))
-    }
-
-    /// Creates a [`JointBasis::Local`] from the given local `x_axis` and `z_axis`.
-    ///
-    /// The y-axis is computed as the cross product of the z and x axes.
-    #[inline]
-    pub fn from_local_xz(x_axis: Vector, z_axis: Vector) -> Self {
-        Self::Local(orthonormal_basis([x_axis, z_axis.cross(x_axis), z_axis]))
-    }
-
-    /// Creates a [`JointBasis::Local`] from the given local `y_axis` and `z_axis`.
-    ///
-    /// The x-axis is computed as the cross product of the y and z axes.
-    #[inline]
-    pub fn from_local_yz(y_axis: Vector, z_axis: Vector) -> Self {
-        Self::Local(orthonormal_basis([y_axis.cross(z_axis), y_axis, z_axis]))
-    }
-
-    /// Creates a [`JointBasis::FromGlobal`] from the given global `x_axis` and `y_axis`.
-    ///
-    /// The z-axis is computed as the cross product of the x and y axes.
-    #[inline]
-    pub fn from_global_xy(x_axis: Vector, y_axis: Vector) -> Self {
-        Self::FromGlobal(orthonormal_basis([x_axis, y_axis, x_axis.cross(y_axis)]))
-    }
-
-    /// Creates a [`JointBasis::FromGlobal`] from the given global `x_axis` and `z_axis`.
-    ///
-    /// The y-axis is computed as the cross product of the z and x axes.
-    #[inline]
-    pub fn from_global_xz(x_axis: Vector, z_axis: Vector) -> Self {
-        Self::FromGlobal(orthonormal_basis([x_axis, z_axis.cross(x_axis), z_axis]))
-    }
-
-    /// Creates a [`JointBasis::FromGlobal`] from the given global `y_axis` and `z_axis`.
-    ///
-    /// The x-axis is computed as the cross product of the y and z axes.
-    #[inline]
-    pub fn from_global_yz(y_axis: Vector, z_axis: Vector) -> Self {
-        Self::FromGlobal(orthonormal_basis([y_axis.cross(z_axis), y_axis, z_axis]))
-    }
 
     /// Computes a [`JointBasis::Local`] for the given [`JointBasis`]s
     /// corresponding to the transforms of two bodies constrained by a joint.

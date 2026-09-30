@@ -99,23 +99,6 @@ impl ComputedMass {
         }
     }
 
-    /// Tries to create a new [`ComputedMass`] from the given inverse mass.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Err(MassError)`](MassError) if the inverse mass is negative or NaN.
-    pub fn try_from_inverse(inverse_mass: Scalar) -> Result<Self, MassError> {
-        if inverse_mass.is_nan() {
-            Err(MassError::NaN)
-        } else if inverse_mass < 0.0 {
-            Err(MassError::Negative)
-        } else {
-            Ok(Self {
-                inverse: inverse_mass,
-            })
-        }
-    }
-
     /// Returns the mass. If it is infinite, returns zero.
     ///
     /// Note that this involves a division because [`ComputedMass`] internally stores the inverse mass.
@@ -268,8 +251,7 @@ impl ComputedAngularInertia {
     /// Tries to create a new [`ComputedAngularInertia`] from the given principal angular inertia.
     ///
     /// The principal angular inertia represents the torque needed for a desired angular acceleration
-    /// about the local coordinate axes. To specify the orientation of the local inertial frame,
-    /// consider using [`ComputedAngularInertia::try_new_with_local_frame`].
+    /// about the local coordinate axes.
     ///
     /// Note that this involves an invertion because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
     ///
@@ -317,37 +299,6 @@ impl ComputedAngularInertia {
                 * Matrix::from_diagonal(principal_angular_inertia.recip_or_zero())
                 * Matrix::from_quat(orientation.inverse()),
         ))
-    }
-
-    /// Tries to create a new [`ComputedAngularInertia`] from the given principal angular inertia
-    /// and the orientation of the local inertial frame.
-    ///
-    /// The principal angular inertia represents the torque needed for a desired angular acceleration
-    /// about the local coordinate axes defined by the given `orientation`.
-    ///
-    /// Note that this involves an invertion because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Err(AngularInertiaError)`](AngularInertiaError) if any component of the principal angular inertia is negative or NaN.
-    #[inline]
-    pub fn try_new_with_local_frame(
-        principal_angular_inertia: Vector,
-        orientation: Quaternion,
-    ) -> Result<Self, AngularInertiaError> {
-        if principal_angular_inertia.is_nan() {
-            Err(AngularInertiaError::NaN)
-        } else if !principal_angular_inertia.cmpge(Vector::ZERO).all() {
-            Err(AngularInertiaError::Negative)
-        } else {
-            Ok(Self::from_inverse_tensor(
-                SymmetricMatrix::from_mat3_unchecked(
-                    Matrix::from_quat(orientation)
-                        * Matrix::from_diagonal(principal_angular_inertia.recip_or_zero())
-                        * Matrix::from_quat(orientation.inverse()),
-                ),
-            ))
-        }
     }
 
     /// Creates a new [`ComputedAngularInertia`] from the given angular inertia tensor.
@@ -431,26 +382,6 @@ impl ComputedAngularInertia {
         &mut self.inverse
     }
 
-    /// Sets the angular inertia tensor.
-    #[inline]
-    pub fn set(&mut self, angular_inertia: impl Into<ComputedAngularInertia>) {
-        *self = angular_inertia.into();
-    }
-
-    /// Computes the principal angular inertia and local inertial frame
-    /// by diagonalizing the 3x3 tensor matrix.
-    ///
-    /// The principal angular inertia represents the torque needed for a desired angular acceleration
-    /// about the local coordinate axes defined by the local inertial frame.
-    #[doc(alias = "diagonalize")]
-    pub fn principal_angular_inertia_with_local_frame(&self) -> (Vector, Quaternion) {
-        let angular_inertia = AngularInertia::from_tensor(self.tensor().f32());
-        (
-            angular_inertia.principal.adjust_precision(),
-            angular_inertia.local_frame.adjust_precision(),
-        )
-    }
-
     /// Computes the angular inertia tensor with the given rotation.
     ///
     /// This can be used to transform local angular inertia to world space.
@@ -460,27 +391,6 @@ impl ComputedAngularInertia {
         Self::from_inverse_tensor(SymmetricMatrix::from_mat3_unchecked(
             (rot_mat3 * self.inverse) * rot_mat3.transpose(),
         ))
-    }
-
-    /// Computes the angular inertia tensor shifted by the given offset, taking into account the given mass.
-    #[inline]
-    pub fn shifted_tensor(&self, mass: Scalar, offset: Vector) -> SymmetricMatrix3 {
-        if mass > 0.0 && mass.is_finite() && offset != Vector::ZERO {
-            let diagonal_element = offset.length_squared();
-            let diagonal_mat = Matrix3::from_diagonal(Vector::splat(diagonal_element));
-            let offset_outer_product =
-                Matrix3::from_cols(offset * offset.x, offset * offset.y, offset * offset.z);
-            self.tensor()
-                + SymmetricMatrix::from_mat3_unchecked((diagonal_mat + offset_outer_product) * mass)
-        } else {
-            self.tensor()
-        }
-    }
-
-    /// Computes the inverse angular inertia tensor shifted by the given offset, taking into account the given mass.
-    #[inline]
-    pub fn shifted_inverse_tensor(&self, mass: Scalar, offset: Vector) -> SymmetricMatrix3 {
-        self.shifted_tensor(mass, offset).inverse_or_zero()
     }
 
     /// Returns `true` if the angular inertia is neither infinite nor NaN.
@@ -558,12 +468,6 @@ pub struct ComputedCenterOfMass(pub Vector);
 impl ComputedCenterOfMass {
     /// A center of mass set at the local origin.
     pub const ZERO: Self = Self(Vector::ZERO);
-
-    /// Creates a new [`ComputedCenterOfMass`] at the given local position.
-    #[inline]
-    pub const fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
 }
 
 impl From<CenterOfMass> for ComputedCenterOfMass {

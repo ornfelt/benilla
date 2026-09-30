@@ -359,6 +359,22 @@ the same repository's.
   braces. The manifest drops the seven features with the optional `libm`, `parry3d-f64` and
   `serde`. `rustc -Zunpretty=expanded` of the crate is token-identical to the copy's apart from
   docs, `tracing`'s line numbers, the unwrapped braces and one derive order.
+- **avian3d's uncalled functions.** With every `pub fn` made `pub(crate)` and only the ones
+  benilla's crates (all targets) then failed to reach put back, rustc's dead-code lint named the
+  functions nothing calls; those 453 are gone (the builders and constructors of joints, motors,
+  mass properties, materials, layers, casters and AABBs, `SpatialQuery`'s point projection and
+  shape/point intersections, `MoveAndSlide::move_and_slide` with depenetration, the contact
+  graph's and contact types' queries, `TrimeshBuilder`'s API, the graph and collection helpers,
+  `PhysicsPlugins::with_collision_hooks`/`with_length_unit`, the interpolation plugin's
+  `interpolate_all`/`extrapolate_all` family, `ForcesItem::non_waking`), with the `Collisions`
+  system parameter (no method left), `UpdatePhysicsTransformError`, five feature-id masks and two
+  aliases. Kept for avian3d's own tests of kept code: the constructors and builders they call
+  (`RevoluteJoint`/`PrismaticJoint::new` and four builders, the motors' and limits' `new`,
+  `AngularInertia`/`ComputedAngularInertia`/`ComputedMass` `new`/`try_new`,
+  `MassPropertiesBundle::from_shape`, `Restitution::new`/`with_combine_rule`, `Position::new`,
+  `LayerMask::has_all`, `StableVec`/`IdPool::clear`, `project_velocity_bruteforce`); the tests of
+  `TrimeshBuilder` and `ColliderConstructorHierarchy` (which import the cut `bevy::winit` and
+  `bevy::gltf`) went. No system or type benilla's frame registers changed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

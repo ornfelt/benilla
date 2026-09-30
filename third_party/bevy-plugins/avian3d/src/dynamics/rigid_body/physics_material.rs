@@ -159,39 +159,6 @@ impl Friction {
         combine_rule: CoefficientCombine::Average,
     };
 
-    /// Creates a new [`Friction`] component with the same dynamic and static friction coefficients.
-    pub fn new(friction_coefficient: Scalar) -> Self {
-        Self {
-            dynamic_coefficient: friction_coefficient,
-            static_coefficient: friction_coefficient,
-            ..default()
-        }
-    }
-
-    /// Sets the [`CoefficientCombine`] rule used.
-    pub fn with_combine_rule(&self, combine_rule: CoefficientCombine) -> Self {
-        Self {
-            combine_rule,
-            ..*self
-        }
-    }
-
-    /// Sets the coefficient of dynamic friction.
-    pub fn with_dynamic_coefficient(&self, coefficient: Scalar) -> Self {
-        Self {
-            dynamic_coefficient: coefficient,
-            ..*self
-        }
-    }
-
-    /// Sets the coefficient of static friction.
-    pub fn with_static_coefficient(&self, coefficient: Scalar) -> Self {
-        Self {
-            static_coefficient: coefficient,
-            ..*self
-        }
-    }
-
     /// Combines the properties of two [`Friction`] components.
     pub fn combine(&self, other: Self) -> Self {
         // Choose rule with higher priority
@@ -355,7 +322,6 @@ impl Restitution {
             ..*self
         }
     }
-
     /// Combines the properties of two [`Restitution`] components.
     pub fn combine(&self, other: Self) -> Self {
         // Choose rule with higher priority

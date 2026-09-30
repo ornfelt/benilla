@@ -55,26 +55,6 @@ impl SpatialQueryFilter {
         }
     }
 
-    /// Creates a new [`SpatialQueryFilter`] with the given entities excluded from the [spatial query].
-    ///
-    /// [spatial query]: crate::spatial_query
-    pub fn from_excluded_entities(entities: impl IntoIterator<Item = Entity>) -> Self {
-        Self {
-            excluded_entities: EntityHashSet::from_iter(entities),
-            ..default()
-        }
-    }
-
-    /// Sets the [`LayerMask`] of the filter configuration. Only colliders with the corresponding
-    /// [collision layer memberships] will be included in the [spatial query].
-    ///
-    /// [collision layer memberships]: CollisionLayers
-    /// [spatial query]: crate::spatial_query
-    pub fn with_mask(mut self, masks: impl Into<LayerMask>) -> Self {
-        self.mask = masks.into();
-        self
-    }
-
     /// Excludes the given entities from the [spatial query](crate::spatial_query).
     pub fn with_excluded_entities(mut self, entities: impl IntoIterator<Item = Entity>) -> Self {
         self.excluded_entities = EntityHashSet::from_iter(entities);

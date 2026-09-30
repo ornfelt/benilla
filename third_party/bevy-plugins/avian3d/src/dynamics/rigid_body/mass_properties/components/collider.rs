@@ -1,5 +1,4 @@
 use super::super::MassProperties;
-use crate::prelude::*;
 use bevy::prelude::*;
 use derive_more::derive::From;
 
@@ -23,6 +22,9 @@ use derive_more::derive::From;
 ///     ));
 /// }
 /// ```
+///
+/// [`Collider`]: crate::prelude::Collider
+/// [`Mass`]: crate::prelude::Mass
 #[derive(Reflect, Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, PartialOrd, From)]
 #[reflect(Debug, Component, PartialEq)]
 pub struct ColliderDensity(pub f32);
@@ -61,6 +63,14 @@ impl ColliderDensity {
 ///     }
 /// }
 /// ```
+///
+/// [`Collider`]: crate::prelude::Collider
+/// [`Mass`]: crate::prelude::Mass
+/// [`AngularInertia`]: crate::prelude::AngularInertia
+/// [`CenterOfMass`]: crate::prelude::CenterOfMass
+/// [`ComputedMass`]: crate::prelude::ComputedMass
+/// [`ComputedAngularInertia`]: crate::prelude::ComputedAngularInertia
+/// [`ComputedCenterOfMass`]: crate::prelude::ComputedCenterOfMass
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq, From)]
 #[reflect(Debug, Component, PartialEq)]
 pub struct ColliderMassProperties(MassProperties);
@@ -68,13 +78,4 @@ pub struct ColliderMassProperties(MassProperties);
 impl ColliderMassProperties {
     /// The collider has no mass.
     pub const ZERO: Self = Self(MassProperties::ZERO);
-
-    /// Computes mass properties from a given shape and density.
-    ///
-    /// Because [`ColliderMassProperties`] is intended to be read-only, adding this as a component manually
-    /// has no effect. The mass properties will be recomputed using the [`ColliderDensity`].
-    #[inline]
-    pub fn from_shape<T: ComputeMassProperties>(shape: &T, density: f32) -> Self {
-        Self(shape.mass_properties(density))
-    }
 }

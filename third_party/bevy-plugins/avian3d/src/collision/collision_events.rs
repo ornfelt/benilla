@@ -246,11 +246,11 @@ pub type OnCollisionStart = CollisionStart;
 ///
 /// Note that if one of the colliders was removed or the bounding boxes of the colliders stopped
 /// overlapping, the [`ContactPair`] between the entities was also removed, and the contact data
-/// will not be available through [`Collisions`].
+/// will not be available through the [`ContactGraph`].
 ///
 /// [`CollisionEventSystems`]: super::narrow_phase::CollisionEventSystems
 /// [`ContactPair`]: super::ContactPair
-/// [`Collisions`]: super::Collisions
+/// [`ContactGraph`]: super::ContactGraph
 #[derive(EntityEvent, Message, Clone, Copy, Debug, PartialEq)]
 pub struct CollisionEnd {
     /// The entity of the collider that stopped colliding with [`collider2`](Self::collider2).

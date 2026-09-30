@@ -43,57 +43,6 @@ impl ColliderTreeProxyKey {
             _ => unsafe { unreachable_unchecked() },
         }
     }
-
-    /// Returns the rigid body type associated with the proxy.
-    ///
-    /// If the proxy is a standalone collider with no body, returns `None`.
-    #[inline]
-    pub const fn body(&self) -> Option<RigidBody> {
-        match self.0 & 0b11 {
-            0 => Some(RigidBody::Dynamic),
-            1 => Some(RigidBody::Kinematic),
-            2 => Some(RigidBody::Static),
-            3 => None,
-            // Safety: Bitwise AND with 0b11 can only yield 0, 1, 2, or 3.
-            _ => unsafe { unreachable_unchecked() },
-        }
-    }
-
-    /// Returns `true` if the proxy belongs to a dynamic body.
-    #[inline]
-    pub const fn is_dynamic(&self) -> bool {
-        if let Some(body) = self.body() {
-            body as u32 == RigidBody::Dynamic as u32
-        } else {
-            false
-        }
-    }
-
-    /// Returns `true` if the proxy belongs to a kinematic body.
-    #[inline]
-    pub const fn is_kinematic(&self) -> bool {
-        if let Some(body) = self.body() {
-            body as u32 == RigidBody::Kinematic as u32
-        } else {
-            false
-        }
-    }
-
-    /// Returns `true` if the proxy belongs to a static body.
-    #[inline]
-    pub const fn is_static(&self) -> bool {
-        if let Some(body) = self.body() {
-            body as u32 == RigidBody::Static as u32
-        } else {
-            false
-        }
-    }
-
-    /// Returns `true` if the proxy is a standalone collider with no body.
-    #[inline]
-    pub const fn is_standalone(&self) -> bool {
-        self.body().is_none()
-    }
 }
 
 /// A stable identifier for a proxy in a [`ColliderTree`].
@@ -193,30 +142,6 @@ impl ColliderTreeType {
             Some(RigidBody::Static) => ColliderTreeType::Static,
             None => ColliderTreeType::Standalone,
         }
-    }
-
-    /// Returns `true` if the tree type is for dynamic bodies.
-    #[inline]
-    pub const fn is_dynamic(&self) -> bool {
-        matches!(self, ColliderTreeType::Dynamic)
-    }
-
-    /// Returns `true` if the tree type is for kinematic bodies.
-    #[inline]
-    pub const fn is_kinematic(&self) -> bool {
-        matches!(self, ColliderTreeType::Kinematic)
-    }
-
-    /// Returns `true` if the tree type is for static bodies.
-    #[inline]
-    pub const fn is_static(&self) -> bool {
-        matches!(self, ColliderTreeType::Static)
-    }
-
-    /// Returns `true` if the tree type is for standalone colliders with no body.
-    #[inline]
-    pub const fn is_standalone(&self) -> bool {
-        matches!(self, ColliderTreeType::Standalone)
     }
 }
 

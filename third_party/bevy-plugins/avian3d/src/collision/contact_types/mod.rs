@@ -2,12 +2,10 @@
 
 mod contact_graph;
 mod feature_id;
-mod system_param;
 
 pub use contact_graph::{ContactGraph, ContactGraphInternal};
 pub use feature_id::PackedFeatureId;
 use smallvec::SmallVec;
-pub use system_param::Collisions;
 
 use crate::{
     data_structures::graph::EdgeIndex,
@@ -213,58 +211,6 @@ impl ContactPair {
         }
     }
 
-    /// Computes the sum of all impulses applied along contact normals between the contact pair.
-    ///
-    /// To get the corresponding force, divide the impulse by the time step.
-    #[inline]
-    pub fn total_normal_impulse(&self) -> Vector {
-        self.manifolds.iter().fold(Vector::ZERO, |acc, manifold| {
-            acc + manifold.normal * manifold.total_normal_impulse()
-        })
-    }
-
-    /// Computes the sum of the magnitudes of all impulses applied along contact normals between the contact pair.
-    ///
-    /// This is the sum of impulse magnitudes, *not* the magnitude of the [`total_normal_impulse`](Self::total_normal_impulse).
-    ///
-    /// To get the corresponding force, divide the impulse by the time step.
-    #[inline]
-    pub fn total_normal_impulse_magnitude(&self) -> Scalar {
-        self.manifolds
-            .iter()
-            .fold(0.0, |acc, manifold| acc + manifold.total_normal_impulse())
-    }
-
-    // TODO: We could also return a reference to the whole manifold. Would that be useful?
-    /// Finds the largest normal impulse between the contact pair, pointing along the world-space contact normal
-    /// from the first shape to the second.
-    ///
-    /// To get the corresponding force, divide the impulse by the time step.
-    #[inline]
-    pub fn max_normal_impulse(&self) -> Vector {
-        let mut magnitude: Scalar = Scalar::MIN;
-        let mut normal = Vector::ZERO;
-
-        for manifold in &self.manifolds {
-            let impulse = manifold.max_normal_impulse();
-            if impulse > magnitude {
-                magnitude = impulse;
-                normal = manifold.normal;
-            }
-        }
-        normal * magnitude
-    }
-
-    /// Finds the magnitude of the largest normal impulse between the contact pair.
-    ///
-    /// To get the corresponding force, divide the impulse by the time step.
-    #[inline]
-    pub fn max_normal_impulse_magnitude(&self) -> Scalar {
-        self.manifolds
-            .iter()
-            .fold(0.0, |acc, manifold| acc.max(manifold.max_normal_impulse()))
-    }
-
     /// Returns `true` if the colliders are touching, including sensors.
     #[inline]
     pub fn is_touching(&self) -> bool {
@@ -283,36 +229,12 @@ impl ContactPair {
         self.flags.contains(ContactPairFlags::STARTED_TOUCHING)
     }
 
-    /// Returns `true` if a collision ended during the current frame.
-    #[inline]
-    pub fn collision_ended(&self) -> bool {
-        self.flags.contains(ContactPairFlags::STOPPED_TOUCHING)
-    }
-
     /// Returns `true` if the contact pair should generate contact constraints.
     ///
     /// This is typically `true` unless the contact pair involves a [`Sensor`] or a disabled rigid body.
     #[inline]
     pub fn generates_constraints(&self) -> bool {
         self.flags.contains(ContactPairFlags::GENERATE_CONSTRAINTS)
-    }
-
-    /// Returns the contact with the largest penetration depth.
-    ///
-    /// If the objects are separated but there is still a speculative contact,
-    /// the penetration depth will be negative.
-    ///
-    /// If there are no contacts, `None` is returned.
-    #[inline]
-    pub fn find_deepest_contact(&self) -> Option<&ContactPoint> {
-        self.manifolds
-            .iter()
-            .filter_map(|manifold| manifold.find_deepest_contact())
-            .max_by(|a, b| {
-                a.penetration
-                    .partial_cmp(&b.penetration)
-                    .unwrap_or(core::cmp::Ordering::Equal)
-            })
     }
 }
 
@@ -360,24 +282,6 @@ impl ContactManifold {
             restitution: 0.0,
             tangent_velocity: Vector::ZERO,
         }
-    }
-
-    /// The sum of the impulses applied at the contact points in the manifold along the contact normal.
-    #[inline]
-    pub fn total_normal_impulse(&self) -> Scalar {
-        self.points
-            .iter()
-            .fold(0.0, |acc, contact| acc + contact.normal_impulse)
-    }
-
-    /// The magnitude of the largest impulse applied at a contact point in the manifold along the contact normal.
-    #[inline]
-    pub fn max_normal_impulse(&self) -> Scalar {
-        self.points
-            .iter()
-            .map(|contact| contact.normal_impulse)
-            .max_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal))
-            .unwrap_or(0.0)
     }
 
     /// Copies impulses from previous contacts to matching contacts in `self`.
@@ -527,21 +431,6 @@ impl ContactManifold {
         }
     }
 
-    /// Returns the contact point with the largest penetration depth.
-    ///
-    /// If the objects are separated but there is still a speculative contact,
-    /// the penetration depth will be negative.
-    ///
-    /// If there are no contacts, `None` is returned.
-    #[inline]
-    pub fn find_deepest_contact(&self) -> Option<&ContactPoint> {
-        self.points.iter().max_by(|a, b| {
-            a.penetration
-                .partial_cmp(&b.penetration)
-                .unwrap_or(core::cmp::Ordering::Equal)
-        })
-    }
-
     /// Retains only the elements specified by the predicate.
     #[inline]
     pub(crate) fn retain_points_mut<F>(&mut self, f: F)
@@ -636,35 +525,6 @@ impl ContactPoint {
         self.feature_id2 = id2;
         self
     }
-
-    /// Flips the contact data, swapping the points and feature IDs,
-    /// and negating the impulses.
-    #[inline]
-    pub fn flip(&mut self) {
-        core::mem::swap(&mut self.anchor1, &mut self.anchor2);
-        core::mem::swap(&mut self.feature_id1, &mut self.feature_id2);
-        self.normal_impulse = -self.normal_impulse;
-        self.warm_start_normal_impulse = -self.warm_start_normal_impulse;
-        self.warm_start_tangent_impulse = -self.warm_start_tangent_impulse;
-    }
-
-    /// Returns a flipped copy of the contact data, swapping the points and feature IDs,
-    /// and negating the impulses.
-    #[inline]
-    pub fn flipped(&self) -> Self {
-        Self {
-            anchor1: self.anchor2,
-            anchor2: self.anchor1,
-            point: self.point,
-            penetration: self.penetration,
-            normal_impulse: -self.normal_impulse,
-            normal_speed: self.normal_speed,
-            warm_start_normal_impulse: -self.warm_start_normal_impulse,
-            warm_start_tangent_impulse: -self.warm_start_tangent_impulse,
-            feature_id1: self.feature_id2,
-            feature_id2: self.feature_id1,
-        }
-    }
 }
 
 /// Data related to a single contact between two bodies.
@@ -683,69 +543,4 @@ pub struct SingleContact {
     pub local_normal2: Vector,
     /// Penetration depth.
     pub penetration: Scalar,
-}
-
-impl SingleContact {
-    /// Creates a new [`SingleContact`]. The contact points and normals should be given in local space.
-    #[inline]
-    pub fn new(
-        local_point1: Vector,
-        local_point2: Vector,
-        local_normal1: Vector,
-        local_normal2: Vector,
-        penetration: Scalar,
-    ) -> Self {
-        Self {
-            local_point1,
-            local_point2,
-            local_normal1,
-            local_normal2,
-            penetration,
-        }
-    }
-
-    /// Returns the global contact point on the first shape,
-    /// transforming the local point by the given position and rotation.
-    #[inline]
-    pub fn global_point1(&self, position: &Position, rotation: &Rotation) -> Vector {
-        position.0 + rotation * self.local_point1
-    }
-
-    /// Returns the global contact point on the second shape,
-    /// transforming the local point by the given position and rotation.
-    #[inline]
-    pub fn global_point2(&self, position: &Position, rotation: &Rotation) -> Vector {
-        position.0 + rotation * self.local_point2
-    }
-
-    /// Returns the world-space contact normal pointing from the first shape to the second.
-    #[inline]
-    pub fn global_normal1(&self, rotation: &Rotation) -> Vector {
-        rotation * self.local_normal1
-    }
-
-    /// Returns the world-space contact normal pointing from the second shape to the first.
-    #[inline]
-    pub fn global_normal2(&self, rotation: &Rotation) -> Vector {
-        rotation * self.local_normal2
-    }
-
-    /// Flips the contact data, swapping the points and normals.
-    #[inline]
-    pub fn flip(&mut self) {
-        core::mem::swap(&mut self.local_point1, &mut self.local_point2);
-        core::mem::swap(&mut self.local_normal1, &mut self.local_normal2);
-    }
-
-    /// Returns a flipped copy of the contact data, swapping the points and normals.
-    #[inline]
-    pub fn flipped(&self) -> Self {
-        Self {
-            local_point1: self.local_point2,
-            local_point2: self.local_point1,
-            local_normal1: self.local_normal2,
-            local_normal2: self.local_normal1,
-            penetration: self.penetration,
-        }
-    }
 }

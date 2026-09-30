@@ -130,34 +130,10 @@ impl BitVec {
         (self.blocks[block_index] & mask) != 0
     }
 
-    /// Returns the block capacity of the [`BitVec`].
-    #[inline]
-    pub fn block_capacity(&self) -> usize {
-        self.block_capacity
-    }
-
-    /// Returns the block count of the [`BitVec`].
-    #[inline]
-    pub fn block_count(&self) -> usize {
-        self.block_count
-    }
-
     /// Returns the number of set bits in the [`BitVec`].
     #[inline]
     pub fn count_ones(&self) -> usize {
         self.blocks.iter().map(|&b| b.count_ones() as usize).sum()
-    }
-
-    /// Returns the number of unset bits in the [`BitVec`].
-    #[inline]
-    pub fn count_zeros(&self) -> usize {
-        self.block_count * 64 - self.count_ones()
-    }
-
-    /// Clears all bits in the [`BitVec`].
-    #[inline]
-    pub fn clear(&mut self) {
-        self.blocks.iter_mut().for_each(|b| *b = 0);
     }
 
     /// Returns an iterator over the blocks of the [`BitVec`].

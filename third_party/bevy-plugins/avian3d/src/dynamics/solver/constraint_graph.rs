@@ -284,21 +284,4 @@ impl ConstraintGraph {
         // Return the constraint handle that was removed.
         Some(contact_constraint_handle)
     }
-
-    /// Clears the constraint graph, removing all colors and their contents.
-    ///
-    /// # Warning
-    ///
-    /// This does *not* clear the [`ContactGraph`]! You should additionally
-    /// call [`ContactGraph::clear`].
-    ///
-    /// [`ContactGraph`]: crate::collision::contact_types::ContactGraph
-    /// [`ContactGraph::clear`]: crate::collision::contact_types::ContactGraph::clear
-    pub fn clear(&mut self) {
-        for color in &mut self.colors {
-            color.body_set.clear();
-            color.manifold_handles.clear();
-            color.contact_constraints.clear();
-        }
-    }
 }

@@ -41,18 +41,6 @@ impl<T: Component + EntityConstraint<2>> Default for JointGraphPlugin<T> {
 #[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
 pub struct JointComponentId(Option<ComponentId>);
 
-impl JointComponentId {
-    /// Creates a new [`JointComponentId`] component with no active joint.
-    pub fn new() -> Self {
-        Self(None)
-    }
-
-    /// Returns the [`ComponentId`] of the active joint component, if any.
-    pub fn id(&self) -> Option<ComponentId> {
-        self.0
-    }
-}
-
 #[derive(Resource, Default)]
 struct JointGraphPluginInitialized;
 

@@ -5,9 +5,8 @@ use crate::prelude::*;
 
 /// A component that specifies which translational and rotational axes of a [rigid body](RigidBody) are locked.
 ///
-/// The axes are represented using a total of six bits, one for each axis. The easiest way to lock or unlock
-/// specific axes is to use methods like [`lock_translation_x`](Self::lock_translation_x), but you can also
-/// use bits directly with the [`from_bits`](Self::from_bits) and [`to_bits`](Self::to_bits) methods.
+/// The axes are represented using a total of six bits, one for each axis. They can be set directly
+/// with the [`from_bits`](Self::from_bits) and [`to_bits`](Self::to_bits) methods.
 ///
 /// # Example
 ///
@@ -35,11 +34,6 @@ impl LockedAxes {
     /// All translational and rotational axes are locked.
     pub const ALL_LOCKED: Self = Self(0b111_111);
 
-    /// Creates a new [`LockedAxes`] configuration with all axes unlocked by default.
-    pub const fn new() -> Self {
-        Self(0)
-    }
-
     /// Creates a new [`LockedAxes`] configuration using bits.
     ///
     /// The first three bits correspond to translational axes, while the last three bits correspond to rotational
@@ -57,89 +51,6 @@ impl LockedAxes {
         self.0
     }
 
-    /// Locks translation along the `X` axis.
-    #[must_use]
-    pub const fn lock_translation_x(mut self) -> Self {
-        self.0 |= 0b100_000;
-        self
-    }
-
-    /// Locks translation along the `Y` axis.
-    #[must_use]
-    pub const fn lock_translation_y(mut self) -> Self {
-        self.0 |= 0b010_000;
-        self
-    }
-
-    /// Locks translation along the `Z` axis.
-    #[must_use]
-    pub const fn lock_translation_z(mut self) -> Self {
-        self.0 |= 0b001_000;
-        self
-    }
-
-    /// Locks rotation around the `X` axis.
-    pub const fn lock_rotation_x(mut self) -> Self {
-        self.0 |= 0b000_100;
-        self
-    }
-
-    /// Locks rotation around the `Y` axis.
-    #[must_use]
-    pub const fn lock_rotation_y(mut self) -> Self {
-        self.0 |= 0b000_010;
-        self
-    }
-
-    /// Locks rotation around the `Z` axis.
-    #[must_use]
-    pub const fn lock_rotation_z(mut self) -> Self {
-        self.0 |= 0b000_001;
-        self
-    }
-
-    /// Unlocks translation along the `X` axis.
-    #[must_use]
-    pub const fn unlock_translation_x(mut self) -> Self {
-        self.0 &= !0b100_000;
-        self
-    }
-
-    /// Unlocks translation along the `Y` axis.
-    #[must_use]
-    pub const fn unlock_translation_y(mut self) -> Self {
-        self.0 &= !0b010_000;
-        self
-    }
-
-    /// Unlocks translation along the `Z` axis.
-    #[must_use]
-    pub const fn unlock_translation_z(mut self) -> Self {
-        self.0 &= !0b001_000;
-        self
-    }
-
-    /// Unlocks rotation around the `X` axis.
-    #[must_use]
-    pub const fn unlock_rotation_x(mut self) -> Self {
-        self.0 &= !0b000_100;
-        self
-    }
-
-    /// Unlocks rotation around the `Y` axis.
-    #[must_use]
-    pub const fn unlock_rotation_y(mut self) -> Self {
-        self.0 &= !0b000_010;
-        self
-    }
-
-    /// Unlocks rotation around the `Z` axis.
-    #[must_use]
-    pub const fn unlock_rotation_z(mut self) -> Self {
-        self.0 &= !0b000_001;
-        self
-    }
-
     /// Returns true if translation is locked along the `X` axis.
     pub const fn is_translation_x_locked(&self) -> bool {
         (self.0 & 0b100_000) != 0
@@ -153,11 +64,6 @@ impl LockedAxes {
     /// Returns true if translation is locked along the `X` axis.
     pub const fn is_translation_z_locked(&self) -> bool {
         (self.0 & 0b001_000) != 0
-    }
-
-    /// Returns true if all translation is locked.
-    pub const fn is_translation_locked(&self) -> bool {
-        (self.0 & 0b111_000) == 0b111_000
     }
 
     /// Returns true if rotation is locked around the `X` axis.

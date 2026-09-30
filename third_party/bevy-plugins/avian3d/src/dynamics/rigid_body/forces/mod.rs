@@ -81,22 +81,7 @@
 //!
 //! The force is applied continuously during the physics step, and cleared automatically after the step is complete.
 //!
-//! By default, applying forces to [sleeping](Sleeping) bodies will wake them up. If this is not desired,
-//! the [`non_waking`](ForcesItem::non_waking) method can be used to fetch a [`NonWakingForcesItem`]
-//! that allows applying forces to a body without waking it up.
-//!
-//! ```
-//! # use avian3d::{math::Vector, prelude::*};
-//! # use bevy::prelude::*;
-//! #
-//! # fn apply_forces(mut query: Query<Forces>) {
-//! #     for mut forces in &mut query {
-//! #         let force = Vector::default();
-//! // Apply a force without waking up the body if it is sleeping.
-//! forces.non_waking().apply_force(force);
-//! #     }
-//! # }
-//! ```
+//! By default, applying forces to [sleeping](Sleeping) bodies will wake them up.
 //!
 //! [`Forces`] can also apply forces and impulses at a specific point in the world. If the point is not aligned
 //! with the [center of mass](CenterOfMass), it will apply a torque to the body.
@@ -218,13 +203,6 @@ use bevy::prelude::*;
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantForce(pub Vector);
 
-impl ConstantForce {
-    /// Creates a new [`ConstantForce`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
-
 /// A component for applying a constant torque to a dynamic rigid body in world space.
 /// The unit is typically N⋅m or kg⋅m²/s².
 ///
@@ -260,13 +238,6 @@ impl ConstantForce {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantTorque(pub AngularVector);
-
-impl ConstantTorque {
-    /// Creates a new [`ConstantTorque`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
 
 /// A component for applying a constant force to a dynamic rigid body in local space.
 /// The unit is typically N or kg⋅m/s².
@@ -304,13 +275,6 @@ impl ConstantTorque {
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLocalForce(pub Vector);
 
-impl ConstantLocalForce {
-    /// Creates a new [`ConstantLocalForce`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
-
 /// A component for applying a constant torque to a dynamic rigid body in local space.
 /// The unit is typically N⋅m or kg⋅m²/s²
 ///
@@ -346,13 +310,6 @@ impl ConstantLocalForce {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLocalTorque(pub AngularVector);
-
-impl ConstantLocalTorque {
-    /// Creates a new [`ConstantLocalTorque`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
 
 /// A component for applying a constant linear acceleration to a dynamic rigid body in world space.
 /// The unit is typically m/s².
@@ -390,13 +347,6 @@ impl ConstantLocalTorque {
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLinearAcceleration(pub Vector);
 
-impl ConstantLinearAcceleration {
-    /// Creates a new [`ConstantLinearAcceleration`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
-
 /// A component for applying a constant angular acceleration to a dynamic rigid body in world space.
 /// The unit is typically rad/s².
 ///
@@ -432,13 +382,6 @@ impl ConstantLinearAcceleration {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantAngularAcceleration(pub AngularVector);
-
-impl ConstantAngularAcceleration {
-    /// Creates a new [`ConstantAngularAcceleration`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
 
 /// A component for applying a constant linear acceleration to a dynamic rigid body in local space.
 /// The unit is typically m/s².
@@ -476,13 +419,6 @@ impl ConstantAngularAcceleration {
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLocalLinearAcceleration(pub Vector);
 
-impl ConstantLocalLinearAcceleration {
-    /// Creates a new [`ConstantLocalLinearAcceleration`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
-
 /// A component for applying a constant angular acceleration to a dynamic rigid body in local space.
 /// The unit is typically rad/s².
 ///
@@ -518,13 +454,6 @@ impl ConstantLocalLinearAcceleration {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLocalAngularAcceleration(pub AngularVector);
-
-impl ConstantLocalAngularAcceleration {
-    /// Creates a new [`ConstantLocalAngularAcceleration`] with the given `x`, `y`, and `z` components.
-    pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
-        Self(Vector::new(x, y, z))
-    }
-}
 
 /// A component with the user-applied local acceleration
 /// accumulated for a rigid body before the physics step.

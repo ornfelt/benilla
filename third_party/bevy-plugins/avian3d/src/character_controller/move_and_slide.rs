@@ -4,9 +4,8 @@
 
 pub use super::velocity_project::*;
 
-use crate::{collision::collider::contact_query::contact_manifolds, prelude::*};
+use crate::prelude::*;
 use bevy::{ecs::system::SystemParam, prelude::*};
-use core::time::Duration;
 
 /// Needed to improve stability when `n.dot(dir)` happens to be very close to zero.
 const DOT_EPSILON: Scalar = 0.005;
@@ -39,17 +38,11 @@ pub const COS_5_DEGREES: Scalar = 0.99619469809;
 /// [`MoveAndSlideConfig`] allows configuring various aspects of the algorithm.
 /// See its documentation for more information.
 ///
-/// Additionally, [`move_and_slide`](MoveAndSlide::move_and_slide) can be given a callback that is called
-/// for each contact surface that is detected during movement. This allows for custom handling of collisions,
-/// such as triggering events, or modifying movement based on specific colliders.
+/// # Utilities
 ///
-/// # Other Utilities
-///
-/// In addition to the main `move_and_slide` method, this system parameter also provides utilities for:
+/// This system parameter provides utilities for:
 ///
 /// - Performing shape casts optimized for movement via [`cast_move`](MoveAndSlide::cast_move).
-/// - Depenetrating shapes that are intersecting colliders via [`depenetrate`](MoveAndSlide::depenetrate).
-/// - Performing intersection tests via [`intersections`](MoveAndSlide::intersections).
 /// - Projecting velocities to slide along contact planes via [`project_velocity`](MoveAndSlide::project_velocity).
 ///
 /// These methods are used internally by the move and slide algorithm, but can also be used independently
@@ -86,7 +79,7 @@ pub struct MoveAndSlide<'w, 's> {
     pub length_unit: Res<'w, PhysicsLengthUnit>,
 }
 
-/// Configuration for [`MoveAndSlide::move_and_slide`].
+/// Configuration for the move and slide algorithm.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[reflect(Debug, PartialEq)]
 pub struct MoveAndSlideConfig {
@@ -180,7 +173,7 @@ impl Default for MoveAndSlideConfig {
     }
 }
 
-/// Configuration for [`MoveAndSlide::depenetrate`].
+/// Configuration for depenetration.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[reflect(Debug, PartialEq)]
 pub struct DepenetrationConfig {
@@ -245,7 +238,7 @@ impl From<&MoveAndSlideConfig> for DepenetrationConfig {
     }
 }
 
-/// Output from [`MoveAndSlide::move_and_slide`].
+/// Output from the move and slide algorithm.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(Debug, PartialEq)]
 pub struct MoveAndSlideOutput {
@@ -261,7 +254,7 @@ pub struct MoveAndSlideOutput {
     /// the projected velocity will point up the ramp, with reduced magnitude.
     ///
     /// It is useful to store this value or apply it to [`LinearVelocity`] and use it as the input velocity
-    /// for the next frame's call to [`MoveAndSlide::move_and_slide`].
+    /// for the next frame's call to the move and slide algorithm.
     ///
     /// Note that if you apply this to [`LinearVelocity`], it is recommended to use [`CustomPositionIntegration`].
     /// This ways, the character's position is only updated via the move and slide algorithm,
@@ -269,7 +262,7 @@ pub struct MoveAndSlideOutput {
     pub projected_velocity: Vector,
 }
 
-/// Data related to a hit during [`MoveAndSlide::move_and_slide`].
+/// Data related to a hit during the move and slide algorithm.
 #[derive(Debug, PartialEq)]
 pub struct MoveAndSlideHitData<'a> {
     /// The entity of the collider that was hit by the shape.
@@ -304,18 +297,9 @@ pub struct MoveAndSlideHitData<'a> {
     pub collision_distance: Scalar,
 }
 
-impl<'a> MoveAndSlideHitData<'a> {
-    /// Whether the collider started off already intersecting another collider when it was cast.
-    ///
-    /// Note that this will be `false` if the collider was closer than `skin_width`, but not physically intersecting.
-    pub fn intersects(&self) -> bool {
-        self.collision_distance == 0.0
-    }
-}
-
-/// Indicates how to handle a hit detected during [`MoveAndSlide::move_and_slide`].
+/// Indicates how to handle a hit detected during the move and slide algorithm.
 ///
-/// This is returned by the `on_hit` callback provided to [`MoveAndSlide::move_and_slide`].
+/// This is returned by the `on_hit` callback provided to the move and slide algorithm.
 #[derive(Debug, PartialEq)]
 pub enum MoveAndSlideHitResponse {
     /// Accept the hit and continue the move and slide algorithm.
@@ -377,235 +361,11 @@ pub struct MoveHitData {
     pub collision_distance: Scalar,
 }
 
-impl MoveHitData {
-    /// Whether the collider started off already intersecting another collider when it was cast.
-    ///
-    /// Note that this will be `false` if the collider was closer than `skin_width`, but not physically intersecting.
-    pub fn intersects(self) -> bool {
-        self.collision_distance == 0.0
-    }
-}
-
 impl<'w, 's> MoveAndSlide<'w, 's> {
-    /// Moves a shape along a given velocity vector, sliding along any colliders that are hit on the way.
-    ///
-    /// See [`MoveAndSlide`] for an overview of the algorithm.
-    ///
-    /// # Arguments
-    ///
-    /// - `shape`: The shape being cast represented as a [`Collider`].
-    /// - `shape_position`: Where the shape is cast from.
-    /// - `shape_rotation`: The rotation of the shape being cast.
-    /// - `velocity`: The initial velocity vector along which to move the shape. This will be modified to reflect sliding along surfaces.
-    /// - `delta_time`: The duration over which to move the shape. `velocity * delta_time` gives the total desired movement vector.
-    /// - `config`: A [`MoveAndSlideConfig`] that determines the behavior of the move and slide. [`MoveAndSlideConfig::default()`] should be a good start for most cases.
-    /// - `filter`: A [`SpatialQueryFilter`] that determines which colliders are taken into account in the query. It is highly recommended to exclude the entity holding the collider itself,
-    ///   otherwise the character will collide with itself.
-    /// - `on_hit`: A callback that is called when a collider is hit as part of the move and slide iterations. The returned [`MoveAndSlideHitResponse`] determines how to handle the hit.
-    ///   If you don't have any special handling per collision, you can pass `|_| MoveAndSlideHitResponse::Accept`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use bevy::prelude::*;
-    /// use std::collections::HashSet;
-    /// use avian3d::{prelude::*, math::{Vector, AdjustPrecision as _, AsF32 as _}};
-    ///
-    /// #[derive(Component)]
-    /// struct CharacterController {
-    ///     velocity: Vector,
-    /// }
-    ///
-    /// fn perform_move_and_slide(
-    ///     player: Single<(Entity, &Collider, &mut CharacterController, &mut Transform)>,
-    ///     move_and_slide: MoveAndSlide,
-    ///     time: Res<Time>
-    /// ) {
-    ///     let (entity, collider, mut controller, mut transform) = player.into_inner();
-    ///     let velocity = controller.velocity + Vector::X * 10.0;
-    ///     let filter = SpatialQueryFilter::from_excluded_entities([entity]);
-    ///     let mut collisions = HashSet::new();
-    ///     let out = move_and_slide.move_and_slide(
-    ///         collider,
-    ///          transform.translation.adjust_precision(),
-    ///          transform.rotation.adjust_precision(),
-    ///         velocity,
-    ///         time.delta(),
-    ///         &MoveAndSlideConfig::default(),
-    ///         &filter,
-    ///         |hit| {
-    ///             collisions.insert(hit.entity);
-    ///             MoveAndSlideHitResponse::Accept
-    ///         },
-    ///     );
-    ///      transform.translation = out.position.f32();
-    ///     controller.velocity = out.projected_velocity;
-    ///     info!("Colliding with entities: {:?}", collisions);
-    /// }
-    /// ```
-    #[must_use]
-    #[doc(alias = "collide_and_slide")]
-    #[doc(alias = "step_slide")]
-    pub fn move_and_slide(
-        &self,
-        shape: &Collider,
-        shape_position: Vector,
-        shape_rotation: RotationValue,
-        mut velocity: Vector,
-        delta_time: Duration,
-        config: &MoveAndSlideConfig,
-        filter: &SpatialQueryFilter,
-        mut on_hit: impl FnMut(MoveAndSlideHitData) -> MoveAndSlideHitResponse,
-    ) -> MoveAndSlideOutput {
-        let mut position = shape_position;
-        let mut time_left = delta_time.as_secs_f32();
-        let skin_width = self.length_unit.0 * config.skin_width;
-
-        // Initial depenetration pass
-        let depenetration_offset =
-            self.depenetrate(shape, position, shape_rotation, &config.into(), filter);
-        position += depenetration_offset;
-
-        // Main move and slide loop:
-        // 1. Sweep the shape along the velocity vector
-        // 2. If we hit something, move up to the hit point
-        // 3. Collect contact planes
-        // 4. Project velocity to slide along contact planes
-        // 5. Repeat until we run out of iterations or time
-        for _ in 0..config.move_and_slide_iterations {
-            let sweep = time_left * velocity;
-            let Some((vel_dir, distance)) = Dir::new_and_length(sweep.f32()).ok() else {
-                // No movement left
-                break;
-            };
-            let distance = distance.adjust_precision();
-
-            const MIN_DISTANCE: Scalar = 1e-4;
-            if distance < MIN_DISTANCE {
-                break;
-            }
-
-            // Sweep the shape along the velocity vector.
-            let Some(sweep_hit) =
-                self.cast_move(shape, position, shape_rotation, sweep, skin_width, filter)
-            else {
-                // No collision, move the full distance.
-                position += sweep;
-                break;
-            };
-            let point = sweep_hit.point2;
-
-            // Move up to the hit point.
-            time_left -= time_left * (sweep_hit.distance / distance);
-            position += vel_dir.adjust_precision() * sweep_hit.distance;
-
-            // Initialize velocity clipping planes with the user-defined planes.
-            // This often includes a ground plane.
-            let mut planes: Vec<Dir> = config.planes.clone();
-
-            // We need to add the sweep hit's plane explicitly, as `contact_manifolds` sometimes returns nothing
-            // due to a Parry bug. Otherwise, `contact_manifolds` would pick up this normal anyways.
-            // TODO: Remove this once the collision bug is fixed.
-            let mut first_normal = Dir::new_unchecked(sweep_hit.normal1.f32());
-            let hit_response = on_hit(MoveAndSlideHitData {
-                entity: sweep_hit.entity,
-                point,
-                normal: &mut first_normal,
-                collision_distance: sweep_hit.collision_distance,
-                distance: sweep_hit.distance,
-                position: &mut position,
-                velocity: &mut velocity,
-            });
-
-            if hit_response == MoveAndSlideHitResponse::Accept {
-                planes.push(first_normal);
-            } else if hit_response == MoveAndSlideHitResponse::Abort {
-                break;
-            }
-
-            // Collect contact planes.
-            let mut aborted = false;
-            self.intersections(
-                shape,
-                position,
-                shape_rotation,
-                // Use a slightly larger skin width to ensure we catch all contacts for velocity clipping.
-                // Depenetration still uses just the normal skin width.
-                skin_width * 2.0,
-                filter,
-                |contact_point, mut normal| {
-                    // Check if this plane is nearly parallel to an existing one.
-                    // This can help prune redundant planes for velocity clipping.
-                    for existing_normal in planes.iter_mut() {
-                        if normal.dot(**existing_normal) as Scalar
-                            >= config.plane_similarity_dot_threshold
-                        {
-                            // Keep the most blocking version of the plane.
-                            let n_dot_v = normal.adjust_precision().dot(velocity);
-                            let existing_n_dot_v = existing_normal.adjust_precision().dot(velocity);
-                            if n_dot_v < existing_n_dot_v {
-                                *existing_normal = normal;
-                            }
-                            return true;
-                        }
-                    }
-
-                    if planes.len() >= config.max_planes {
-                        return false;
-                    }
-
-                    // Call the user-defined hit callback.
-                    let hit_response = on_hit(MoveAndSlideHitData {
-                        entity: sweep_hit.entity,
-                        point: contact_point.point,
-                        normal: &mut normal,
-                        collision_distance: sweep_hit.collision_distance,
-                        distance: sweep_hit.distance,
-                        position: &mut position,
-                        velocity: &mut velocity,
-                    });
-
-                    match hit_response {
-                        MoveAndSlideHitResponse::Accept => {
-                            // Add the contact plane for velocity clipping.
-                            planes.push(normal);
-                            true
-                        }
-                        MoveAndSlideHitResponse::Ignore => true,
-                        MoveAndSlideHitResponse::Abort => {
-                            aborted = true;
-                            false
-                        }
-                    }
-                },
-            );
-
-            // Project velocity to slide along contact planes.
-            velocity = Self::project_velocity(velocity, &planes);
-
-            if aborted {
-                break;
-            }
-        }
-
-        // Final depenetration pass
-        // TODO: We could get the intersections from the last iteration and avoid re-querying them here.
-        let depenetration_offset =
-            self.depenetrate(shape, position, shape_rotation, &config.into(), filter);
-        position += depenetration_offset;
-
-        MoveAndSlideOutput {
-            position,
-            projected_velocity: velocity,
-        }
-    }
-
     /// A [shape cast](spatial_query#shapecasting) optimized for movement. Use this if you want to move a collider
     /// with a given velocity and stop so that it keeps a distance of `skin_width` from the first collider on its path.
     ///
     /// This operation is most useful when you ensure that the character is not intersecting any colliders before moving.
-    /// To do this, call [`MoveAndSlide::depenetrate`] and add the resulting offset vector to the character's position
-    /// before calling this method. See the example below.
     ///
     /// It is often useful to clip the velocity afterwards so that it no longer points into the contact plane using [`Self::project_velocity`].
     ///
@@ -643,16 +403,6 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///     let (entity, collider, mut controller, mut transform) = player.into_inner();
     ///     let filter = SpatialQueryFilter::from_excluded_entities([entity]);
     ///     let config = MoveAndSlideConfig::default();
-    ///
-    ///     // Ensure that the character is not intersecting with any colliders.
-    ///     let offset = move_and_slide.depenetrate(
-    ///         collider,
-    ///          transform.translation.adjust_precision(),
-    ///          transform.rotation.adjust_precision(),
-    ///         &((&config).into()),
-    ///         &filter,
-    ///     );
-    ///      transform.translation += offset.f32();
     ///     let velocity = controller.velocity;
     ///
     ///     let hit = move_and_slide.cast_move(
@@ -729,245 +479,6 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
         let dot = dir.adjust_precision().dot(-hit.normal1).max(DOT_EPSILON);
         let skin_distance = skin_width / dot;
         (hit.distance - skin_distance).max(0.0)
-    }
-
-    /// Moves a collider so that it no longer intersects any other collider and keeps a minimum distance
-    /// of [`DepenetrationConfig::skin_width`] scaled by the [`PhysicsLengthUnit`].
-    ///
-    /// Depenetration is an iterative process that solves penetrations for all planes, until we either reached
-    /// [`MoveAndSlideConfig::move_and_slide_iterations`] or the accumulated error is less than [`MoveAndSlideConfig::max_depenetration_error`].
-    /// If the maximum number of iterations was reached before the error is below the threshold, the current best attempt is returned,
-    /// in which case the collider may still be intersecting with other colliders.
-    ///
-    /// This method is equivalent to calling [`Self::depenetrate_intersections`] with the results of [`Self::intersections`].
-    ///
-    /// # Arguments
-    ///
-    /// - `shape`: The shape that intersections are tested against represented as a [`Collider`].
-    /// - `shape_position`: The position of the shape.
-    /// - `shape_rotation`: The rotation of the shape.
-    /// - `config`: A [`DepenetrationConfig`] that determines the behavior of the depenetration. [`DepenetrationConfig::default()`] should be a good start for most cases.
-    /// - `filter`: A [`SpatialQueryFilter`] that determines which colliders are taken into account in the query.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use bevy::prelude::*;
-    /// use avian3d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};
-    /// fn depenetrate_player(
-    ///     player: Single<(Entity, &Collider, &mut Transform)>,
-    ///     move_and_slide: MoveAndSlide,
-    ///     time: Res<Time>
-    /// ) {
-    ///     let (entity, collider, mut transform) = player.into_inner();
-    ///     let filter = SpatialQueryFilter::from_excluded_entities([entity]);
-    ///
-    ///     let offset = move_and_slide.depenetrate(
-    ///         collider,
-    ///          transform.translation.adjust_precision(),
-    ///          transform.rotation.adjust_precision(),
-    ///         &DepenetrationConfig::default(),
-    ///         &filter,
-    ///     );
-    ///      transform.translation += offset.f32();
-    /// }
-    /// ```
-    ///
-    /// See also [`MoveAndSlide::cast_move`] for a typical usage scenario.
-    ///
-    /// # Related methods
-    ///
-    /// - [`MoveAndSlide::intersections`]
-    /// - [`MoveAndSlide::depenetrate_intersections`]
-    pub fn depenetrate(
-        &self,
-        shape: &Collider,
-        shape_position: Vector,
-        shape_rotation: RotationValue,
-        config: &DepenetrationConfig,
-        filter: &SpatialQueryFilter,
-    ) -> Vector {
-        if config.depenetration_iterations == 0 {
-            // Depenetration disabled
-            return Vector::ZERO;
-        }
-
-        let mut intersections = Vec::new();
-        self.intersections(
-            shape,
-            shape_position,
-            shape_rotation,
-            self.length_unit.0 * config.skin_width,
-            filter,
-            |contact_point, normal| {
-                intersections.push((
-                    normal,
-                    contact_point.penetration + self.length_unit.0 * config.skin_width,
-                ));
-                true
-            },
-        );
-        self.depenetrate_intersections(config, &intersections)
-    }
-
-    /// Manual version of [`MoveAndSlide::depenetrate`].
-    ///
-    /// Moves a collider so that it no longer intersects any other collider and keeps a minimum distance
-    /// of [`DepenetrationConfig::skin_width`] scaled by the [`PhysicsLengthUnit`]. The intersections
-    /// should be provided as a list of contact plane normals and penetration distances, which can be obtained
-    /// via [`MoveAndSlide::intersections`].
-    ///
-    /// Depenetration is an iterative process that solves penetrations for all planes, until we either reached
-    /// [`MoveAndSlideConfig::move_and_slide_iterations`] or the accumulated error is less than [`MoveAndSlideConfig::max_depenetration_error`].
-    /// If the maximum number of iterations was reached before the error is below the threshold, the current best attempt is returned,
-    /// in which case the collider may still be intersecting with other colliders.
-    ///
-    /// # Arguments
-    ///
-    /// - `config`: A [`DepenetrationConfig`] that determines the behavior of the depenetration. [`DepenetrationConfig::default()`] should be a good start for most cases.
-    /// - `intersections`: A list of contact plane normals and penetration distances representing the intersections to resolve.
-    ///
-    /// # Returns
-    ///
-    /// A displacement vector that can be added to the `shape_position` to resolve the intersections,
-    /// or the best attempt if the max iterations were reached before a solution was found.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use bevy::prelude::*;
-    /// use avian3d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};
-    /// fn depenetrate_player_manually(
-    ///     player: Single<(Entity, &Collider, &mut Transform)>,
-    ///     move_and_slide: MoveAndSlide,
-    ///     time: Res<Time>
-    /// ) {
-    ///     let (entity, collider, mut transform) = player.into_inner();
-    ///     let filter = SpatialQueryFilter::from_excluded_entities([entity]);
-    ///     let config = DepenetrationConfig::default();
-    ///
-    ///     let mut intersections = Vec::new();
-    ///     move_and_slide.intersections(
-    ///         collider,
-    ///          transform.translation.adjust_precision(),
-    ///          transform.rotation.adjust_precision(),
-    ///         config.skin_width,
-    ///         &filter,
-    ///         |contact_point, normal| {
-    ///             intersections.push((normal, contact_point.penetration + config.skin_width));
-    ///             true
-    ///         },
-    ///     );
-    ///     let offset = move_and_slide.depenetrate_intersections(&config, &intersections);
-    ///      transform.translation += offset.f32();
-    /// }
-    /// ```
-    ///
-    /// # Related methods
-    ///
-    /// - [`MoveAndSlide::intersections`]
-    /// - [`MoveAndSlide::depenetrate`]
-    #[must_use]
-    pub fn depenetrate_intersections(
-        &self,
-        config: &DepenetrationConfig,
-        intersections: &[(Dir, Scalar)],
-    ) -> Vector {
-        let mut fixup = Vector::ZERO;
-
-        // Gauss-Seidel style iterative depenetration
-        for _ in 0..config.depenetration_iterations {
-            let mut total_error = 0.0;
-
-            for (normal, dist) in intersections {
-                if *dist > self.length_unit.0 * config.penetration_rejection_threshold {
-                    continue;
-                }
-                let normal = normal.adjust_precision();
-                let error = (dist - fixup.dot(normal)).max(0.0);
-                total_error += error;
-                fixup += error * normal;
-            }
-
-            if total_error < self.length_unit.0 * config.max_depenetration_error {
-                break;
-            }
-        }
-
-        fixup
-    }
-
-    /// An [intersection test](spatial_query#intersection-tests) that calls a callback for each [`Collider`] found
-    /// that is closer to the given `shape` with a given position and rotation than `prediction_distance`.
-    ///
-    /// # Arguments
-    ///
-    /// - `shape`: The shape that intersections are tested against represented as a [`Collider`].
-    /// - `shape_position`: The position of the shape.
-    /// - `shape_rotation`: The rotation of the shape.
-    /// - `filter`: A [`SpatialQueryFilter`] that determines which colliders are taken into account in the query.
-    /// - `prediction_distance`: An extra margin applied to the [`Collider`].
-    /// - `callback`: A callback that is called for each intersection found. The callback receives the deepest contact point and the contact normal.
-    ///   Returning `false` will stop further processing of intersections.
-    ///
-    /// # Example
-    ///
-    /// See [`MoveAndSlide::depenetrate_intersections`] for a typical usage scenario.
-    ///
-    /// # Related methods
-    ///
-    /// - [`MoveAndSlide::depenetrate_intersections`]
-    /// - [`MoveAndSlide::depenetrate`]
-    pub fn intersections(
-        &self,
-        shape: &Collider,
-        shape_position: Vector,
-        shape_rotation: RotationValue,
-        prediction_distance: Scalar,
-        filter: &SpatialQueryFilter,
-        mut callback: impl FnMut(&ContactPoint, Dir) -> bool,
-    ) {
-        let expanded_aabb = shape
-            .aabb(shape_position, shape_rotation)
-            .grow(Vector::splat(prediction_distance));
-        let aabb_intersections = self
-            .spatial_query
-            .aabb_intersections_with_aabb(expanded_aabb);
-
-        'outer: for intersection_entity in aabb_intersections {
-            let Ok((intersection_collider, intersection_pos, intersection_rot, layers)) =
-                self.colliders.get(intersection_entity)
-            else {
-                continue;
-            };
-            let layers = layers.copied().unwrap_or_default();
-            if !filter.test(intersection_entity, layers) {
-                continue;
-            }
-            let mut manifolds = Vec::new();
-            contact_manifolds(
-                shape,
-                shape_position,
-                shape_rotation,
-                intersection_collider,
-                *intersection_pos,
-                *intersection_rot,
-                prediction_distance,
-                &mut manifolds,
-            );
-            for manifold in manifolds {
-                let Some(deepest) = manifold.find_deepest_contact() else {
-                    continue;
-                };
-
-                let normal = Dir::new_unchecked(-manifold.normal.f32());
-
-                if !callback(deepest, normal) {
-                    // Abort further processing.
-                    break 'outer;
-                }
-            }
-        }
     }
 
     /// Projects input velocity `v` onto the planes defined by the given `normals`.

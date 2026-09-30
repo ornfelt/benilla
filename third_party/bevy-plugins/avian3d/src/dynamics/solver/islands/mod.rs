@@ -245,166 +245,6 @@ impl PhysicsIsland {
             constraints_removed: 0,
         }
     }
-
-    /// Returns the island ID.
-    #[inline]
-    pub const fn id(&self) -> IslandId {
-        self.id
-    }
-
-    /// Returns the number of bodies in the island.
-    #[inline]
-    pub const fn body_count(&self) -> u32 {
-        self.body_count
-    }
-
-    /// Returns the number of contacts in the island.
-    #[inline]
-    pub const fn contact_count(&self) -> u32 {
-        self.contact_count
-    }
-
-    /// Returns the number of joints in the island.
-    #[inline]
-    pub const fn joint_count(&self) -> u32 {
-        self.joint_count
-    }
-
-    /// Returns `true` if the island is sleeping.
-    #[inline]
-    pub const fn is_sleeping(&self) -> bool {
-        self.is_sleeping
-    }
-
-    /// Returns the number of constraints that have been removed from the island,
-    #[inline]
-    pub const fn constraints_removed(&self) -> u32 {
-        self.constraints_removed
-    }
-
-    // TODO: Use errors rather than panics.
-    /// Validates the island.
-    #[inline]
-    pub fn validate(
-        &self,
-        body_islands: &Query<&BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-        contact_graph: &ContactGraphInternal,
-        joint_graph: &JointGraph,
-    ) {
-        self.validate_bodies(body_islands);
-        self.validate_contacts(contact_graph);
-        self.validate_joints(joint_graph);
-    }
-
-    /// Validates the body linked list.
-    pub fn validate_bodies(
-        &self,
-        body_islands: &Query<&BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-    ) {
-        if self.head_body.is_none() {
-            assert!(self.tail_body.is_none());
-            assert_eq!(self.body_count, 0);
-            return;
-        }
-
-        assert!(self.tail_body.is_some());
-        assert!(self.body_count > 0);
-
-        if self.body_count > 1 {
-            assert_ne!(self.head_body, self.tail_body);
-        }
-
-        let mut count = 0;
-        let mut body_id = self.head_body;
-
-        while let Some(entity) = body_id {
-            let body = body_islands.get(entity).unwrap();
-            assert_eq!(body.island_id, self.id);
-
-            count += 1;
-
-            if count == self.body_count {
-                assert_eq!(body_id, self.tail_body);
-            }
-
-            body_id = body.next;
-        }
-
-        assert_eq!(count, self.body_count);
-    }
-
-    /// Validates the contact linked list.
-    pub fn validate_contacts(&self, contact_graph: &ContactGraphInternal) {
-        if self.head_contact.is_none() {
-            assert!(self.tail_contact.is_none());
-            assert_eq!(self.contact_count, 0);
-            return;
-        }
-
-        assert!(self.tail_contact.is_some());
-        assert!(self.contact_count > 0);
-
-        if self.contact_count > 1 {
-            assert_ne!(self.head_contact, self.tail_contact);
-        }
-
-        let mut count = 0;
-        let mut contact_id = self.head_contact;
-
-        while let Some(id) = contact_id {
-            let contact = contact_graph.edge_weight(id.into()).unwrap();
-            let contact_island = contact
-                .island
-                .as_ref()
-                .unwrap_or_else(|| panic!("Contact {id:?} has no island"));
-            assert_eq!(contact_island.island_id, self.id);
-
-            count += 1;
-
-            if count == self.contact_count {
-                assert_eq!(contact_id, self.tail_contact);
-            }
-
-            contact_id = contact_island.next;
-        }
-
-        assert_eq!(count, self.contact_count);
-    }
-
-    /// Validates the joint linked list.
-    pub fn validate_joints(&self, joint_graph: &JointGraph) {
-        if self.head_joint.is_none() {
-            assert!(self.tail_joint.is_none());
-            assert_eq!(self.joint_count, 0);
-            return;
-        }
-
-        assert!(self.tail_joint.is_some());
-        assert!(self.joint_count > 0);
-
-        if self.joint_count > 1 {
-            assert_ne!(self.head_joint, self.tail_joint);
-        }
-
-        let mut count = 0;
-        let mut joint_id = self.head_joint;
-
-        while let Some(id) = joint_id {
-            let joint = joint_graph.get_by_id(id).unwrap();
-            let joint_island = &joint.island;
-            assert_eq!(joint_island.island_id, self.id);
-
-            count += 1;
-
-            if count == self.joint_count {
-                assert_eq!(joint_id, self.tail_joint);
-            }
-
-            joint_id = joint_island.next;
-        }
-
-        assert_eq!(count, self.joint_count);
-    }
 }
 
 /// A resource for the [`PhysicsIsland`]s in the simulation.
@@ -492,12 +332,6 @@ impl PhysicsIslands {
         self.islands.len()
     }
 
-    /// Returns `true` if there are no [`PhysicsIsland`]s.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.islands.is_empty()
-    }
-
     /// Adds a contact to the island manager. Returns a reference to the island that the contact was added to.
     ///
     /// This will merge the islands of the bodies involved in the contact,
@@ -568,7 +402,7 @@ impl PhysicsIslands {
     /// Removes a contact from the island manager. Returns a reference to the island that the contact was removed from.
     ///
     /// This will unlink the contact from the island and update the island's contact list.
-    /// The [`PhysicsIsland::constraints_removed`] counter is incremented.
+    /// The island's `constraints_removed` counter is incremented.
     ///
     /// Called when a contact is destroyed or no longer touching.
     #[expect(
@@ -705,7 +539,7 @@ impl PhysicsIslands {
     /// that the joint was removed from, if the island still exists.
     ///
     /// This will unlink the joint from the island and update the island's joint list.
-    /// The [`PhysicsIsland::constraints_removed`] counter is incremented.
+    /// The island's `constraints_removed` counter is incremented.
     ///
     /// The joint should be removed from the [`JointGraph`] in concert with calling this method.
     ///
@@ -1221,12 +1055,6 @@ impl<Id> IslandNode<Id> {
             is_visited: false,
         }
     }
-
-    /// Returns the [`IslandId`] of the island that the node belongs to.
-    #[inline]
-    pub const fn island_id(&self) -> IslandId {
-        self.island_id
-    }
 }
 
 impl<Id> Default for IslandNode<Id> {
@@ -1243,12 +1071,6 @@ impl<Id: Copy> Copy for IslandNode<Id> {}
 pub struct BodyIslandNode(IslandNode<Entity>);
 
 impl BodyIslandNode {
-    /// Creates a new [`BodyIslandNode`] with the given island ID.
-    #[inline]
-    pub const fn new(island_id: IslandId) -> Self {
-        Self(IslandNode::new(island_id))
-    }
-
     // Initialize a new island when `BodyIslandNode` is added to a body.
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
         // Create a new island for the body.

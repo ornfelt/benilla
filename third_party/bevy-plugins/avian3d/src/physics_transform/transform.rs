@@ -163,22 +163,6 @@ impl Rotation {
         Self(self.0.inverse())
     }
 
-    /// Performs a linear interpolation between `self` and `end` based on
-    /// the value `s`, and normalizes the rotation afterwards.
-    ///
-    /// When `s == 0.0`, the result will be equal to `self`.
-    /// When `s == 1.0`, the result will be equal to `end`.
-    ///
-    /// This is slightly more efficient than [`slerp`](Self::slerp), and produces a similar result
-    /// when the difference between the two rotations is small. At larger differences,
-    /// the result resembles a kind of ease-in-out effect.
-    ///
-    /// If you would like the angular velocity to remain constant, consider using [`slerp`](Self::slerp) instead.
-    #[inline]
-    pub fn nlerp(self, end: Self, t: Scalar) -> Self {
-        Self(self.0.lerp(end.0, t))
-    }
-
     /// Performs a spherical linear interpolation between `self` and `end`
     /// based on the value `s`.
     ///
@@ -186,9 +170,6 @@ impl Rotation {
     ///
     /// When `s == 0.0`, the result will be equal to `self`.
     /// When `s == 1.0`, the result will be equal to `end`.
-    ///
-    /// If you would like the rotation to have a kind of ease-in-out effect, consider
-    /// using the slightly more efficient [`nlerp`](Self::nlerp) instead.
     #[inline]
     pub fn slerp(self, end: Self, t: Scalar) -> Self {
         Self(self.0.slerp(end.0, t))

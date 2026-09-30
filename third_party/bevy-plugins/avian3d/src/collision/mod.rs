@@ -24,12 +24,6 @@
 //! It contains all contacs between entities with overlapping [`ColliderAabb`]s,
 //! including contacts where the colliders themselves may not be touching.
 //!
-//! To make it easier to access relevant collision data, Avian provides a [`Collisions`]
-//! system parameter that only provides touching contacts. This is a light wrapper
-//! around the [`ContactGraph`] that can often be more convenient to use.
-//!
-//! See the documentation of [`Collisions`] for more information and usage examples.
-//!
 //! # Collision Events
 //!
 //! [Collision events](collision_events) can be used for detecting when colliders start or stop touching.
@@ -98,8 +92,7 @@ pub mod prelude {
         CollisionEnd, CollisionEventsEnabled, CollisionStart, OnCollisionEnd, OnCollisionStart,
     };
     pub use super::contact_types::{
-        Collisions, ContactEdge, ContactGraph, ContactManifold, ContactPair, ContactPairFlags,
-        ContactPoint,
+        ContactEdge, ContactGraph, ContactManifold, ContactPair, ContactPairFlags, ContactPoint,
     };
     pub use super::hooks::{ActiveCollisionHooks, CollisionHooks};
     #[expect(deprecated)]

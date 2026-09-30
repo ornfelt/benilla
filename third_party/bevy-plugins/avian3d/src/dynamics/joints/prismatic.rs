@@ -80,50 +80,6 @@ impl PrismaticJoint {
         }
     }
 
-    /// Sets the [`slider_axis`](Self::slider_axis) along which the bodies can translate relative to each other.
-    ///
-    /// The axis should be a unit vector. By default, this is the x-axis.
-    #[inline]
-    pub const fn with_slider_axis(mut self, axis: Vector) -> Self {
-        self.slider_axis = axis;
-        self
-    }
-
-    /// Sets the [`slider_axis`](Self::slider_axis) along which the bodies can translate relative to each other.
-    ///
-    /// The axis should be a unit vector. By default, this is the x-axis.
-    ///
-    /// This method is deprecated in favor of [`with_slider_axis`](Self::with_slider_axis).
-    #[inline]
-    #[deprecated(since = "0.4.0", note = "Use `with_slider_axis` instead.")]
-    pub const fn with_free_axis(self, axis: Vector) -> Self {
-        self.with_slider_axis(axis)
-    }
-
-    /// Sets the local [`JointFrame`] of the first body, configuring both the [`JointAnchor`] and [`JointBasis`].
-    #[inline]
-    pub fn with_local_frame1(mut self, frame: impl Into<Isometry>) -> Self {
-        self.frame1 = JointFrame::local(frame);
-        self
-    }
-
-    /// Sets the local [`JointFrame`] of the second body, configuring both the [`JointAnchor`] and [`JointBasis`].
-    #[inline]
-    pub fn with_local_frame2(mut self, frame: impl Into<Isometry>) -> Self {
-        self.frame2 = JointFrame::local(frame);
-        self
-    }
-
-    /// Sets the global anchor point on both bodies.
-    ///
-    /// This configures the [`JointAnchor`] of each [`JointFrame`].
-    #[inline]
-    pub const fn with_anchor(mut self, anchor: Vector) -> Self {
-        self.frame1.anchor = JointAnchor::FromGlobal(anchor);
-        self.frame2.anchor = JointAnchor::FromGlobal(anchor);
-        self
-    }
-
     /// Sets the local anchor point on the first body.
     ///
     /// This configures the [`JointAnchor`] of the first [`JointFrame`].
@@ -132,67 +88,6 @@ impl PrismaticJoint {
         self.frame1.anchor = JointAnchor::Local(anchor);
         self
     }
-
-    /// Sets the local anchor point on the second body.
-    ///
-    /// This configures the [`JointAnchor`] of the second [`JointFrame`].
-    #[inline]
-    pub const fn with_local_anchor2(mut self, anchor: Vector) -> Self {
-        self.frame2.anchor = JointAnchor::Local(anchor);
-        self
-    }
-
-    /// Sets the global basis for both bodies.
-    ///
-    /// This configures the [`JointBasis`] of each [`JointFrame`].
-    #[inline]
-    pub fn with_basis(mut self, basis: impl Into<Rot>) -> Self {
-        let basis = basis.into();
-        self.frame1.basis = JointBasis::FromGlobal(basis);
-        self.frame2.basis = JointBasis::FromGlobal(basis);
-        self
-    }
-
-    /// Sets the local basis for the first body.
-    ///
-    /// This configures the [`JointBasis`] of the first [`JointFrame`].
-    #[inline]
-    pub fn with_local_basis1(mut self, basis: impl Into<Rot>) -> Self {
-        self.frame1.basis = JointBasis::Local(basis.into());
-        self
-    }
-
-    /// Sets the local basis for the second body.
-    ///
-    /// This configures the [`JointBasis`] of the second [`JointFrame`].
-    #[inline]
-    pub fn with_local_basis2(mut self, basis: impl Into<Rot>) -> Self {
-        self.frame2.basis = JointBasis::Local(basis.into());
-        self
-    }
-
-    /// Returns the local [`JointFrame`] of the first body.
-    ///
-    /// If the [`JointAnchor`] is set to [`FromGlobal`](JointAnchor::FromGlobal),
-    /// and the local anchor has not yet been computed, or the [`JointBasis`] is set to
-    /// [`FromGlobal`](JointBasis::FromGlobal), and the local basis has not yet
-    /// been computed, this will return `None`.
-    #[inline]
-    pub fn local_frame1(&self) -> Option<Isometry> {
-        self.frame1.get_local_isometry()
-    }
-
-    /// Returns the local [`JointFrame`] of the second body.
-    ///
-    /// If the [`JointAnchor`] is set to [`FromGlobal`](JointAnchor::FromGlobal),
-    /// and the local anchor has not yet been computed, or the [`JointBasis`] is set to
-    /// [`FromGlobal`](JointBasis::FromGlobal), and the local basis has not yet
-    /// been computed, this will return `None`.
-    #[inline]
-    pub fn local_frame2(&self) -> Option<Isometry> {
-        self.frame2.get_local_isometry()
-    }
-
     /// Returns the local anchor point on the first body.
     ///
     /// If the [`JointAnchor`] is set to [`FromGlobal`](JointAnchor::FromGlobal),
@@ -241,74 +136,10 @@ impl PrismaticJoint {
         }
     }
 
-    /// Returns the local slider axis of the first body.
-    ///
-    /// This is equivalent to rotating the [`slider_axis`](Self::slider_axis)
-    /// by the local basis of [`frame1`](Self::frame1).
-    ///
-    /// If the [`JointBasis`] is set to [`FromGlobal`](JointBasis::FromGlobal),
-    /// and the local basis has not yet been computed, this will return `None`.
-    #[inline]
-    pub fn local_slider_axis1(&self) -> Option<Vector> {
-        match self.frame1.basis {
-            JointBasis::Local(basis) => Some(basis * self.slider_axis),
-            _ => None,
-        }
-    }
-
-    /// Returns the local slider axis of the second body.
-    ///
-    /// This is equivalent to rotating the [`slider_axis`](Self::slider_axis)
-    /// by the local basis of [`frame2`](Self::frame2).
-    ///
-    /// If the [`JointBasis`] is set to [`FromGlobal`](JointBasis::FromGlobal),
-    /// and the local basis has not yet been computed, this will return `None`.
-    #[inline]
-    pub fn local_slider_axis2(&self) -> Option<Vector> {
-        match self.frame2.basis {
-            JointBasis::Local(basis) => Some(basis * self.slider_axis),
-            _ => None,
-        }
-    }
-
     /// Sets the translational limits along the [`slider_axis`](Self::slider_axis).
     #[inline]
     pub const fn with_limits(mut self, min: Scalar, max: Scalar) -> Self {
         self.limits = Some(DistanceLimit::new(min, max));
-        self
-    }
-
-    /// Sets the joint's compliance (inverse of stiffness).
-    #[inline]
-    #[deprecated(
-        since = "0.4.0",
-        note = "Use `with_align_compliance`, `with_limit_compliance`, and `with_angle_compliance` instead."
-    )]
-    pub const fn with_compliance(mut self, compliance: Scalar) -> Self {
-        self.align_compliance = compliance;
-        self.angle_compliance = compliance;
-        self.limit_compliance = compliance;
-        self
-    }
-
-    /// Sets the compliance of the axis alignment constraint (inverse of stiffness, m / N).
-    #[inline]
-    pub const fn with_align_compliance(mut self, compliance: Scalar) -> Self {
-        self.align_compliance = compliance;
-        self
-    }
-
-    /// Sets the compliance of the angular constraint (inverse of stiffness, N * m / rad).
-    #[inline]
-    pub const fn with_angle_compliance(mut self, compliance: Scalar) -> Self {
-        self.angle_compliance = compliance;
-        self
-    }
-
-    /// Sets the compliance of the distance limit (inverse of stiffness, m / N).
-    #[inline]
-    pub const fn with_limit_compliance(mut self, compliance: Scalar) -> Self {
-        self.limit_compliance = compliance;
         self
     }
 

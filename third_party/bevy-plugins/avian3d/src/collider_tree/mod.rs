@@ -183,12 +183,4 @@ impl ColliderTrees {
             .proxies
             .get(key.id().index())
     }
-
-    /// Returns a mutable reference to the proxy with the given [`ColliderTreeProxyKey`], if it exists.
-    #[inline]
-    pub fn get_proxy_mut(&mut self, key: ColliderTreeProxyKey) -> Option<&mut ColliderTreeProxy> {
-        self.tree_for_type_mut(key.tree_type())
-            .proxies
-            .get_mut(key.id().index())
-    }
 }

@@ -32,22 +32,7 @@ use super::AccumulatedLocalAcceleration;
 ///
 /// The force is applied continuously during the physics step, and cleared automatically after the step is complete.
 ///
-/// By default, applying forces to [sleeping](Sleeping) bodies will wake them up. If this is not desired,
-/// the [`non_waking`](ForcesItem::non_waking) method can be used to fetch a [`NonWakingForcesItem`]
-/// that allows applying forces to a body without waking it up.
-///
-/// ```
-/// # use avian3d::{math::Vector, prelude::*};
-/// # use bevy::prelude::*;
-/// #
-/// # fn apply_impulses(mut query: Query<Forces>) {
-/// #     for mut forces in &mut query {
-/// #         let force = Vector::default();
-/// // Apply a force without waking up the body if it is sleeping.
-/// forces.non_waking().apply_force(force);
-/// #     }
-/// # }
-/// ```
+/// By default, applying forces to [sleeping](Sleeping) bodies will wake them up.
 ///
 /// [`Forces`] can also apply forces and impulses at a specific point in the world. If the point is not aligned
 /// with the [center of mass](CenterOfMass), it will apply a torque to the body.
@@ -102,49 +87,9 @@ pub struct Forces {
 }
 
 /// A [`ForcesItem`] that does not wake up the body when applying forces, torques, impulses, or accelerations.
-/// Returned by [`ForcesItem::non_waking`].
 ///
 /// See the documentation of [`Forces`] for more information on how to apply forces in Avian.
 pub struct NonWakingForcesItem<'w, 's>(pub ForcesItem<'w, 's>);
-
-impl ForcesItem<'_, '_> {
-    /// Reborrows `self` as a new instance of [`ForcesItem`].
-    #[inline]
-    #[must_use]
-    pub fn reborrow(&mut self) -> ForcesItem<'_, '_> {
-        ForcesItem {
-            position: self.position,
-            rotation: self.rotation,
-            linear_velocity: self.linear_velocity.reborrow(),
-            angular_velocity: self.angular_velocity.reborrow(),
-            mass: self.mass,
-            angular_inertia: self.angular_inertia,
-            center_of_mass: self.center_of_mass,
-            locked_axes: self.locked_axes,
-            integration: self.integration.reborrow(),
-            accumulated_local_acceleration: self.accumulated_local_acceleration.reborrow(),
-            sleep_timer: self.sleep_timer.as_mut().map(|s| s.reborrow()),
-            is_sleeping: self.is_sleeping,
-        }
-    }
-
-    /// Returns a [`NonWakingForcesItem`] that allows applying forces, impulses, and accelerations
-    /// without waking up the body if it is sleeping.
-    #[inline]
-    #[must_use]
-    pub fn non_waking(&mut self) -> NonWakingForcesItem<'_, '_> {
-        NonWakingForcesItem(self.reborrow())
-    }
-}
-
-impl<'w, 's> NonWakingForcesItem<'w, 's> {
-    /// Returns a [`ForcesItem`] that will wake up the body when applying forces, impulses, or accelerations.
-    #[inline]
-    #[must_use]
-    pub fn waking(self) -> ForcesItem<'w, 's> {
-        self.0
-    }
-}
 
 impl ReadRigidBodyForces for ForcesItem<'_, '_> {}
 impl ReadRigidBodyForces for NonWakingForcesItem<'_, '_> {}
@@ -254,8 +199,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The force is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero force will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero force will wake up the body if it is sleeping.
     #[inline]
     fn apply_force(&mut self, force: Vector) {
         if force != Vector::ZERO && self.try_wake_up() {
@@ -271,8 +215,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The force is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero force will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero force will wake up the body if it is sleeping.
     ///
     /// # Note
     ///
@@ -298,8 +241,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The force is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero force will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero force will wake up the body if it is sleeping.
     #[inline]
     fn apply_local_force(&mut self, force: Vector) {
         if force != Vector::ZERO && self.try_wake_up() {
@@ -312,8 +254,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The torque is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero torque will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero torque will wake up the body if it is sleeping.
     #[inline]
     fn apply_torque(&mut self, torque: AngularVector) {
         if torque != AngularVector::ZERO && self.try_wake_up() {
@@ -327,8 +268,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The torque is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero torque will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero torque will wake up the body if it is sleeping.
     #[inline]
     fn apply_local_torque(&mut self, torque: AngularVector) {
         if torque != AngularVector::ZERO && self.try_wake_up() {
@@ -341,8 +281,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The impulse modifies the [`LinearVelocity`] of the body immediately.
     ///
-    /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero impulse will wake up the body if it is sleeping.
     #[inline]
     fn apply_linear_impulse(&mut self, impulse: Vector) {
         if impulse != Vector::ZERO && self.try_wake_up() {
@@ -360,8 +299,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The impulse modifies the [`LinearVelocity`] and [`AngularVelocity`] of the body immediately.
     ///
-    /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero impulse will wake up the body if it is sleeping.
     ///
     /// # Note
     ///
@@ -385,8 +323,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The impulse modifies the [`LinearVelocity`] of the body immediately.
     ///
-    /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero impulse will wake up the body if it is sleeping.
     #[inline]
     fn apply_local_linear_impulse(&mut self, impulse: Vector) {
         if impulse != Vector::ZERO && self.try_wake_up() {
@@ -403,8 +340,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The impulse modifies the [`AngularVelocity`] of the body immediately.
     ///
-    /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero impulse will wake up the body if it is sleeping.
     #[inline]
     fn apply_angular_impulse(&mut self, impulse: AngularVector) {
         if impulse != AngularVector::ZERO && self.try_wake_up() {
@@ -418,8 +354,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The impulse modifies the [`AngularVelocity`] of the body immediately.
     ///
-    /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero impulse will wake up the body if it is sleeping.
     #[inline]
     fn apply_local_angular_impulse(&mut self, impulse: AngularVector) {
         if impulse != AngularVector::ZERO && self.try_wake_up() {
@@ -434,8 +369,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The acceleration is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero acceleration will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero acceleration will wake up the body if it is sleeping.
     #[inline]
     fn apply_linear_acceleration(&mut self, acceleration: Vector) {
         if acceleration != Vector::ZERO && self.try_wake_up() {
@@ -450,8 +384,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The acceleration is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero acceleration will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero acceleration will wake up the body if it is sleeping.
     ///
     /// # Note
     ///
@@ -478,8 +411,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The acceleration is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero acceleration will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero acceleration will wake up the body if it is sleeping.
     #[inline]
     fn apply_local_linear_acceleration(&mut self, acceleration: Vector) {
         if acceleration != Vector::ZERO && self.try_wake_up() {
@@ -491,8 +423,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The acceleration is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero acceleration will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero acceleration will wake up the body if it is sleeping.
     #[inline]
     fn apply_angular_acceleration(&mut self, acceleration: AngularVector) {
         if acceleration != AngularVector::ZERO && self.try_wake_up() {
@@ -505,8 +436,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// The acceleration is applied continuously over the physics step and cleared afterwards.
     ///
-    /// By default, a non-zero acceleration will wake up the body if it is sleeping. This can be prevented
-    /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
+    /// By default, a non-zero acceleration will wake up the body if it is sleeping.
     #[inline]
     fn apply_local_angular_acceleration(&mut self, acceleration: AngularVector) {
         if acceleration != AngularVector::ZERO && self.try_wake_up() {

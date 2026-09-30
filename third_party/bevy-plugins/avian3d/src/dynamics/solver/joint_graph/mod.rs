@@ -105,12 +105,6 @@ impl JointGraphEdge {
 }
 
 impl JointGraph {
-    /// Returns a reference to the underlying [`StableUnGraph`].
-    #[inline]
-    pub fn graph(&self) -> &StableUnGraph<Entity, JointGraphEdge> {
-        &self.graph
-    }
-
     /// Returns the [`NodeIndex`] of the given entity in the joint graph.
     ///
     /// If the entity is not in the graph, `None` is returned.
@@ -185,17 +179,6 @@ impl JointGraph {
         }
     }
 
-    /// Returns an iterator yielding mutable access to all joint edges involving the given entity.
-    #[inline]
-    pub fn joints_of_mut(&mut self, body: Entity) -> impl Iterator<Item = &mut JointGraphEdge> {
-        let index = self.entity_to_body(body);
-        if let Some(index) = index {
-            itertools::Either::Left(self.graph.edge_weights_mut(index))
-        } else {
-            itertools::Either::Right(core::iter::empty())
-        }
-    }
-
     /// Returns the bodies that are connected by the given joint entity.
     /// If the joint is not in the graph, `None` is returned.
     #[inline]
@@ -207,20 +190,6 @@ impl JointGraph {
             *self.graph.node_weight(body1_index)?,
             *self.graph.node_weight(body2_index)?,
         ])
-    }
-
-    /// Returns an iterator yielding immutable access to all bodies that are attached
-    /// to the given entity with a joint.
-    #[inline]
-    pub fn bodies_attached_to(&self, body: Entity) -> impl Iterator<Item = Entity> + '_ {
-        self.entity_to_body
-            .get(body)
-            .into_iter()
-            .flat_map(move |&index| {
-                self.graph
-                    .neighbors(index)
-                    .map(|index| *self.graph.node_weight(index).unwrap())
-            })
     }
 
     /// Creates a [`JointGraphEdge`] between two entities if it does not already exist,
@@ -270,39 +239,5 @@ impl JointGraph {
     pub fn remove_joint(&mut self, joint_entity: Entity) -> Option<JointGraphEdge> {
         let joint_index = self.entity_to_joint.remove(joint_entity)?;
         self.graph.remove_edge(joint_index)
-    }
-
-    /// Removes the body of the given entity from the joint graph, calling the given callback
-    /// for each [`JointGraphEdge`] right before it is removed.
-    ///
-    /// # Warning
-    ///
-    /// Removing a body with this method will *not* wake up the entities involved
-    /// or do any other clean-up. Only use this method if you know what you are doing.
-    #[inline]
-    pub fn remove_body_with<F>(&mut self, entity: Entity, edge_callback: F)
-    where
-        F: FnMut(&mut StableUnGraph<Entity, JointGraphEdge>, EdgeIndex),
-    {
-        // Remove the entity from the entity-to-node mapping,
-        // and get the index of the node in the graph.
-        let Some(index) = self.entity_to_body.remove(entity) else {
-            return;
-        };
-
-        // Remove the entity from the graph.
-        // TODO: Should we remove the joint from the entity-to-joint mapping as well?
-        self.graph.remove_node_with(index, edge_callback);
-
-        // Removing the node swapped the last node to its place,
-        // so we need to remap the entity-to-node mapping of the swapped node.
-        if let Some(swapped) = self.graph.node_weight(index).copied() {
-            let swapped_index = self
-                .entity_to_body
-                .get_mut(swapped)
-                // This should never panic.
-                .expect("swapped entity has no entity-to-node mapping");
-            *swapped_index = index;
-        }
     }
 }

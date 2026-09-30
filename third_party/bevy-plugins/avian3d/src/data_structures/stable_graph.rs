@@ -33,22 +33,6 @@ impl<N, E> Default for StableUnGraph<N, E> {
 }
 
 impl<N, E> StableUnGraph<N, E> {
-    /// Creates a new [`StableUnGraph`] with estimated capacity.
-    pub fn with_capacity(nodes: usize, edges: usize) -> Self {
-        StableUnGraph {
-            graph: UnGraph::with_capacity(nodes, edges),
-            node_ids: IdPool::with_capacity(nodes),
-            edge_ids: IdPool::with_capacity(edges),
-        }
-    }
-
-    /// Returns the number of nodes in the graph.
-    ///
-    /// Computes in **O(1)** time.
-    pub fn node_count(&self) -> usize {
-        self.node_ids.len()
-    }
-
     /// Returns the number of edges in the graph.
     ///
     /// Computes in **O(1)** time.
@@ -195,25 +179,6 @@ impl<N, E> StableUnGraph<N, E> {
         edge_idx
     }
 
-    /// Adds or updates an edge from `a` to `b`.
-    /// If the edge already exists, its weight is updated.
-    ///
-    /// Returns the index of the affected edge.
-    ///
-    /// Computes in **O(e')** time, where **e'** is the number of edges
-    /// connected to `a` (and `b`, if the graph edges are undirected).
-    ///
-    /// # Panics
-    ///
-    /// Panics if any of the nodes doesn't exist or the graph is at the maximum number of edges.
-    pub fn update_edge(&mut self, a: NodeIndex, b: NodeIndex, weight: E) -> EdgeIndex {
-        if let Some(ix) = self.find_edge(a, b) {
-            *self.edge_weight_mut(ix).unwrap() = weight;
-            return ix;
-        }
-        self.add_edge(a, b, weight)
-    }
-
     /// Accesses the weight for edge `e`.
     ///
     /// Also available with indexing syntax: `&graph[e]`.
@@ -351,22 +316,6 @@ impl<N, E> StableUnGraph<N, E> {
         }
     }
 
-    /// Looks up if there is an edge from `a` to `b`.
-    ///
-    /// Computes in **O(e')** time, where **e'** is the number of edges
-    /// connected to `a` (and `b`, if the graph edges are undirected).
-    pub fn contains_edge(&self, a: NodeIndex, b: NodeIndex) -> bool {
-        self.find_edge(a, b).is_some()
-    }
-
-    /// Looks up an edge from `a` to `b`.
-    ///
-    /// Computes in **O(e')** time, where **e'** is the number of edges
-    /// connected to `a` (and `b`, if the graph edges are undirected).
-    pub fn find_edge(&self, a: NodeIndex, b: NodeIndex) -> Option<EdgeIndex> {
-        self.graph.find_edge_from_node(self.get_node(a)?, b)
-    }
-
     /// Returns an iterator yielding immutable access to edge weights for edges from or to `a`.
     pub fn edge_weights(&self, a: NodeIndex) -> EdgeWeights<'_, E> {
         EdgeWeights {
@@ -380,80 +329,11 @@ impl<N, E> StableUnGraph<N, E> {
         }
     }
 
-    /// Returns an iterator yielding mutable access to edge weights for edges from or to `a`.
-    pub fn edge_weights_mut(&mut self, a: NodeIndex) -> EdgeWeightsMut<'_, N, E>
-    where
-        N: Copy,
-    {
-        self.graph
-            .edge_weights_mut(a)
-            .filter_map(|edge| edge.as_mut())
-    }
-
-    /// Returns an iterator yielding immutable access to all edge weights.
-    ///
-    /// The order in which weights are yielded matches the order of their
-    /// edge indices.
-    pub fn all_edge_weights(&self) -> impl Iterator<Item = &E> {
-        self.graph
-            .edges
-            .iter()
-            .filter_map(|edge| edge.weight.as_ref())
-    }
-
-    /// Returns an iterator yielding mutable access to all edge weights.
-    ///
-    /// The order in which weights are yielded matches the order of their
-    /// edge indices.
-    pub fn all_edge_weights_mut(&mut self) -> impl Iterator<Item = &mut E> {
-        self.graph
-            .edges
-            .iter_mut()
-            .filter_map(|edge| edge.weight.as_mut())
-    }
-
     /// Accesses the internal edge array.
     ///
     /// Note that this also includes vacant edges.
     pub fn raw_edges(&self) -> &[Edge<Option<E>>] {
         &self.graph.edges
-    }
-
-    /// Accesses the internal edge array mutably.
-    ///
-    /// Note that this also includes vacant edges.
-    pub fn raw_edges_mut(&mut self) -> &mut [Edge<Option<E>>] {
-        &mut self.graph.edges
-    }
-
-    /// Removes all nodes and edges.
-    pub fn clear(&mut self) {
-        self.graph.clear();
-        self.node_ids.clear();
-        self.edge_ids.clear();
-    }
-
-    /// Removes all edges.
-    pub fn clear_edges(&mut self) {
-        self.graph.edges.clear();
-        self.edge_ids.clear();
-
-        // Clear edge links for all nodes.
-        for node in &mut self.graph.nodes {
-            if node.weight.is_some() {
-                node.next = [EdgeIndex::END, EdgeIndex::END];
-            }
-        }
-    }
-
-    /// Returns the current node capacity of the graph.
-    pub fn nodes_capacity(&self) -> usize {
-        self.graph.nodes_capacity()
-    }
-
-    /// Returns the current edge capacity of the graph.
-    pub fn edges_capacity(&self) -> usize {
-        self.graph.edges_capacity()
     }
 }
 
@@ -683,12 +563,6 @@ impl<E> Clone for EdgeWeights<'_, E> {
     }
 }
 
-/// An iterator over mutable references to all edge weights from or to a node.
-type EdgeWeightsMut<'a, N, E> = core::iter::FilterMap<
-    super::graph::EdgeWeightsMut<'a, Option<N>, Option<E>>,
-    fn(&mut Option<E>) -> Option<&mut E>,
->;
-
 /// A reference to a graph edge.
 #[derive(Debug)]
 pub struct EdgeReference<'a, E: 'a> {
@@ -698,18 +572,6 @@ pub struct EdgeReference<'a, E: 'a> {
 }
 
 impl<'a, E: 'a> EdgeReference<'a, E> {
-    /// Returns the index of the edge.
-    #[inline]
-    pub fn index(&self) -> EdgeIndex {
-        self.index
-    }
-
-    /// Returns the source node index.
-    #[inline]
-    pub fn source(&self) -> NodeIndex {
-        self.node[0]
-    }
-
     /// Returns the target node index.
     #[inline]
     pub fn target(&self) -> NodeIndex {
@@ -745,26 +607,6 @@ where
 pub struct EdgeMut<'a, E: 'a> {
     index: EdgeIndex,
     weight: &'a mut E,
-}
-
-impl<E> EdgeMut<'_, E> {
-    /// Returns the index of the edge.
-    #[inline]
-    pub fn index(&self) -> EdgeIndex {
-        self.index
-    }
-
-    /// Returns the weight of the edge.
-    #[inline]
-    pub fn weight(&self) -> &E {
-        self.weight
-    }
-
-    /// Returns the weight of the edge mutably.
-    #[inline]
-    pub fn weight_mut(&mut self) -> &mut E {
-        self.weight
-    }
 }
 
 impl<E> PartialEq for EdgeMut<'_, E>

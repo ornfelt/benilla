@@ -24,17 +24,6 @@ impl IdPool {
         }
     }
 
-    /// Creates a new [`IdPool`] with the given initial capacity.
-    ///
-    /// This is useful for preallocating space for IDs to avoid reallocations.
-    #[inline(always)]
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            free_ids: BinaryHeap::with_capacity(capacity),
-            next_index: 0,
-        }
-    }
-
     /// Allocates a new ID.
     ///
     /// If there are free IDs available, the lowest free ID is reused.
@@ -64,7 +53,6 @@ impl IdPool {
         self.free_ids.clear();
         self.next_index = 0;
     }
-
     /// Returns the next ID that will be allocated.
     #[inline(always)]
     pub fn next_id(&self) -> u32 {
@@ -79,23 +67,5 @@ impl IdPool {
     #[inline(always)]
     pub fn len(&self) -> usize {
         self.next_index as usize - self.free_ids.len()
-    }
-
-    /// Returns the number of free IDs.
-    #[inline(always)]
-    pub fn free_len(&self) -> usize {
-        self.free_ids.len()
-    }
-
-    /// Returns the total number of IDs (allocated + free).
-    #[inline(always)]
-    pub fn total_len(&self) -> usize {
-        self.next_index as usize
-    }
-
-    /// Returns `true` if the pool is empty (no allocated IDs).
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 }

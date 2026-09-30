@@ -38,25 +38,6 @@ impl SoftnessParameters {
         }
     }
 
-    /// Returns the damping ratio that controls the amount of oscillation.
-    #[inline]
-    pub fn damping_ratio(self) -> Scalar {
-        self.double_damping_ratio * 0.5
-    }
-
-    /// Returns the frequency that controls the rate of oscillation.
-    #[inline]
-    pub fn frequency(self) -> Scalar {
-        self.angular_frequency / TAU
-    }
-
-    /// Returns the angular frequency that controls the rate of oscillation.
-    /// This is the [`frequency`](Self::frequency) multiplied by `2.0 * PI`.
-    #[inline]
-    pub const fn angular_frequency(self) -> Scalar {
-        self.angular_frequency
-    }
-
     /// Computes [`SoftnessCoefficients`] based on the parameters in `self` and the time step.
     #[inline]
     pub fn compute_coefficients(self, delta_secs: Scalar) -> SoftnessCoefficients {

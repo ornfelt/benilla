@@ -140,23 +140,6 @@ pub struct Mass(pub f32);
 impl Mass {
     /// A mass of `0.0`.
     pub const ZERO: Self = Self(0.0);
-
-    /// Computes the [`Mass`] of the given shape using the given density.
-    ///
-    /// ```
-    /// # use avian3d::prelude::*;
-    /// # use bevy::prelude::*;
-    /// #
-    /// // Compute the mass from a collider with a density of `2.0`.
-    /// let mass = Mass::from_shape(&Collider::sphere(1.0), 2.0);
-    ///
-    /// // Bevy's primitive shapes can also be used.
-    /// let mass = Mass::from_shape(&Sphere::new(1.0), 2.0);
-    /// ```
-    #[inline]
-    pub fn from_shape<T: ComputeMassProperties>(shape: &T, density: f32) -> Self {
-        Self(shape.mass(density))
-    }
 }
 
 // TODO: Add errors for asymmetric and non-positive definite matrices in 3D.
@@ -384,8 +367,7 @@ impl AngularInertia {
     /// Tries to create a new [`AngularInertia`] from the given principal angular inertia.
     ///
     /// The principal angular inertia represents resistance to angular acceleration
-    /// about the local coordinate axes. To specify the orientation of the local inertial frame,
-    /// consider using [`AngularInertia::try_new_with_local_frame`].
+    /// about the local coordinate axes.
     ///
     /// # Errors
     ///
@@ -428,32 +410,6 @@ impl AngularInertia {
         }
     }
 
-    /// Tries to create a new [`AngularInertia`] from the given principal angular inertia
-    /// and the orientation of the local inertial frame.
-    ///
-    /// The principal angular inertia represents resistance to angular acceleration
-    /// about the local coordinate axes defined by the given `local_frame`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Err(AngularInertiaError)`](AngularInertiaError) if any component of the principal angular inertia is negative or NaN.
-    #[inline]
-    pub fn try_new_with_local_frame(
-        principal_angular_inertia: Vec3,
-        local_frame: Quat,
-    ) -> Result<Self, AngularInertiaError> {
-        if principal_angular_inertia.is_nan() {
-            Err(AngularInertiaError::NaN)
-        } else if !principal_angular_inertia.cmpge(Vec3::ZERO).all() {
-            Err(AngularInertiaError::Negative)
-        } else {
-            Ok(Self {
-                principal: principal_angular_inertia,
-                local_frame,
-            })
-        }
-    }
-
     /// Creates a new [`AngularInertia`] from the given [angular inertia tensor].
     ///
     /// The tensor should be symmetric and positive definite.
@@ -469,20 +425,6 @@ impl AngularInertia {
             principal,
             local_frame,
         }
-    }
-
-    /// Creates a new [`AngularInertiaTensor`] from the given angular inertia [tensor]
-    /// represented as a [`SymmetricMat3`].
-    ///
-    /// The tensor should be [positive-semidefinite], but this is *not* checked.
-    ///
-    /// [tensor]: https://en.wikipedia.org/wiki/Moment_of_inertia#Inertia_tensor
-    /// [positive-semidefinite]: https://en.wikipedia.org/wiki/Definite_matrix
-    #[inline]
-    #[must_use]
-    #[doc(alias = "from_tensor")]
-    pub fn from_symmetric_mat3(mat: SymmetricMat3) -> Self {
-        Self::from_tensor(AngularInertiaTensor::from_symmetric_mat3(mat))
     }
 
     /// Tries to create a new [`AngularInertiaTensor`] from the given angular inertia [tensor]
@@ -501,56 +443,11 @@ impl AngularInertia {
         SymmetricMat3::try_from_mat3(mat).map(Self::from_tensor)
     }
 
-    /// Creates a new [`AngularInertiaTensor`] from the given angular inertia [tensor]
-    /// represented as a [`Mat3`].
-    ///
-    /// Only the lower left triangle of the matrix is used. No check is performed to ensure
-    /// that the given matrix is truly symmetric or [positive-semidefinite].
-    ///
-    /// [tensor]: https://en.wikipedia.org/wiki/Moment_of_inertia#Inertia_tensor
-    /// [positive-semidefinite]: https://en.wikipedia.org/wiki/Definite_matrix
-    #[inline]
-    #[must_use]
-    pub fn from_mat3_unchecked(mat: Mat3) -> Self {
-        Self::from_tensor(SymmetricMat3::from_mat3_unchecked(mat))
-    }
-
-    /// Computes the [`AngularInertia`] of the given shape using the given mass.
-    ///
-    /// ```
-    /// # use avian3d::prelude::*;
-    /// # use bevy::prelude::*;
-    /// #
-    /// // Compute the angular inertia from collider with a mass of `2.0`.
-    /// let inertia = AngularInertia::from_shape(&Collider::sphere(1.0), 2.0);
-    ///
-    /// // Bevy's primitive shapes can also be used.
-    /// let inertia = AngularInertia::from_shape(&Sphere::new(1.0), 2.0);
-    /// ```
-    #[inline]
-    pub fn from_shape<T: ComputeMassProperties>(shape: &T, mass: f32) -> Self {
-        let principal = shape.principal_angular_inertia(mass);
-        let local_frame = shape.local_inertial_frame();
-        Self::new_with_local_frame(principal, local_frame)
-    }
-
     /// Returns the [`AngularInertiaTensor`] represented by this principal [`AngularInertia`]
     /// and local inertial frame.
     #[inline]
     pub fn tensor(self) -> AngularInertiaTensor {
         AngularInertiaTensor::new_with_local_frame(self.principal, self.local_frame)
-    }
-
-    /// Returns `true` if the principal angular inertia and inertial local frame are neither infinite nor NaN.
-    #[inline]
-    pub fn is_finite(self) -> bool {
-        self.principal.is_finite() && self.local_frame.is_finite()
-    }
-
-    /// Returns `true` if the principal angular inertia or inertial local frame is NaN.
-    #[inline]
-    pub fn is_nan(self) -> bool {
-        self.principal.is_nan() || self.local_frame.is_nan()
     }
 }
 
@@ -701,29 +598,6 @@ pub struct CenterOfMass(pub VectorF32);
 impl CenterOfMass {
     /// A center of mass set at the local origin.
     pub const ZERO: Self = Self(VectorF32::ZERO);
-
-    /// Creates a new [`CenterOfMass`] at the given local position.
-    #[inline]
-    pub const fn new(x: f32, y: f32, z: f32) -> Self {
-        Self(Vec3::new(x, y, z))
-    }
-
-    /// Computes the [`CenterOfMass`] of the given shape.
-    ///
-    /// ```
-    /// # use avian3d::prelude::*;
-    /// # use bevy::prelude::*;
-    /// #
-    /// // Compute the center of mass from a collider.
-    /// let center_of_mass = CenterOfMass::from_shape(&Collider::sphere(1.0));
-    ///
-    /// // Bevy's primitive shapes can also be used.
-    /// let center_of_mass = CenterOfMass::from_shape(&Sphere::new(1.0));
-    /// ```
-    #[inline]
-    pub fn from_shape<T: ComputeMassProperties>(shape: &T) -> Self {
-        Self(shape.center_of_mass())
-    }
 }
 
 /// A marker component that prevents descendants or attached colliders

@@ -141,11 +141,6 @@ impl SolverBodyFlags {
         LockedAxes::from_bits(self.0 as u8)
     }
 
-    /// Returns `true` if the body is dynamic.
-    pub fn is_dynamic(&self) -> bool {
-        !self.contains(SolverBodyFlags::IS_KINEMATIC)
-    }
-
     /// Returns `true` if the body is kinematic.
     pub fn is_kinematic(&self) -> bool {
         self.contains(SolverBodyFlags::IS_KINEMATIC)
@@ -399,11 +394,5 @@ impl SolverBodyInertia {
     #[inline]
     pub fn dominance(&self) -> i16 {
         self.dominance
-    }
-
-    /// Returns the [`InertiaFlags`] of the body.
-    #[inline]
-    pub fn flags(&self) -> InertiaFlags {
-        self.flags
     }
 }

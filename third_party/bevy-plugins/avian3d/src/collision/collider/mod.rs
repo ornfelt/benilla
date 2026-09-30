@@ -412,40 +412,6 @@ impl ColliderAabb {
         max: Vector::NEG_INFINITY,
     };
 
-    /// Creates a new [`ColliderAabb`] from the given `center` and `half_size`.
-    pub fn new(center: Vector, half_size: Vector) -> Self {
-        Self {
-            min: center - half_size,
-            max: center + half_size,
-        }
-    }
-
-    /// Creates a new [`ColliderAabb`] from its minimum and maximum points.
-    pub fn from_min_max(min: Vector, max: Vector) -> Self {
-        Self { min, max }
-    }
-
-    /// Creates a new [`ColliderAabb`] from a given `SharedShape`.
-    pub fn from_shape(shape: &crate::parry::shape::SharedShape) -> Self {
-        let aabb = shape.compute_local_aabb();
-        Self {
-            min: aabb.mins,
-            max: aabb.maxs,
-        }
-    }
-
-    /// Computes the center of the AABB,
-    #[inline(always)]
-    pub fn center(self) -> Vector {
-        self.min.midpoint(self.max)
-    }
-
-    /// Computes the size of the AABB.
-    #[inline(always)]
-    pub fn size(self) -> Vector {
-        self.max - self.min
-    }
-
     /// Merges this AABB with another one.
     #[inline(always)]
     pub fn merged(self, other: Self) -> Self {
@@ -461,17 +427,6 @@ impl ColliderAabb {
         let b = Self {
             min: self.min - amount,
             max: self.max + amount,
-        };
-        debug_assert!(b.min.cmple(b.max).all());
-        b
-    }
-
-    /// Decreases the size of the bounding volume in each direction by the given amount.
-    #[inline(always)]
-    pub fn shrink(&self, amount: Vector) -> Self {
-        let b = Self {
-            min: self.min + amount,
-            max: self.max - amount,
         };
         debug_assert!(b.min.cmple(b.max).all());
         b
@@ -514,11 +469,6 @@ impl From<ColliderAabb> for obvhs::aabb::Aabb {
 pub struct EnlargedAabb(ColliderAabb);
 
 impl EnlargedAabb {
-    /// Creates a new [`EnlargedAabb`] from the given [`ColliderAabb`].
-    pub fn new(aabb: ColliderAabb) -> Self {
-        Self(aabb)
-    }
-
     /// Updates the enlarged AABB with the given [`ColliderAabb`] and margin.
     ///
     /// If the AABB is already contained within the enlarged AABB, nothing happens.

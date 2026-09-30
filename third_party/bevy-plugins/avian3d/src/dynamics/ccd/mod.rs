@@ -430,26 +430,6 @@ impl SweptCcd {
             angular_threshold: 0.0,
         }
     }
-
-    /// Sets the linear and angular velocity thresholds in `self`,
-    /// determining how fast two bodies must be moving relative to each other
-    /// for swept CCD to be activated for them.
-    ///
-    /// CCD will be active if either of the two thresholds is exceeded.
-    #[inline]
-    pub const fn with_velocity_threshold(mut self, linear: Scalar, angular: Scalar) -> Self {
-        self.linear_threshold = linear;
-        self.angular_threshold = angular;
-        self
-    }
-
-    /// Sets whether swept CCD is performed against dynamic rigid bodies.
-    /// If `false`, it is only performed against static geometry and kinematic bodies.
-    #[inline]
-    pub const fn include_dynamic(mut self, should_include: bool) -> Self {
-        self.include_dynamic = should_include;
-        self
-    }
 }
 
 /// The algorithm used for [Swept Continuous Collision Detection](self#swept-ccd).

@@ -8,7 +8,7 @@ use crate::{
         obvhs_ext::{Sweep, SweepHit},
         obvhs_ray,
     },
-    math::{AsF32, Dir, Ray, Scalar, Vector},
+    math::{Dir, Ray, Scalar},
 };
 
 impl ColliderTree {
@@ -144,66 +144,6 @@ impl ColliderTree {
         fast_stack!(u32, (96, 192), self.bvh.max_depth, stack, {
             self.bvh
                 .sweep_traverse_dynamic(&mut stack, sweep, &mut hit, &mut intersect_prims)
-        });
-    }
-
-    /// Traverse the BVH with a point, returning the closest proxy and its squared distance within `max_distance_squared`.
-    ///
-    /// # Arguments
-    ///
-    /// - `point`: The point to be tested for proximity.
-    /// - `max_distance_squared`: The maximum distance from the point to consider for projections.
-    /// - `eval`: A function that takes a proxy ID and returns the squared distance from the point to that proxy. This function is called for each potential projection found during traversal.
-    #[inline(always)]
-    pub fn squared_distance_traverse_closest<F: FnMut(ProxyId) -> Scalar>(
-        &self,
-        point: Vector,
-        max_distance_squared: Scalar,
-        mut eval: F,
-    ) -> Option<(ProxyId, Scalar)> {
-        let point = point.f32().to_array().into();
-
-        let closest_leaf = self.bvh.squared_distance_traverse(
-            point,
-            max_distance_squared as f32,
-            |_point, primitive_id| {
-                let proxy_id = ProxyId::new(self.bvh.primitive_indices[primitive_id]);
-                eval(proxy_id) as f32
-            },
-        );
-
-        if let Some((primitive_id, distance_squared)) = closest_leaf {
-            let proxy_id = ProxyId::new(self.bvh.primitive_indices[primitive_id as usize]);
-            Some((proxy_id, distance_squared as Scalar))
-        } else {
-            None
-        }
-    }
-
-    /// Traverse the BVH with a point, calling `eval` for each intersection.
-    ///
-    /// # Arguments
-    ///
-    /// - `point`: The point to be tested for intersection.
-    /// - `eval`: A function that takes a proxy ID and is called for each potential intersection found during traversal.
-    ///   Return false to halt traversal early.
-    #[inline(always)]
-    pub fn point_traverse<F: FnMut(ProxyId) -> bool>(&self, point: Vector, mut eval: F) {
-        let point = point.f32().to_array().into();
-
-        self.bvh.point_traverse(point, |bvh, node_index| {
-            let node = &bvh.nodes[node_index as usize];
-            let start = node.first_index as usize;
-            let end = start + node.prim_count as usize;
-
-            for primitive_id in start..end {
-                let proxy_id = ProxyId::new(bvh.primitive_indices[primitive_id]);
-                if !eval(proxy_id) {
-                    return false;
-                }
-            }
-
-            true
         });
     }
 

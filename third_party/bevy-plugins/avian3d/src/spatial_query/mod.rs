@@ -121,30 +121,15 @@
 //!
 //! To specify which colliders should be considered in the query, use a [spatial query filter](`SpatialQueryFilter`).
 //!
-//! # Point projection
-//!
-//! **Point projection** is a spatial query that projects a point on the closest collider. It returns the collider's
-//! entity, the projected point, and whether the point is inside of the collider.
-//!
-//! Point projection can be done with the [`project_point`](SpatialQuery::project_point) method of the [`SpatialQuery`]
-//! system parameter. See its documentation for more information.
-//!
-//! To specify which colliders should be considered in the query, use a [spatial query filter](`SpatialQueryFilter`).
-//!
 //! # Intersection tests
 //!
 //! **Intersection tests** are spatial queries that return the entities of colliders that are intersecting a given
 //! shape or area.
 //!
-//! There are three types of intersection tests. They are all methods of the [`SpatialQuery`] system parameter,
-//! and they all have callback variants that call a given callback on each intersection.
+//! Intersection tests are methods of the [`SpatialQuery`] system parameter:
 //!
-//! - [`point_intersections`](SpatialQuery::point_intersections): Finds all entities with a collider that contains
-//!   the given point.
 //! - [`aabb_intersections_with_aabb`](SpatialQuery::aabb_intersections_with_aabb):
 //!   Finds all entities with a [`ColliderAabb`] that is intersecting the given [`ColliderAabb`].
-//! - [`shape_intersections`](SpatialQuery::shape_intersections): Finds all entities with a [collider](Collider)
-//!   that is intersecting the given shape.
 //!
 //! See the documentation of the components and methods for more information.
 //!

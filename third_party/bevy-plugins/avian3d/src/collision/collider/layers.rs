@@ -115,44 +115,6 @@ impl LayerMask {
     /// Contains the default layer.
     pub const DEFAULT: Self = Self(1);
 
-    /// Adds the given `layers` to `self`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use avian3d::prelude::*;
-    /// let mut layers = LayerMask(0b1010);
-    ///
-    /// // These are equivalent
-    /// layers.add(0b0001);
-    /// layers |= 0b0001;
-    ///
-    /// assert_eq!(layers, 0b1011);
-    /// ```
-    pub fn add(&mut self, layers: impl Into<Self>) {
-        let layers: LayerMask = layers.into();
-        *self |= layers;
-    }
-
-    /// Removes the given `layers` from `self`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use avian3d::prelude::*;
-    /// let mut layers = LayerMask(0b1010);
-    ///
-    /// // These are equivalent
-    /// layers.remove(0b0010);
-    /// layers &= !0b0010;
-    ///
-    /// assert_eq!(layers, 0b1000);
-    /// ```
-    pub fn remove(&mut self, layers: impl Into<Self>) {
-        let layers: LayerMask = layers.into();
-        *self &= !layers;
-    }
-
     /// Returns `true` if `self` contains all of the given `layers`.
     ///
     /// # Example
@@ -388,18 +350,6 @@ impl CollisionLayers {
         Self {
             memberships: memberships.into(),
             filters: filters.into(),
-        }
-    }
-
-    /// Creates a new [`CollisionLayers`] configuration using bits.
-    ///
-    /// There is one bit per group and mask, so there are a total of 32 layers.
-    /// For example, if an entity is a part of the layers `[0, 1, 3]` and can interact with the layers `[1, 2]`,
-    /// the memberships in bits would be `0b01011` while the filters would be `0b00110`.
-    pub const fn from_bits(memberships: u32, filters: u32) -> Self {
-        Self {
-            memberships: LayerMask(memberships),
-            filters: LayerMask(filters),
         }
     }
 

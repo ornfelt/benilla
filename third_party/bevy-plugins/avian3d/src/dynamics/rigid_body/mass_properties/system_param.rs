@@ -137,16 +137,6 @@ impl MassPropertyHelper<'_, '_> {
             .sum()
     }
 
-    /// Computes the total mass properties of the descendants of the given entity.
-    ///
-    /// This ignores the [`NoAutoMass`], [`NoAutoAngularInertia`], and [`NoAutoCenterOfMass`] marker components.
-    pub fn descendants_mass_properties(&self, entity: Entity) -> MassProperties {
-        self.children
-            .iter_descendants(entity)
-            .filter_map(|child| self.local_mass_properties(child))
-            .sum()
-    }
-
     /// Computes the local mass properties of the given entity.
     ///
     /// This only considers the entity's own [`Mass`], [`AngularInertia`], [`CenterOfMass`],

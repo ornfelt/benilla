@@ -193,7 +193,7 @@ pub enum BroadPhaseSystems {
     /// Runs at the start of the broad phase.
     First,
     /// Finds pairs of entities with overlapping [`ColliderAabb`]s
-    /// and creates contact pairs for them in [`Collisions`].
+    /// and creates contact pairs for them in the [`ContactGraph`].
     CollectCollisions,
     /// Runs at the end of the broad phase.
     Last,

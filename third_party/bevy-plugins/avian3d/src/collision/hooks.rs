@@ -78,29 +78,7 @@ use bevy::{ecs::system::ReadOnlySystemParam, prelude::*};
 /// # }
 /// ```
 ///
-/// The hooks can then be added to the app using [`PhysicsPlugins::with_collision_hooks`]:
-///
-/// ```no_run
-/// # use avian3d::prelude::*;
-/// # use bevy::{ecs::system::SystemParam, prelude::*};
-/// #
-/// # #[derive(SystemParam)]
-/// # struct MyHooks {}
-/// #
-/// # // No-op hooks for the example.
-/// # impl CollisionHooks for MyHooks {}
-/// #
-/// fn main() {
-///     App::new()
-///         .add_plugins((
-///             DefaultPlugins,
-///             PhysicsPlugins::default().with_collision_hooks::<MyHooks>(),
-///         ))
-///         .run();
-/// }
-/// ```
-///
-/// This is equivalent to manually replacing the default [`BvhBroadPhasePlugin`] and [`NarrowPhasePlugin`]
+/// The hooks can then be added to the app by replacing the default [`BvhBroadPhasePlugin`] and [`NarrowPhasePlugin`]
 /// with instances that have the desired hooks provided using generics.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam

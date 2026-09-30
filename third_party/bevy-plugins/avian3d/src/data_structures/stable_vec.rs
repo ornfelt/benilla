@@ -36,7 +36,6 @@ use crate::data_structures::id_pool::IdPool;
 /// - [`remove`](Self::remove) removes an element at a given index and returns it (O(1)).
 /// - [`try_remove`](Self::try_remove) attempts to remove an element at a given index, returning `None` if it doesn't exist (O(1)).
 /// - [`get`](Self::get) and [`get_mut`](Self::get_mut) provide access to elements by index (O(1)).
-/// - [`clear`](Self::clear) removes all elements without deallocating memory (O(1)).
 #[derive(Clone, Debug)]
 pub struct StableVec<T> {
     data: Vec<Option<T>>,
@@ -50,17 +49,6 @@ impl<T> StableVec<T> {
         Self {
             data: Vec::new(),
             indices: IdPool::new(),
-        }
-    }
-
-    /// Creates a new [`StableVec`] with the given initial capacity.
-    ///
-    /// This is useful for preallocating space to avoid reallocations.
-    #[inline(always)]
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            data: Vec::with_capacity(capacity),
-            indices: IdPool::with_capacity(capacity),
         }
     }
 
@@ -162,41 +150,6 @@ impl<T> StableVec<T> {
         self.data.get_mut(index)?.as_mut()
     }
 
-    /// Returns a reference to the element at the given index without bounds checking.
-    ///
-    /// # Time Complexity
-    ///
-    /// O(1)
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the index is in bounds
-    /// and that there is an element at that index.
-    #[inline(always)]
-    pub unsafe fn get_unchecked(&self, index: usize) -> &T {
-        unsafe { self.data.get_unchecked(index).as_ref().unwrap_unchecked() }
-    }
-
-    /// Returns a mutable reference to the element at the given index without bounds checking.
-    ///
-    /// # Time Complexity
-    ///
-    /// O(1)
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the index is in bounds
-    /// and that there is an element at that index.
-    #[inline(always)]
-    pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
-        unsafe {
-            self.data
-                .get_unchecked_mut(index)
-                .as_mut()
-                .unwrap_unchecked()
-        }
-    }
-
     /// Returns mutable references to two disjoint elements at the given indices, if they exist.
     ///
     /// If the indices are the same, or if either index is out of bounds or has no element,
@@ -210,35 +163,6 @@ impl<T> StableVec<T> {
         // TODO: Return a `Result`.
         let [first, second] = self.data.get_disjoint_mut([index1, index2]).ok()?;
         Some([first.as_mut()?, second.as_mut()?])
-    }
-
-    /// Returns mutable references to two disjoint elements at the given indices without bounds checking.
-    ///
-    /// If the indices are the same, or if either index has no element,
-    /// the behavior is undefined.
-    ///
-    /// # Time Complexity
-    ///
-    /// O(1)
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the indices are disjoint
-    /// and that there are elements at both indices.
-    #[inline(always)]
-    pub unsafe fn get_disjoint_mut_unchecked(
-        &mut self,
-        index1: usize,
-        index2: usize,
-    ) -> [&mut T; 2] {
-        // TODO: Return a `Result`.
-        unsafe {
-            let [first, second] = self.data.get_disjoint_unchecked_mut([index1, index2]);
-            [
-                first.as_mut().unwrap_unchecked(),
-                second.as_mut().unwrap_unchecked(),
-            ]
-        }
     }
 
     /// Returns the number of elements in the [`StableVec`].

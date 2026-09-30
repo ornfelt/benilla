@@ -140,7 +140,6 @@
 //! - Generating colliders for meshes and scenes with [`ColliderConstructor`] and [`ColliderConstructorHierarchy`]
 //! - [Get colliding entities](CollidingEntities)
 //! - [Collision events](collision#collision-events)
-//! - [Accessing collision data](Collisions)
 //! - [Filtering and modifying contacts with hooks](CollisionHooks)
 //! - [Manual contact queries](collision::collider::contact_query)
 //! - [Temporarily disabling a collider](ColliderDisabled)
@@ -307,20 +306,6 @@
 //!         Transform::default(),
 //!         TransformInterpolation,
 //!     ));
-//! }
-//! ```
-//!
-//! To make *all* rigid bodies interpolated by default, use [`PhysicsInterpolationPlugin::interpolate_all()`]:
-//!
-//! ```no_run
-//! # use avian3d::prelude::*;
-//! # use bevy::prelude::*;
-//! #
-//! fn main() {
-//!    App::new()
-//!       .add_plugins(PhysicsPlugins::default().set(PhysicsInterpolationPlugin::interpolate_all()))
-//!       // ...
-//!       .run();
 //! }
 //! ```
 //!
@@ -583,59 +568,6 @@ impl PhysicsPlugins {
             length_unit: 1.0,
         }
     }
-
-    /// Adds the given [`CollisionHooks`] for user-defined contact filtering and modification.
-    ///
-    /// Returns a [`PhysicsPluginsWithHooks`] plugin group, which wraps the original [`PhysicsPlugins`],
-    /// and applies the provided hooks. Only one set of collision hooks can be defined per application.
-    pub fn with_collision_hooks<H: CollisionHooks + 'static>(self) -> PhysicsPluginsWithHooks<H>
-    where
-        for<'w, 's> SystemParamItem<'w, 's, H>: CollisionHooks,
-    {
-        PhysicsPluginsWithHooks::<H> {
-            plugins: self,
-            _phantom: core::marker::PhantomData,
-        }
-    }
-
-    /// Sets the value used for the [`PhysicsLengthUnit`], a units-per-meter scaling factor
-    /// that adjusts the engine's internal properties to the scale of the world.
-    ///
-    /// For example, a 2D game might use pixels as units and have an average object size
-    /// of around 100 pixels. By setting the length unit to `100.0`, the physics engine
-    /// will interpret 100 pixels as 1 meter for internal thresholds, improving stability.
-    ///
-    /// Note that this is *not* used to scale forces or any other user-facing inputs or outputs.
-    /// Instead, the value is only used to scale some internal length-based tolerances, such as
-    /// [`SleepingThreshold::linear`] and [`NarrowPhaseConfig::default_speculative_margin`],
-    /// as well as the scale used for debug rendering.
-    ///
-    /// Choosing the appropriate length unit can help improve stability and robustness.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # #[cfg(feature = "2d")]
-    /// use avian2d::prelude::*;
-    /// use bevy::prelude::*;
-    ///
-    /// # #[cfg(feature = "2d")]
-    /// fn main() {
-    ///     App::new()
-    ///         .add_plugins((
-    ///             DefaultPlugins,
-    ///             // A 2D game with 100 pixels per meter
-    ///             PhysicsPlugins::default().with_length_unit(100.0),
-    ///         ))
-    ///         .run();
-    /// }
-    /// # #[cfg(not(feature = "2d"))]
-    /// # fn main() {} // Doc test needs main
-    /// ```
-    pub fn with_length_unit(mut self, unit: Scalar) -> Self {
-        self.length_unit = unit;
-        self
-    }
 }
 
 impl Default for PhysicsPlugins {
@@ -679,28 +611,6 @@ impl PluginGroup for PhysicsPlugins {
 pub struct PhysicsPluginsWithHooks<H: CollisionHooks> {
     plugins: PhysicsPlugins,
     _phantom: core::marker::PhantomData<H>,
-}
-
-impl<H: CollisionHooks> PhysicsPluginsWithHooks<H> {
-    /// Creates a new [`PhysicsPluginsWithHooks`] plugin group using the given [`CollisionHooks`]
-    /// and schedule for running the [`PhysicsSchedule`].
-    ///
-    /// The default schedule is [`FixedPostUpdate`].
-    pub fn new(schedule: impl ScheduleLabel) -> Self {
-        Self {
-            plugins: PhysicsPlugins::new(schedule),
-            _phantom: core::marker::PhantomData,
-        }
-    }
-
-    /// Sets the value used for the [`PhysicsLengthUnit`], a units-per-meter scaling factor
-    /// that adjusts the engine's internal properties to the scale of the world.
-    ///
-    /// See [`PhysicsPlugins::with_length_unit`] for more information.
-    pub fn with_length_unit(mut self, unit: Scalar) -> Self {
-        self.plugins.length_unit = unit;
-        self
-    }
 }
 
 impl<H: CollisionHooks> Default for PhysicsPluginsWithHooks<H> {

@@ -26,8 +26,7 @@ use bevy::{
 ///
 /// # Hit Count and Order
 ///
-/// The results of a shapecast are in an arbitrary order by default. You can iterate over them in the order of
-/// distance with the [`ShapeHits::iter_sorted`] method.
+/// The results of a shapecast are in an arbitrary order by default.
 ///
 /// You can configure the maximum amount of hits for a shapecast using `max_hits`. By default this is unbounded,
 /// so you will get all hits. When the number or complexity of colliders is large, this can be very
@@ -162,117 +161,6 @@ impl Default for ShapeCaster {
 }
 
 impl ShapeCaster {
-    /// Creates a new [`ShapeCaster`] with a given shape, origin, shape rotation and direction.
-    pub fn new(
-        shape: impl Into<Collider>,
-        origin: Vector,
-        shape_rotation: Quaternion,
-        direction: Dir,
-    ) -> Self {
-        Self {
-            shape: shape.into(),
-            origin,
-            shape_rotation,
-            direction,
-            ..default()
-        }
-    }
-
-    /// Sets the ray origin.
-    pub fn with_origin(mut self, origin: Vector) -> Self {
-        self.origin = origin;
-        self
-    }
-
-    /// Sets the ray direction.
-    pub fn with_direction(mut self, direction: Dir) -> Self {
-        self.direction = direction;
-        self
-    }
-
-    /// Sets the separation distance at which the shapes will be considered as impacting.
-    ///
-    /// If the shapes are separated by a distance smaller than `target_distance` at the origin of the cast,
-    /// the computed contact points and normals are only reliable if [`ShapeCaster::compute_contact_on_penetration`]
-    /// is set to `true`.
-    ///
-    /// By default, this is `0.0`, so the shapes will only be considered as impacting when they first touch.
-    pub fn with_target_distance(mut self, target_distance: Scalar) -> Self {
-        self.target_distance = target_distance;
-        self
-    }
-
-    /// Sets if contact points and normals should be calculated even when the cast distance is `0.0`.
-    ///
-    /// The default is `true`.
-    pub fn with_compute_contact_on_penetration(mut self, compute_contact: bool) -> Self {
-        self.compute_contact_on_penetration = compute_contact;
-        self
-    }
-
-    /// Controls how the shapecast behaves when the shape is already penetrating a [collider](Collider)
-    /// at the shape origin.
-    ///
-    /// If set to `true` **and** the shape is being cast in a direction where it will eventually stop penetrating,
-    /// the shapecast will not stop immediately, and will instead continue until another hit.\
-    /// If set to false, the shapecast will stop immediately and return the hit. This is the default.
-    pub fn with_ignore_origin_penetration(mut self, ignore: bool) -> Self {
-        self.ignore_origin_penetration = ignore;
-        self
-    }
-
-    /// Sets if the shape caster should ignore hits against its own [`Collider`].
-    ///
-    /// The default is `true`.
-    pub fn with_ignore_self(mut self, ignore: bool) -> Self {
-        self.ignore_self = ignore;
-        self
-    }
-
-    /// Sets the maximum distance the shape can travel.
-    pub fn with_max_distance(mut self, max_distance: Scalar) -> Self {
-        self.max_distance = max_distance;
-        self
-    }
-
-    /// Sets the maximum number of allowed hits.
-    pub fn with_max_hits(mut self, max_hits: u32) -> Self {
-        self.max_hits = max_hits;
-        self
-    }
-
-    /// Sets the shape caster's [query filter](SpatialQueryFilter) that controls which colliders
-    /// should be included or excluded by shapecasts.
-    pub fn with_query_filter(mut self, query_filter: SpatialQueryFilter) -> Self {
-        self.query_filter = query_filter;
-        self
-    }
-
-    /// Enables the [`ShapeCaster`].
-    pub fn enable(&mut self) {
-        self.enabled = true;
-    }
-
-    /// Disables the [`ShapeCaster`].
-    pub fn disable(&mut self) {
-        self.enabled = false;
-    }
-
-    /// Returns the global origin of the ray.
-    pub fn global_origin(&self) -> Vector {
-        self.global_origin
-    }
-
-    /// Returns the global rotation of the shape.
-    pub fn global_shape_rotation(&self) -> Quaternion {
-        self.global_shape_rotation
-    }
-
-    /// Returns the global direction of the ray.
-    pub fn global_direction(&self) -> Dir {
-        self.global_direction
-    }
-
     /// Sets the global origin of the ray.
     pub(crate) fn set_global_origin(&mut self, global_origin: Vector) {
         self.global_origin = global_origin;
@@ -404,32 +292,6 @@ impl ShapeCastConfig {
             ignore_origin_penetration: false,
         }
     }
-
-    /// Creates a new [`ShapeCastConfig`] with a given separation distance at which
-    /// the shapes will be considered as impacting.
-    #[inline]
-    pub const fn from_target_distance(target_distance: Scalar) -> Self {
-        Self {
-            max_distance: Scalar::MAX,
-            target_distance,
-            compute_contact_on_penetration: true,
-            ignore_origin_penetration: false,
-        }
-    }
-
-    /// Sets the maximum distance the shape can travel.
-    #[inline]
-    pub const fn with_max_distance(mut self, max_distance: Scalar) -> Self {
-        self.max_distance = max_distance;
-        self
-    }
-
-    /// Sets the separation distance at which the shapes will be considered as impacting.
-    #[inline]
-    pub const fn with_target_distance(mut self, target_distance: Scalar) -> Self {
-        self.target_distance = target_distance;
-        self
-    }
 }
 
 /// Contains the hits of a shape cast by a [`ShapeCaster`]. The hits are in the order of distance.
@@ -465,17 +327,6 @@ impl ShapeCastConfig {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ShapeHits(pub Vec<ShapeHitData>);
-
-impl ShapeHits {
-    /// Returns an iterator over the hits, sorted in ascending order according to the distance.
-    ///
-    /// Note that this allocates a new vector. If you don't need the hits in order, use `iter`.
-    pub fn iter_sorted(&self) -> alloc::vec::IntoIter<ShapeHitData> {
-        let mut vector = self.as_slice().to_vec();
-        vector.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
-        vector.into_iter()
-    }
-}
 
 impl IntoIterator for ShapeHits {
     type Item = ShapeHitData;

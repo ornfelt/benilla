@@ -18,50 +18,14 @@ use super::{ContactEdge, ContactId};
 /// even if the shapes themselves are not yet touching. Internally, pairs for active (non-sleeping) bodies
 /// are stored separately from pairs for sleeping bodies for optimization purposes.
 ///
-/// For a simpler API that abstracts over this complexity, consider using the [`Collisions`]
-/// system parameter.
-///
 /// # Usage
 ///
-/// The following methods can be used for querying collisions:
-///
-/// - [`get`](Self::get) and [`get_mut`](Self::get_mut)
-/// - [`iter_active`](Self::iter_active) and [`iter_active_mut`](Self::iter_active_mut)
-/// - [`iter_sleeping`](Self::iter_sleeping) and [`iter_sleeping_mut`](Self::iter_sleeping_mut)
-/// - [`contains`](Self::contains)
-/// - [`contact_pairs_with`](Self::contact_pairs_with)
-/// - [`entities_colliding_with`](Self::entities_colliding_with)
-///
-/// For example, to iterate over all collisions with a given entity:
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// #[derive(Component)]
-/// struct PressurePlate;
-///
-/// fn activate_pressure_plates(mut query: Query<Entity, With<PressurePlate>>, contact_graph: Res<ContactGraph>) {
-///     for pressure_plate in &query {
-///         // Compute the total impulse applied to the pressure plate.
-///         let mut total_impulse = 0.0;
-///
-///         for contact_pair in contact_graph.contact_pairs_with(pressure_plate) {
-///             total_impulse += contact_pair.total_normal_impulse_magnitude();
-///         }
-///
-///         if total_impulse > 5.0 {
-///             println!("Pressure plate activated!");
-///         }
-///     }
-/// }
-/// ```
+/// [`entities_colliding_with`](Self::entities_colliding_with) can be used for querying collisions.
 ///
 /// While mutable access is allowed, contact modification and filtering should typically
 /// be done using [`CollisionHooks`]. See the documentation for more information.
 ///
-/// For advanced usage, there are also methods such as [`get_edge`](Self::get_edge) and [`get_edge_mut`](Self::get_edge_mut)
-/// methods to access the [`ContactEdge`]s directly, along with variants that take a [`ContactId`] to access edges by their ID.
+/// For advanced usage, there are also methods that take a [`ContactId`] to access the [`ContactEdge`]s directly.
 ///
 /// # Warning
 ///
@@ -114,24 +78,6 @@ impl ContactGraph {
         self.entity_to_node.get(entity).copied()
     }
 
-    /// Returns the [`ContactEdge`] between two entities.
-    /// If the edge does not exist, `None` is returned.
-    ///
-    /// A contact edge exists between two entities if their [`ColliderAabb`]s intersect.
-    /// Use [`ContactEdge::is_touching`] to determine if the actual collider shapes are touching.
-    #[inline]
-    pub fn get_edge(&self, entity1: Entity, entity2: Entity) -> Option<&ContactEdge> {
-        let (Some(index1), Some(index2)) =
-            (self.entity_to_node(entity1), self.entity_to_node(entity2))
-        else {
-            return None;
-        };
-
-        self.edges
-            .find_edge(index1, index2)
-            .and_then(|edge| self.get_edge_by_id(edge.into()))
-    }
-
     /// Returns the [`ContactEdge`] between two entities based on their IDs.
     /// If the edge does not exist, `None` is returned.
     ///
@@ -140,24 +86,6 @@ impl ContactGraph {
     #[inline]
     pub fn get_edge_by_id(&self, id: ContactId) -> Option<&ContactEdge> {
         self.edges.edge_weight(id.into())
-    }
-
-    /// Returns a mutable reference to the [`ContactEdge`] between two entities.
-    /// If the edge does not exist, `None` is returned.
-    ///
-    /// A contact edge exists between two entities if their [`ColliderAabb`]s intersect.
-    /// Use [`ContactEdge::is_touching`] to determine if the actual collider shapes are touching.
-    #[inline]
-    pub fn get_edge_mut(&mut self, entity1: Entity, entity2: Entity) -> Option<&mut ContactEdge> {
-        let (Some(index1), Some(index2)) =
-            (self.entity_to_node(entity1), self.entity_to_node(entity2))
-        else {
-            return None;
-        };
-
-        self.edges
-            .find_edge(index1, index2)
-            .and_then(|edge| self.get_edge_mut_by_id(edge.into()))
     }
 
     /// Returns a mutable reference to the [`ContactEdge`] between two entities based on their IDs.
@@ -170,17 +98,6 @@ impl ContactGraph {
         self.edges.edge_weight_mut(id.into())
     }
 
-    /// Returns the [`ContactEdge`] and [`ContactPair`] between two entities.
-    /// If the pair does not exist, `None` is returned.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect.
-    /// Use [`ContactPair::is_touching`] to determine if the actual collider shapes are touching.
-    #[inline]
-    pub fn get(&self, entity1: Entity, entity2: Entity) -> Option<(&ContactEdge, &ContactPair)> {
-        self.get_edge(entity1, entity2)
-            .and_then(|edge| self.get_pair_by_edge(edge).map(|pair| (edge, pair)))
-    }
-
     /// Returns the [`ContactEdge`] and [`ContactPair`] between two entities based on the contact ID.
     /// If the pair does not exist, `None` is returned.
     ///
@@ -190,28 +107,6 @@ impl ContactGraph {
     pub fn get_by_id(&self, id: ContactId) -> Option<(&ContactEdge, &ContactPair)> {
         self.get_edge_by_id(id)
             .and_then(|edge| self.get_pair_by_edge(edge).map(|pair| (edge, pair)))
-    }
-
-    /// Returns a mutable reference to the [`ContactEdge`] and [`ContactPair`] between two entities.
-    /// If the pair does not exist, `None` is returned.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect.
-    /// Use [`ContactPair::is_touching`] to determine if the actual collider shapes are touching.
-    #[inline]
-    pub fn get_mut(
-        &mut self,
-        entity1: Entity,
-        entity2: Entity,
-    ) -> Option<(&mut ContactEdge, &mut ContactPair)> {
-        let (Some(index1), Some(index2)) =
-            (self.entity_to_node(entity1), self.entity_to_node(entity2))
-        else {
-            return None;
-        };
-
-        self.edges
-            .find_edge(index1, index2)
-            .and_then(|edge| self.get_mut_by_id(edge.into()))
     }
 
     /// Returns a mutable reference to the [`ContactEdge`] and [`ContactPair`] between two entities based on the contact ID.
@@ -248,28 +143,6 @@ impl ContactGraph {
         }
     }
 
-    /// Returns a mutable reference to the [`ContactPair`] between two entities based on the [`ContactEdge`].
-    /// If the pair does not exist, `None` is returned.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect.
-    /// Use [`ContactPair::is_touching`] to determine if the actual collider shapes are touching.
-    #[inline]
-    pub fn get_pair_mut_by_edge(&mut self, edge: &ContactEdge) -> Option<&mut ContactPair> {
-        if edge.is_sleeping() {
-            self.sleeping_pairs.get_mut(edge.pair_index)
-        } else {
-            self.active_pairs.get_mut(edge.pair_index)
-        }
-    }
-
-    /// Returns a [`ContactManifold`] of a contact pair based on the [`ContactManifoldHandle`].
-    /// If the manifold does not exist, `None` is returned.
-    #[inline]
-    pub fn get_manifold(&self, handle: ContactManifoldHandle) -> Option<&ContactManifold> {
-        let contact_pair = self.get_by_id(handle.contact_id)?.1;
-        contact_pair.manifolds.get(handle.manifold_index)
-    }
-
     /// Returns a mutable reference to a [`ContactManifold`] of a contact pair based on the [`ContactManifoldHandle`].
     /// If the manifold does not exist, `None` is returned.
     #[inline]
@@ -281,21 +154,11 @@ impl ContactGraph {
         contact_pair.manifolds.get_mut(handle.manifold_index)
     }
 
-    /// Returns `true` if the given entities have a contact pair.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect,
-    /// even if the shapes themselves are not yet touching.
-    #[inline]
-    pub fn contains(&self, entity1: Entity, entity2: Entity) -> bool {
-        self.contains_key(&PairKey::new(entity1.index_u32(), entity2.index_u32()))
-    }
-
     /// Returns `true` if the given pair key is in the contact graph.
     ///
     /// The pair key should be equivalent to `PairKey::new(entity1.index_u32(), entity2.index_u32())`.
     ///
     /// This method can be useful to avoid constructing a new `PairKey` when the key is already known.
-    /// If the key is not available, consider using [`contains`](Self::contains) instead.
     #[inline]
     pub fn contains_key(&self, pair_key: &PairKey) -> bool {
         self.pair_set.contains(pair_key)
@@ -307,106 +170,10 @@ impl ContactGraph {
         &self.active_pairs
     }
 
-    /// Returns a slice over all sleeping contact pairs.
-    #[inline]
-    pub fn sleeping_pairs(&self) -> &[ContactPair] {
-        &self.sleeping_pairs
-    }
-
     /// Returns a mutable slice over all active (non-sleeping) contact pairs.
     #[inline]
     pub fn active_pairs_mut(&mut self) -> &mut [ContactPair] {
         &mut self.active_pairs
-    }
-
-    /// Returns a mutable slice over all sleeping contact pairs.
-    #[inline]
-    pub fn sleeping_pairs_mut(&mut self) -> &mut [ContactPair] {
-        &mut self.sleeping_pairs
-    }
-
-    /// Returns an iterator yielding immutable access to all active (non-sleeping) contact pairs.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect,
-    /// even if the shapes themselves are not yet touching.
-    ///
-    /// If you only want touching contacts, use [`iter_active_touching`](Self::iter_active_touching) instead.
-    #[inline]
-    pub fn iter_active(&self) -> impl Iterator<Item = &ContactPair> {
-        self.active_pairs.iter()
-    }
-
-    /// Returns an iterator yielding immutable access to all active (non-sleeping) contact pairs
-    /// that are currently touching.
-    ///
-    /// This is a subset of [`iter_active`](Self::iter_active) that only includes pairs where the colliders are touching.
-    #[inline]
-    pub fn iter_active_touching(&self) -> impl Iterator<Item = &ContactPair> {
-        self.iter_active()
-            .filter(|contacts| contacts.flags.contains(ContactPairFlags::TOUCHING))
-    }
-
-    /// Returns a iterator yielding mutable access to all contact pairs.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect,
-    /// even if the shapes themselves are not yet touching.
-    ///
-    /// If you only want touching contacts, use [`iter_active_touching_mut`](Self::iter_active_touching_mut) instead.
-    #[inline]
-    pub fn iter_active_mut(&mut self) -> impl Iterator<Item = &mut ContactPair> {
-        self.active_pairs.iter_mut()
-    }
-
-    /// Returns an iterator yielding mutable access to all active (non-sleeping) contact pairs
-    /// that are currently touching.
-    ///
-    /// This is a subset of [`iter_active_mut`](Self::iter_active_mut) that only includes pairs where the colliders are touching.
-    #[inline]
-    pub fn iter_active_touching_mut(&mut self) -> impl Iterator<Item = &mut ContactPair> {
-        self.iter_active_mut()
-            .filter(|contacts| contacts.flags.contains(ContactPairFlags::TOUCHING))
-    }
-
-    /// Returns an iterator yielding immutable access to all sleeping contact pairs.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect,
-    /// even if the shapes themselves are not yet touching.
-    ///
-    /// If you only want touching contacts, use [`iter_sleeping_touching`](Self::iter_sleeping_touching) instead.
-    #[inline]
-    pub fn iter_sleeping(&self) -> impl Iterator<Item = &ContactPair> {
-        self.sleeping_pairs.iter()
-    }
-
-    /// Returns an iterator yielding immutable access to all sleeping contact pairs
-    /// that are currently touching.
-    ///
-    /// This is a subset of [`iter_sleeping`](Self::iter_sleeping) that only includes pairs where the colliders are touching.
-    #[inline]
-    pub fn iter_sleeping_touching(&self) -> impl Iterator<Item = &ContactPair> {
-        self.iter_sleeping()
-            .filter(|contacts| contacts.flags.contains(ContactPairFlags::TOUCHING))
-    }
-
-    /// Returns an iterator yielding mutable access to all sleeping contact pairs.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect,
-    /// even if the shapes themselves are not yet touching.
-    ///
-    /// If you only want touching contacts, use [`iter_sleeping_touching_mut`](Self::iter_sleeping_touching_mut) instead.
-    #[inline]
-    pub fn iter_sleeping_mut(&mut self) -> impl Iterator<Item = &mut ContactPair> {
-        self.sleeping_pairs.iter_mut()
-    }
-
-    /// Returns an iterator yielding mutable access to all sleeping contact pairs
-    /// that are currently touching.
-    ///
-    /// This is a subset of [`iter_sleeping_mut`](Self::iter_sleeping_mut) that only includes pairs where the colliders are touching.
-    #[inline]
-    pub fn iter_sleeping_touching_mut(&mut self) -> impl Iterator<Item = &mut ContactPair> {
-        self.iter_sleeping_mut()
-            .filter(|contacts| contacts.flags.contains(ContactPairFlags::TOUCHING))
     }
 
     /// Returns an iterator yielding immutable access to all contact edges involving the given entity.
@@ -418,33 +185,6 @@ impl ContactGraph {
         } else {
             itertools::Either::Right(core::iter::empty())
         }
-    }
-
-    /// Returns an iterator yielding mutable access to all contact edges involving the given entity.
-    #[inline]
-    pub fn contact_edges_with_mut(
-        &mut self,
-        entity: Entity,
-    ) -> impl Iterator<Item = &mut ContactEdge> {
-        let index = self.entity_to_node(entity);
-        if let Some(index) = index {
-            itertools::Either::Left(self.edges.edge_weights_mut(index))
-        } else {
-            itertools::Either::Right(core::iter::empty())
-        }
-    }
-
-    /// Returns an iterator yielding immutable access to all contact pairs involving the given entity.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect,
-    /// even if the shapes themselves are not yet touching.
-    ///
-    /// Use [`ContactEdge::is_touching`](ContactEdge::is_touching) to determine if the actual collider shapes are touching.
-    // TODO: A mutable version of this could be useful, but it would probably require some `unsafe`.
-    #[inline]
-    pub fn contact_pairs_with(&self, entity: Entity) -> impl Iterator<Item = &ContactPair> {
-        self.contact_edges_with(entity)
-            .filter_map(move |edge| self.get_pair_by_edge(edge))
     }
 
     /// Returns an iterator yielding immutable access to all entities that have a contact pair with the given entity.
@@ -461,25 +201,6 @@ impl ContactGraph {
                     .neighbors(index)
                     .map(|index| *self.edges.node_weight(index).unwrap())
             })
-    }
-
-    /// Creates a [`ContactEdge`] between two entities and adds an associated [`ContactPair`]
-    /// to the list of active pairs.
-    ///
-    /// Returns the ID of the contact edge if it was created, or `None` if the edge already exists.
-    ///
-    /// # Warning
-    ///
-    /// Creating a contact edge with this method will *not* trigger any collision events
-    /// or wake up the entities involved. Only use this method if you know what you are doing.
-    #[inline]
-    pub fn add_edge(&mut self, contact_edge: ContactEdge) -> Option<ContactId> {
-        let body1 = contact_edge.body1;
-        let body2 = contact_edge.body2;
-        self.add_edge_with(contact_edge, |pair| {
-            pair.body1 = body1;
-            pair.body2 = body2;
-        })
     }
 
     /// Creates a [`ContactEdge`] between two entities, calling the provided callback
@@ -515,7 +236,7 @@ impl ContactGraph {
     /// Returns the ID of the contact edge if it was created, or `None` if the edge already exists.
     ///
     /// This method can be useful to avoid constructing a new `PairKey` when the key is already known.
-    /// If the key is not available, consider using [`add_edge`](Self::add_edge) or [`add_edge_with`](Self::add_edge_with) instead.
+    /// If the key is not available, consider using [`add_edge_with`](Self::add_edge_with) instead.
     ///
     /// # Warning
     ///
@@ -566,29 +287,6 @@ impl ContactGraph {
         edge.pair_index = pair_index;
 
         Some(edge_id)
-    }
-
-    /// Removes a [`ContactEdge`] between two entites and returns its value.
-    ///
-    /// # Warning
-    ///
-    /// Removing a contact edge with this method will *not* trigger any collision events
-    /// or wake up the entities involved. Only use this method if you know what you are doing.
-    ///
-    /// For filtering and modifying collisions, consider using [`CollisionHooks`] instead.
-    #[inline]
-    pub fn remove_edge(&mut self, entity1: Entity, entity2: Entity) -> Option<ContactEdge> {
-        let (Some(index1), Some(index2)) =
-            (self.entity_to_node(entity1), self.entity_to_node(entity2))
-        else {
-            return None;
-        };
-
-        // Remove the edge from the graph.
-        self.edges.find_edge(index1, index2).and_then(|edge_id| {
-            let pair_key = PairKey::new(entity1.index_u32(), entity2.index_u32());
-            self.remove_edge_by_id(&pair_key, edge_id.into())
-        })
     }
 
     /// Removes a [`ContactEdge`] based on its pair key and ID and returns its value.
@@ -827,26 +525,5 @@ impl ContactGraph {
                 moved_edge.pair_index = pair_index;
             }
         }
-    }
-
-    /// Clears all contact pairs and the contact graph.
-    ///
-    /// # Warning
-    ///
-    /// Clearing contact pairs with this method will *not* trigger any collision events
-    /// or wake up the entities involved. Only use this method if you know what you are doing.
-    ///
-    /// Additionally, this does *not* clear the [`ConstraintGraph`]! You should additionally
-    /// call [`ConstraintGraph::clear`].
-    ///
-    /// [`ConstraintGraph`]: crate::dynamics::solver::constraint_graph::ConstraintGraph
-    /// [`ConstraintGraph::clear`]: crate::dynamics::solver::constraint_graph::ConstraintGraph::clear
-    #[inline]
-    pub fn clear(&mut self) {
-        self.edges.clear();
-        self.active_pairs.clear();
-        self.sleeping_pairs.clear();
-        self.pair_set.clear();
-        self.entity_to_node.clear();
     }
 }

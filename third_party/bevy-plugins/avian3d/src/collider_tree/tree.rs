@@ -104,18 +104,6 @@ impl ColliderTreeProxy {
     pub fn is_sensor(&self) -> bool {
         self.flags.contains(ColliderTreeProxyFlags::SENSOR)
     }
-
-    /// Returns `true` if the custom filtering hook is active.
-    #[inline]
-    pub fn has_custom_filter(&self) -> bool {
-        self.flags.contains(ColliderTreeProxyFlags::CUSTOM_FILTER)
-    }
-
-    /// Returns `true` if the contact modification hook is active.
-    #[inline]
-    pub fn has_contact_modification(&self) -> bool {
-        self.flags.contains(ColliderTreeProxyFlags::MODIFY_CONTACTS)
-    }
 }
 
 /// A workspace for performing operations on a [`ColliderTree`].
@@ -212,26 +200,6 @@ impl ColliderTree {
         self.proxies.get_mut(proxy_id.index())
     }
 
-    /// Gets a proxy from the tree by its ID without bounds checking.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the `proxy_id` is valid.
-    #[inline]
-    pub unsafe fn get_proxy_unchecked(&self, proxy_id: ProxyId) -> &ColliderTreeProxy {
-        unsafe { self.proxies.get_unchecked(proxy_id.index()) }
-    }
-
-    /// Gets a mutable reference to a proxy from the tree by its ID without bounds checking.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the `proxy_id` is valid.
-    #[inline]
-    pub unsafe fn get_proxy_unchecked_mut(&mut self, proxy_id: ProxyId) -> &mut ColliderTreeProxy {
-        unsafe { self.proxies.get_unchecked_mut(proxy_id.index()) }
-    }
-
     /// Gets the AABB of a proxy in the tree.
     ///
     /// Returns `None` if the proxy ID is invalid.
@@ -239,19 +207,6 @@ impl ColliderTree {
     pub fn get_proxy_aabb(&self, proxy_id: ProxyId) -> Option<Aabb> {
         let node_id = self.bvh.primitives_to_nodes.get(proxy_id.index())?;
         self.bvh.nodes.get(*node_id as usize).map(|node| node.aabb)
-    }
-
-    /// Gets the AABB of a proxy in the tree without bounds checking.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the `proxy_id` is valid.
-    #[inline]
-    pub unsafe fn get_proxy_aabb_unchecked(&self, proxy_id: ProxyId) -> Aabb {
-        unsafe {
-            let node_id = *self.bvh.primitives_to_nodes.get_unchecked(proxy_id.index()) as usize;
-            self.bvh.nodes.get_unchecked(node_id).aabb
-        }
     }
 
     /// Updates the AABB of a proxy in the tree.
@@ -281,15 +236,6 @@ impl ColliderTree {
     pub fn resize_proxy_aabb(&mut self, proxy_id: ProxyId, aabb: Aabb) {
         let node_index = self.bvh.primitives_to_nodes[proxy_id.index()] as usize;
         self.bvh.resize_node(node_index, aabb);
-    }
-
-    /// Updates the AABB of a proxy and reinserts it at an optimal place in the tree.
-    #[inline]
-    pub fn reinsert_proxy(&mut self, proxy_id: ProxyId, aabb: Aabb) {
-        // Reinsert the node into the BVH.
-        let node_id = self.bvh.primitives_to_nodes[proxy_id.index()];
-        self.bvh.resize_node(node_id as usize, aabb);
-        self.bvh.reinsert_node(node_id as usize);
     }
 
     /// Refits the entire tree from the leaves up.
@@ -324,17 +270,6 @@ impl ColliderTree {
             SortPrecision::U64,
             0,
         );
-    }
-
-    /// Restructures the tree using parallel reinsertion, optimizing node locations based on SAH cost.
-    ///
-    /// This can be used to improve query performance after the tree quality has degraded,
-    /// for example after many proxy insertions and removals.
-    #[inline]
-    pub fn optimize(&mut self, batch_size_ratio: f32) {
-        self.workspace
-            .reinsertion_optimizer
-            .run(&mut self.bvh, batch_size_ratio, None);
     }
 
     /// Restructures the tree using parallel reinsertion, optimizing node locations based on SAH cost.

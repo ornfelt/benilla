@@ -110,25 +110,6 @@ use crate::prelude::*;
 /// }
 /// ```
 ///
-/// If you want *all* rigid bodies to be interpolated or extrapolated by default, you can use
-/// [`PhysicsInterpolationPlugin::interpolate_all()`] or [`PhysicsInterpolationPlugin::extrapolate_all()`]:
-///
-/// ```no_run
-/// # use avian3d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// fn main() {
-///    App::new()
-///       .add_plugins(PhysicsPlugins::default().set(PhysicsInterpolationPlugin::interpolate_all()))
-///       // ...
-///       .run();
-/// }
-/// ```
-///
-/// When interpolation or extrapolation is enabled for all entities by default, you can still opt out of it
-/// for individual entities by adding the [`NoTransformEasing`] component, or the individual
-/// [`NoTranslationEasing`], [`NoRotationEasing`], and [`NoScaleEasing`] components.
-///
 /// Note that changing [`Transform`] manually in any schedule that *doesn't* use a fixed timestep is also supported,
 /// but it is equivalent to teleporting, and disables interpolation for the entity for the remainder of that fixed timestep.
 ///
@@ -181,82 +162,6 @@ pub struct PhysicsInterpolationPlugin {
     interpolate_rotation_all: bool,
     extrapolate_translation_all: bool,
     extrapolate_rotation_all: bool,
-}
-
-impl PhysicsInterpolationPlugin {
-    /// Enables interpolation of translation and rotation for all rigid bodies.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoTransformEasing`] component,
-    /// or the individual [`NoTranslationEasing`] and [`NoRotationEasing`] components.
-    pub const fn interpolate_all() -> Self {
-        Self {
-            interpolate_translation_all: true,
-            interpolate_rotation_all: true,
-            extrapolate_translation_all: false,
-            extrapolate_rotation_all: false,
-        }
-    }
-
-    /// Enables interpolation of translation for all rigid bodies.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoTranslationEasing`] component.
-    pub const fn interpolate_translation_all() -> Self {
-        Self {
-            interpolate_translation_all: true,
-            interpolate_rotation_all: false,
-            extrapolate_translation_all: false,
-            extrapolate_rotation_all: false,
-        }
-    }
-
-    /// Enables interpolation of rotation for all rigid bodies.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoRotationEasing`] component.
-    pub const fn interpolate_rotation_all() -> Self {
-        Self {
-            interpolate_translation_all: false,
-            interpolate_rotation_all: true,
-            extrapolate_translation_all: false,
-            extrapolate_rotation_all: false,
-        }
-    }
-
-    /// Enables extrapolation of translation and rotation for all rigid bodies.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoTransformEasing`] component,
-    /// or the individual [`NoTranslationEasing`] and [`NoRotationEasing`] components.
-    pub const fn extrapolate_all() -> Self {
-        Self {
-            interpolate_translation_all: false,
-            interpolate_rotation_all: false,
-            extrapolate_translation_all: true,
-            extrapolate_rotation_all: true,
-        }
-    }
-
-    /// Enables extrapolation of translation for all rigid bodies.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoTranslationEasing`] component.
-    pub const fn extrapolate_translation_all() -> Self {
-        Self {
-            interpolate_translation_all: false,
-            interpolate_rotation_all: false,
-            extrapolate_translation_all: true,
-            extrapolate_rotation_all: false,
-        }
-    }
-
-    /// Enables extrapolation of rotation for all rigid bodies.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoRotationEasing`] component.
-    pub const fn extrapolate_rotation_all() -> Self {
-        Self {
-            interpolate_translation_all: false,
-            interpolate_rotation_all: false,
-            extrapolate_translation_all: false,
-            extrapolate_rotation_all: true,
-        }
-    }
 }
 
 impl Plugin for PhysicsInterpolationPlugin {

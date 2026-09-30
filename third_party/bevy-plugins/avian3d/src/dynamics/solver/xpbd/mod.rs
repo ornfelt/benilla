@@ -370,41 +370,6 @@ pub trait XpbdConstraint<const ENTITY_COUNT: usize> {
 }
 
 /// Computes how much a constraint's [Lagrange multiplier](self#lagrange-multipliers) changes when projecting
-/// the constraint for all participating particles.
-///
-/// `c` is a scalar value returned by the [constraint function](self#constraint-functions).
-/// When it is zero, the constraint is satisfied.
-///
-/// Each particle should have a corresponding [gradient](self#constraint-gradients) in `gradients`.
-/// A gradient is a vector that refers to the direction in which `c` increases the most.
-///
-/// See the [constraint theory](#theory) for more information.
-pub fn compute_lagrange_update_with_gradients(
-    lagrange: Scalar,
-    c: Scalar,
-    gradients: &[Vector],
-    inverse_masses: &[Scalar],
-    compliance: Scalar,
-    dt: Scalar,
-) -> Scalar {
-    // Compute the sum of all inverse masses multiplied by the squared lengths of the corresponding gradients.
-    let w_sum = inverse_masses
-        .iter()
-        .enumerate()
-        .fold(0.0, |acc, (i, w)| acc + *w * gradients[i].length_squared());
-
-    // Avoid division by zero
-    if w_sum <= Scalar::EPSILON {
-        return 0.0;
-    }
-
-    // tilde_a = a/h^2
-    let tilde_compliance = compliance / dt.powi(2);
-
-    (-c - tilde_compliance * lagrange) / (w_sum + tilde_compliance)
-}
-
-/// Computes how much a constraint's [Lagrange multiplier](self#lagrange-multipliers) changes when projecting
 /// the constraint for all participating particles. The constraint gradients are assumed to be unit-length.
 ///
 /// `c` is a scalar value returned by the [constraint function](self#constraint-functions).

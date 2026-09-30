@@ -22,8 +22,7 @@ use bevy::{
 ///
 /// # Hit Count and Order
 ///
-/// The results of a raycast are in an arbitrary order by default. You can iterate over them in the order of
-/// distance with the [`RayHits::iter_sorted`] method.
+/// The results of a raycast are in an arbitrary order by default.
 ///
 /// You can configure the maximum amount of hits for a ray using `max_hits`. By default this is unbounded,
 /// so you will get all hits. When the number or complexity of colliders is large, this can be very
@@ -139,15 +138,6 @@ impl From<Ray> for RayCaster {
 }
 
 impl RayCaster {
-    /// Creates a new [`RayCaster`] with a given origin and direction.
-    pub fn new(origin: Vector, direction: Dir) -> Self {
-        Self {
-            origin,
-            direction,
-            ..default()
-        }
-    }
-
     /// Creates a new [`RayCaster`] from a ray.
     pub fn from_ray(ray: Ray) -> Self {
         Self {
@@ -155,65 +145,6 @@ impl RayCaster {
             direction: ray.direction,
             ..default()
         }
-    }
-
-    /// Sets the ray origin.
-    pub fn with_origin(mut self, origin: Vector) -> Self {
-        self.origin = origin;
-        self
-    }
-
-    /// Sets the ray direction.
-    pub fn with_direction(mut self, direction: Dir) -> Self {
-        self.direction = direction;
-        self
-    }
-
-    /// Controls how the ray behaves when the ray origin is inside of a [collider](Collider).
-    ///
-    /// If `true`, shapes will be treated as solid, and the ray cast will return with a distance of `0.0`
-    /// if the ray origin is inside of the shape. Otherwise, shapes will be treated as hollow, and the ray
-    /// will always return a hit at the shape's boundary.
-    pub fn with_solidness(mut self, solid: bool) -> Self {
-        self.solid = solid;
-        self
-    }
-
-    /// Sets if the ray caster should ignore hits against its own [`Collider`].
-    ///
-    /// The default is `true`.
-    pub fn with_ignore_self(mut self, ignore: bool) -> Self {
-        self.ignore_self = ignore;
-        self
-    }
-
-    /// Sets the maximum distance the ray can travel.
-    pub fn with_max_distance(mut self, max_distance: Scalar) -> Self {
-        self.max_distance = max_distance;
-        self
-    }
-
-    /// Sets the maximum number of allowed hits.
-    pub fn with_max_hits(mut self, max_hits: u32) -> Self {
-        self.max_hits = max_hits;
-        self
-    }
-
-    /// Sets the ray caster's [query filter](SpatialQueryFilter) that controls which colliders
-    /// should be included or excluded by raycasts.
-    pub fn with_query_filter(mut self, query_filter: SpatialQueryFilter) -> Self {
-        self.query_filter = query_filter;
-        self
-    }
-
-    /// Enables the [`RayCaster`].
-    pub fn enable(&mut self) {
-        self.enabled = true;
-    }
-
-    /// Disables the [`RayCaster`].
-    pub fn disable(&mut self) {
-        self.enabled = false;
     }
 
     /// Returns the global origin of the ray.
@@ -319,17 +250,6 @@ fn on_add_ray_caster(mut world: DeferredWorld, ctx: HookContext) {
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct RayHits(pub Vec<RayHitData>);
-
-impl RayHits {
-    /// Returns an iterator over the hits, sorted in ascending order according to the distance.
-    ///
-    /// Note that this allocates a new vector. If you don't need the hits in order, use `iter`.
-    pub fn iter_sorted(&self) -> alloc::vec::IntoIter<RayHitData> {
-        let mut vector = self.as_slice().to_vec();
-        vector.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
-        vector.into_iter()
-    }
-}
 
 impl IntoIterator for RayHits {
     type Item = RayHitData;

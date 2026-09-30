@@ -276,7 +276,6 @@ pub type TrimeshBuilderError = parry::shape::TriMeshBuilderError;
 /// - Generating colliders for meshes and scenes with [`ColliderConstructor`] and [`ColliderConstructorHierarchy`]
 /// - [Get colliding entities](CollidingEntities)
 /// - [Collision events](crate::collision#collision-events)
-/// - [Accessing collision data](Collisions)
 /// - [Filtering and modifying contacts with hooks](CollisionHooks)
 /// - [Manual contact queries](contact_query)
 ///
@@ -424,26 +423,9 @@ impl Collider {
         &self.shape
     }
 
-    /// Returns a mutable reference to the raw unscaled shape of the collider.
-    pub fn shape_mut(&mut self) -> &mut SharedShape {
-        &mut self.shape
-    }
-
     /// Returns the shape of the collider with the scale from its `GlobalTransform` applied.
     pub fn shape_scaled(&self) -> &SharedShape {
         &self.scaled_shape
-    }
-
-    /// Sets the unscaled shape of the collider. The collider's scale will be applied to this shape.
-    pub fn set_shape(&mut self, shape: SharedShape) {
-        self.shape = shape;
-
-        // TODO: The number of subdivisions probably shouldn't be hard-coded
-        if let Ok(scaled) = scale_shape(&self.shape, self.scale, 10) {
-            self.scaled_shape = scaled;
-        } else {
-            log::error!("Failed to create convex hull for scaled collider.");
-        }
     }
 
     /// Returns the global scale of the collider.
@@ -478,51 +460,6 @@ impl Collider {
         }
     }
 
-    /// Projects the given `point` onto `self` transformed by `translation` and `rotation`.
-    /// The returned tuple contains the projected point and whether it is inside the collider.
-    ///
-    /// If `solid` is true and the given `point` is inside of the collider, the projection will be at the point.
-    /// Otherwise, the collider will be treated as hollow, and the projection will be at the collider's boundary.
-    pub fn project_point(
-        &self,
-        translation: impl Into<Position>,
-        rotation: impl Into<Rotation>,
-        point: Vector,
-        solid: bool,
-    ) -> (Vector, bool) {
-        let projection =
-            self.shape_scaled()
-                .project_point(&make_pose(translation, rotation), point, solid);
-        (projection.point, projection.is_inside)
-    }
-
-    /// Computes the minimum distance between the given `point` and `self` transformed by `translation` and `rotation`.
-    ///
-    /// If `solid` is true and the given `point` is inside of the collider, the returned distance will be `0.0`.
-    /// Otherwise, the collider will be treated as hollow, and the distance will be the distance
-    /// to the collider's boundary.
-    pub fn distance_to_point(
-        &self,
-        translation: impl Into<Position>,
-        rotation: impl Into<Rotation>,
-        point: Vector,
-        solid: bool,
-    ) -> Scalar {
-        self.shape_scaled()
-            .distance_to_point(&make_pose(translation, rotation), point, solid)
-    }
-
-    /// Tests whether the given `point` is inside of `self` transformed by `translation` and `rotation`.
-    pub fn contains_point(
-        &self,
-        translation: impl Into<Position>,
-        rotation: impl Into<Rotation>,
-        point: Vector,
-    ) -> bool {
-        self.shape_scaled()
-            .contains_point(&make_pose(translation, rotation), point)
-    }
-
     /// Computes the distance and normal between the given ray and `self`
     /// transformed by `translation` and `rotation`.
     ///
@@ -551,28 +488,6 @@ impl Collider {
             solid,
         );
         hit.map(|hit| (hit.time_of_impact, hit.normal))
-    }
-
-    /// Tests whether the given ray intersects `self` transformed by `translation` and `rotation`.
-    ///
-    /// # Arguments
-    ///
-    /// - `ray_origin`: Where the ray is cast from.
-    /// - `ray_direction`: What direction the ray is cast in.
-    /// - `max_distance`: The maximum distance the ray can travel.
-    pub fn intersects_ray(
-        &self,
-        translation: impl Into<Position>,
-        rotation: impl Into<Rotation>,
-        ray_origin: Vector,
-        ray_direction: Vector,
-        max_distance: Scalar,
-    ) -> bool {
-        self.shape_scaled().intersects_ray(
-            &make_pose(translation, rotation),
-            &parry::query::Ray::new(ray_origin, ray_direction),
-            max_distance,
-        )
     }
 
     /// Creates a collider with a compound shape defined by a given vector of colliders with a position and a rotation.
@@ -788,13 +703,6 @@ impl Collider {
         SharedShape::new(shape).into()
     }
 
-    /// Creates a collider shape made of voxels.
-    ///
-    /// Each voxel has the size `voxel_size` and contains at least one point from `points`.
-    pub fn voxels_from_points(voxel_size: Vector, points: &[Vector]) -> Self {
-        SharedShape::voxels_from_points(voxel_size, points).into()
-    }
-
     /// Creates a voxel collider obtained from the decomposition of the given trimesh into voxelized convex parts.
     pub fn voxelized_trimesh(
         vertices: &[Vector],
@@ -816,34 +724,6 @@ impl Collider {
         extract_mesh_vertices_indices(mesh).map(|(vertices, indices)| {
             SharedShape::voxelized_mesh(&vertices, &indices, voxel_size, fill_mode.into()).into()
         })
-    }
-
-    /// Creates a collider with a compound shape obtained from the decomposition of the given trimesh into voxelized convex parts.
-    pub fn voxelized_convex_decomposition(
-        vertices: &[Vector],
-        indices: &[[u32; DIM]],
-    ) -> Vec<Self> {
-        Self::voxelized_convex_decomposition_with_config(
-            vertices,
-            indices,
-            &VhacdParameters::default(),
-        )
-    }
-
-    /// Creates a collider with a compound shape obtained from the decomposition of the given trimesh into voxelized convex parts.
-    pub fn voxelized_convex_decomposition_with_config(
-        vertices: &[Vector],
-        indices: &[[u32; DIM]],
-        parameters: &VhacdParameters,
-    ) -> Vec<Self> {
-        SharedShape::voxelized_convex_decomposition_with_params(
-            vertices,
-            indices,
-            &parameters.clone().into(),
-        )
-        .into_iter()
-        .map(|c| c.into())
-        .collect()
     }
 
     /// Creates a collider with a heightfield shape.
