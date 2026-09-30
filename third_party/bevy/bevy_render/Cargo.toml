@@ -128,13 +128,6 @@ version = "0.18.0"
 [dependencies.bitflags]
 version = "2"
 
-[dependencies.bytemuck]
-version = "1.5"
-features = [
-    "derive",
-    "must_cast",
-]
-
 [dependencies.encase]
 version = "0.12"
 
@@ -154,9 +147,6 @@ default-features = false
 version = "27"
 features = ["wgsl-in"]
 
-[dependencies.nonmax]
-version = "0.5"
-
 [dependencies.thiserror]
 version = "2"
 default-features = false
@@ -165,9 +155,6 @@ default-features = false
 version = "0.1"
 features = ["std"]
 default-features = false
-
-[dependencies.variadics_please]
-version = "1.1"
 
 [dependencies.wgpu]
 version = "27"

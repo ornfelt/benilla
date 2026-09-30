@@ -1,7 +1,7 @@
 use crate::{
     define_atomic_id,
     render_asset::RenderAssets,
-    render_resource::{BindGroupLayout, Buffer, PipelineCache, Sampler, TextureView},
+    render_resource::{BindGroupLayout, Buffer, Sampler, TextureView},
     renderer::{RenderDevice, WgpuWrapper},
     texture::GpuImage,
 };
@@ -12,9 +12,7 @@ pub use bevy_render_macros::AsBindGroup;
 use core::ops::Deref;
 use encase::ShaderType;
 use thiserror::Error;
-use wgpu::{
-    BindGroupEntry, BindGroupLayoutEntry, BindingResource, SamplerBindingType, TextureViewDimension,
-};
+use wgpu::{BindGroupLayoutEntry, BindingResource, SamplerBindingType, TextureViewDimension};
 
 use super::{BindlessDescriptor, BindlessSlabResourceLimit};
 
@@ -95,7 +93,7 @@ impl Deref for BindGroup {
 /// such as [`RenderAssets<GpuImage>`] and [`crate::texture::FallbackImage`]. If a type has a [`Handle<Image>`](bevy_asset::Handle),
 /// these can be used to retrieve the corresponding [`Texture`](crate::render_resource::Texture) resource.
 ///
-/// [`AsBindGroup::as_bind_group`] is intended to be called once, then the result cached somewhere. It is generally
+/// `AsBindGroup::as_bind_group` is intended to be called once, then the result cached somewhere. It is generally
 /// ok to do "expensive" work here, such as creating a [`Buffer`] for a uniform.
 ///
 /// If for some reason a [`BindGroup`] cannot be created yet (for example, the [`Texture`](crate::render_resource::Texture)
@@ -347,9 +345,9 @@ impl Deref for BindGroup {
 /// ## `bind_group_data(DataType)`
 ///
 /// * The [`AsBindGroup`] type will be converted to some `DataType` using [`Into<DataType>`] and stored
-///   as [`AsBindGroup::Data`] as part of the [`AsBindGroup::as_bind_group`] call. This is useful if data needs to be stored alongside
+///   as [`AsBindGroup::Data`] as part of the `AsBindGroup::as_bind_group` call. This is useful if data needs to be stored alongside
 ///   the generated bind group, such as a unique identifier for a material's bind group. The most common use case for this attribute
-///   is "shader pipeline specialization". See [`SpecializedRenderPipeline`](crate::render_resource::SpecializedRenderPipeline).
+///   is "shader pipeline specialization". See `SpecializedRenderPipeline`.
 ///
 /// ## `bindless`
 ///
@@ -526,35 +524,6 @@ pub trait AsBindGroup {
     /// label
     fn label() -> &'static str;
 
-    /// Creates a bind group for `self` matching the layout defined in [`AsBindGroup::bind_group_layout`].
-    fn as_bind_group(
-        &self,
-        layout_descriptor: &BindGroupLayoutDescriptor,
-        render_device: &RenderDevice,
-        pipeline_cache: &PipelineCache,
-        param: &mut SystemParamItem<'_, '_, Self::Param>,
-    ) -> Result<PreparedBindGroup, AsBindGroupError> {
-        let layout = &pipeline_cache.get_bind_group_layout(layout_descriptor);
-
-        let UnpreparedBindGroup { bindings } =
-            Self::unprepared_bind_group(self, layout, render_device, param, false)?;
-
-        let entries = bindings
-            .iter()
-            .map(|(index, binding)| BindGroupEntry {
-                binding: *index,
-                resource: binding.get_binding(),
-            })
-            .collect::<Vec<_>>();
-
-        let bind_group = render_device.create_bind_group(Self::label(), layout, &entries);
-
-        Ok(PreparedBindGroup {
-            bindings,
-            bind_group,
-        })
-    }
-
     fn bind_group_data(&self) -> Self::Data;
 
     /// Returns a vec of (binding index, `OwnedBindingResource`).
@@ -577,7 +546,7 @@ pub trait AsBindGroup {
     ) -> Result<UnpreparedBindGroup, AsBindGroupError>;
 
     /// Creates the bind group layout matching all bind groups returned by
-    /// [`AsBindGroup::as_bind_group`]
+    /// `AsBindGroup::as_bind_group`
     fn bind_group_layout(render_device: &RenderDevice) -> BindGroupLayout
     where
         Self: Sized,
@@ -589,7 +558,7 @@ pub trait AsBindGroup {
     }
 
     /// Creates the bind group layout descriptor matching all bind groups returned by
-    /// [`AsBindGroup::as_bind_group`]
+    /// `AsBindGroup::as_bind_group`
     /// TODO: we only need `RenderDevice` to determine if bindless is supported
     fn bind_group_layout_descriptor(render_device: &RenderDevice) -> BindGroupLayoutDescriptor
     where
@@ -618,7 +587,7 @@ pub trait AsBindGroup {
     }
 }
 
-/// An error that occurs during [`AsBindGroup::as_bind_group`] calls.
+/// An error that occurs during `AsBindGroup::as_bind_group` calls.
 #[derive(Debug, Error)]
 pub enum AsBindGroupError {
     /// The bind group could not be generated. Try again next frame.
@@ -630,24 +599,18 @@ pub enum AsBindGroupError {
     InvalidSamplerType(u32, String, String),
 }
 
-/// A prepared bind group returned as a result of [`AsBindGroup::as_bind_group`].
-pub struct PreparedBindGroup {
-    pub bindings: BindingResources,
-    pub bind_group: BindGroup,
-}
-
 /// a map containing `OwnedBindingResource`s, keyed by the target binding index
 pub struct UnpreparedBindGroup {
     pub bindings: BindingResources,
 }
 
 /// A pair of binding index and binding resource, used as part of
-/// [`PreparedBindGroup`] and [`UnpreparedBindGroup`].
+/// `PreparedBindGroup` and [`UnpreparedBindGroup`].
 #[derive(Deref, DerefMut)]
 pub struct BindingResources(pub Vec<(u32, OwnedBindingResource)>);
 
 /// An owned binding resource of any type (ex: a [`Buffer`], [`TextureView`], etc).
-/// This is used by types like [`PreparedBindGroup`] to hold a single list of all
+/// This is used by types like `PreparedBindGroup` to hold a single list of all
 /// render resources used by bindings.
 #[derive(Debug)]
 pub enum OwnedBindingResource {

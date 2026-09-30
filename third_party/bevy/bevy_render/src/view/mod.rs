@@ -7,16 +7,15 @@ pub use window::*;
 use crate::{
     experimental::occlusion_culling::OcclusionCulling,
     extract_component::ExtractComponentPlugin,
-    render_resource::{DynamicUniformBuffer, ShaderType, Texture, TextureView},
-    renderer::RenderDevice,
+    render_resource::{Texture, TextureView},
     sync_world::MainEntity,
-    texture::{CachedTexture, ColorAttachment, DepthAttachment, OutputColorAttachment},
+    texture::{ColorAttachment, OutputColorAttachment},
 };
 use alloc::sync::Arc;
 use bevy_app::{App, Plugin};
 use bevy_color::LinearRgba;
 use bevy_ecs::prelude::*;
-use bevy_math::{mat3, vec2, vec3, Mat3, Mat4, UVec4, Vec2, Vec3, Vec4};
+use bevy_math::{Mat4, UVec4};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render_macros::ExtractComponent;
 use bevy_transform::components::GlobalTransform;
@@ -24,59 +23,7 @@ use core::{
     ops::Range,
     sync::atomic::{AtomicUsize, Ordering},
 };
-use wgpu::{
-    BufferUsages, RenderPassColorAttachment, RenderPassDepthStencilAttachment, StoreOp,
-    TextureFormat,
-};
-
-/// The matrix that converts from the RGB to the LMS color space.
-///
-/// To derive this, first we convert from RGB to [CIE 1931 XYZ]:
-///
-/// ```text
-/// ⎡ X ⎤   ⎡ 0.490  0.310  0.200 ⎤ ⎡ R ⎤
-/// ⎢ Y ⎥ = ⎢ 0.177  0.812  0.011 ⎥ ⎢ G ⎥
-/// ⎣ Z ⎦   ⎣ 0.000  0.010  0.990 ⎦ ⎣ B ⎦
-/// ```
-///
-/// Then we convert to LMS according to the [CAM16 standard matrix]:
-///
-/// ```text
-/// ⎡ L ⎤   ⎡  0.401   0.650  -0.051 ⎤ ⎡ X ⎤
-/// ⎢ M ⎥ = ⎢ -0.250   1.204   0.046 ⎥ ⎢ Y ⎥
-/// ⎣ S ⎦   ⎣ -0.002   0.049   0.953 ⎦ ⎣ Z ⎦
-/// ```
-///
-/// The resulting matrix is just the concatenation of these two matrices, to do
-/// the conversion in one step.
-///
-/// [CIE 1931 XYZ]: https://en.wikipedia.org/wiki/CIE_1931_color_space
-/// [CAM16 standard matrix]: https://en.wikipedia.org/wiki/LMS_color_space
-static RGB_TO_LMS: Mat3 = mat3(
-    vec3(0.311692, 0.0905138, 0.00764433),
-    vec3(0.652085, 0.901341, 0.0486554),
-    vec3(0.0362225, 0.00814478, 0.943700),
-);
-
-/// The inverse of the [`RGB_TO_LMS`] matrix, converting from the LMS color
-/// space back to RGB.
-static LMS_TO_RGB: Mat3 = mat3(
-    vec3(4.06305, -0.40791, -0.0118812),
-    vec3(-2.93241, 1.40437, -0.0486532),
-    vec3(-0.130646, 0.00353630, 1.0605344),
-);
-
-/// The [CIE 1931] *xy* chromaticity coordinates of the [D65 white point].
-///
-/// [CIE 1931]: https://en.wikipedia.org/wiki/CIE_1931_color_space
-/// [D65 white point]: https://en.wikipedia.org/wiki/Standard_illuminant#D65_values
-static D65_XY: Vec2 = vec2(0.31272, 0.32903);
-
-/// The [D65 white point] in [LMS color space].
-///
-/// [LMS color space]: https://en.wikipedia.org/wiki/LMS_color_space
-/// [D65 white point]: https://en.wikipedia.org/wiki/Standard_illuminant#D65_values
-static D65_LMS: Vec3 = vec3(0.975538, 1.01648, 1.08475);
+use wgpu::{RenderPassColorAttachment, TextureFormat};
 
 pub struct ViewPlugin;
 
@@ -349,22 +296,6 @@ pub struct ColorGradingGlobal {
     pub midtones_range: Range<f32>,
 }
 
-/// The [`ColorGrading`] structure, packed into the most efficient form for the
-/// GPU.
-#[derive(Clone, Copy, Debug, ShaderType)]
-pub struct ColorGradingUniform {
-    pub balance: Mat3,
-    pub saturation: Vec3,
-    pub contrast: Vec3,
-    pub gamma: Vec3,
-    pub gain: Vec3,
-    pub lift: Vec3,
-    pub midtone_range: Vec2,
-    pub exposure: f32,
-    pub hue: f32,
-    pub post_saturation: f32,
-}
-
 /// A section of color grading values that can be selectively applied to
 /// shadows, midtones, and highlights.
 #[derive(Reflect, Debug, Copy, Clone, PartialEq)]
@@ -478,84 +409,6 @@ impl ColorGrading {
     }
 }
 
-#[derive(Clone, ShaderType)]
-pub struct ViewUniform {
-    pub clip_from_world: Mat4,
-    pub unjittered_clip_from_world: Mat4,
-    pub world_from_clip: Mat4,
-    pub world_from_view: Mat4,
-    pub view_from_world: Mat4,
-    /// Typically a column-major right-handed projection matrix, one of either:
-    ///
-    /// Perspective (infinite reverse z)
-    /// ```text
-    /// f = 1 / tan(fov_y_radians / 2)
-    ///
-    /// ⎡ f / aspect  0   0     0 ⎤
-    /// ⎢          0  f   0     0 ⎥
-    /// ⎢          0  0   0  near ⎥
-    /// ⎣          0  0  -1     0 ⎦
-    /// ```
-    ///
-    /// Orthographic
-    /// ```text
-    /// w = right - left
-    /// h = top - bottom
-    /// d = far - near
-    /// cw = -right - left
-    /// ch = -top - bottom
-    ///
-    /// ⎡ 2 / w      0      0   cw / w ⎤
-    /// ⎢     0  2 / h      0   ch / h ⎥
-    /// ⎢     0      0  1 / d  far / d ⎥
-    /// ⎣     0      0      0        1 ⎦
-    /// ```
-    ///
-    /// `clip_from_view[3][3] == 1.0` is the standard way to check if a projection is orthographic
-    ///
-    /// Glam matrices are column major, so for example getting the near plane of a perspective projection is `clip_from_view[3][2]`
-    ///
-    /// Custom projections are also possible however.
-    pub clip_from_view: Mat4,
-    pub view_from_clip: Mat4,
-    pub world_position: Vec3,
-    pub exposure: f32,
-    // viewport(x_origin, y_origin, width, height)
-    pub viewport: Vec4,
-    pub main_pass_viewport: Vec4,
-    /// 6 world-space half spaces (normal: vec3, distance: f32) ordered left, right, top, bottom, near, far.
-    /// The normal vectors point towards the interior of the frustum.
-    /// A half space contains `p` if `normal.dot(p) + distance > 0.`
-    pub frustum: [Vec4; 6],
-    pub color_grading: ColorGradingUniform,
-    pub mip_bias: f32,
-    pub frame_count: u32,
-}
-
-#[derive(Resource)]
-pub struct ViewUniforms {
-    pub uniforms: DynamicUniformBuffer<ViewUniform>,
-}
-
-impl FromWorld for ViewUniforms {
-    fn from_world(world: &mut World) -> Self {
-        let mut uniforms = DynamicUniformBuffer::default();
-        uniforms.set_label(Some("view_uniforms_buffer"));
-
-        let render_device = world.resource::<RenderDevice>();
-        if render_device.limits().max_storage_buffers_per_shader_stage > 0 {
-            uniforms.add_usages(BufferUsages::STORAGE);
-        }
-
-        Self { uniforms }
-    }
-}
-
-#[derive(Component)]
-pub struct ViewUniformOffset {
-    pub offset: u32,
-}
-
 #[derive(Component, Clone)]
 pub struct ViewTarget {
     main_textures: MainTargetTextures,
@@ -571,85 +424,6 @@ pub struct PostProcessWrite<'a> {
     pub source_texture: &'a Texture,
     pub destination: &'a TextureView,
     pub destination_texture: &'a Texture,
-}
-
-impl From<ColorGrading> for ColorGradingUniform {
-    fn from(component: ColorGrading) -> Self {
-        // Compute the balance matrix that will be used to apply the white
-        // balance adjustment to an RGB color. Our general approach will be to
-        // convert both the color and the developer-supplied white point to the
-        // LMS color space, apply the conversion, and then convert back.
-        //
-        // First, we start with the CIE 1931 *xy* values of the standard D65
-        // illuminant:
-        // <https://en.wikipedia.org/wiki/Standard_illuminant#D65_values>
-        //
-        // We then adjust them based on the developer's requested white balance.
-        let white_point_xy = D65_XY + vec2(-component.global.temperature, component.global.tint);
-
-        // Convert the white point from CIE 1931 *xy* to LMS. First, we convert to XYZ:
-        //
-        //                  Y          Y
-        //     Y = 1    X = ─ x    Z = ─ (1 - x - y)
-        //                  y          y
-        //
-        // Then we convert from XYZ to LMS color space, using the CAM16 matrix
-        // from <https://en.wikipedia.org/wiki/LMS_color_space#Later_CIECAMs>:
-        //
-        //     ⎡ L ⎤   ⎡  0.401   0.650  -0.051 ⎤ ⎡ X ⎤
-        //     ⎢ M ⎥ = ⎢ -0.250   1.204   0.046 ⎥ ⎢ Y ⎥
-        //     ⎣ S ⎦   ⎣ -0.002   0.049   0.953 ⎦ ⎣ Z ⎦
-        //
-        // The following formula is just a simplification of the above.
-
-        let white_point_lms = vec3(0.701634, 1.15856, -0.904175)
-            + (vec3(-0.051461, 0.045854, 0.953127)
-                + vec3(0.452749, -0.296122, -0.955206) * white_point_xy.x)
-                / white_point_xy.y;
-
-        // Now that we're in LMS space, perform the white point scaling.
-        let white_point_adjustment = Mat3::from_diagonal(D65_LMS / white_point_lms);
-
-        // Finally, combine the RGB → LMS → corrected LMS → corrected RGB
-        // pipeline into a single 3×3 matrix.
-        let balance = LMS_TO_RGB * white_point_adjustment * RGB_TO_LMS;
-
-        Self {
-            balance,
-            saturation: vec3(
-                component.shadows.saturation,
-                component.midtones.saturation,
-                component.highlights.saturation,
-            ),
-            contrast: vec3(
-                component.shadows.contrast,
-                component.midtones.contrast,
-                component.highlights.contrast,
-            ),
-            gamma: vec3(
-                component.shadows.gamma,
-                component.midtones.gamma,
-                component.highlights.gamma,
-            ),
-            gain: vec3(
-                component.shadows.gain,
-                component.midtones.gain,
-                component.highlights.gain,
-            ),
-            lift: vec3(
-                component.shadows.lift,
-                component.midtones.lift,
-                component.highlights.lift,
-            ),
-            midtone_range: vec2(
-                component.global.midtones_range.start,
-                component.global.midtones_range.end,
-            ),
-            exposure: component.global.exposure,
-            hue: component.global.hue,
-            post_saturation: component.global.post_saturation,
-        }
-    }
 }
 
 /// Add this component to a camera to disable *indirect mode*.
@@ -816,29 +590,6 @@ impl ViewTarget {
                 destination_texture: &self.main_textures.a.texture.texture,
             }
         }
-    }
-}
-
-#[derive(Component)]
-pub struct ViewDepthTexture {
-    pub texture: Texture,
-    attachment: DepthAttachment,
-}
-
-impl ViewDepthTexture {
-    pub fn new(texture: CachedTexture, clear_value: Option<f32>) -> Self {
-        Self {
-            texture: texture.texture,
-            attachment: DepthAttachment::new(texture.default_view, clear_value),
-        }
-    }
-
-    pub fn get_attachment(&self, store: StoreOp) -> RenderPassDepthStencilAttachment<'_> {
-        self.attachment.get_attachment(store)
-    }
-
-    pub fn view(&self) -> &TextureView {
-        &self.attachment.view
     }
 }
 

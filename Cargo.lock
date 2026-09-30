@@ -1311,17 +1311,14 @@ dependencies = [
  "bevy_utils",
  "bevy_window",
  "bitflags 2.11.1",
- "bytemuck",
  "encase",
  "glam 0.30.10",
  "image",
  "js-sys",
  "naga",
- "nonmax",
  "send_wrapper",
  "thiserror 2.0.18",
  "tracing",
- "variadics_please",
  "wasm-bindgen",
  "web-sys",
  "wgpu",
@@ -1362,14 +1359,12 @@ name = "bevy_shader"
 version = "0.18.1"
 dependencies = [
  "bevy_asset",
- "bevy_platform",
  "bevy_reflect",
  "naga",
  "naga_oil",
  "serde",
  "thiserror 2.0.18",
  "tracing",
- "wgpu-types",
 ]
 
 [[package]]

@@ -142,9 +142,20 @@ the same repository's.
     context (`RenderDiagnosticsMutex` and `sync_diagnostics` stay), the texture cache
     (`CachedTexture` stays for `ViewTarget`), raw Vulkan init, and the Adreno/Mali driver probes.
     No main-world system went.
+  - `bevy_render`'s `render_resource` and `bevy_shader`'s render half (the third piece): the
+    pipeline cache and shader cache (`bevy_shader` keeps `Shader`, its loader and `ShaderDefVal`,
+    which `RenderPipelineDescriptor` names), the GPU buffer wrappers (`BufferVec`, the uniform,
+    storage, batched and array buffers), `BindGroupEntries`, the layout-entry containers (the
+    builder and `binding_types` stay for the bindless descriptors), the render and compute
+    pipeline specializers with the `Specializer`/`SpecializerKey` derives
+    (`SpecializedMeshPipelineError` stays for the material `specialize` signatures),
+    `AsBindGroup::as_bind_group` and `PreparedBindGroup` (the derive's output and
+    `unprepared_bind_group` stay), `GlobalsBuffer` (the `GlobalsUniform` resource stays), and the
+    view uniforms, `ColorGradingUniform` and `ViewDepthTexture` (`ViewTarget`, which benilla-world's
+    final pass reads, stays). No plugin's build changed.
 
   The manifests drop the dependencies no kept code uses; no crate's resolved features change
-  (`fixedbitset` loses `default`, which only enabled `std`, still on).
+  (`fixedbitset` and `nonmax` lose `default`, which only enabled `std`, still on).
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
   avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each
