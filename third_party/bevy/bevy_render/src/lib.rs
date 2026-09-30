@@ -39,7 +39,6 @@ pub mod alpha;
 pub mod batching;
 pub mod camera;
 pub mod diagnostic;
-pub mod erased_render_asset;
 pub mod experimental;
 pub mod extract_component;
 mod extract_param;
@@ -51,7 +50,6 @@ pub mod mesh;
 pub mod pipelined_rendering;
 pub mod render_asset;
 pub mod render_graph;
-pub mod render_phase;
 pub mod render_resource;
 pub mod renderer;
 pub mod settings;
@@ -77,10 +75,7 @@ pub use extract_param::Extract;
 use crate::{
     camera::CameraPlugin,
     gpu_readback::GpuReadbackPlugin,
-    mesh::{MeshRenderAssetPlugin, RenderMesh},
-    render_asset::prepare_assets,
-    renderer::RenderAdapterInfo,
-    settings::RenderCreation,
+    mesh::MeshRenderAssetPlugin,
     storage::StoragePlugin,
     texture::TexturePlugin,
     view::{ViewPlugin, WindowRenderPlugin},
@@ -107,10 +102,6 @@ use sync_world::SyncWorldPlugin;
 /// [`PipelinedRenderingPlugin`](pipelined_rendering::PipelinedRenderingPlugin) is enabled.
 #[derive(Default)]
 pub struct RenderPlugin {
-    pub render_creation: RenderCreation,
-    /// If `true`, disables asynchronous pipeline compilation.
-    /// This has no effect on macOS, Wasm, iOS, or without the `multi_threaded` feature.
-    pub synchronous_pipeline_compilation: bool,
     /// Debugging flags that can optionally be set when constructing the renderer.
     pub debug_flags: RenderDebugFlags,
 }
@@ -128,56 +119,6 @@ bitflags! {
     }
 }
 
-/// The systems sets of the default [`App`] rendering schedule.
-///
-/// These can be useful for ordering, but you almost never want to add your systems to these sets.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
-pub enum RenderSystems {
-    /// This is used for applying the commands from the [`ExtractSchedule`]
-    ExtractCommands,
-    /// Prepare assets that have been created/modified/removed this frame.
-    PrepareAssets,
-    /// Prepares extracted meshes.
-    PrepareMeshes,
-    /// Create any additional views such as those used for shadow mapping.
-    ManageViews,
-    /// Queue drawable entities as phase items in render phases ready for
-    /// sorting (if necessary)
-    Queue,
-    /// A sub-set within [`Queue`](RenderSystems::Queue) where mesh entity queue systems are executed. Ensures `prepare_assets::<RenderMesh>` is completed.
-    QueueMeshes,
-    /// A sub-set within [`Queue`](RenderSystems::Queue) where meshes that have
-    /// become invisible or changed phases are removed from the bins.
-    QueueSweep,
-    // TODO: This could probably be moved in favor of a system ordering
-    // abstraction in `Render` or `Queue`
-    /// Sort the [`SortedRenderPhase`](render_phase::SortedRenderPhase)s and
-    /// [`BinKey`](render_phase::BinnedPhaseItem::BinKey)s here.
-    PhaseSort,
-    /// Prepare render resources from extracted data for the GPU based on their sorted order.
-    /// Create [`BindGroups`](render_resource::BindGroup) that depend on those data.
-    Prepare,
-    /// A sub-set within [`Prepare`](RenderSystems::Prepare) for initializing buffers, textures and uniforms for use in bind groups.
-    PrepareResources,
-    /// Collect phase buffers after
-    /// [`PrepareResources`](RenderSystems::PrepareResources) has run.
-    PrepareResourcesCollectPhaseBuffers,
-    /// Flush buffers after [`PrepareResources`](RenderSystems::PrepareResources), but before [`PrepareBindGroups`](RenderSystems::PrepareBindGroups).
-    PrepareResourcesFlush,
-    /// A sub-set within [`Prepare`](RenderSystems::Prepare) for constructing bind groups, or other data that relies on render resources prepared in [`PrepareResources`](RenderSystems::PrepareResources).
-    PrepareBindGroups,
-    /// Actual rendering happens here.
-    /// In most cases, only the render backend should insert resources here.
-    Render,
-    /// Cleanup render resources here.
-    Cleanup,
-    /// Final cleanup occurs: any entities with
-    /// [`TemporaryRenderEntity`](sync_world::TemporaryRenderEntity) will be despawned.
-    ///
-    /// Runs after [`Cleanup`](RenderSystems::Cleanup).
-    PostCleanup,
-}
-
 /// The startup schedule of the [`RenderApp`]
 #[derive(ScheduleLabel, Debug, Hash, PartialEq, Eq, Clone, Default)]
 pub struct RenderStartup;
@@ -185,52 +126,6 @@ pub struct RenderStartup;
 /// The main render schedule.
 #[derive(ScheduleLabel, Debug, Hash, PartialEq, Eq, Clone, Default)]
 pub struct Render;
-
-impl Render {
-    /// Sets up the base structure of the rendering [`Schedule`].
-    ///
-    /// The sets defined in this enum are configured to run in order.
-    pub fn base_schedule() -> Schedule {
-        use RenderSystems::*;
-
-        let mut schedule = Schedule::new(Self);
-
-        schedule.configure_sets(
-            (
-                ExtractCommands,
-                PrepareMeshes,
-                ManageViews,
-                Queue,
-                PhaseSort,
-                Prepare,
-                Render,
-                Cleanup,
-                PostCleanup,
-            )
-                .chain(),
-        );
-
-        schedule.configure_sets((ExtractCommands, PrepareAssets, PrepareMeshes, Prepare).chain());
-        schedule.configure_sets(
-            (QueueMeshes, QueueSweep)
-                .chain()
-                .in_set(Queue)
-                .after(prepare_assets::<RenderMesh>),
-        );
-        schedule.configure_sets(
-            (
-                PrepareResources,
-                PrepareResourcesCollectPhaseBuffers,
-                PrepareResourcesFlush,
-                PrepareBindGroups,
-            )
-                .chain()
-                .in_set(Prepare),
-        );
-
-        schedule
-    }
-}
 
 /// Schedule in which data from the main world is 'extracted' into the render world.
 ///
@@ -298,45 +193,4 @@ impl Plugin for RenderPlugin {
 
         app.init_resource::<RenderAssetBytesPerFrame>();
     }
-}
-
-/// If the [`RenderAdapterInfo`] is a Qualcomm Adreno, returns its model number.
-///
-/// This lets us work around hardware bugs.
-pub fn get_adreno_model(adapter_info: &RenderAdapterInfo) -> Option<u32> {
-    if !cfg!(target_os = "android") {
-        return None;
-    }
-
-    let adreno_model = adapter_info.name.strip_prefix("Adreno (TM) ")?;
-
-    // Take suffixes into account (like Adreno 642L).
-    Some(
-        adreno_model
-            .chars()
-            .map_while(|c| c.to_digit(10))
-            .fold(0, |acc, digit| acc * 10 + digit),
-    )
-}
-
-/// Get the Mali driver version if the adapter is a Mali GPU.
-pub fn get_mali_driver_version(adapter_info: &RenderAdapterInfo) -> Option<u32> {
-    if !cfg!(target_os = "android") {
-        return None;
-    }
-
-    if !adapter_info.name.contains("Mali") {
-        return None;
-    }
-    let driver_info = &adapter_info.driver_info;
-    if let Some(start_pos) = driver_info.find("v1.r")
-        && let Some(end_pos) = driver_info[start_pos..].find('p')
-    {
-        let start_idx = start_pos + 4; // Skip "v1.r"
-        let end_idx = start_pos + end_pos;
-
-        return driver_info[start_idx..end_idx].parse::<u32>().ok();
-    }
-
-    None
 }

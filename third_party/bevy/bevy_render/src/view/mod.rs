@@ -7,7 +7,6 @@ pub use window::*;
 use crate::{
     experimental::occlusion_culling::OcclusionCulling,
     extract_component::ExtractComponentPlugin,
-    render_phase::ViewRangefinder3d,
     render_resource::{DynamicUniformBuffer, ShaderType, Texture, TextureView},
     renderer::RenderDevice,
     sync_world::MainEntity,
@@ -265,13 +264,6 @@ pub struct ExtractedView {
     ///
     /// This setting doesn't affect materials that disable backface culling.
     pub invert_culling: bool,
-}
-
-impl ExtractedView {
-    /// Creates a 3D rangefinder for a view
-    pub fn rangefinder3d(&self) -> ViewRangefinder3d {
-        ViewRangefinder3d::from_world_from_view(&self.world_from_view.affine())
-    }
 }
 
 /// Configures filmic color grading parameters to adjust the image appearance.

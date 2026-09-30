@@ -1,54 +1,28 @@
-mod app;
-mod context;
-mod edge;
-mod graph;
-mod node;
-mod node_slot;
+use bevy_ecs::{define_label, intern::Interned};
 
-pub use app::*;
-pub use context::*;
-pub use edge::*;
-pub use graph::*;
-pub use node::*;
-pub use node_slot::*;
+pub use bevy_ecs::label::DynEq;
+pub use bevy_render_macros::{RenderLabel, RenderSubGraph};
 
-use thiserror::Error;
+define_label!(
+    #[diagnostic::on_unimplemented(
+        note = "consider annotating `{Self}` with `#[derive(RenderLabel)]`"
+    )]
+    /// A strongly-typed class of labels used to identify a node in a render graph.
+    RenderLabel,
+    RENDER_LABEL_INTERNER
+);
 
-#[derive(Error, Debug, Eq, PartialEq)]
-pub enum RenderGraphError {
-    #[error("node {0:?} does not exist")]
-    InvalidNode(InternedRenderLabel),
-    #[error("output node slot does not exist")]
-    InvalidOutputNodeSlot(SlotLabel),
-    #[error("input node slot does not exist")]
-    InvalidInputNodeSlot(SlotLabel),
-    #[error("node does not match the given type")]
-    WrongNodeType,
-    #[error("attempted to connect output slot {output_slot} from node {output_node:?} to incompatible input slot {input_slot} from node {input_node:?}")]
-    MismatchedNodeSlots {
-        output_node: InternedRenderLabel,
-        output_slot: usize,
-        input_node: InternedRenderLabel,
-        input_slot: usize,
-    },
-    #[error("attempted to add an edge that already exists")]
-    EdgeAlreadyExists(Edge),
-    #[error("attempted to remove an edge that does not exist")]
-    EdgeDoesNotExist(Edge),
-    #[error("node {node:?} has an unconnected input slot {input_slot}")]
-    UnconnectedNodeInputSlot {
-        node: InternedRenderLabel,
-        input_slot: usize,
-    },
-    #[error("node {node:?} has an unconnected output slot {output_slot}")]
-    UnconnectedNodeOutputSlot {
-        node: InternedRenderLabel,
-        output_slot: usize,
-    },
-    #[error("node {node:?} input slot {input_slot} already occupied by {occupied_by_node:?}")]
-    NodeInputSlotAlreadyOccupied {
-        node: InternedRenderLabel,
-        input_slot: usize,
-        occupied_by_node: InternedRenderLabel,
-    },
-}
+/// A shorthand for `Interned<dyn RenderLabel>`.
+pub type InternedRenderLabel = Interned<dyn RenderLabel>;
+
+define_label!(
+    #[diagnostic::on_unimplemented(
+        note = "consider annotating `{Self}` with `#[derive(RenderSubGraph)]`"
+    )]
+    /// A strongly-typed class of labels used to identify a sub-graph in a render graph.
+    RenderSubGraph,
+    RENDER_SUB_GRAPH_INTERNER
+);
+
+/// A shorthand for `Interned<dyn RenderSubGraph>`.
+pub type InternedRenderSubGraph = Interned<dyn RenderSubGraph>;

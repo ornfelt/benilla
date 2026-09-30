@@ -21,7 +21,7 @@ use super::{BindlessDescriptor, BindlessSlabResourceLimit};
 define_atomic_id!(BindGroupId);
 
 /// Bind groups are responsible for binding render resources (e.g. buffers, textures, samplers)
-/// to a [`TrackedRenderPass`](crate::render_phase::TrackedRenderPass).
+/// to a `TrackedRenderPass`.
 /// This makes them accessible in the pipeline (shaders) as uniforms.
 ///
 /// This is a lightweight thread-safe wrapper around wgpu's own [`BindGroup`](wgpu::BindGroup),

@@ -129,8 +129,22 @@ the same repository's.
     `trigger_screenshots`, `inherit_weights`, `ShaderStorageBuffer`, `SyncWorldPlugin`'s
     observers, `RenderDiagnosticsPlugin`'s `sync_diagnostics`, and every `ExtractComponentPlugin`
     (its `SyncComponentPlugin`) and `ExtractResourcePlugin` (its once-logged error).
+  - `bevy_render`, its render-world types (the second piece; `render_resource` and
+    `bevy_shader`'s render half are next): the render phases, draw functions and tracked pass
+    (`render_phase`, with the `ShaderLabel`/`DrawFunctionLabel` derives), the batching and GPU
+    preprocessing buffers (`BatchingPlugin` stays, empty), the render graph and its nodes, slots,
+    edges and context (the `RenderLabel`/`RenderSubGraph` labels stay), `RenderContext`, the mesh
+    allocator and `RenderMesh`, erased render assets, `RenderAssetPlugin` with render-asset
+    extraction and preparation (the `RenderAsset` trait, `RenderAssets` and
+    `RenderAssetBytesPerFrame` stay), the `RenderSystems` sets and the `Render` base schedule, the
+    wgpu settings and `RenderCreation` (`RenderPlugin` keeps only `debug_flags`; `settings` keeps
+    the wgpu re-exports the `AsBindGroup` derive names), the diagnostics recorder and its Tracy GPU
+    context (`RenderDiagnosticsMutex` and `sync_diagnostics` stay), the texture cache
+    (`CachedTexture` stays for `ViewTarget`), raw Vulkan init, and the Adreno/Mali driver probes.
+    No main-world system went.
 
-  The manifests drop the dependencies no kept code uses; no crate's resolved features change.
+  The manifests drop the dependencies no kept code uses; no crate's resolved features change
+  (`fixedbitset` loses `default`, which only enabled `std`, still on).
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
   avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each

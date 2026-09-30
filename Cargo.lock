@@ -1312,23 +1312,15 @@ dependencies = [
  "bevy_window",
  "bitflags 2.11.1",
  "bytemuck",
- "derive_more",
- "downcast-rs 2.0.2",
  "encase",
- "fixedbitset",
  "glam 0.30.10",
  "image",
- "indexmap",
  "js-sys",
  "naga",
  "nonmax",
- "offset-allocator",
- "profiling",
  "send_wrapper",
- "smallvec",
  "thiserror 2.0.18",
  "tracing",
- "tracy-client",
  "variadics_please",
  "wasm-bindgen",
  "web-sys",
@@ -4276,16 +4268,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "offset-allocator"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e234d535da3521eb95106f40f0b73483d80bfb3aacf27c40d7e2b72f1a3e00a2"
-dependencies = [
- "log",
- "nonmax",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4661,20 +4643,6 @@ name = "profiling"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5"
-dependencies = [
- "profiling-procmacros",
- "tracing",
-]
-
-[[package]]
-name = "profiling-procmacros"
-version = "1.0.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4488a4a36b9a4ba6b9334a32a39971f77c1436ec82c38707bce707699cc3bbcb"
-dependencies = [
- "quote",
- "syn",
-]
 
 [[package]]
 name = "pxfm"

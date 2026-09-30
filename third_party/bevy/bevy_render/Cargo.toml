@@ -49,8 +49,8 @@ shader_format_spirv = [
 ]
 spirv_shader_passthrough = ["wgpu/spirv"]
 statically-linked-dxc = ["wgpu/static-dxc"]
-trace = ["profiling"]
-tracing-tracy = ["dep:tracy-client"]
+trace = []
+tracing-tracy = []
 vulkan-portability = ["wgpu/vulkan-portability"]
 webgl = ["wgpu/webgl"]
 webgpu = ["wgpu/webgpu"]
@@ -135,21 +135,8 @@ features = [
     "must_cast",
 ]
 
-[dependencies.derive_more]
-version = "2"
-features = ["from"]
-default-features = false
-
-[dependencies.downcast-rs]
-version = "2"
-features = ["std"]
-default-features = false
-
 [dependencies.encase]
 version = "0.12"
-
-[dependencies.fixedbitset]
-version = "0.5"
 
 [dependencies.glam]
 version = "0.30.7"
@@ -163,28 +150,12 @@ default-features = false
 version = "0.25.2"
 default-features = false
 
-[dependencies.indexmap]
-version = "2"
-
 [dependencies.naga]
 version = "27"
 features = ["wgsl-in"]
 
 [dependencies.nonmax]
 version = "0.5"
-
-[dependencies.offset-allocator]
-version = "0.2"
-
-[dependencies.profiling]
-version = "1"
-features = ["profile-with-tracing"]
-optional = true
-
-[dependencies.smallvec]
-version = "1"
-features = ["const_new"]
-default-features = false
 
 [dependencies.thiserror]
 version = "2"
@@ -194,10 +165,6 @@ default-features = false
 version = "0.1"
 features = ["std"]
 default-features = false
-
-[dependencies.tracy-client]
-version = "0.18.3"
-optional = true
 
 [dependencies.variadics_please]
 version = "1.1"
