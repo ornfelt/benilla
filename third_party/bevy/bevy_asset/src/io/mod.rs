@@ -2,8 +2,6 @@ pub mod embedded;
 pub mod file;
 pub mod memory;
 pub mod processor_gated;
-#[cfg(any(feature = "http", feature = "https"))]
-pub mod web;
 
 #[cfg(test)]
 pub mod gated;

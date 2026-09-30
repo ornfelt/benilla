@@ -778,12 +778,9 @@ dependencies = [
 name = "bevy_diagnostic"
 version = "0.18.1"
 dependencies = [
- "atomic-waker",
  "bevy_app",
  "bevy_ecs",
  "bevy_platform",
- "bevy_tasks",
- "bevy_time",
  "const-fnv1a-hash",
  "log",
  "serde",

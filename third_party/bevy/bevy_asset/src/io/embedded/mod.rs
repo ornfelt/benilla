@@ -1,9 +1,3 @@
-#[cfg(feature = "embedded_watcher")]
-mod embedded_watcher;
-
-#[cfg(feature = "embedded_watcher")]
-pub use embedded_watcher::*;
-
 use crate::io::{
     memory::{Dir, MemoryAssetReader, Value},
     AssetSourceBuilder, AssetSourceBuilders,
@@ -12,12 +6,7 @@ use crate::AssetServer;
 use alloc::boxed::Box;
 use bevy_app::App;
 use bevy_ecs::{resource::Resource, world::World};
-#[cfg(feature = "embedded_watcher")]
-use bevy_platform::sync::{Arc, PoisonError, RwLock};
 use std::path::{Path, PathBuf};
-
-#[cfg(feature = "embedded_watcher")]
-use alloc::borrow::ToOwned;
 
 /// The name of the `embedded` [`AssetSource`](crate::io::AssetSource),
 /// as stored in the [`AssetSourceBuilders`] resource.
@@ -31,8 +20,6 @@ pub const EMBEDDED: &str = "embedded";
 #[derive(Resource, Default)]
 pub struct EmbeddedAssetRegistry {
     dir: Dir,
-    #[cfg(feature = "embedded_watcher")]
-    root_paths: Arc<RwLock<bevy_platform::collections::HashMap<Box<Path>, PathBuf>>>,
 }
 
 impl EmbeddedAssetRegistry {
@@ -40,19 +27,7 @@ impl EmbeddedAssetRegistry {
     /// running in a non-rust file). `asset_path` is the path that will be used to identify the asset in the `embedded`
     /// [`AssetSource`](crate::io::AssetSource). `value` is the bytes that will be returned for the asset. This can be
     /// _either_ a `&'static [u8]` or a [`Vec<u8>`](alloc::vec::Vec).
-    #[cfg_attr(
-        not(feature = "embedded_watcher"),
-        expect(
-            unused_variables,
-            reason = "The `full_path` argument is not used when `embedded_watcher` is disabled."
-        )
-    )]
-    pub fn insert_asset(&self, full_path: PathBuf, asset_path: &Path, value: impl Into<Value>) {
-        #[cfg(feature = "embedded_watcher")]
-        self.root_paths
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(full_path.into(), asset_path.to_owned());
+    pub fn insert_asset(&self, _full_path: PathBuf, asset_path: &Path, value: impl Into<Value>) {
         self.dir.insert_asset(asset_path, value);
     }
 
@@ -60,19 +35,7 @@ impl EmbeddedAssetRegistry {
     /// running in a non-rust file). `asset_path` is the path that will be used to identify the asset in the `embedded`
     /// [`AssetSource`](crate::io::AssetSource). `value` is the bytes that will be returned for the asset. This can be _either_
     /// a `&'static [u8]` or a [`Vec<u8>`](alloc::vec::Vec).
-    #[cfg_attr(
-        not(feature = "embedded_watcher"),
-        expect(
-            unused_variables,
-            reason = "The `full_path` argument is not used when `embedded_watcher` is disabled."
-        )
-    )]
-    pub fn insert_meta(&self, full_path: &Path, asset_path: &Path, value: impl Into<Value>) {
-        #[cfg(feature = "embedded_watcher")]
-        self.root_paths
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(full_path.into(), asset_path.to_owned());
+    pub fn insert_meta(&self, _full_path: &Path, asset_path: &Path, value: impl Into<Value>) {
         self.dir.insert_meta(asset_path, value);
     }
 
@@ -88,14 +51,7 @@ impl EmbeddedAssetRegistry {
         let dir = self.dir.clone();
         let processed_dir = self.dir.clone();
 
-        #[cfg_attr(
-            not(feature = "embedded_watcher"),
-            expect(
-                unused_mut,
-                reason = "Variable is only mutated when `embedded_watcher` feature is enabled."
-            )
-        )]
-        let mut source =
+        let source =
             AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() }))
                 .with_processed_reader(move || {
                     Box::new(MemoryAssetReader {
@@ -108,30 +64,6 @@ impl EmbeddedAssetRegistry {
                     "Consider enabling the `embedded_watcher` cargo feature.",
                 );
 
-        #[cfg(feature = "embedded_watcher")]
-        {
-            let root_paths = self.root_paths.clone();
-            let dir = self.dir.clone();
-            let processed_root_paths = self.root_paths.clone();
-            let processed_dir = self.dir.clone();
-            source = source
-                .with_watcher(move |sender| {
-                    Some(Box::new(EmbeddedWatcher::new(
-                        dir.clone(),
-                        root_paths.clone(),
-                        sender,
-                        core::time::Duration::from_millis(300),
-                    )))
-                })
-                .with_processed_watcher(move |sender| {
-                    Some(Box::new(EmbeddedWatcher::new(
-                        processed_dir.clone(),
-                        processed_root_paths.clone(),
-                        sender,
-                        core::time::Duration::from_millis(300),
-                    )))
-                });
-        }
         sources.insert(EMBEDDED, source);
     }
 }
@@ -328,8 +260,6 @@ pub fn _embedded_asset_path(
 /// Generally the [`AssetPath`] generated will be predictable, but if your asset isn't
 /// available for some reason, you can use the [`embedded_path`] macro to debug.
 ///
-/// Hot-reloading `embedded` assets is supported. Just enable the `embedded_watcher` cargo feature.
-///
 /// [`AssetPath`]: crate::AssetPath
 /// [`embedded_asset`]: crate::embedded_asset
 /// [`embedded_path`]: crate::embedded_path
@@ -349,19 +279,8 @@ macro_rules! embedded_asset {
     }};
 }
 
-/// Returns the path used by the watcher.
-#[doc(hidden)]
-#[cfg(feature = "embedded_watcher")]
-pub fn watched_path(source_file_path: &'static str, asset_path: &'static str) -> PathBuf {
-    PathBuf::from(source_file_path)
-        .parent()
-        .unwrap()
-        .join(asset_path)
-}
-
 /// Returns an empty PathBuf.
 #[doc(hidden)]
-#[cfg(not(feature = "embedded_watcher"))]
 pub fn watched_path(_source_file_path: &'static str, _asset_path: &'static str) -> PathBuf {
     PathBuf::from("")
 }

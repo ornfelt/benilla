@@ -1,13 +1,8 @@
-#[cfg(feature = "file_watcher")]
-mod file_watcher;
-
 #[cfg(feature = "multi_threaded")]
 mod file_asset;
 #[cfg(not(feature = "multi_threaded"))]
 mod sync_file_asset;
 
-#[cfg(feature = "file_watcher")]
-pub use file_watcher::*;
 use tracing::{debug, error};
 
 use alloc::borrow::ToOwned;

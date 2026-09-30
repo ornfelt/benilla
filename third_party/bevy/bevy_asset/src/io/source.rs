@@ -493,10 +493,7 @@ impl AssetSource {
 
     /// Returns the default non-existent [`AssetWatcher`] warning for the current platform.
     pub fn get_default_watch_warning() -> &'static str {
-        #[cfg(not(feature = "file_watcher"))]
-        return "Consider enabling the `file_watcher` feature.";
-        #[cfg(feature = "file_watcher")]
-        return "Consider adding an \"assets\" directory.";
+        "Consider enabling the `file_watcher` feature."
     }
 
     /// Returns a builder function for this platform's default [`AssetWatcher`]. `path` is the relative path to
@@ -504,41 +501,12 @@ impl AssetSource {
     /// `file_debounce_time` is the amount of time to wait (and debounce duplicate events) before returning an event.
     /// Higher durations reduce duplicates but increase the amount of time before a change event is processed. If the
     /// duration is set too low, some systems might surface events _before_ their filesystem has the changes.
-    #[cfg_attr(
-        not(feature = "file_watcher"),
-        expect(
-            unused_variables,
-            reason = "The `path` and `file_debounce_wait_time` arguments are unused if the `file_watcher` feature is disabled."
-        )
-    )]
     pub fn get_default_watcher(
-        path: String,
-        file_debounce_wait_time: Duration,
+        _path: String,
+        _file_debounce_wait_time: Duration,
     ) -> impl FnMut(async_channel::Sender<AssetSourceEvent>) -> Option<Box<dyn AssetWatcher>> + Send + Sync
     {
-        move |sender: async_channel::Sender<AssetSourceEvent>| {
-            #[cfg(feature = "file_watcher")]
-            {
-                let path = super::file::get_base_path().join(path.clone());
-                if path.exists() {
-                    Some(Box::new(
-                        super::file::FileWatcher::new(
-                            path.clone(),
-                            sender,
-                            file_debounce_wait_time,
-                        )
-                        .unwrap_or_else(|e| {
-                            panic!("Failed to create file watcher from path {path:?}, {e:?}")
-                        }),
-                    ))
-                } else {
-                    warn!("Skip creating file watcher because path {path:?} does not exist.");
-                    None
-                }
-            }
-            #[cfg(not(feature = "file_watcher"))]
-            return None;
-        }
+        move |_sender: async_channel::Sender<AssetSourceEvent>| None
     }
 
     /// This will cause processed [`AssetReader`](crate::io::AssetReader) futures (such as [`AssetReader::read`](crate::io::AssetReader::read)) to wait until

@@ -149,6 +149,18 @@ the same repository's.
   and `Aabb::is_in_half_space(_identity)`, `Frustum::contains_aabb(_identity)`/
   `intersects_obb_identity` and `face_index_to_name` with the tests of those. The frame is
   unchanged: the stand-in keeps `PostUpdate`'s section identical.
+- **`bevy_diagnostic`, to what benilla and the kept crates call, and `bevy_asset`'s off
+  features.** `bevy_diagnostic`: the plugins nothing adds (`EntityCountDiagnosticsPlugin`,
+  `FrameTimeDiagnosticsPlugin`, `LogDiagnosticsPlugin`, `SystemInformationDiagnosticsPlugin`
+  with its background task and systems), and `Diagnostic`'s `with_max_history_length`,
+  `history_len`, `get_max_history_length`, `clear_history`, `value`, `duration`, `values` with
+  their test. `SystemInfo` stays with its `Default`, which `DiagnosticsPlugin` still runs (the
+  `sysinfo_plugin` feature is on) and which logs the OS, CPU and memory once at startup.
+  avian3d's `diagnostic_ui` feature (off; its panel read `FrameTimeDiagnosticsPlugin`) went with
+  its module. `bevy_asset`: the code of the features the build never enables, `file_watcher`,
+  `embedded_watcher`, `watch`, `http`, `https`, `web_asset_cache` and `asset_processor` (the
+  file and embedded watchers, the web reader); `AssetPlugin` reads `false` where it read those
+  features, as it did, and the processor itself waits for its own trim. No system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

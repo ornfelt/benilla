@@ -39,7 +39,6 @@ critical-section = [
     "bevy_ecs/critical-section",
     "bevy_app/critical-section",
     "bevy_platform/critical-section",
-    "bevy_time/critical-section",
 ]
 default = [
     "std",
@@ -49,7 +48,6 @@ dynamic_linking = []
 serialize = [
     "dep:serde",
     "bevy_ecs/serialize",
-    "bevy_time/serialize",
     "bevy_platform/serialize",
 ]
 std = [
@@ -57,17 +55,12 @@ std = [
     "bevy_ecs/std",
     "bevy_app/std",
     "bevy_platform/std",
-    "bevy_time/std",
 ]
 sysinfo_plugin = ["sysinfo"]
 
 [lib]
 name = "bevy_diagnostic"
 path = "src/lib.rs"
-
-[dependencies.atomic-waker]
-version = "1"
-default-features = false
 
 [dependencies.bevy_app]
 version = "0.18.0"
@@ -80,14 +73,6 @@ default-features = false
 [dependencies.bevy_platform]
 version = "0.18.0"
 features = ["alloc"]
-default-features = false
-
-[dependencies.bevy_tasks]
-version = "0.18.0"
-default-features = false
-
-[dependencies.bevy_time]
-version = "0.18.0"
 default-features = false
 
 [dependencies.const-fnv1a-hash]

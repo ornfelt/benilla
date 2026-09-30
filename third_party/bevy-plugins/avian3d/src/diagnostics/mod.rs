@@ -9,13 +9,9 @@
 //! If the `bevy_diagnostic` feature is enabled and the [`PhysicsDiagnosticsPlugin`] is added to the app,
 //! these diagnostics will also be automatically written to the [`DiagnosticsStore`] resource.
 //!
-//! If the `diagnostic_ui` feature is enabled and the [`PhysicsDiagnosticsUiPlugin`] is added to the app,
-//! a debug UI will also be available for displaying these diagnostics in real-time.
-//!
 //! [`NarrowPhasePlugin`]: crate::collision::narrow_phase::NarrowPhasePlugin
 //! [`SolverPlugin`]: crate::dynamics::solver::SolverPlugin
 //! [`DiagnosticsStore`]: bevy::diagnostic::DiagnosticsStore
-//! [`PhysicsDiagnosticsUiPlugin`]: crate::diagnostics::ui::PhysicsDiagnosticsUiPlugin
 //!
 //! # Example
 //!
@@ -34,10 +30,6 @@
 //!             // Requires the `bevy_diagnostic` feature.
 //! #           #[cfg(feature = "bevy_diagnostic")]
 //!             PhysicsDiagnosticsPlugin,
-//!             // Add the `PhysicsDiagnosticsUiPlugin` to display physics diagnostics
-//!             // in a debug UI. Requires the `diagnostic_ui` feature.
-//! #           #[cfg(feature = "diagnostic_ui")]
-//!             PhysicsDiagnosticsUiPlugin,
 //!         ))
 //!         // ...your other plugins, systems and resources
 //!         .run();
@@ -68,8 +60,6 @@ mod path_macro;
 #[cfg(feature = "bevy_diagnostic")]
 mod total;
 
-#[cfg(feature = "diagnostic_ui")]
-pub mod ui;
 #[cfg(feature = "bevy_diagnostic")]
 pub use entity_counters::{PhysicsEntityDiagnostics, PhysicsEntityDiagnosticsPlugin};
 pub(crate) use path_macro::impl_diagnostic_paths;
@@ -92,12 +82,7 @@ use core::time::Duration;
 /// to [`bevy::diagnostic::DiagnosticsStore`]. It is not enabled by default
 /// and must be added manually.
 ///
-/// To add a debug UI for physics diagnostics, enable the `diagnostic_ui` feature, and add the
-/// [`PhysicsDiagnosticsUiPlugin`] to your app.
-///
 /// See the [module-level documentation](crate::diagnostics) for more information.
-///
-/// [`PhysicsDiagnosticsUiPlugin`]: crate::diagnostics::ui::PhysicsDiagnosticsUiPlugin
 #[cfg(feature = "bevy_diagnostic")]
 pub struct PhysicsDiagnosticsPlugin;
 

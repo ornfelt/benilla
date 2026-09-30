@@ -1,8 +1,5 @@
 use alloc::{borrow::Cow, collections::VecDeque, string::String};
-use core::{
-    hash::{Hash, Hasher},
-    time::Duration,
-};
+use core::hash::{Hash, Hasher};
 
 use bevy_app::{App, SubApp};
 use bevy_ecs::resource::Resource;
@@ -185,20 +182,6 @@ impl Diagnostic {
         }
     }
 
-    /// Set the maximum history length.
-    #[must_use]
-    pub fn with_max_history_length(mut self, max_history_length: usize) -> Self {
-        self.max_history_length = max_history_length;
-
-        // reserve/reserve_exact reserve space for n *additional* elements.
-        let expected_capacity = self
-            .max_history_length
-            .saturating_sub(self.history.capacity());
-        self.history.reserve_exact(expected_capacity);
-        self.history.shrink_to(expected_capacity);
-        self
-    }
-
     /// Add a suffix to use when logging the value, can be used to show a unit.
     #[must_use]
     pub fn with_suffix(mut self, suffix: impl Into<Cow<'static, str>>) -> Self {
@@ -233,11 +216,6 @@ impl Diagnostic {
         self.history.back()
     }
 
-    /// Get the latest value from this diagnostic.
-    pub fn value(&self) -> Option<f64> {
-        self.measurement().map(|measurement| measurement.value)
-    }
-
     /// Return the simple moving average of this diagnostic's recent values.
     /// N.B. this a cheap operation as the sum is cached.
     pub fn average(&self) -> Option<f64> {
@@ -261,42 +239,9 @@ impl Diagnostic {
         }
     }
 
-    /// Return the number of elements for this diagnostic.
-    pub fn history_len(&self) -> usize {
-        self.history.len()
-    }
-
-    /// Return the duration between the oldest and most recent values for this diagnostic.
-    pub fn duration(&self) -> Option<Duration> {
-        if self.history.len() < 2 {
-            return None;
-        }
-
-        let newest = self.history.back()?;
-        let oldest = self.history.front()?;
-        Some(newest.time.duration_since(oldest.time))
-    }
-
-    /// Return the maximum number of elements for this diagnostic.
-    pub fn get_max_history_length(&self) -> usize {
-        self.max_history_length
-    }
-
-    /// All measured values from this [`Diagnostic`], up to the configured maximum history length.
-    pub fn values(&self) -> impl Iterator<Item = &f64> {
-        self.history.iter().map(|x| &x.value)
-    }
-
     /// All measurements from this [`Diagnostic`], up to the configured maximum history length.
     pub fn measurements(&self) -> impl Iterator<Item = &DiagnosticMeasurement> {
         self.history.iter()
-    }
-
-    /// Clear the history of this diagnostic.
-    pub fn clear_history(&mut self) {
-        self.history.clear();
-        self.sum = 0.0;
-        self.ema = 0.0;
     }
 }
 
@@ -434,33 +379,5 @@ impl RegisterDiagnostic for App {
     fn register_diagnostic(&mut self, diagnostic: Diagnostic) -> &mut Self {
         SubApp::register_diagnostic(self.main_mut(), diagnostic);
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_clear_history() {
-        const MEASUREMENT: f64 = 20.0;
-
-        let mut diagnostic =
-            Diagnostic::new(DiagnosticPath::new("test")).with_max_history_length(5);
-        let mut now = Instant::now();
-
-        for _ in 0..3 {
-            for _ in 0..5 {
-                diagnostic.add_measurement(DiagnosticMeasurement {
-                    time: now,
-                    value: MEASUREMENT,
-                });
-                // Increase time to test smoothed average.
-                now += Duration::from_secs(1);
-            }
-            assert!((diagnostic.average().unwrap() - MEASUREMENT).abs() < 0.1);
-            assert!((diagnostic.smoothed().unwrap() - MEASUREMENT).abs() < 0.1);
-            diagnostic.clear_history();
-        }
     }
 }

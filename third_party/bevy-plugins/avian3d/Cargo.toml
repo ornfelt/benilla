@@ -37,9 +37,6 @@ categories = [
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/avianphysics/avian"
 
-[package.metadata.docs.rs]
-features = ["diagnostic_ui"]
-
 [features]
 3d = []
 bevy_diagnostic = []
@@ -64,10 +61,6 @@ default = [
     "bevy_scene",
 ]
 default-collider = []
-diagnostic_ui = [
-    "bevy_diagnostic",
-    "bevy/bevy_ui",
-]
 enhanced-determinism = [
     "dep:libm",
     "bevy_math/libm",
@@ -188,15 +181,6 @@ path = "examples/debugdump_3d.rs"
 required-features = [
     "3d",
     "debug-plugin",
-]
-
-[[example]]
-name = "diagnostics"
-path = "examples/diagnostics.rs"
-required-features = [
-    "3d",
-    "default-collider",
-    "diagnostic_ui",
 ]
 
 [[example]]

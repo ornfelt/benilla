@@ -60,7 +60,6 @@
 )]
 //! | `bevy_scene`           | Enables [`ColliderConstructorHierarchy`] to wait until a [`Scene`] has loaded before processing it.                                                 | Yes             |
 //! | `bevy_diagnostic`      | Enables writing [physics diagnostics] to the [`DiagnosticsStore`] with the [`PhysicsDiagnosticsPlugin`]. The plugin must be added separately.       | No              |
-//! | `diagnostic_ui`        | Enables [physics diagnostics] UI for performance timers and counters using the [`PhysicsDiagnosticsUiPlugin`]. The plugin must be added separately. | No              |
 //! | `debug-plugin`         | Enables physics debug rendering using the [`PhysicsDebugPlugin`]. The plugin must be added separately.                                              | Yes             |
 //! | `enhanced-determinism` | Enables cross-platform deterministic math, improving determinism across architectures at a small performance cost.                                  | No              |
 //! | `parallel`             | Enables some extra multithreading, which improves performance for larger simulations but can add some overhead for smaller ones.                    | Yes             |
@@ -300,7 +299,7 @@
 //! ```
 //!
 //! If you still have performance issues, consider enabling the [`PhysicsDiagnosticsPlugin`]
-//! and [`PhysicsDiagnosticsUiPlugin`] (requires the `diagnostic_ui` feature) to see where time is being spent.
+//! to see where time is being spent.
 //! See the [diagnostics](diagnostics) module for more information.
 //!
 //! ## Why does movement look choppy?
@@ -530,8 +529,6 @@ pub mod prelude {
     pub use crate::debug_render::*;
     #[cfg(feature = "bevy_diagnostic")]
     pub use crate::diagnostics::PhysicsDiagnosticsPlugin;
-    #[cfg(feature = "diagnostic_ui")]
-    pub use crate::diagnostics::ui::{PhysicsDiagnosticsUiPlugin, PhysicsDiagnosticsUiSettings};
     #[cfg(feature = "default-collider")]
     pub(crate) use crate::physics_transform::RotationValue;
     #[expect(deprecated)]
@@ -610,7 +607,6 @@ use prelude::*;
 /// | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 /// | [`PhysicsDebugPlugin`]            | Renders physics objects and events like [AABBs](ColliderAabb) and contacts for debugging purposes (only with `debug-plugin` feature enabled).              |
 /// | [`PhysicsDiagnosticsPlugin`]      | Writes [physics diagnostics](diagnostics) to the [`DiagnosticsStore`] (only with `bevy_diagnostic` feature enabled).                                       |
-/// | [`PhysicsDiagnosticsUiPlugin`]    | Displays [physics diagnostics](diagnostics) with a debug UI overlay (only with `diagnostic_ui` feature enabled).                                           |
 ///
 /// [`ColliderTrees`]: collider_tree::ColliderTrees
 /// [broad phase]: collision::broad_phase

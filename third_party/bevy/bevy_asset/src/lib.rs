@@ -368,7 +368,7 @@ impl Plugin for AssetPlugin {
         {
             let watch = self
                 .watch_for_changes_override
-                .unwrap_or(cfg!(feature = "watch"));
+                .unwrap_or(false);
             match self.mode {
                 AssetMode::Unprocessed => {
                     let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
@@ -385,7 +385,7 @@ impl Plugin for AssetPlugin {
                 AssetMode::Processed => {
                     let use_asset_processor = self
                         .use_asset_processor_override
-                        .unwrap_or(cfg!(feature = "asset_processor"));
+                        .unwrap_or(false);
                     if use_asset_processor {
                         let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
                         let (processor, sources) = AssetProcessor::new(&mut builders, watch);

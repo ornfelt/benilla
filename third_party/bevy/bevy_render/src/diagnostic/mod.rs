@@ -12,7 +12,7 @@ use self::internal::{sync_diagnostics, RenderDiagnosticsMutex};
 /// as well as pipeline statistics (number of primitives, number of shader invocations, etc).
 ///
 /// To access the diagnostics, you can use the [`DiagnosticsStore`](bevy_diagnostic::DiagnosticsStore) resource,
-/// add [`LogDiagnosticsPlugin`](bevy_diagnostic::LogDiagnosticsPlugin), or use [Tracy](https://github.com/bevyengine/bevy/blob/main/docs/profiling.md#tracy-renderqueue).
+/// or use [Tracy](https://github.com/bevyengine/bevy/blob/main/docs/profiling.md#tracy-renderqueue).
 #[derive(Default)]
 pub struct RenderDiagnosticsPlugin;
 
