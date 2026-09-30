@@ -159,7 +159,7 @@ debug = [
 default_font = ["bevy_text?/default_font"]
 gamepad = []
 gltf_animation = ["bevy_animation"]
-hdr = ["bevy_image/hdr"]
+hdr = []
 ktx2 = ["bevy_image/ktx2"]
 libm = [
     "bevy_color?/libm",
@@ -193,7 +193,6 @@ reflect_auto_register = [
 serialize = [
     "bevy_color?/serialize",
     "bevy_ecs/serialize",
-    "bevy_image?/serialize",
     "bevy_input/serialize",
     "bevy_math/serialize",
     "bevy_scene?/serialize",

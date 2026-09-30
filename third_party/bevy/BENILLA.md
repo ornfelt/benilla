@@ -206,6 +206,22 @@ the same repository's.
   `ErasedLoadedAsset`'s `get_labeled`/`iter_labels`; `AssetEvent`'s `is_modified`/`is_removed`/
   `is_unused`; `AssetPath::take_label`/`remove_label`; `Dir::insert_meta_text`. The accessors the
   kept tests read (`load_override`, the load-state queries) stay. No system went.
+- **`bevy_image`, to the formats the build decodes and the API anything calls.** The formats
+  whose features the build never enables (basis-universal, DDS, EXR, zlib and zstd-C
+  supercompression, the `image` crate's BMP, farbfeld, GIF, ICO, JPEG, PNM, QOI, TGA, TIFF,
+  WebP) and `serialize` (`SerializedImage`), with their features and dependencies; the HDR loader
+  (`hdr` was on, but nothing loads a `.hdr`: `bevy`'s `hdr` feature stays a name enabling
+  nothing). `ImageFormat` keeps `Ktx2` (the tonemapping LUTs) and `Png`; a lookup of any other
+  extension or `image` format still warns that its feature is not enabled and yields no format,
+  as it did; `to_mime_types`, `from_mime_type` and `ImageType::MimeType` went (nothing passed a
+  MIME type). Also gone: `TextureAtlasBuilder` with `TextureAtlasSources` and `rectangle-pack`,
+  `TextureAtlasLayout::from_grid`, `TextureAtlas::with_index`/`with_layout`, `Image`'s
+  `get_color_at(_1d/_3d)`, `set_color_at_1d/_3d`, `resize_in_place` and `pixel_bytes`
+  (`set_color_at` stays: bevy_egui calls it), `ImagePlugin::default_nearest`,
+  `ImageSampler::get_or_init_descriptor`, `ImageSamplerDescriptor`'s `set_*` builders and
+  `as_wgpu` with the conversions to and from wgpu's sampler types,
+  `CompressedImageFormats::from_features`, `TEXTURE_ASSET_INDEX`/`SAMPLER_ASSET_INDEX`,
+  `TextureError::InvalidImageMimeType`, and the tests of removed code. No system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

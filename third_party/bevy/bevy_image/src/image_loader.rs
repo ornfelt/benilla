@@ -18,34 +18,10 @@ pub struct ImageLoader {
 impl ImageLoader {
     /// Full list of supported formats.
     pub const SUPPORTED_FORMATS: &'static [ImageFormat] = &[
-        #[cfg(feature = "basis-universal")]
-        ImageFormat::Basis,
-        #[cfg(feature = "bmp")]
-        ImageFormat::Bmp,
-        #[cfg(feature = "dds")]
-        ImageFormat::Dds,
-        #[cfg(feature = "ff")]
-        ImageFormat::Farbfeld,
-        #[cfg(feature = "gif")]
-        ImageFormat::Gif,
-        #[cfg(feature = "ico")]
-        ImageFormat::Ico,
-        #[cfg(feature = "jpeg")]
-        ImageFormat::Jpeg,
         #[cfg(feature = "ktx2")]
         ImageFormat::Ktx2,
         #[cfg(feature = "png")]
         ImageFormat::Png,
-        #[cfg(feature = "pnm")]
-        ImageFormat::Pnm,
-        #[cfg(feature = "qoi")]
-        ImageFormat::Qoi,
-        #[cfg(feature = "tga")]
-        ImageFormat::Tga,
-        #[cfg(feature = "tiff")]
-        ImageFormat::Tiff,
-        #[cfg(feature = "webp")]
-        ImageFormat::WebP,
     ];
 
     /// Total count of file extensions, for computing supported file extensions list.
