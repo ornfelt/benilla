@@ -52,15 +52,6 @@ impl TextBounds {
             height: None,
         }
     }
-
-    /// Creates a new `TextBounds`, bounded with the specified height value and unbounded on width.
-    #[inline]
-    pub const fn new_vertical(height: f32) -> Self {
-        Self {
-            width: None,
-            height: Some(height),
-        }
-    }
 }
 
 impl From<Vec2> for TextBounds {

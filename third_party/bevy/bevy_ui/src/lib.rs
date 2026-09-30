@@ -44,7 +44,7 @@ pub use ui_transform::*;
 /// This includes the most common types in this crate, re-exported for your convenience.
 pub mod prelude {
     #[doc(hidden)]
-    pub use crate::widget::{Text, TextShadow, TextUiReader, TextUiWriter};
+    pub use crate::widget::{Text, TextShadow, TextUiReader};
     #[doc(hidden)]
     pub use {
         crate::{
@@ -56,8 +56,7 @@ pub mod prelude {
             Interaction, UiScale,
         },
         // `bevy_sprite` re-exports for texture slicing
-        bevy_sprite::{BorderRect, SliceScaleMode, SpriteImageMode, TextureSlicer},
-        bevy_text::TextBackgroundColor,
+        bevy_sprite::{BorderRect, SliceScaleMode, TextureSlicer},
     };
 }
 

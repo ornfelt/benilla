@@ -35,10 +35,7 @@ rustdoc-args = [
 all-features = true
 
 [features]
-bevy_text = [
-    "dep:bevy_text",
-    "bevy_window",
-]
+bevy_text = ["dep:bevy_text"]
 
 [lib]
 name = "bevy_sprite"
@@ -51,12 +48,6 @@ version = "0.18.0"
 version = "0.18.0"
 
 [dependencies.bevy_camera]
-version = "0.18.0"
-
-[dependencies.bevy_color]
-version = "0.18.0"
-
-[dependencies.bevy_derive]
 version = "0.18.0"
 
 [dependencies.bevy_ecs]
@@ -77,28 +68,6 @@ version = "0.18.0"
 [dependencies.bevy_text]
 version = "0.18.0"
 optional = true
-
-[dependencies.bevy_transform]
-version = "0.18.0"
-
-[dependencies.bevy_window]
-version = "0.18.0"
-optional = true
-
-[dependencies.radsort]
-version = "0.1"
-
-[dependencies.tracing]
-version = "0.1"
-features = ["std"]
-default-features = false
-
-[dependencies.wgpu-types]
-version = "27"
-default-features = false
-
-[dev-dependencies.approx]
-version = "0.5.1"
 
 [lints.clippy]
 alloc_instead_of_core = "warn"

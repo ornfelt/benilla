@@ -63,11 +63,6 @@ impl FontAtlas {
         self.glyph_to_atlas_index.get(&cache_key).copied()
     }
 
-    /// Checks if the given subpixel-offset glyph is contained in this [`FontAtlas`].
-    pub fn has_glyph(&self, cache_key: cosmic_text::CacheKey) -> bool {
-        self.glyph_to_atlas_index.contains_key(&cache_key)
-    }
-
     /// Add a glyph to the atlas, updating both its texture and layout.
     ///
     /// The glyph is represented by `glyph`, and its image content is `glyph_texture`.

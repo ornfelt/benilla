@@ -12,7 +12,7 @@ use bevy_ecs::{
 };
 use bevy_image::prelude::*;
 use bevy_log::{once, warn};
-use bevy_math::{Rect, UVec2, Vec2};
+use bevy_math::{UVec2, Vec2};
 use bevy_platform::collections::HashMap;
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
@@ -83,7 +83,7 @@ pub struct TextPipeline {
         LineHeight,
     )>,
     /// Buffered vec for collecting info for glyph assembly.
-    glyph_info: Vec<(AssetId<Font>, FontSmoothing, f32, f32, f32, f32, u16)>,
+    glyph_info: Vec<(AssetId<Font>, FontSmoothing)>,
 }
 
 impl TextPipeline {
@@ -287,20 +287,12 @@ impl TextPipeline {
         })
     }
 
-    /// Returns the [`cosmic_text::fontdb::ID`] for a given [`Font`] asset.
-    pub fn get_font_id(&self, asset_id: AssetId<Font>) -> Option<cosmic_text::fontdb::ID> {
-        self.map_handle_to_font_id
-            .get(&asset_id)
-            .cloned()
-            .map(|(id, _)| id)
-    }
-
     /// Update [`TextLayoutInfo`] with the new [`PositionedGlyph`] layout.
     pub fn update_text_layout_info<'a>(
         &mut self,
         layout_info: &mut TextLayoutInfo,
         text_font_query: Query<&'a TextFont>,
-        scale_factor: f64,
+        _scale_factor: f64,
         font_atlas_set: &mut FontAtlasSet,
         texture_atlases: &mut Assets<TextureAtlasLayout>,
         textures: &mut Assets<Image>,
@@ -313,34 +305,13 @@ impl TextPipeline {
         computed.needs_rerender = false;
 
         layout_info.glyphs.clear();
-        layout_info.run_geometry.clear();
         layout_info.size = Default::default();
 
         self.glyph_info.clear();
 
         for text_font in text_font_query.iter_many(computed.entities.iter().map(|e| e.entity)) {
-            let mut section_info = (
-                text_font.font.id(),
-                text_font.font_smoothing,
-                text_font.font_size,
-                0.0,
-                0.0,
-                0.0,
-                text_font.weight.clamp().0,
-            );
-
-            if let Some((id, _)) = self.map_handle_to_font_id.get(&section_info.0)
-                && let Some(font) = font_system.get_font(*id, cosmic_text::Weight(section_info.6))
-            {
-                let swash = font.as_swash();
-                let metrics = swash.metrics(&[]);
-                let upem = metrics.units_per_em as f32;
-                let scalar = section_info.2 * scale_factor as f32 / upem;
-                section_info.3 = (metrics.strikeout_offset * scalar).round();
-                section_info.4 = (metrics.stroke_size * scalar).round().max(1.);
-                section_info.5 = (metrics.underline_offset * scalar).round();
-            }
-            self.glyph_info.push(section_info);
+            self.glyph_info
+                .push((text_font.font.id(), text_font.font_smoothing));
         }
 
         let buffer = &mut computed.buffer;
@@ -356,43 +327,10 @@ impl TextPipeline {
         let result = buffer.layout_runs().try_for_each(|run| {
             box_size.x = box_size.x.max(run.line_w);
             box_size.y += run.line_height;
-            let mut current_section: Option<usize> = None;
-            let mut start = 0.;
-            let mut end = 0.;
-            let result = run
-                .glyphs
+            run.glyphs
                 .iter()
                 .map(move |layout_glyph| (layout_glyph, run.line_y, run.line_i))
                 .try_for_each(|(layout_glyph, line_y, line_i)| {
-                    match current_section {
-                        Some(section) => {
-                            if section != layout_glyph.metadata {
-                                layout_info.run_geometry.push(RunGeometry {
-                                    span_index: section,
-                                    bounds: Rect::new(
-                                        start,
-                                        run.line_top,
-                                        end,
-                                        run.line_top + run.line_height,
-                                    ),
-                                    strikethrough_y: (run.line_y - self.glyph_info[section].3)
-                                        .round(),
-                                    strikethrough_thickness: self.glyph_info[section].4,
-                                    underline_y: (run.line_y - self.glyph_info[section].5).round(),
-                                    underline_thickness: self.glyph_info[section].4,
-                                });
-                                start = end.max(layout_glyph.x);
-                                current_section = Some(layout_glyph.metadata);
-                            }
-                            end = layout_glyph.x + layout_glyph.w;
-                        }
-                        None => {
-                            current_section = Some(layout_glyph.metadata);
-                            start = layout_glyph.x;
-                            end = start + layout_glyph.w;
-                        }
-                    }
-
                     let mut temp_glyph;
                     let span_index = layout_glyph.metadata;
                     let font_id = self.glyph_info[span_index].0;
@@ -463,19 +401,7 @@ impl TextPipeline {
                     };
                     layout_info.glyphs.push(pos_glyph);
                     Ok(())
-                });
-            if let Some(section) = current_section {
-                layout_info.run_geometry.push(RunGeometry {
-                    span_index: section,
-                    bounds: Rect::new(start, run.line_top, end, run.line_top + run.line_height),
-                    strikethrough_y: (run.line_y - self.glyph_info[section].3).round(),
-                    strikethrough_thickness: self.glyph_info[section].4,
-                    underline_y: (run.line_y - self.glyph_info[section].5).round(),
-                    underline_thickness: self.glyph_info[section].4,
-                });
-            }
-
-            result
+                })
         });
 
         // Check result.
@@ -497,12 +423,6 @@ pub struct TextLayoutInfo {
     pub scale_factor: f32,
     /// Scaled and positioned glyphs in screenspace
     pub glyphs: Vec<PositionedGlyph>,
-    /// Geometry of each text run used to render text decorations like background colors, strikethrough, and underline.
-    /// A run in `bevy_text` is a contiguous sequence of glyphs on a line that share the same text attributes like font,
-    /// font size, and line height. A text entity that extends over multiple lines will have multiple corresponding runs.
-    ///
-    /// The coordinates are unscaled and relative to the top left corner of the text layout.
-    pub run_geometry: Vec<RunGeometry>,
     /// The glyphs resulting size
     pub size: Vec2,
 }
@@ -512,55 +432,7 @@ impl TextLayoutInfo {
     pub fn clear(&mut self) {
         self.scale_factor = 1.;
         self.glyphs.clear();
-        self.run_geometry.clear();
         self.size = Vec2::ZERO;
-    }
-}
-
-/// Geometry of a text run used to render text decorations like background colors, strikethrough, and underline.
-/// A run in `bevy_text` is a contiguous sequence of glyphs on a line that share the same text attributes like font,
-/// font size, and line height.
-#[derive(Default, Debug, Clone, Reflect)]
-pub struct RunGeometry {
-    /// The index of the text entity in [`ComputedTextBlock`] that this run belongs to.
-    pub span_index: usize,
-    /// Bounding box around the text run
-    pub bounds: Rect,
-    /// Y position of the strikethrough in the text layout.
-    pub strikethrough_y: f32,
-    /// Strikethrough stroke thickness.
-    pub strikethrough_thickness: f32,
-    /// Y position of the underline  in the text layout.
-    pub underline_y: f32,
-    /// Underline stroke thickness.
-    pub underline_thickness: f32,
-}
-
-impl RunGeometry {
-    /// Returns the center of the strikethrough in the text layout.
-    pub fn strikethrough_position(&self) -> Vec2 {
-        Vec2::new(
-            self.bounds.center().x,
-            self.strikethrough_y + 0.5 * self.strikethrough_thickness,
-        )
-    }
-
-    /// Returns the size of the strikethrough.
-    pub fn strikethrough_size(&self) -> Vec2 {
-        Vec2::new(self.bounds.size().x, self.strikethrough_thickness)
-    }
-
-    /// Get the center of the underline in the text layout.
-    pub fn underline_position(&self) -> Vec2 {
-        Vec2::new(
-            self.bounds.center().x,
-            self.underline_y + 0.5 * self.underline_thickness,
-        )
-    }
-
-    /// Returns the size of the underline.
-    pub fn underline_size(&self) -> Vec2 {
-        Vec2::new(self.bounds.size().x, self.underline_thickness)
     }
 }
 

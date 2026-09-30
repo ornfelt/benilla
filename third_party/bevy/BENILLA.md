@@ -288,6 +288,30 @@ the same repository's.
   dependency went with the light drawing. avian3d's `debug_render` module (`PhysicsDebugPlugin`,
   which nothing adds) went with the joints' `DebugRenderConstraint` impls; its `debug-plugin`
   feature stays, enabling `bevy_gizmos` and `bevy_render`.
+- **`bevy_text`, to what `bevy_ui`'s text and benilla call.** benilla lays out `bevy_ui` text
+  (its tests drive `TextPipeline::update_buffer`/`update_text_layout_info` through a
+  `TextUiReader`) and benilla-gfx draws `TextLayoutInfo`'s glyphs. Gone: `TextWriter` (and
+  `bevy_ui`'s `TextUiWriter`) with `TextSpanAccess::write_span` and `TextSpanComponent`,
+  `TextReader`'s accessors but `iter`, `TextBackgroundColor`, `Strikethrough`, `Underline` and
+  their colours (only the cut UI renderer read them), `TextLayoutInfo::run_geometry` with
+  `RunGeometry` and the strikeout/underline metrics `update_text_layout_info` gathered only for it
+  (its `scale_factor` argument stays, unread), the `FontFeatures` builder and list conversion,
+  every `FontFeatureTag` and `FontWeight` constant but `NORMAL`/`DEFAULT`, `TextColor::BLACK`,
+  the uncalled `TextLayout`/`TextFont` builders, `TextBounds::new_vertical`,
+  `FontAtlasSet::has_glyph`/`FontAtlas::has_glyph`, `TextPipeline::get_font_id`. No system went.
+- **`bevy_sprite`, to `Mesh2d` bounds, 9-slice data and the `Text2d` frame.** Nothing spawns a
+  `Sprite` or a `Text2d`; benilla-gfx builds `TextureSlicer`s by their fields and reads
+  `BorderRect`/`SliceScaleMode`. Gone: `Sprite`, `SpriteImageMode`, `SpriteScalingMode`,
+  `Anchor`, `TextureSlice` with the slicer's slice computation, `Text2dShadow`, the
+  `Text2dReader`/`Text2dWriter` aliases, `bevy_sprite::SpriteSystems` (unused), the sprite half of
+  `calculate_bounds_2d` (it keeps the `Mesh2d` half) and the tests of removed code. `Text2d`
+  stays a bare component: it names `detect_text_needs_rerender::<Text2d>`, which stays whole.
+  **Stand-ins** in PostUpdate: `update_text2d_layout`, `calculate_bounds_text2d` (keeps its
+  `Commands`), and `bevy_sprite_render`'s `compute_slices_on_asset_event` (keeps its `Commands`)
+  and `compute_slices_on_sprite_change`, with their plugins, places, sets and order;
+  `ComputedTextureSlices` and `Sprite`'s `SyncToRenderWorld` requirement went with them. The
+  manifest drops seven dependencies (the `bevy_text` feature no longer enables `bevy_window`);
+  `bevy_sprite_render` keeps its `bevy_sprite` edge, which its `bevy_text` feature names.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
@@ -297,7 +321,7 @@ the same repository's.
   names stays:
   - `bevy_sprite_render`: the sprite, mesh2d, text2d and wireframe2d pipelines, extraction,
     batching and draw commands, `Mesh2dRenderPlugin` (it had no main-world half) and all WGSL. Kept:
-    `SpriteRenderPlugin`'s slice systems and `Sprite`'s `SyncToRenderWorld`, `Material2d`,
+    `SpriteRenderPlugin`'s slice systems (stand-ins since the `bevy_sprite` trim), `Material2d`,
     `Material2dKey`, `Mesh2dPipelineKey`, `Material2dPlugin`'s asset and specialization check,
     `ColorMaterial`, the tilemap chunk.
   - `bevy_ui_render`: `UiRenderPlugin` returned before its sub-plugins without a `RenderApp`, so it

@@ -29,9 +29,7 @@ pub use tilemap_chunk::*;
 use bevy_app::prelude::*;
 use bevy_asset::AssetEventSystems;
 use bevy_ecs::prelude::*;
-use bevy_image::{prelude::*, TextureAtlasPlugin};
-use bevy_render::sync_world::SyncToRenderWorld;
-use bevy_sprite::Sprite;
+use bevy_image::TextureAtlasPlugin;
 
 /// Adds support for 2D sprite rendering.
 #[derive(Default)]
@@ -63,7 +61,5 @@ impl Plugin for SpriteRenderPlugin {
             )
                 .in_set(SpriteSystems::ComputeSlices),
         );
-
-        app.register_required_components::<Sprite, SyncToRenderWorld>();
     }
 }
