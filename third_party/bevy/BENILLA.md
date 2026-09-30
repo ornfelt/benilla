@@ -270,6 +270,24 @@ the same repository's.
   `despawn`/`despawn_dynamic` filled and `despawn_queued_scenes`, which drained them. The tests of
   removed code went; the kept tests build their scenes by hand. The `serialize` feature stays,
   without `ron` and `serde`. No system went.
+- **`bevy_gizmos`, to the lines benilla draws and benilla-gfx reads.** benilla draws with
+  `Gizmos::line` and `linestrip` (the parity example adds `line_gradient`); benilla-gfx reads
+  `GizmoConfigStore::get_config_dyn`, `GizmoHandles`, `GizmoAsset::buffer`, the line style and
+  joint enums and the retained `Gizmo` component. The plugin keeps its asset, handles, the three
+  config groups and every group's context systems (RunFixedMainLoop, FixedFirst, FixedLast,
+  Last). Gone: every other drawing module (arcs, arrows, circles, cross, curves, grid, rounded
+  box, the 2D and 3D primitives), the other `GizmoBuffer` methods (rays, loops,
+  `linestrip_gradient`, rects, `cube`, `aabb_3d`, every `_2d` form, the `GizmoBufferView`), the
+  global `gizmo()` with `GlobalGizmosPlugin` and its `flush_global_gizmos` system in Last,
+  `insert_gizmo_config`, `GizmoConfigStore`'s mutable and iterating accessors and
+  `GizmoMeshConfig` (the renderer's). **Stand-ins** in PostUpdate: `draw_aabbs`,
+  `draw_all_aabbs`, `draw_lights`, `draw_all_lights` keep their plugin, place, run conditions and
+  order and an unused `Gizmos` (a deferred buffer, like a `Commands`); `ShowAabbGizmo` and
+  `ShowLightGizmo`, which only they read, went (nothing adds either, and each group's `draw_all`
+  stays `false`). The `bevy_light` feature enables nothing now: the optional `bevy_light`
+  dependency went with the light drawing. avian3d's `debug_render` module (`PhysicsDebugPlugin`,
+  which nothing adds) went with the joints' `DebugRenderConstraint` impls; its `debug-plugin`
+  feature stays, enabling `bevy_gizmos` and `bevy_render`.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

@@ -3,17 +3,10 @@
 use bevy_camera::visibility::RenderLayers;
 pub use bevy_gizmos_macros::GizmoConfigGroup;
 
-use {crate::GizmoAsset, bevy_asset::Handle, bevy_ecs::component::Component};
-
 use bevy_ecs::{reflect::ReflectResource, resource::Resource};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect, TypePath};
 use bevy_utils::TypeIdMap;
-use core::{
-    any::TypeId,
-    hash::Hash,
-    ops::{Deref, DerefMut},
-    panic,
-};
+use core::{any::TypeId, hash::Hash, ops::Deref, panic};
 
 /// An enum configuring how line joints will be drawn.
 #[derive(Debug, Default, Copy, Clone, Reflect, PartialEq, Eq, Hash)]
@@ -119,41 +112,6 @@ impl GizmoConfigStore {
         (config, ext)
     }
 
-    /// Returns mutable [`GizmoConfig`] and [`GizmoConfigGroup`] associated with [`TypeId`] of a [`GizmoConfigGroup`]
-    pub fn get_config_mut_dyn(
-        &mut self,
-        config_type_id: &TypeId,
-    ) -> Option<(&mut GizmoConfig, &mut dyn Reflect)> {
-        let (config, ext) = self.store.get_mut(config_type_id)?;
-        Some((config, ext.deref_mut()))
-    }
-
-    /// Returns mutable [`GizmoConfig`] and [`GizmoConfigGroup`] associated with [`GizmoConfigGroup`] `T`
-    pub fn config_mut<T: GizmoConfigGroup>(&mut self) -> (&mut GizmoConfig, &mut T) {
-        let Some((config, ext)) = self.get_config_mut_dyn(&TypeId::of::<T>()) else {
-            panic!("Requested config {} does not exist in `GizmoConfigStore`! Did you forget to add it using `app.init_gizmo_group<T>()`?", T::type_path());
-        };
-        // hash map invariant guarantees that &dyn Reflect is of correct type T
-        let ext = ext.as_any_mut().downcast_mut().unwrap();
-        (config, ext)
-    }
-
-    /// Returns an iterator over all [`GizmoConfig`]s.
-    pub fn iter(&self) -> impl Iterator<Item = (&TypeId, &GizmoConfig, &dyn Reflect)> + '_ {
-        self.store
-            .iter()
-            .map(|(id, (config, ext))| (id, config, ext.deref()))
-    }
-
-    /// Returns an iterator over all [`GizmoConfig`]s, by mutable reference.
-    pub fn iter_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (&TypeId, &mut GizmoConfig, &mut dyn Reflect)> + '_ {
-        self.store
-            .iter_mut()
-            .map(|(id, (config, ext))| (id, config, ext.deref_mut()))
-    }
-
     /// Inserts [`GizmoConfig`] and [`GizmoConfigGroup`] replacing old values
     pub fn insert<T: GizmoConfigGroup>(&mut self, config: GizmoConfig, ext_config: T) {
         // INVARIANT: hash map must correctly map TypeId::of::<T>() to &dyn Reflect of type T
@@ -237,25 +195,4 @@ impl Default for GizmoLineConfig {
             joints: GizmoLineJoint::None,
         }
     }
-}
-
-/// Configuration for gizmo meshes.
-#[derive(Component)]
-pub struct GizmoMeshConfig {
-    /// Apply perspective to gizmo lines.
-    ///
-    /// This setting only affects 3D, non-orthographic cameras.
-    ///
-    /// Defaults to `false`.
-    pub line_perspective: bool,
-    /// Determine the style of gizmo lines.
-    pub line_style: GizmoLineStyle,
-    /// Describe how lines should join.
-    pub line_joints: GizmoLineJoint,
-    /// Describes which rendering layers gizmos will be rendered to.
-    ///
-    /// Gizmos will only be rendered to cameras with intersecting layers.
-    pub render_layers: RenderLayers,
-    /// Handle of the gizmo asset.
-    pub handle: Handle<GizmoAsset>,
 }

@@ -182,49 +182,46 @@ schedule GfxRender
   benilla_gfx::timer::begin -> type(benilla_gfx::draw::draw_views)
 
 schedule Last
-  0 benilla_app::ui_text::engine::gpu::publish_sheet
-  1 benilla_app::ui_chat::settings::save_chat_looks
+  0 benilla_app::ui_pass::count_material_events
+  1 benilla_gfx::window::sync_windows
+  2 benilla_gfx::window::sync_cursor_options
+  3 benilla_gfx::window::sync_cursor_icon
+  4 benilla_gfx::window::check_keyboard_focus_lost
+  5 benilla_world::dev_state::count_still_inputs
+  6 benilla_app::pipe_warm::record_warmed_views
+  7 bevy_gizmos::propagate_gizmos<bevy_gizmos::light::LightGizmoConfigGroup, bevy_time::fixed::Fixed>
+  8 benilla_app::ui_text::engine::gpu::publish_sheet
+  9 benilla_app::ui_chat::settings::save_chat_looks
     in OnAppExit
-  2 benilla_gfx::window::sync_windows
-  3 benilla_gfx::window::sync_cursor_options
-  4 benilla_world::dev_state::count_still_inputs
-  5 benilla_app::ui_script::lifecycle::shutdown_on_exit
+  10 bevy_gizmos::propagate_gizmos<bevy_gizmos::aabb::AabbGizmoConfigGroup, bevy_time::fixed::Fixed>
+  11 benilla_app::ui_text::engine::gpu::hand_cells_to_gfx
+  12 benilla_app::cvars::save_config
     in OnAppExit
-  6 bevy_gizmos::propagate_gizmos<bevy_gizmos::light::LightGizmoConfigGroup, bevy_time::fixed::Fixed>
-  7 benilla_app::name_persist::save_on_exit
+  13 benilla_app::ui_script::lifecycle::shutdown_on_exit
     in OnAppExit
-  8 bevy_gizmos::global::flush_global_gizmos
-  9 benilla_app::pipe_warm::record_warmed_views
-  10 benilla_app::cvars::save_config
-    in OnAppExit
-  11 bevy_gizmos::propagate_gizmos<bevy_gizmos::aabb::AabbGizmoConfigGroup, bevy_time::fixed::Fixed>
-  12 benilla_gfx::window::sync_cursor_icon
-  13 benilla_app::ui_text::engine::gpu::hand_cells_to_gfx
-  14 benilla_app::player::camera_saved::save_on_exit
-    in OnAppExit
-  15 bevy_gizmos::propagate_gizmos<bevy_gizmos::config::DefaultGizmoConfigGroup, bevy_time::fixed::Fixed>
-  16 bevy_ecs::apply_deferred
-  17 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::config::DefaultGizmoConfigGroup>
+  14 bevy_gizmos::propagate_gizmos<bevy_gizmos::config::DefaultGizmoConfigGroup, bevy_time::fixed::Fixed>
+  15 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::config::DefaultGizmoConfigGroup>
     in GizmoMeshSystems
-  18 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::aabb::AabbGizmoConfigGroup>
+  16 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::aabb::AabbGizmoConfigGroup>
     in GizmoMeshSystems
-  19 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::light::LightGizmoConfigGroup>
+  17 bevy_gizmos::update_gizmo_meshes<bevy_gizmos::light::LightGizmoConfigGroup>
     in GizmoMeshSystems
+  18 benilla_app::player::camera_saved::save_on_exit
+    in OnAppExit
+  19 bevy_text::pipeline::trim_cosmic_cache
   20 benilla_world::particles::buffer::clear_effect_frame_flag
-  21 bevy_text::pipeline::trim_cosmic_cache
+  21 bevy_core_pipeline::oit::configure_depth_texture_usages
   22 benilla_app::pipe_warm::census_view_classes
-  23 bevy_core_pipeline::oit::configure_depth_texture_usages
-  24 benilla_app::ui_pass::count_material_events
-  25 bevy_diagnostic::frame_count_diagnostics_plugin::update_frame_count
-  26 benilla_gfx::window::check_keyboard_focus_lost
-  27 bevy_app::task_pool_plugin::tick_global_task_pools
+  23 bevy_diagnostic::frame_count_diagnostics_plugin::update_frame_count
+  24 benilla_app::name_persist::save_on_exit
+    in OnAppExit
+  25 bevy_app::task_pool_plugin::tick_global_task_pools
   set GizmoMeshSystems
   set OnAppExit
     if benilla_app::shutdown::the_exit_frame
   benilla_gfx::window::sync_cursor_icon -> benilla_gfx::window::check_keyboard_focus_lost
   benilla_gfx::window::sync_cursor_options -> benilla_gfx::window::sync_cursor_icon
   benilla_gfx::window::sync_windows -> benilla_gfx::window::sync_cursor_options
-  bevy_gizmos::global::flush_global_gizmos -> GizmoMeshSystems
   bevy_gizmos::propagate_gizmos<bevy_gizmos::aabb::AabbGizmoConfigGroup, bevy_time::fixed::Fixed> -> GizmoMeshSystems
   bevy_gizmos::propagate_gizmos<bevy_gizmos::config::DefaultGizmoConfigGroup, bevy_time::fixed::Fixed> -> GizmoMeshSystems
   bevy_gizmos::propagate_gizmos<bevy_gizmos::light::LightGizmoConfigGroup, bevy_time::fixed::Fixed> -> GizmoMeshSystems

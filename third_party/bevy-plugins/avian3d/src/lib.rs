@@ -60,7 +60,7 @@
 )]
 //! | `bevy_scene`           | Enables [`ColliderConstructorHierarchy`] to wait until a [`Scene`] has loaded before processing it.                                                 | Yes             |
 //! | `bevy_diagnostic`      | Enables writing [physics diagnostics] to the [`DiagnosticsStore`] with the [`PhysicsDiagnosticsPlugin`]. The plugin must be added separately.       | No              |
-//! | `debug-plugin`         | Enables physics debug rendering using the [`PhysicsDebugPlugin`]. The plugin must be added separately.                                              | Yes             |
+//! | `debug-plugin`         | Enables `bevy_gizmos` and `bevy_render`; the physics debug renderer (`PhysicsDebugPlugin`) is cut from this copy.                                   | Yes             |
 //! | `enhanced-determinism` | Enables cross-platform deterministic math, improving determinism across architectures at a small performance cost.                                  | No              |
 //! | `parallel`             | Enables some extra multithreading, which improves performance for larger simulations but can add some overhead for smaller ones.                    | Yes             |
 //! | `simd`                 | Enables [SIMD] optimizations.                                                                                                                       | No              |
@@ -197,7 +197,6 @@
 //!
 //! ## Debugging and Profiling
 //!
-//! - [Physics debug rendering](PhysicsDebugPlugin)
 //! - [Physics diagnostics](diagnostics)
 //!
 //! ## Scheduling
@@ -508,8 +507,6 @@ pub extern crate parry3d_f64 as parry;
 pub mod character_controller;
 pub mod collider_tree;
 pub mod collision;
-#[cfg(feature = "debug-plugin")]
-pub mod debug_render;
 pub mod diagnostics;
 pub mod dynamics;
 pub mod interpolation;
@@ -525,8 +522,6 @@ pub(crate) mod ancestor_marker;
 
 /// Re-exports common components, bundles, resources, plugins and types.
 pub mod prelude {
-    #[cfg(feature = "debug-plugin")]
-    pub use crate::debug_render::*;
     #[cfg(feature = "bevy_diagnostic")]
     pub use crate::diagnostics::PhysicsDiagnosticsPlugin;
     #[cfg(feature = "default-collider")]
@@ -605,7 +600,6 @@ use prelude::*;
 ///
 /// | Plugin                            | Description                                                                                                                                                |
 /// | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-/// | [`PhysicsDebugPlugin`]            | Renders physics objects and events like [AABBs](ColliderAabb) and contacts for debugging purposes (only with `debug-plugin` feature enabled).              |
 /// | [`PhysicsDiagnosticsPlugin`]      | Writes [physics diagnostics](diagnostics) to the [`DiagnosticsStore`] (only with `bevy_diagnostic` feature enabled).                                       |
 ///
 /// [`ColliderTrees`]: collider_tree::ColliderTrees
@@ -704,7 +698,7 @@ impl PhysicsPlugins {
     /// Note that this is *not* used to scale forces or any other user-facing inputs or outputs.
     /// Instead, the value is only used to scale some internal length-based tolerances, such as
     /// [`SleepingThreshold::linear`] and [`NarrowPhaseConfig::default_speculative_margin`],
-    /// as well as the scale used for [debug rendering](PhysicsDebugPlugin).
+    /// as well as the scale used for debug rendering.
     ///
     /// Choosing the appropriate length unit can help improve stability and robustness.
     ///

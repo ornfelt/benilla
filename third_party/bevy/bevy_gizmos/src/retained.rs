@@ -47,7 +47,7 @@ impl DerefMut for GizmoAsset {
 /// ) {
 ///     let mut gizmo = GizmoAsset::default();
 ///
-///     gizmo.sphere(Vec3::ZERO, 1., RED);
+///     gizmo.line(Vec3::ZERO, Vec3::X, RED);
 ///
 ///     commands.spawn(Gizmo {
 ///         handle: gizmo_assets.add(gizmo),

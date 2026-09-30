@@ -23,18 +23,9 @@
 extern crate self as bevy_gizmos;
 
 pub mod aabb;
-pub mod arcs;
-pub mod arrows;
-pub mod circles;
 pub mod config;
-pub mod cross;
-pub mod curves;
 pub mod gizmos;
-mod global;
-pub mod grid;
-pub mod primitives;
 pub mod retained;
-pub mod rounded_box;
 
 #[cfg(feature = "bevy_light")]
 pub mod light;
@@ -44,7 +35,7 @@ pub mod light;
 /// This includes the most common types in this crate, re-exported for your convenience.
 pub mod prelude {
     #[doc(hidden)]
-    pub use crate::aabb::{AabbGizmoConfigGroup, ShowAabbGizmo};
+    pub use crate::aabb::AabbGizmoConfigGroup;
 
     #[doc(hidden)]
     pub use crate::{
@@ -53,15 +44,13 @@ pub mod prelude {
             GizmoLineConfig, GizmoLineJoint, GizmoLineStyle,
         },
         gizmos::Gizmos,
-        global::gizmo,
-        primitives::{dim2::GizmoPrimitive2d, dim3::GizmoPrimitive3d},
         retained::Gizmo,
         AppGizmoBuilder, GizmoAsset,
     };
 
     #[doc(hidden)]
     #[cfg(feature = "bevy_light")]
-    pub use crate::light::{LightGizmoColor, LightGizmoConfigGroup, ShowLightGizmo};
+    pub use crate::light::{LightGizmoColor, LightGizmoConfigGroup};
 }
 
 use bevy_app::{App, FixedFirst, FixedLast, Last, Plugin, RunFixedMainLoop};
@@ -77,7 +66,7 @@ use crate::{config::ErasedGizmoConfigGroup, gizmos::GizmoBuffer};
 
 use bevy_time::Fixed;
 use bevy_utils::TypeIdMap;
-use config::{DefaultGizmoConfigGroup, GizmoConfig, GizmoConfigGroup, GizmoConfigStore};
+use config::{DefaultGizmoConfigGroup, GizmoConfigGroup, GizmoConfigStore};
 use core::{any::TypeId, marker::PhantomData, mem};
 use gizmos::{GizmoStorage, Swap};
 #[cfg(feature = "bevy_light")]
@@ -94,28 +83,19 @@ impl Plugin for GizmoPlugin {
             // We insert the Resource GizmoConfigStore into the world implicitly here if it does not exist.
             .init_gizmo_group::<DefaultGizmoConfigGroup>();
 
-        app.add_plugins((aabb::AabbGizmoPlugin, global::GlobalGizmosPlugin));
+        app.add_plugins(aabb::AabbGizmoPlugin);
 
         #[cfg(feature = "bevy_light")]
         app.add_plugins(LightGizmoPlugin);
     }
 }
 
-/// A extension trait adding `App::init_gizmo_group` and `App::insert_gizmo_config`.
+/// A extension trait adding `App::init_gizmo_group`.
 pub trait AppGizmoBuilder {
     /// Registers [`GizmoConfigGroup`] in the app enabling the use of [Gizmos&lt;Config&gt;](crate::gizmos::Gizmos).
     ///
     /// Configurations can be set using the [`GizmoConfigStore`] [`Resource`].
     fn init_gizmo_group<Config: GizmoConfigGroup>(&mut self) -> &mut Self;
-
-    /// Insert a [`GizmoConfig`] into a specific [`GizmoConfigGroup`].
-    ///
-    /// This method should be preferred over [`AppGizmoBuilder::init_gizmo_group`] if and only if you need to configure fields upon initialization.
-    fn insert_gizmo_config<Config: GizmoConfigGroup>(
-        &mut self,
-        group: Config,
-        config: GizmoConfig,
-    ) -> &mut Self;
 }
 
 impl AppGizmoBuilder for App {
@@ -157,20 +137,6 @@ impl AppGizmoBuilder for App {
                     update_gizmo_meshes::<Config>.in_set(GizmoMeshSystems),
                 ),
             );
-
-        self
-    }
-
-    fn insert_gizmo_config<Config: GizmoConfigGroup>(
-        &mut self,
-        group: Config,
-        config: GizmoConfig,
-    ) -> &mut Self {
-        self.init_gizmo_group::<Config>();
-
-        self.world_mut()
-            .get_resource_or_init::<GizmoConfigStore>()
-            .insert(config, group);
 
         self
     }

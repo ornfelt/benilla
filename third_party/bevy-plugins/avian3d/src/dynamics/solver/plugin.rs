@@ -167,7 +167,7 @@ impl Plugin for SolverPlugin {
 /// Note that this is *not* used to scale forces or any other user-facing inputs or outputs.
 /// Instead, the value is only used to scale some internal length-based tolerances, such as
 /// [`SleepingThreshold::linear`] and [`NarrowPhaseConfig::default_speculative_margin`],
-/// as well as the scale used for [debug rendering](PhysicsDebugPlugin).
+/// as well as the scale used for debug rendering.
 ///
 /// Choosing the appropriate length unit can help improve stability and robustness.
 ///
