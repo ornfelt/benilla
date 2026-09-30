@@ -61,7 +61,6 @@ kira = { path = "third_party/kira" }
 # (`third_party/bevy/BENILLA.md`).
 bevy = { path = "third_party/bevy/bevy" }
 bevy_animation = { path = "third_party/bevy/bevy_animation" }
-bevy_animation_macros = { path = "third_party/bevy/bevy_animation_macros" }
 bevy_app = { path = "third_party/bevy/bevy_app" }
 bevy_asset = { path = "third_party/bevy/bevy_asset" }
 bevy_asset_macros = { path = "third_party/bevy/bevy_asset_macros" }

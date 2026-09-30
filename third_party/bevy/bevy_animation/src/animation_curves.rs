@@ -89,8 +89,6 @@ use core::{
     marker::PhantomData,
 };
 
-#[cfg(feature = "bevy_mesh")]
-pub use crate::morph::*;
 use crate::{
     graph::AnimationNodeIndex,
     prelude::{Animatable, BlendInput},

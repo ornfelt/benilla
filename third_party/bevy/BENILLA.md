@@ -241,6 +241,23 @@ the same repository's.
   and `MeshMorphWeights` keep what bevy_animation and bevy_render read), `serialize`
   (`SerializedMesh`, `MeshDeserializer`; bevy_render's `serialize` stays a name enabling
   nothing), `triangle_area_normal`, and the tests of removed code. No system went.
+- **`bevy_animation`, to the API benilla calls, and `bevy_animation_macros`.** Animation events
+  (nothing adds one): `AnimationEvent` with its derive crate, `AnimationEventTrigger`,
+  `AnimationClip`'s `add_event*` and events map, the per-tick event window (`TriggeredEvents`)
+  with `ActiveAnimation`'s `last_seek_time`/`just_completed` that only it read, and the three
+  event tests. `trigger_untargeted_animation_events` is an empty stand-in keeping its `Commands`
+  (the sync point before `expire_completed_transitions`), and `animate_targets` keeps its
+  unused `ParallelCommands` (the sync point after it). Also gone: `gltf_curves` (only bevy_gltf
+  built them) with `interpolate_with_cubic_bezier`, the morph-weight curve `WeightsCurve` (the
+  `bevy_mesh` feature stays for `animate_targets`' order against `InheritWeightSystems`), the
+  graph's RON loader, `save` and serialized forms (nothing loads an `.animgraph.ron`), the
+  blend-node constructors, `add_edge`/`remove_edge`/`get_mut`/`nodes`, the node mask setters,
+  `curves_mut`, `curves_for_target_mut`, `add_variable_curve_to_target`, the uncalled
+  `ActiveAnimation`/`AnimationPlayer` controls (`rewind`, `set_seek_time`,
+  `is_playback_reversed`, `is_playing_animation`, the `*_all` family, `adjust_speeds`,
+  `seek_all_by`) and `AnimationTargetId`'s serde derive. `ron` stays a dependency, unused, so
+  its `std` feature stays on for bevy_asset and bevy_scene. bevy_mesh's two `weights_mut` (the
+  morph curve's) went with it. No system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

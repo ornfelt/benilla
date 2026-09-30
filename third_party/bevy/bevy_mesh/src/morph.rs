@@ -28,9 +28,6 @@ impl MorphWeights {
     pub fn weights(&self) -> &[f32] {
         &self.weights
     }
-    pub fn weights_mut(&mut self) -> &mut [f32] {
-        &mut self.weights
-    }
 }
 
 /// Control a specific [`Mesh`] instance's [morph targets]. These control the weights of
@@ -53,9 +50,6 @@ pub struct MeshMorphWeights {
 impl MeshMorphWeights {
     pub fn weights(&self) -> &[f32] {
         &self.weights
-    }
-    pub fn weights_mut(&mut self) -> &mut [f32] {
-        &mut self.weights
     }
     pub fn clear_weights(&mut self) {
         self.weights.clear();

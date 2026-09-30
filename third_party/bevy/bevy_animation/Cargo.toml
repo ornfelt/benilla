@@ -38,9 +38,6 @@ all-features = true
 name = "bevy_animation"
 path = "src/lib.rs"
 
-[dependencies.bevy_animation_macros]
-version = "0.18.0"
-
 [dependencies.bevy_app]
 version = "0.18.0"
 
@@ -98,25 +95,15 @@ version = "2"
 features = ["std"]
 default-features = false
 
-[dependencies.either]
-version = "1.13"
-
 [dependencies.petgraph]
 version = "0.8"
-features = ["serde-1"]
 
+# Unused here: it keeps ron's default `std` feature on for bevy_asset and bevy_scene.
 [dependencies.ron]
 version = "0.12"
 
-[dependencies.serde]
-version = "1"
-
 [dependencies.smallvec]
 version = "1"
-default-features = false
-
-[dependencies.thiserror]
-version = "2"
 default-features = false
 
 [dependencies.thread_local]

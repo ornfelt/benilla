@@ -1,15 +1,11 @@
 //! The animation graph, which allows animations to be blended together.
 
 use core::{
-    fmt::Write,
     iter,
     ops::{Index, IndexMut, Range},
 };
-use std::io;
 
-use bevy_asset::{
-    io::Reader, Asset, AssetEvent, AssetId, AssetLoader, AssetPath, Assets, Handle, LoadContext,
-};
+use bevy_asset::{Asset, AssetEvent, AssetId, Assets, Handle};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     component::Component,
@@ -19,16 +15,13 @@ use bevy_ecs::{
     system::{Res, ResMut},
 };
 use bevy_platform::collections::HashMap;
-use bevy_reflect::{prelude::ReflectDefault, Reflect, TypePath};
+use bevy_reflect::{prelude::ReflectDefault, Reflect};
 use derive_more::derive::From;
 use petgraph::{
     graph::{DiGraph, NodeIndex},
     Direction,
 };
-use ron::de::SpannedError;
-use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use thiserror::Error;
 
 use crate::{AnimationClip, AnimationTargetId};
 
@@ -99,13 +92,8 @@ use crate::{AnimationClip, AnimationTargetId};
 /// animations will continue to play but will not affect the hand, which will
 /// continue to be depicted as holding the object.
 ///
-/// Animation graphs are assets and can be serialized to and loaded from [RON]
-/// files. Canonically, such files have an `.animgraph.ron` extension.
-///
 /// The animation graph implements [RFC 51]. See that document for more
 /// information.
-///
-/// [RON]: https://github.com/ron-rs/ron
 ///
 /// [RFC 51]: https://github.com/bevyengine/rfcs/blob/main/rfcs/51-animation-composition.md
 #[derive(Asset, Reflect, Clone, Debug)]
@@ -234,49 +222,6 @@ pub enum AnimationNodeType {
     Add,
 }
 
-/// An [`AssetLoader`] that can load [`AnimationGraph`]s as assets.
-///
-/// The canonical extension for [`AnimationGraph`]s is `.animgraph.ron`. Plain
-/// `.animgraph` is supported as well.
-#[derive(Default, TypePath)]
-pub struct AnimationGraphAssetLoader;
-
-/// Errors that can occur when serializing animation graphs to RON.
-#[derive(Error, Debug)]
-pub enum AnimationGraphSaveError {
-    /// An I/O error occurred.
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    /// An error occurred in RON serialization.
-    #[error(transparent)]
-    Ron(#[from] ron::Error),
-    /// An error occurred converting the graph to its serialization form.
-    #[error(transparent)]
-    ConvertToSerialized(#[from] NonPathHandleError),
-}
-
-/// Errors that can occur when deserializing animation graphs from RON.
-#[derive(Error, Debug)]
-pub enum AnimationGraphLoadError {
-    /// An I/O error occurred.
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    /// An error occurred in RON deserialization.
-    #[error(transparent)]
-    Ron(#[from] ron::Error),
-    /// An error occurred in RON deserialization, and the location of the error
-    /// is supplied.
-    #[error(transparent)]
-    SpannedRon(#[from] SpannedError),
-    /// The deserialized graph contained legacy data that we no longer support.
-    #[error(
-        "The deserialized AnimationGraph contained an AnimationClip referenced by an AssetId, \
-    which is no longer supported. Consider manually deserializing the SerializedAnimationGraph \
-    type and determine how to migrate any SerializedAnimationClip::AssetId animation clips"
-    )]
-    GraphContainsLegacyAssetId,
-}
-
 /// Acceleration structures for animation graphs that allows Bevy to evaluate
 /// them quickly.
 ///
@@ -368,50 +313,6 @@ pub struct ThreadedAnimationGraph {
     /// A 1 in bit position N indicates that this node doesn't animate any
     /// targets of mask group N.
     pub computed_masks: Vec<u64>,
-}
-
-/// A version of [`AnimationGraph`] suitable for serializing as an asset.
-///
-/// Animation nodes can refer to external animation clips, and the [`AssetId`]
-/// is typically not sufficient to identify the clips, since the
-/// [`bevy_asset::AssetServer`] assigns IDs in unpredictable ways. That fact
-/// motivates this type, which replaces the `Handle<AnimationClip>` with an
-/// asset path.  Loading an animation graph via the [`bevy_asset::AssetServer`]
-/// actually loads a serialized instance of this type, as does serializing an
-/// [`AnimationGraph`] through `serde`.
-#[derive(Serialize, Deserialize)]
-pub struct SerializedAnimationGraph {
-    /// Corresponds to the `graph` field on [`AnimationGraph`].
-    pub graph: DiGraph<SerializedAnimationGraphNode, (), u32>,
-    /// Corresponds to the `root` field on [`AnimationGraph`].
-    pub root: NodeIndex,
-    /// Corresponds to the `mask_groups` field on [`AnimationGraph`].
-    pub mask_groups: HashMap<AnimationTargetId, AnimationMask>,
-}
-
-/// A version of [`AnimationGraphNode`] suitable for serializing as an asset.
-///
-/// See the comments in [`SerializedAnimationGraph`] for more information.
-#[derive(Serialize, Deserialize)]
-pub struct SerializedAnimationGraphNode {
-    /// Corresponds to the `node_type` field on [`AnimationGraphNode`].
-    pub node_type: SerializedAnimationNodeType,
-    /// Corresponds to the `mask` field on [`AnimationGraphNode`].
-    pub mask: AnimationMask,
-    /// Corresponds to the `weight` field on [`AnimationGraphNode`].
-    pub weight: f32,
-}
-
-/// A version of [`AnimationNodeType`] suitable for serializing as part of a
-/// [`SerializedAnimationGraphNode`] asset.
-#[derive(Serialize, Deserialize)]
-pub enum SerializedAnimationNodeType {
-    /// Corresponds to [`AnimationNodeType::Clip`].
-    Clip(AssetPath<'static>),
-    /// Corresponds to [`AnimationNodeType::Blend`].
-    Blend,
-    /// Corresponds to [`AnimationNodeType::Add`].
-    Add,
 }
 
 /// The type of an animation mask bitfield.
@@ -524,141 +425,11 @@ impl AnimationGraph {
             .map(move |clip| self.add_clip(clip, weight, parent))
     }
 
-    /// Adds a blend node to the animation graph with the given weight and
-    /// returns its index.
-    ///
-    /// The blend node will be placed under the supplied `parent` node. During
-    /// animation evaluation, the descendants of this blend node will have their
-    /// weights multiplied by the weight of the blend. The blend node will have
-    /// no mask.
-    pub fn add_blend(&mut self, weight: f32, parent: AnimationNodeIndex) -> AnimationNodeIndex {
-        let node_index = self.graph.add_node(AnimationGraphNode {
-            node_type: AnimationNodeType::Blend,
-            mask: 0,
-            weight,
-        });
-        self.graph.add_edge(parent, node_index, ());
-        node_index
-    }
-
-    /// Adds a blend node to the animation graph with the given weight and
-    /// returns its index.
-    ///
-    /// The blend node will be placed under the supplied `parent` node. During
-    /// animation evaluation, the descendants of this blend node will have their
-    /// weights multiplied by the weight of the blend. Neither this node nor its
-    /// descendants will affect animation targets that belong to mask groups not
-    /// in the given `mask`.
-    pub fn add_blend_with_mask(
-        &mut self,
-        mask: AnimationMask,
-        weight: f32,
-        parent: AnimationNodeIndex,
-    ) -> AnimationNodeIndex {
-        let node_index = self.graph.add_node(AnimationGraphNode {
-            node_type: AnimationNodeType::Blend,
-            mask,
-            weight,
-        });
-        self.graph.add_edge(parent, node_index, ());
-        node_index
-    }
-
-    /// Adds a blend node to the animation graph with the given weight and
-    /// returns its index.
-    ///
-    /// The blend node will be placed under the supplied `parent` node. During
-    /// animation evaluation, the descendants of this blend node will have their
-    /// weights multiplied by the weight of the blend. The blend node will have
-    /// no mask.
-    pub fn add_additive_blend(
-        &mut self,
-        weight: f32,
-        parent: AnimationNodeIndex,
-    ) -> AnimationNodeIndex {
-        let node_index = self.graph.add_node(AnimationGraphNode {
-            node_type: AnimationNodeType::Add,
-            mask: 0,
-            weight,
-        });
-        self.graph.add_edge(parent, node_index, ());
-        node_index
-    }
-
-    /// Adds a blend node to the animation graph with the given weight and
-    /// returns its index.
-    ///
-    /// The blend node will be placed under the supplied `parent` node. During
-    /// animation evaluation, the descendants of this blend node will have their
-    /// weights multiplied by the weight of the blend. Neither this node nor its
-    /// descendants will affect animation targets that belong to mask groups not
-    /// in the given `mask`.
-    pub fn add_additive_blend_with_mask(
-        &mut self,
-        mask: AnimationMask,
-        weight: f32,
-        parent: AnimationNodeIndex,
-    ) -> AnimationNodeIndex {
-        let node_index = self.graph.add_node(AnimationGraphNode {
-            node_type: AnimationNodeType::Add,
-            mask,
-            weight,
-        });
-        self.graph.add_edge(parent, node_index, ());
-        node_index
-    }
-
-    /// Adds an edge from the edge `from` to `to`, making `to` a child of
-    /// `from`.
-    ///
-    /// The behavior is unspecified if adding this produces a cycle in the
-    /// graph.
-    pub fn add_edge(&mut self, from: NodeIndex, to: NodeIndex) {
-        self.graph.add_edge(from, to, ());
-    }
-
-    /// Removes an edge between `from` and `to` if it exists.
-    ///
-    /// Returns true if the edge was successfully removed or false if no such
-    /// edge existed.
-    pub fn remove_edge(&mut self, from: NodeIndex, to: NodeIndex) -> bool {
-        self.graph
-            .find_edge(from, to)
-            .map(|edge| self.graph.remove_edge(edge))
-            .is_some()
-    }
-
     /// Returns the [`AnimationGraphNode`] associated with the given index.
     ///
     /// If no node with the given index exists, returns `None`.
     pub fn get(&self, animation: AnimationNodeIndex) -> Option<&AnimationGraphNode> {
         self.graph.node_weight(animation)
-    }
-
-    /// Returns a mutable reference to the [`AnimationGraphNode`] associated
-    /// with the given index.
-    ///
-    /// If no node with the given index exists, returns `None`.
-    pub fn get_mut(&mut self, animation: AnimationNodeIndex) -> Option<&mut AnimationGraphNode> {
-        self.graph.node_weight_mut(animation)
-    }
-
-    /// Returns an iterator over the [`AnimationGraphNode`]s in this graph.
-    pub fn nodes(&self) -> impl Iterator<Item = AnimationNodeIndex> {
-        self.graph.node_indices()
-    }
-
-    /// Serializes the animation graph to the given [`Write`]r in RON format.
-    ///
-    /// If writing to a file, it can later be loaded with the
-    /// [`AnimationGraphAssetLoader`] to reconstruct the graph.
-    pub fn save<W>(&self, writer: &mut W) -> Result<(), AnimationGraphSaveError>
-    where
-        W: Write,
-    {
-        let mut ron_serializer = ron::ser::Serializer::new(writer, None)?;
-        let serialized_graph: SerializedAnimationGraph = self.clone().try_into()?;
-        Ok(serialized_graph.serialize(&mut ron_serializer)?)
     }
 
     /// Adds an animation target (bone) to the mask group with the given ID.
@@ -668,46 +439,6 @@ impl AnimationGraph {
     /// the specified groups.
     pub fn add_target_to_mask_group(&mut self, target: AnimationTargetId, mask_group: u32) {
         *self.mask_groups.entry(target).or_default() |= 1 << mask_group;
-    }
-}
-
-impl AnimationGraphNode {
-    /// Masks out the mask groups specified by the given `mask` bitfield.
-    ///
-    /// A 1 in bit position N causes this function to mask out mask group N, and
-    /// thus neither this node nor its descendants will animate any animation
-    /// targets that belong to group N.
-    pub fn add_mask(&mut self, mask: AnimationMask) -> &mut Self {
-        self.mask |= mask;
-        self
-    }
-
-    /// Unmasks the mask groups specified by the given `mask` bitfield.
-    ///
-    /// A 1 in bit position N causes this function to unmask mask group N, and
-    /// thus this node and its descendants will be allowed to animate animation
-    /// targets that belong to group N, unless another mask masks those targets
-    /// out.
-    pub fn remove_mask(&mut self, mask: AnimationMask) -> &mut Self {
-        self.mask &= !mask;
-        self
-    }
-
-    /// Masks out the single mask group specified by `group`.
-    ///
-    /// After calling this function, neither this node nor its descendants will
-    /// animate any animation targets that belong to the given `group`.
-    pub fn add_mask_group(&mut self, group: u32) -> &mut Self {
-        self.add_mask(1 << group)
-    }
-
-    /// Unmasks the single mask group specified by `group`.
-    ///
-    /// After calling this function, this node and its descendants will be
-    /// allowed to animate animation targets that belong to the given `group`,
-    /// unless another mask masks those targets out.
-    pub fn remove_mask_group(&mut self, group: u32) -> &mut Self {
-        self.remove_mask(1 << group)
     }
 }
 
@@ -740,106 +471,6 @@ impl Default for AnimationGraph {
         Self::new()
     }
 }
-
-impl AssetLoader for AnimationGraphAssetLoader {
-    type Asset = AnimationGraph;
-
-    type Settings = ();
-
-    type Error = AnimationGraphLoadError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _: &Self::Settings,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
-
-        // Deserialize a `SerializedAnimationGraph` directly, so that we can
-        // get the list of the animation clips it refers to and load them.
-        let mut deserializer = ron::de::Deserializer::from_bytes(&bytes)?;
-        let serialized_animation_graph = SerializedAnimationGraph::deserialize(&mut deserializer)
-            .map_err(|err| deserializer.span_error(err))?;
-
-        // Load all `AssetPath`s to convert from a `SerializedAnimationGraph` to a real
-        // `AnimationGraph`. This is effectively a `DiGraph::map`, but this allows us to return
-        // errors.
-        let mut animation_graph = DiGraph::with_capacity(
-            serialized_animation_graph.graph.node_count(),
-            serialized_animation_graph.graph.edge_count(),
-        );
-
-        for serialized_node in serialized_animation_graph.graph.node_weights() {
-            animation_graph.add_node(AnimationGraphNode {
-                node_type: match serialized_node.node_type {
-                    SerializedAnimationNodeType::Clip(ref path) => {
-                        AnimationNodeType::Clip(load_context.load(path.clone()))
-                    }
-                    SerializedAnimationNodeType::Blend => AnimationNodeType::Blend,
-                    SerializedAnimationNodeType::Add => AnimationNodeType::Add,
-                },
-                mask: serialized_node.mask,
-                weight: serialized_node.weight,
-            });
-        }
-        for edge in serialized_animation_graph.graph.raw_edges() {
-            animation_graph.add_edge(edge.source(), edge.target(), ());
-        }
-        Ok(AnimationGraph {
-            graph: animation_graph,
-            root: serialized_animation_graph.root,
-            mask_groups: serialized_animation_graph.mask_groups,
-        })
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["animgraph", "animgraph.ron"]
-    }
-}
-
-impl TryFrom<AnimationGraph> for SerializedAnimationGraph {
-    type Error = NonPathHandleError;
-
-    fn try_from(animation_graph: AnimationGraph) -> Result<Self, NonPathHandleError> {
-        // Convert all the `Handle<AnimationClip>` to AssetPath, so that
-        // `AnimationGraphAssetLoader` can load them. This is effectively just doing a
-        // `DiGraph::map`, except we need to return an error if any handles aren't associated to a
-        // path.
-        let mut serialized_graph = DiGraph::with_capacity(
-            animation_graph.graph.node_count(),
-            animation_graph.graph.edge_count(),
-        );
-        for node in animation_graph.graph.node_weights() {
-            serialized_graph.add_node(SerializedAnimationGraphNode {
-                weight: node.weight,
-                mask: node.mask,
-                node_type: match node.node_type {
-                    AnimationNodeType::Clip(ref clip) => match clip.path() {
-                        Some(path) => SerializedAnimationNodeType::Clip(path.clone()),
-                        None => return Err(NonPathHandleError),
-                    },
-                    AnimationNodeType::Blend => SerializedAnimationNodeType::Blend,
-                    AnimationNodeType::Add => SerializedAnimationNodeType::Add,
-                },
-            });
-        }
-        for edge in animation_graph.graph.raw_edges() {
-            serialized_graph.add_edge(edge.source(), edge.target(), ());
-        }
-        Ok(Self {
-            graph: serialized_graph,
-            root: animation_graph.root,
-            mask_groups: animation_graph.mask_groups,
-        })
-    }
-}
-
-/// Error for when only path [`Handle`]s are supported.
-#[derive(Error, Debug)]
-#[error("AnimationGraph contains a handle to an AnimationClip that does not correspond to an asset path")]
-pub struct NonPathHandleError;
 
 /// A system that creates, updates, and removes [`ThreadedAnimationGraph`]
 /// structures for every changed [`AnimationGraph`].

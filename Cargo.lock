@@ -608,7 +608,6 @@ dependencies = [
 name = "bevy_animation"
 version = "0.18.1"
 dependencies = [
- "bevy_animation_macros",
  "bevy_app",
  "bevy_asset",
  "bevy_color",
@@ -624,24 +623,12 @@ dependencies = [
  "blake3",
  "derive_more",
  "downcast-rs 2.0.2",
- "either",
  "petgraph",
  "ron",
- "serde",
  "smallvec",
- "thiserror 2.0.18",
  "thread_local",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "bevy_animation_macros"
-version = "0.18.1"
-dependencies = [
- "bevy_macro_utils",
- "quote",
- "syn",
 ]
 
 [[package]]
