@@ -557,7 +557,7 @@ impl AssetServer {
         infos.stats.started_load_tasks += 1;
 
         // drop the lock on `AssetInfos` before spawning a task that may block on it in single-threaded
-        #[cfg(any(target_arch = "wasm32", not(feature = "multi_threaded")))]
+        #[cfg(not(feature = "multi_threaded"))]
         drop(infos);
 
         let owned_handle = handle.clone();
@@ -572,7 +572,7 @@ impl AssetServer {
             drop(guard);
         });
 
-        #[cfg(not(any(target_arch = "wasm32", not(feature = "multi_threaded"))))]
+        #[cfg(feature = "multi_threaded")]
         {
             let mut infos = infos;
             infos
@@ -580,7 +580,7 @@ impl AssetServer {
                 .insert((&handle).try_into().unwrap(), task);
         }
 
-        #[cfg(any(target_arch = "wasm32", not(feature = "multi_threaded")))]
+        #[cfg(not(feature = "multi_threaded"))]
         task.detach();
     }
 
@@ -627,7 +627,7 @@ impl AssetServer {
         infos.stats.started_load_tasks += 1;
 
         // drop the lock on `AssetInfos` before spawning a task that may block on it in single-threaded
-        #[cfg(any(target_arch = "wasm32", not(feature = "multi_threaded")))]
+        #[cfg(not(feature = "multi_threaded"))]
         drop(infos);
 
         let server = self.clone();
@@ -655,10 +655,10 @@ impl AssetServer {
             };
         });
 
-        #[cfg(not(any(target_arch = "wasm32", not(feature = "multi_threaded"))))]
+        #[cfg(feature = "multi_threaded")]
         infos.pending_tasks.insert(index, task);
 
-        #[cfg(any(target_arch = "wasm32", not(feature = "multi_threaded")))]
+        #[cfg(not(feature = "multi_threaded"))]
         task.detach();
 
         handle
@@ -977,7 +977,7 @@ impl AssetServer {
             infos.create_loading_handle_untyped(TypeId::of::<A>(), core::any::type_name::<A>());
 
         // drop the lock on `AssetInfos` before spawning a task that may block on it in single-threaded
-        #[cfg(any(target_arch = "wasm32", not(feature = "multi_threaded")))]
+        #[cfg(not(feature = "multi_threaded"))]
         drop(infos);
 
         // `create_loading_handle_untyped` always returns a Strong variant, so this is safe.
@@ -1012,10 +1012,10 @@ impl AssetServer {
             }
         });
 
-        #[cfg(not(any(target_arch = "wasm32", not(feature = "multi_threaded"))))]
+        #[cfg(feature = "multi_threaded")]
         infos.pending_tasks.insert(index, task);
 
-        #[cfg(any(target_arch = "wasm32", not(feature = "multi_threaded")))]
+        #[cfg(not(feature = "multi_threaded"))]
         task.detach();
 
         handle.typed_debug_checked()
@@ -1868,14 +1868,14 @@ pub fn handle_internal_asset_events(world: &mut World) {
 
         // Drop the lock on `AssetInfos` before spawning a task that may block on it in
         // single-threaded.
-        #[cfg(any(target_arch = "wasm32", not(feature = "multi_threaded")))]
+        #[cfg(not(feature = "multi_threaded"))]
         drop(infos);
 
         for path in paths_to_reload {
             server.reload_internal(path, true);
         }
 
-        #[cfg(not(any(target_arch = "wasm32", not(feature = "multi_threaded"))))]
+        #[cfg(feature = "multi_threaded")]
         infos
             .pending_tasks
             .retain(|_, load_task| !load_task.is_finished());

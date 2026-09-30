@@ -30,7 +30,7 @@ pub(crate) fn get_base_path() -> PathBuf {
 
 /// I/O implementation for the local filesystem.
 ///
-/// This asset I/O is fully featured but it's not available on `android` and `wasm` targets.
+/// This asset I/O is fully featured.
 pub struct FileAssetReader {
     root_path: PathBuf,
 }

@@ -23,7 +23,6 @@ impl Plugin for ColliderTreeOptimizationPlugin {
             PhysicsSchedule,
             (
                 optimize_trees.in_set(ColliderTreeSystems::BeginOptimize),
-                #[cfg(all(not(target_arch = "wasm32"), not(target_os = "unknown")))]
                 block_on_optimize_trees.in_set(ColliderTreeSystems::EndOptimize),
             ),
         );
@@ -68,9 +67,6 @@ impl Default for ColliderTreeOptimization {
         Self {
             optimization_mode: TreeOptimizationMode::default(),
             optimize_in_place: false,
-            #[cfg(any(target_arch = "wasm32", target_os = "unknown"))]
-            use_async_tasks: false,
-            #[cfg(all(not(target_arch = "wasm32"), not(target_os = "unknown")))]
             use_async_tasks: true,
         }
     }
@@ -176,10 +172,6 @@ fn optimize_trees(
 
     let task_pool = AsyncComputeTaskPool::get();
 
-    // We cannot block on wasm.
-    #[cfg(any(target_arch = "wasm32", target_os = "unknown"))]
-    let use_async_tasks = false;
-    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "unknown")))]
     let use_async_tasks = optimization_settings.use_async_tasks;
 
     // Spawn optimization tasks for each tree.
@@ -194,7 +186,6 @@ fn optimize_trees(
             continue;
         }
 
-        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "unknown")))]
         if use_async_tasks {
             // Take or clone the BVH for the optimization task.
             // TODO: For small changes to large trees, the cost of cloning can exceed the cost of the async task.
@@ -261,7 +252,6 @@ fn optimize_tree_in_place(tree: &mut ColliderTree, optimization_strategy: TreeOp
 
 /// Spawns and returns an async task to optimize the given collider tree
 /// using the provided optimization function.
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "unknown")))]
 fn spawn_optimization_task(
     task_pool: &AsyncComputeTaskPool,
     mut tree: ColliderTree,
@@ -285,7 +275,6 @@ fn spawn_optimization_task(
 }
 
 /// Completes the [`ColliderTree`] optimization tasks started in [`optimize_trees`].
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "unknown")))]
 fn block_on_optimize_trees(
     mut commands: Commands,
     mut optimization: ResMut<OptimizationTasks>,

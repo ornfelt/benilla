@@ -473,39 +473,29 @@ impl AssetSource {
     /// Returns a builder function for this platform's default [`AssetReader`](crate::io::AssetReader). `path` is the relative path to
     /// the asset root.
     pub fn get_default_reader(
-        _path: String,
+        path: String,
     ) -> impl FnMut() -> Box<dyn ErasedAssetReader> + Send + Sync {
-        move || {
-            #[cfg(not(target_arch = "wasm32"))]
-            return Box::new(super::file::FileAssetReader::new(&_path));
-            #[cfg(target_arch = "wasm32")]
-            return Box::new(super::wasm::HttpWasmAssetReader::new(&_path));
-        }
+        move || Box::new(super::file::FileAssetReader::new(&path))
     }
 
     /// Returns a builder function for this platform's default [`AssetWriter`](crate::io::AssetWriter). `path` is the relative path to
     /// the asset root. This will return [`None`] if this platform does not support writing assets by default.
     pub fn get_default_writer(
-        _path: String,
+        path: String,
     ) -> impl FnMut(bool) -> Option<Box<dyn ErasedAssetWriter>> + Send + Sync {
-        move |_create_root: bool| {
-            #[cfg(not(target_arch = "wasm32"))]
-            return Some(Box::new(super::file::FileAssetWriter::new(
-                &_path,
-                _create_root,
-            )));
-            #[cfg(target_arch = "wasm32")]
-            return None;
+        move |create_root: bool| {
+            Some(Box::new(super::file::FileAssetWriter::new(
+                &path,
+                create_root,
+            )))
         }
     }
 
     /// Returns the default non-existent [`AssetWatcher`] warning for the current platform.
     pub fn get_default_watch_warning() -> &'static str {
-        #[cfg(target_arch = "wasm32")]
-        return "Web does not currently support watching assets.";
-        #[cfg(all(not(target_arch = "wasm32"), not(feature = "file_watcher")))]
+        #[cfg(not(feature = "file_watcher"))]
         return "Consider enabling the `file_watcher` feature.";
-        #[cfg(all(not(target_arch = "wasm32"), feature = "file_watcher"))]
+        #[cfg(feature = "file_watcher")]
         return "Consider adding an \"assets\" directory.";
     }
 
@@ -515,10 +505,10 @@ impl AssetSource {
     /// Higher durations reduce duplicates but increase the amount of time before a change event is processed. If the
     /// duration is set too low, some systems might surface events _before_ their filesystem has the changes.
     #[cfg_attr(
-        any(not(feature = "file_watcher"), target_arch = "wasm32"),
+        not(feature = "file_watcher"),
         expect(
             unused_variables,
-            reason = "The `path` and `file_debounce_wait_time` arguments are unused when on WASM, or if the `file_watcher` feature is disabled."
+            reason = "The `path` and `file_debounce_wait_time` arguments are unused if the `file_watcher` feature is disabled."
         )
     )]
     pub fn get_default_watcher(
@@ -527,7 +517,7 @@ impl AssetSource {
     ) -> impl FnMut(async_channel::Sender<AssetSourceEvent>) -> Option<Box<dyn AssetWatcher>> + Send + Sync
     {
         move |sender: async_channel::Sender<AssetSourceEvent>| {
-            #[cfg(all(feature = "file_watcher", not(target_arch = "wasm32")))]
+            #[cfg(feature = "file_watcher")]
             {
                 let path = super::file::get_base_path().join(path.clone());
                 if path.exists() {
@@ -546,7 +536,7 @@ impl AssetSource {
                     None
                 }
             }
-            #[cfg(any(not(feature = "file_watcher"), target_arch = "wasm32"))]
+            #[cfg(not(feature = "file_watcher"))]
             return None;
         }
     }

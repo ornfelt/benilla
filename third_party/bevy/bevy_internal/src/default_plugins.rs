@@ -43,7 +43,7 @@ plugin_group! {
         #[cfg(feature = "bevy_light")]
         bevy_light:::LightPlugin,
         #[cfg(feature = "bevy_render")]
-        #[custom(cfg(all(not(target_arch = "wasm32"), feature = "multi_threaded")))]
+        #[custom(cfg(feature = "multi_threaded"))]
         bevy_render::pipelined_rendering:::PipelinedRenderingPlugin,
         #[cfg(feature = "bevy_core_pipeline")]
         bevy_core_pipeline:::CorePipelinePlugin,

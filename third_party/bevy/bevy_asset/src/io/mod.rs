@@ -1,17 +1,7 @@
-#[cfg(all(feature = "file_watcher", target_arch = "wasm32"))]
-compile_error!(
-    "The \"file_watcher\" feature for hot reloading does not work \
-    on Wasm.\nDisable \"file_watcher\" \
-    when compiling to Wasm"
-);
-
 pub mod embedded;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod file;
 pub mod memory;
 pub mod processor_gated;
-#[cfg(target_arch = "wasm32")]
-pub mod wasm;
 #[cfg(any(feature = "http", feature = "https"))]
 pub mod web;
 
@@ -771,19 +761,6 @@ pub(crate) fn get_meta_path(path: &Path) -> PathBuf {
     extension.push("meta");
     meta_path.set_extension(extension);
     meta_path
-}
-
-#[cfg(target_arch = "wasm32")]
-/// A [`PathBuf`] [`Stream`] implementation that immediately returns nothing.
-struct EmptyPathStream;
-
-#[cfg(target_arch = "wasm32")]
-impl Stream for EmptyPathStream {
-    type Item = PathBuf;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Poll::Ready(None)
-    }
 }
 
 #[cfg(test)]

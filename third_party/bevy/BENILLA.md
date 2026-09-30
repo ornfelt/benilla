@@ -83,6 +83,23 @@ the same repository's.
   under `manage_clipboard` alone and `ModifierKeysState` reads macOS from the target; the manifest
   lost its wasm-only dependencies, its example list and its dev-dependencies. No system benilla's
   targets add went.
+- **The web, Android and iOS code of the rest** (bevy_ecs's waits for its own trim): `bevy_log`'s
+  Android, wasm and iOS layers (`android_tracing.rs`), `bevy_asset`'s wasm HTTP reader
+  (`io/wasm.rs`) with every `wasm32` branch of its sources, server, processor log and web
+  reader, `bevy_app`'s browser runner loop and panic hook, `bevy_tasks`' web task (a `Task` is an
+  `async_task::Task` alone; the single-threaded pool stays for builds without
+  `multi_threaded`), `bevy_platform`'s `web` alias with `web_time` and its `exports` module,
+  `bevy_reflect`'s wasm constructor call, `bevy_render`'s wasm screenshot download, WebGL
+  padding and wasm-atomics wrapper, `bevy_shader`'s and `bevy_light`'s wasm/WebGL branches
+  (four cascades), the WebGPU `todo!` in the `AsBindGroup` derive's output, avian3d's
+  wasm fallback to synchronous tree optimization, and the `android`/`ios` arms of
+  `bevy_diagnostic`, `bevy_asset`'s open-file limit and the bindless slab limit. The `web`
+  features of `bevy_app`, `bevy_platform` and `bevy_reflect` and every `webgl`/`webgpu` feature
+  are gone with the target-specific dependencies; `bevy`'s `webgl2` and `android_shared_stdcxx`
+  (the workspace names them) stay as names enabling nothing. Every removed branch was compiled
+  out on Linux, Windows and macOS: no system, plugin or type there changed, and the Linux
+  build's resolved features change only in wgpu-types' `web` and
+  `fragile-send-sync-non-atomic-wasm`, which gate wasm32 code alone.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

@@ -11,7 +11,6 @@ use bevy_ecs::resource::Resource;
 /// Supported targets:
 /// * linux
 /// * windows
-/// * android
 /// * macOS
 ///
 /// NOT supported when using the `bevy/dynamic` feature even when using previously mentioned targets.
@@ -60,12 +59,7 @@ pub struct SystemInfo {
 
 // NOTE: sysinfo fails to compile when using bevy dynamic or on iOS and does nothing on Wasm
 #[cfg(all(
-    any(
-        target_os = "linux",
-        target_os = "windows",
-        target_os = "android",
-        target_os = "macos"
-    ),
+    any(target_os = "linux", target_os = "windows", target_os = "macos"),
     not(feature = "dynamic_linking"),
     feature = "std",
 ))]
@@ -277,12 +271,7 @@ mod internal {
 }
 
 #[cfg(not(all(
-    any(
-        target_os = "linux",
-        target_os = "windows",
-        target_os = "android",
-        target_os = "macos"
-    ),
+    any(target_os = "linux", target_os = "windows", target_os = "macos"),
     not(feature = "dynamic_linking"),
     feature = "std",
 )))]

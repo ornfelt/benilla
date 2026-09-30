@@ -193,9 +193,6 @@ impl TaskPool {
         T: 'static + MaybeSend + MaybeSync,
     {
         crate::cfg::switch! {{
-            crate::cfg::web => {
-                Task::wrap_future(future)
-            }
             crate::cfg::std => {
                 LOCAL_EXECUTOR.with(|executor| {
                     let task = executor.spawn(future);

@@ -137,16 +137,7 @@ impl Default for CascadeShadowConfigBuilder {
         // Unreal Engine 5: maximum distance = 200.0
         // Godot: first cascade far bound = 10.0, maximum distance = 100.0
         Self {
-            // Currently only support one cascade in WebGL 2.
-            num_cascades: if cfg!(all(
-                feature = "webgl",
-                target_arch = "wasm32",
-                not(feature = "webgpu")
-            )) {
-                1
-            } else {
-                4
-            },
+            num_cascades: 4,
             minimum_distance: 0.1,
             maximum_distance: 150.0,
             first_cascade_far_bound: 10.0,

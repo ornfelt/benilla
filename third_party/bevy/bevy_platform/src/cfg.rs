@@ -249,10 +249,6 @@ define_alias! {
         /// Indicates that a [`panic`] will lead to an abort, and cannot be caught.
         panic_abort
     }
-    #[cfg(all(target_arch = "wasm32", feature = "web"))] => {
-        /// Indicates that this target has access to browser APIs.
-        web
-    }
     #[cfg(all(feature = "alloc", target_has_atomic = "ptr"))] => {
         /// Indicates that this target has access to a native implementation of `Arc`.
         arc

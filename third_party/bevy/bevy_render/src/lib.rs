@@ -46,7 +46,6 @@ pub mod extract_resource;
 pub mod globals;
 pub mod gpu_readback;
 pub mod mesh;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod pipelined_rendering;
 pub mod render_asset;
 pub mod render_graph;

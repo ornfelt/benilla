@@ -100,7 +100,7 @@ all-features = true
     "bevy_post_process",
     "gltf_animation",
 ]
-android_shared_stdcxx = ["bevy_internal/android_shared_stdcxx"]
+android_shared_stdcxx = []
 async_executor = [
     "std",
     "bevy_internal/async_executor",
@@ -189,7 +189,7 @@ trace_tracy = [
     "bevy_internal/trace_tracy",
 ]
 ui_picking = ["bevy_internal/ui_picking"]
-webgl2 = ["bevy_internal/webgl"]
+webgl2 = []
 zstd_rust = ["bevy_internal/zstd_rust"]
 
 [lib]

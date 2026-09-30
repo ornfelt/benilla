@@ -9,7 +9,6 @@ use bevy_ecs::{
     change_detection::DetectChangesMut, message::MessageWriter, system::ResMut, HotPatchChanges,
     HotPatched,
 };
-#[cfg(not(target_family = "wasm"))]
 use dioxus_devtools::connect_subsecond;
 use dioxus_devtools::subsecond;
 
@@ -28,7 +27,6 @@ impl Plugin for HotPatchPlugin {
         // Connects to the dioxus CLI that will handle rebuilds
         // This will open a connection to the dioxus CLI to receive updated jump tables
         // Sends a `HotPatched` message through the channel when the jump table is updated
-        #[cfg(not(target_family = "wasm"))]
         connect_subsecond();
         subsecond::register_handler(Arc::new(move || {
             sender.send(HotPatched).unwrap();

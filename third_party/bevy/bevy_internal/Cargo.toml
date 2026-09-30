@@ -47,7 +47,6 @@ rustdoc-args = [
 all-features = true
 
 [features]
-android_shared_stdcxx = []
 async_executor = [
     "std",
     "bevy_tasks/async_executor",
@@ -247,12 +246,6 @@ trace_tracy = [
     "bevy_log/tracing-tracy",
 ]
 ui_picking = ["bevy_picking"]
-webgl = [
-    "bevy_core_pipeline?/webgl",
-    "bevy_pbr?/webgl",
-    "bevy_render?/webgl",
-    "bevy_sprite_render?/webgl",
-]
 zstd_rust = ["bevy_image/zstd_rust"]
 
 [lib]

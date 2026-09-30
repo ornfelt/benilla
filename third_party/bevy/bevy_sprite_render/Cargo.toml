@@ -36,8 +36,6 @@ all-features = true
 
 [features]
 bevy_text = ["bevy_sprite/bevy_text"]
-webgl = []
-webgpu = []
 
 [lib]
 name = "bevy_sprite_render"

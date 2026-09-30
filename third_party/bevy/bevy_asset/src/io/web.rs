@@ -109,17 +109,6 @@ impl WebAssetReader {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-async fn get<'a>(path: PathBuf) -> Result<Box<dyn Reader>, AssetReaderError> {
-    use crate::io::wasm::HttpWasmAssetReader;
-
-    HttpWasmAssetReader::new("")
-        .fetch_bytes(path)
-        .await
-        .map(|r| Box::new(r) as Box<dyn Reader>)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 async fn get(path: PathBuf) -> Result<Box<dyn Reader>, AssetReaderError> {
     use crate::io::VecReader;
     use alloc::{borrow::ToOwned, boxed::Box, vec::Vec};
@@ -133,7 +122,7 @@ async fn get(path: PathBuf) -> Result<Box<dyn Reader>, AssetReaderError> {
         )
     })?;
 
-    #[cfg(all(not(target_arch = "wasm32"), feature = "web_asset_cache"))]
+    #[cfg(feature = "web_asset_cache")]
     if let Some(data) = web_asset_cache::try_load_from_cache(str_path).await? {
         return Ok(Box::new(VecReader::new(data)));
     }
@@ -163,7 +152,7 @@ async fn get(path: PathBuf) -> Result<Box<dyn Reader>, AssetReaderError> {
             let mut buffer = Vec::new();
             reader.read_to_end(&mut buffer)?;
 
-            #[cfg(all(not(target_arch = "wasm32"), feature = "web_asset_cache"))]
+            #[cfg(feature = "web_asset_cache")]
             web_asset_cache::save_to_cache(str_path, &buffer).await?;
 
             Ok(Box::new(VecReader::new(buffer)))
@@ -215,7 +204,7 @@ impl AssetReader for WebAssetReader {
 /// A naive implementation of a cache for assets downloaded from the web that never invalidates.
 /// `ureq` currently does not support caching, so this is a simple workaround.
 /// It should eventually be replaced by `http-cache` or similar, see [tracking issue](https://github.com/06chaynes/http-cache/issues/91)
-#[cfg(all(not(target_arch = "wasm32"), feature = "web_asset_cache"))]
+#[cfg(feature = "web_asset_cache")]
 mod web_asset_cache {
     use alloc::string::String;
     use alloc::vec::Vec;

@@ -20,8 +20,6 @@ extern crate alloc;
 
 use core::error::Error;
 
-#[cfg(target_os = "android")]
-mod android_tracing;
 mod once;
 
 #[cfg(feature = "trace_tracy_memory")]
@@ -82,10 +80,6 @@ pub(crate) struct FlushGuard(SyncCell<tracing_chrome::FlushGuard>);
 /// this plugin will setup a collector appropriate to your target platform:
 /// * Using [`tracing-subscriber`](https://crates.io/crates/tracing-subscriber) by default,
 ///   logging to `stdout`.
-/// * Using [`android_log-sys`](https://crates.io/crates/android_log-sys) on Android,
-///   logging to Android logs.
-/// * Using [`tracing-wasm`](https://crates.io/crates/tracing-wasm) in Wasm, logging
-///   to the browser console.
 ///
 /// You can configure this plugin.
 /// ```no_run
@@ -336,9 +330,8 @@ impl Plugin for LogPlugin {
         #[cfg(feature = "trace")]
         let subscriber = subscriber.with(tracing_error::ErrorLayer::default());
 
-        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "ios")))]
         {
-            #[cfg(all(feature = "tracing-chrome", not(target_os = "android")))]
+            #[cfg(feature = "tracing-chrome")]
             let chrome_layer = {
                 let mut layer = tracing_chrome::ChromeLayerBuilder::new();
                 if let Ok(path) = std::env::var("TRACE_CHROME") {
@@ -382,25 +375,11 @@ impl Plugin for LogPlugin {
 
             let subscriber = subscriber.with(fmt_layer);
 
-            #[cfg(all(feature = "tracing-chrome", not(target_os = "android")))]
+            #[cfg(feature = "tracing-chrome")]
             let subscriber = subscriber.with(chrome_layer);
             #[cfg(feature = "tracing-tracy")]
             let subscriber = subscriber.with(tracy_layer);
-            #[cfg(target_os = "android")]
-            let subscriber = subscriber.with(android_tracing::AndroidLayer::default());
             finished_subscriber = subscriber;
-        }
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            finished_subscriber = subscriber.with(tracing_wasm::WASMLayer::new(
-                tracing_wasm::WASMLayerConfig::default(),
-            ));
-        }
-
-        #[cfg(target_os = "ios")]
-        {
-            finished_subscriber = subscriber.with(tracing_oslog::OsLogger::default());
         }
 
         let logger_already_set = LogTracer::init().is_err();

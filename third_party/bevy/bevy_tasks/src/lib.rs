@@ -10,7 +10,7 @@
 pub mod cfg {
     pub(crate) use bevy_platform::cfg::*;
 
-    pub use bevy_platform::cfg::{alloc, std, web};
+    pub use bevy_platform::cfg::{alloc, std};
 
     define_alias! {
         #[cfg(feature = "async_executor")] => {
@@ -18,14 +18,9 @@ pub mod cfg {
             async_executor
         }
 
-        #[cfg(all(not(target_arch = "wasm32"), feature = "multi_threaded"))] => {
+        #[cfg(feature = "multi_threaded")] => {
             /// Indicates multithreading support.
             multi_threaded
-        }
-
-        #[cfg(target_arch = "wasm32")] => {
-            /// Indicates the current target requires additional `Send` bounds.
-            conditional_send
         }
 
         #[cfg(feature = "async-io")] => {
@@ -46,19 +41,10 @@ cfg::std! {
 
 extern crate alloc;
 
-cfg::conditional_send! {
-    if {
-        /// Use [`ConditionalSend`] to mark an optional Send trait bound. Useful as on certain platforms (eg. Wasm),
-        /// futures aren't Send.
-        pub trait ConditionalSend {}
-        impl<T> ConditionalSend for T {}
-    } else {
-        /// Use [`ConditionalSend`] to mark an optional Send trait bound. Useful as on certain platforms (eg. Wasm),
-        /// futures aren't Send.
-        pub trait ConditionalSend: Send {}
-        impl<T: Send> ConditionalSend for T {}
-    }
-}
+/// Use [`ConditionalSend`] to mark an optional Send trait bound. Useful as on certain platforms (eg. Wasm),
+/// futures aren't Send.
+pub trait ConditionalSend: Send {}
+impl<T: Send> ConditionalSend for T {}
 
 /// Use [`ConditionalSendFuture`] for a future with an optional Send trait bound, as on certain platforms (eg. Wasm),
 /// futures aren't Send.
@@ -94,11 +80,7 @@ pub use usages::{AsyncComputeTaskPool, ComputeTaskPool, IoTaskPool};
 pub use futures_lite;
 pub use futures_lite::future::poll_once;
 
-cfg::web! {
-    if {} else {
-        pub use usages::tick_global_task_pools_on_main_thread;
-    }
-}
+pub use usages::tick_global_task_pools_on_main_thread;
 
 cfg::multi_threaded! {
     if {

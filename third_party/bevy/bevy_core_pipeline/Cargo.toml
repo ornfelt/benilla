@@ -41,8 +41,6 @@ tonemapping_luts = [
     "bevy_image/zstd",
 ]
 trace = []
-webgl = []
-webgpu = []
 
 [lib]
 name = "bevy_core_pipeline"

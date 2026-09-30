@@ -3,8 +3,6 @@
 pub use thread::sleep;
 
 crate::cfg::switch! {
-    // TODO: use browser timeouts based on ScheduleRunnerPlugin::build
-    // crate::cfg::web => { ... }
     crate::cfg::std => {
         use std::thread;
     }

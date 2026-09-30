@@ -115,7 +115,7 @@ features = [
 optional = true
 default-features = false
 
-[target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "android", target_os = "freebsd"))'.dependencies.sysinfo]
+[target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "freebsd"))'.dependencies.sysinfo]
 version = "0.37.0"
 features = ["system"]
 optional = true

@@ -37,8 +37,6 @@ all-features = true
 [features]
 default = []
 experimental_pbr_pcss = []
-webgl = []
-webgpu = []
 
 [lib]
 name = "bevy_light"

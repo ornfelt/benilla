@@ -6,19 +6,15 @@ use bevy_tasks::{AsyncComputeTaskPool, ComputeTaskPool, IoTaskPool, TaskPoolBuil
 use core::fmt::Debug;
 use log::trace;
 
-cfg_if::cfg_if! {
-    if #[cfg(not(all(target_arch = "wasm32", feature = "web")))] {
-        use {crate::Last, bevy_tasks::tick_global_task_pools_on_main_thread};
-        use bevy_ecs::system::NonSendMarker;
+use bevy_ecs::system::NonSendMarker;
+use {crate::Last, bevy_tasks::tick_global_task_pools_on_main_thread};
 
-        /// A system used to check and advanced our task pools.
-        ///
-        /// Calls [`tick_global_task_pools_on_main_thread`],
-        /// and uses [`NonSendMarker`] to ensure that this system runs on the main thread
-        fn tick_global_task_pools(_main_thread_marker: NonSendMarker) {
-            tick_global_task_pools_on_main_thread();
-        }
-    }
+/// A system used to check and advanced our task pools.
+///
+/// Calls [`tick_global_task_pools_on_main_thread`],
+/// and uses [`NonSendMarker`] to ensure that this system runs on the main thread
+fn tick_global_task_pools(_main_thread_marker: NonSendMarker) {
+    tick_global_task_pools_on_main_thread();
 }
 
 /// Setup of default task pools: [`AsyncComputeTaskPool`], [`ComputeTaskPool`], [`IoTaskPool`].
@@ -29,12 +25,11 @@ pub struct TaskPoolPlugin {
 }
 
 impl Plugin for TaskPoolPlugin {
-    fn build(&self, _app: &mut App) {
+    fn build(&self, app: &mut App) {
         // Setup the default bevy task pools
         self.task_pool_options.create_default_pools();
 
-        #[cfg(not(all(target_arch = "wasm32", feature = "web")))]
-        _app.add_systems(Last, tick_global_task_pools);
+        app.add_systems(Last, tick_global_task_pools);
     }
 }
 
@@ -50,10 +45,8 @@ pub struct TaskPoolThreadAssignmentPolicy {
     /// permitted to use 1.0 to try to use all remaining threads
     pub percent: f32,
     /// Callback that is invoked once for every created thread as it starts.
-    /// This configuration will be ignored under wasm platform.
     pub on_thread_spawn: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     /// Callback that is invoked once for every created thread as it terminates
-    /// This configuration will be ignored under wasm platform.
     pub on_thread_destroy: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
@@ -178,7 +171,6 @@ impl TaskPoolOptions {
                     .num_threads(io_threads)
                     .thread_name("IO Task Pool".to_string());
 
-                #[cfg(not(all(target_arch = "wasm32", feature = "web")))]
                 let builder = {
                     let mut builder = builder;
                     if let Some(f) = self.io.on_thread_spawn.clone() {
@@ -208,7 +200,6 @@ impl TaskPoolOptions {
                     .num_threads(async_compute_threads)
                     .thread_name("Async Compute Task Pool".to_string());
 
-                #[cfg(not(all(target_arch = "wasm32", feature = "web")))]
                 let builder = {
                     let mut builder = builder;
                     if let Some(f) = self.async_compute.on_thread_spawn.clone() {
@@ -238,7 +229,6 @@ impl TaskPoolOptions {
                     .num_threads(compute_threads)
                     .thread_name("Compute Task Pool".to_string());
 
-                #[cfg(not(all(target_arch = "wasm32", feature = "web")))]
                 let builder = {
                     let mut builder = builder;
                     if let Some(f) = self.compute.on_thread_spawn.clone() {

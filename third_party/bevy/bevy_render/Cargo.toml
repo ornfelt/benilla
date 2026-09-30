@@ -49,8 +49,6 @@ statically-linked-dxc = []
 trace = []
 tracing-tracy = []
 vulkan-portability = []
-webgl = ["wgpu-types/web"]
-webgpu = ["wgpu-types/web"]
 
 [lib]
 name = "bevy_render"
@@ -151,47 +149,10 @@ default-features = false
 
 [dependencies.wgpu-types]
 version = "27"
-features = ["fragile-send-sync-non-atomic-wasm"]
 default-features = false
 
 [dev-dependencies.proptest]
 version = "1"
-
-[target.'cfg(all(target_arch = "wasm32", target_feature = "atomics"))'.dependencies.send_wrapper]
-version = "0.6.0"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.bevy_app]
-version = "0.18.0"
-features = ["web"]
-default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.bevy_platform]
-version = "0.18.0"
-features = ["web"]
-default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.bevy_reflect]
-version = "0.18.0"
-features = ["web"]
-default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.js-sys]
-version = "0.3.83"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
-version = "0.2"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3.67"
-features = [
-    "Blob",
-    "Document",
-    "Element",
-    "HtmlElement",
-    "Node",
-    "Url",
-    "Window",
-]
 
 [lints.clippy]
 alloc_instead_of_core = "warn"

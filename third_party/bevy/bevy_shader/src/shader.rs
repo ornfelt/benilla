@@ -304,9 +304,9 @@ impl From<&Source> for naga_oil::compose::ShaderLanguage {
     fn from(value: &Source) -> Self {
         match value {
             Source::Wgsl(_) => naga_oil::compose::ShaderLanguage::Wgsl,
-            #[cfg(any(feature = "shader_format_glsl", target_arch = "wasm32"))]
+            #[cfg(feature = "shader_format_glsl")]
             Source::Glsl(_, _) => naga_oil::compose::ShaderLanguage::Glsl,
-            #[cfg(all(not(feature = "shader_format_glsl"), not(target_arch = "wasm32")))]
+            #[cfg(not(feature = "shader_format_glsl"))]
             Source::Glsl(_, _) => panic!(
                 "GLSL is not supported in this configuration; use the feature `shader_format_glsl`"
             ),
@@ -320,7 +320,7 @@ impl From<&Source> for naga_oil::compose::ShaderType {
     fn from(value: &Source) -> Self {
         match value {
             Source::Wgsl(_) => naga_oil::compose::ShaderType::Wgsl,
-            #[cfg(any(feature = "shader_format_glsl", target_arch = "wasm32"))]
+            #[cfg(feature = "shader_format_glsl")]
             Source::Glsl(_, shader_stage) => match shader_stage {
                 naga::ShaderStage::Vertex => naga_oil::compose::ShaderType::GlslVertex,
                 naga::ShaderStage::Fragment => naga_oil::compose::ShaderType::GlslFragment,
@@ -328,7 +328,7 @@ impl From<&Source> for naga_oil::compose::ShaderType {
                 naga::ShaderStage::Task => panic!("task shaders not yet implemented"),
                 naga::ShaderStage::Mesh => panic!("mesh shaders not yet implemented"),
             },
-            #[cfg(all(not(feature = "shader_format_glsl"), not(target_arch = "wasm32")))]
+            #[cfg(not(feature = "shader_format_glsl"))]
             Source::Glsl(_, _) => panic!(
                 "GLSL is not supported in this configuration; use the feature `shader_format_glsl`"
             ),

@@ -45,8 +45,6 @@ pbr_specular_textures = []
 pbr_transmission_textures = []
 shader_format_glsl = ["bevy_shader/shader_format_glsl"]
 trace = ["bevy_render/trace"]
-webgl = ["bevy_light/webgl"]
-webgpu = ["bevy_light/webgpu"]
 
 [lib]
 name = "bevy_pbr"

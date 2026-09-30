@@ -1344,13 +1344,7 @@ impl VisibilityFlags {
 impl ShaderStageVisibility {
     fn hygienic_quote(&self, path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         match self {
-            ShaderStageVisibility::All => quote! {
-                if cfg!(feature = "webgpu") {
-                    todo!("Please use a more specific shader stage: https://github.com/gfx-rs/wgpu/issues/7708")
-                } else {
-                    #path::ShaderStages::all()
-                }
-            },
+            ShaderStageVisibility::All => quote! { #path::ShaderStages::all() },
             ShaderStageVisibility::None => quote! { #path::ShaderStages::NONE },
             ShaderStageVisibility::Flags(flags) => {
                 let mut quoted = Vec::new();
