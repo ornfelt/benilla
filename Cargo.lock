@@ -1190,8 +1190,6 @@ dependencies = [
  "bevy_transform",
  "bevy_utils",
  "derive_more",
- "ron",
- "serde",
  "thiserror 2.0.18",
  "uuid",
 ]

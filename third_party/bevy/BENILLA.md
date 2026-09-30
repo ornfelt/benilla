@@ -256,8 +256,20 @@ the same repository's.
   `ActiveAnimation`/`AnimationPlayer` controls (`rewind`, `set_seek_time`,
   `is_playback_reversed`, `is_playing_animation`, the `*_all` family, `adjust_speeds`,
   `seek_all_by`) and `AnimationTargetId`'s serde derive. `ron` stays a dependency, unused, so
-  its `std` feature stays on for bevy_asset and bevy_scene. bevy_mesh's two `weights_mut` (the
+  its `std` feature stays on for bevy_asset. bevy_mesh's two `weights_mut` (the
   morph curve's) went with it. No system went.
+- **`bevy_scene`, to what `ScenePlugin` runs and avian3d reads.** Nothing spawns or loads a
+  scene. The plugin keeps both scene assets, `SceneSpawner`, the two `SpawnScene` systems and the
+  `SceneRoot`/`DynamicSceneRoot` hooks; avian3d's `SceneRoot`, `SceneInstance`,
+  `SceneInstanceReady` and `instance_is_ready` stay. Gone: the RON scene format (`serde`,
+  `SceneLoader`, which `ScenePlugin` no longer registers, `DynamicScene::serialize`,
+  `serialize_ron`), `DynamicSceneBuilder` and `SceneFilter` with `DynamicScene::from_world`/
+  `from_scene`, `Scene::from_dynamic_scene`/`clone_with`, and `SceneSpawner`'s uncalled API
+  (`spawn`, `spawn_dynamic`, `spawn_sync`, `spawn_dynamic_sync`, `despawn`, `despawn_dynamic`,
+  `despawn_sync`, `despawn_dynamic_sync`, `iter_instance_entities`) with the despawn queues only
+  `despawn`/`despawn_dynamic` filled and `despawn_queued_scenes`, which drained them. The tests of
+  removed code went; the kept tests build their scenes by hand. The `serialize` feature stays,
+  without `ron` and `serde`. No system went.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

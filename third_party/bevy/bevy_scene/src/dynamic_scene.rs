@@ -1,4 +1,4 @@
-use crate::{DynamicSceneBuilder, Scene, SceneSpawnError};
+use crate::SceneSpawnError;
 use bevy_asset::Asset;
 use bevy_ecs::reflect::{ReflectMapEntities, ReflectResource};
 use bevy_ecs::{
@@ -12,16 +12,11 @@ use crate::reflect_utils::clone_reflect_value;
 use bevy_ecs::component::ComponentCloneBehavior;
 use bevy_ecs::relationship::RelationshipHookMode;
 
-#[cfg(feature = "serialize")]
-use {crate::serde::SceneSerializer, bevy_reflect::TypeRegistry, serde::Serialize};
-
-/// A collection of serializable resources and dynamic entities.
+/// A collection of resources and dynamic entities.
 ///
 /// Each dynamic entity in the collection contains its own run-time defined set of components.
-/// To spawn a dynamic scene, you can use either:
-/// * [`SceneSpawner::spawn_dynamic`](crate::SceneSpawner::spawn_dynamic)
-/// * adding the [`DynamicSceneRoot`](crate::components::DynamicSceneRoot) component to an entity.
-/// * using the [`DynamicSceneBuilder`] to construct a `DynamicScene` from `World`.
+/// To spawn a dynamic scene, add the [`DynamicSceneRoot`](crate::components::DynamicSceneRoot)
+/// component to an entity.
 #[derive(Asset, TypePath, Default)]
 pub struct DynamicScene {
     /// Resources stored in the dynamic scene.
@@ -30,7 +25,7 @@ pub struct DynamicScene {
     pub entities: Vec<DynamicEntity>,
 }
 
-/// A reflection-powered serializable representation of an entity and its components.
+/// A reflection-powered representation of an entity and its components.
 pub struct DynamicEntity {
     /// The identifier of the entity, unique within a scene (and the world it may have been generated from).
     ///
@@ -42,27 +37,6 @@ pub struct DynamicEntity {
 }
 
 impl DynamicScene {
-    /// Create a new dynamic scene from a given scene.
-    pub fn from_scene(scene: &Scene) -> Self {
-        Self::from_world(&scene.world)
-    }
-
-    /// Create a new dynamic scene from a given world.
-    pub fn from_world(world: &World) -> Self {
-        DynamicSceneBuilder::from_world(world)
-            .extract_entities(
-                // we do this instead of a query, in order to completely sidestep default query filters.
-                // while we could use `Allow<_>`, this wouldn't account for custom disabled components
-                world
-                    .archetypes()
-                    .iter()
-                    .flat_map(bevy_ecs::archetype::Archetype::entities)
-                    .map(bevy_ecs::archetype::ArchetypeEntity::id),
-            )
-            .extract_resources()
-            .build()
-    }
-
     /// Write the resources, the dynamic entities, and their corresponding components to the given world.
     ///
     /// This method will return a [`SceneSpawnError`] if a type either is not registered
@@ -193,31 +167,6 @@ impl DynamicScene {
         let registry = world.resource::<AppTypeRegistry>().clone();
         self.write_to_world_with(world, entity_map, &registry)
     }
-
-    // TODO: move to AssetSaver when it is implemented
-    /// Serialize this dynamic scene into the official Bevy scene format (`.scn` / `.scn.ron`).
-    ///
-    /// The Bevy scene format is based on [Rusty Object Notation (RON)]. It describes the scene
-    /// in a human-friendly format. To deserialize the scene, use the [`SceneLoader`].
-    ///
-    /// [`SceneLoader`]: crate::SceneLoader
-    /// [Rusty Object Notation (RON)]: https://crates.io/crates/ron
-    #[cfg(feature = "serialize")]
-    pub fn serialize(&self, registry: &TypeRegistry) -> Result<String, ron::Error> {
-        serialize_ron(SceneSerializer::new(self, registry))
-    }
-}
-
-/// Serialize a given Rust data structure into rust object notation (ron).
-#[cfg(feature = "serialize")]
-pub fn serialize_ron<S>(serialize: S) -> Result<String, ron::Error>
-where
-    S: Serialize,
-{
-    let pretty_config = ron::ser::PrettyConfig::default()
-        .indentor("  ".to_string())
-        .new_line("\n".to_string());
-    ron::ser::to_string_pretty(&serialize, pretty_config)
 }
 
 #[cfg(test)]
@@ -233,8 +182,7 @@ mod tests {
 
     use bevy_reflect::Reflect;
 
-    use crate::dynamic_scene::DynamicScene;
-    use crate::dynamic_scene_builder::DynamicSceneBuilder;
+    use crate::dynamic_scene::{DynamicEntity, DynamicScene};
 
     #[derive(Resource, Reflect, MapEntities, Debug)]
     #[reflect(Resource, MapEntities)]
@@ -262,11 +210,22 @@ mod tests {
         });
 
         // Write the scene.
-        let scene = DynamicSceneBuilder::from_world(&source_world)
-            .extract_resources()
-            .extract_entity(original_entity_a)
-            .extract_entity(original_entity_b)
-            .build();
+        let scene = DynamicScene {
+            resources: vec![Box::new(TestResource {
+                entity_a: original_entity_a,
+                entity_b: original_entity_b,
+            })],
+            entities: vec![
+                DynamicEntity {
+                    entity: original_entity_a,
+                    components: Vec::new(),
+                },
+                DynamicEntity {
+                    entity: original_entity_b,
+                    components: Vec::new(),
+                },
+            ],
+        };
 
         let mut entity_map = EntityHashMap::default();
         let mut destination_world = World::new();
@@ -303,10 +262,19 @@ mod tests {
 
         // We then write this relationship to a new scene, and then write that scene back to the
         // world to create another parent and child relationship
-        let scene = DynamicSceneBuilder::from_world(&world)
-            .extract_entity(original_parent_entity)
-            .extract_entity(original_child_entity)
-            .build();
+        let scene = DynamicScene {
+            resources: Vec::new(),
+            entities: vec![
+                DynamicEntity {
+                    entity: original_parent_entity,
+                    components: Vec::new(),
+                },
+                DynamicEntity {
+                    entity: original_child_entity,
+                    components: vec![Box::new(ChildOf(original_parent_entity))],
+                },
+            ],
+        };
         let mut entity_map = EntityHashMap::default();
         scene.write_to_world(&mut world, &mut entity_map).unwrap();
 
@@ -383,9 +351,14 @@ mod tests {
         }
 
         let mut scene_world = World::new();
-        scene_world.insert_resource(reg.clone());
-        scene_world.spawn((B(Entity::PLACEHOLDER), A));
-        let scene = DynamicScene::from_world(&scene_world);
+        let entity = scene_world.spawn((B(Entity::PLACEHOLDER), A)).id();
+        let scene = DynamicScene {
+            resources: Vec::new(),
+            entities: vec![DynamicEntity {
+                entity,
+                components: vec![Box::new(B(Entity::PLACEHOLDER)), Box::new(A)],
+            }],
+        };
 
         let mut dst_world = World::new();
         dst_world

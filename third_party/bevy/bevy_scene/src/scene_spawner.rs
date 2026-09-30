@@ -68,24 +68,15 @@ pub enum SceneSpawnerSystems {
 /// Handles spawning and despawning scenes in the world, either synchronously or batched through the [`scene_spawner_system`].
 ///
 /// Synchronous methods: (Scene operations will take effect immediately)
-/// - [`spawn_sync`](Self::spawn_sync)
-/// - [`spawn_dynamic_sync`](Self::spawn_dynamic_sync)
-/// - [`despawn_sync`](Self::despawn_sync)
-/// - [`despawn_dynamic_sync`](Self::despawn_dynamic_sync)
 /// - [`despawn_instance_sync`](Self::despawn_instance_sync)
 /// - [`update_spawned_scenes`](Self::update_spawned_scenes)
 /// - [`update_spawned_dynamic_scenes`](Self::update_spawned_dynamic_scenes)
 /// - [`spawn_queued_scenes`](Self::spawn_queued_scenes)
-/// - [`despawn_queued_scenes`](Self::despawn_queued_scenes)
 /// - [`despawn_queued_instances`](Self::despawn_queued_instances)
 ///
 /// Deferred methods: (Scene operations will be processed when the [`scene_spawner_system`] is run)
-/// - [`spawn_dynamic`](Self::spawn_dynamic)
 /// - [`spawn_dynamic_as_child`](Self::spawn_dynamic_as_child)
-/// - [`spawn`](Self::spawn)
 /// - [`spawn_as_child`](Self::spawn_as_child)
-/// - [`despawn`](Self::despawn)
-/// - [`despawn_dynamic`](Self::despawn_dynamic)
 /// - [`despawn_instance`](Self::despawn_instance)
 #[derive(Default, Resource)]
 pub struct SceneSpawner {
@@ -107,8 +98,6 @@ pub struct SceneSpawner {
     debounced_dynamic_scene_asset_events: HashMap<AssetId<DynamicScene>, u32>,
     scenes_to_spawn: Vec<(Handle<Scene>, InstanceId, Option<Entity>)>,
     dynamic_scenes_to_spawn: Vec<(Handle<DynamicScene>, InstanceId, Option<Entity>)>,
-    scenes_to_despawn: Vec<AssetId<Scene>>,
-    dynamic_scenes_to_despawn: Vec<AssetId<DynamicScene>>,
     instances_to_despawn: Vec<InstanceId>,
     instances_ready: Vec<(InstanceId, Option<Entity>)>,
 }
@@ -168,14 +157,6 @@ pub enum SceneSpawnError {
 }
 
 impl SceneSpawner {
-    /// Schedule the spawn of a new instance of the provided dynamic scene.
-    pub fn spawn_dynamic(&mut self, id: impl Into<Handle<DynamicScene>>) -> InstanceId {
-        let instance_id = InstanceId::new();
-        self.dynamic_scenes_to_spawn
-            .push((id.into(), instance_id, None));
-        instance_id
-    }
-
     /// Schedule the spawn of a new instance of the provided dynamic scene as a child of `parent`.
     pub fn spawn_dynamic_as_child(
         &mut self,
@@ -188,29 +169,12 @@ impl SceneSpawner {
         instance_id
     }
 
-    /// Schedule the spawn of a new instance of the provided scene.
-    pub fn spawn(&mut self, id: impl Into<Handle<Scene>>) -> InstanceId {
-        let instance_id = InstanceId::new();
-        self.scenes_to_spawn.push((id.into(), instance_id, None));
-        instance_id
-    }
-
     /// Schedule the spawn of a new instance of the provided scene as a child of `parent`.
     pub fn spawn_as_child(&mut self, id: impl Into<Handle<Scene>>, parent: Entity) -> InstanceId {
         let instance_id = InstanceId::new();
         self.scenes_to_spawn
             .push((id.into(), instance_id, Some(parent)));
         instance_id
-    }
-
-    /// Schedule the despawn of all instances of the provided scene.
-    pub fn despawn(&mut self, id: impl Into<AssetId<Scene>>) {
-        self.scenes_to_despawn.push(id.into());
-    }
-
-    /// Schedule the despawn of all instances of the provided dynamic scene.
-    pub fn despawn_dynamic(&mut self, id: impl Into<AssetId<DynamicScene>>) {
-        self.dynamic_scenes_to_despawn.push(id.into());
     }
 
     /// Schedule the despawn of a scene instance, removing all its entities from the world.
@@ -225,34 +189,6 @@ impl SceneSpawner {
     /// This will remove all records of this instance, without despawning any entities.
     pub fn unregister_instance(&mut self, instance_id: InstanceId) {
         self.spawned_instances.remove(&instance_id);
-    }
-
-    /// Immediately despawns all instances of a scene.
-    pub fn despawn_sync(
-        &mut self,
-        world: &mut World,
-        id: impl Into<AssetId<Scene>>,
-    ) -> Result<(), SceneSpawnError> {
-        if let Some(instance_ids) = self.spawned_scenes.remove(&id.into()) {
-            for instance_id in instance_ids {
-                self.despawn_instance_sync(world, &instance_id);
-            }
-        }
-        Ok(())
-    }
-
-    /// Immediately despawns all instances of a dynamic scene.
-    pub fn despawn_dynamic_sync(
-        &mut self,
-        world: &mut World,
-        id: impl Into<AssetId<DynamicScene>>,
-    ) -> Result<(), SceneSpawnError> {
-        if let Some(instance_ids) = self.spawned_dynamic_scenes.remove(&id.into()) {
-            for instance_id in instance_ids {
-                self.despawn_instance_sync(world, &instance_id);
-            }
-        }
-        Ok(())
     }
 
     /// Immediately despawns a scene instance, removing all its entities from the world.
@@ -272,31 +208,6 @@ impl SceneSpawner {
         instance.entity_map.clear();
     }
 
-    /// Immediately spawns a new instance of the provided dynamic scene.
-    pub fn spawn_dynamic_sync(
-        &mut self,
-        world: &mut World,
-        id: impl Into<AssetId<DynamicScene>>,
-    ) -> Result<InstanceId, SceneSpawnError> {
-        let mut entity_map = EntityHashMap::default();
-        let id = id.into();
-        Self::spawn_dynamic_internal(world, id, &mut entity_map)?;
-        let instance_id = InstanceId::new();
-        self.spawned_instances.insert(
-            instance_id,
-            InstanceInfo {
-                entity_map,
-                parent: None,
-            },
-        );
-        let spawned = self.spawned_dynamic_scenes.entry(id).or_default();
-        spawned.insert(instance_id);
-        // We trigger `SceneInstanceReady` events after processing all scenes
-        // SceneSpawner may not be available in the observer.
-        self.instances_ready.push((instance_id, None));
-        Ok(instance_id)
-    }
-
     fn spawn_dynamic_internal(
         world: &mut World,
         id: AssetId<DynamicScene>,
@@ -309,31 +220,6 @@ impl SceneSpawner {
 
             scene.write_to_world(world, entity_map)
         })
-    }
-
-    /// Immediately spawns a new instance of the provided scene.
-    pub fn spawn_sync(
-        &mut self,
-        world: &mut World,
-        id: impl Into<AssetId<Scene>>,
-    ) -> Result<InstanceId, SceneSpawnError> {
-        let mut entity_map = EntityHashMap::default();
-        let id = id.into();
-        Self::spawn_sync_internal(world, id, &mut entity_map)?;
-        let instance_id = InstanceId::new();
-        self.spawned_instances.insert(
-            instance_id,
-            InstanceInfo {
-                entity_map,
-                parent: None,
-            },
-        );
-        let spawned = self.spawned_scenes.entry(id).or_default();
-        spawned.insert(instance_id);
-        // We trigger `SceneInstanceReady` events after processing all scenes
-        // SceneSpawner may not be available in the observer.
-        self.instances_ready.push((instance_id, None));
-        Ok(instance_id)
     }
 
     fn spawn_sync_internal(
@@ -410,19 +296,6 @@ impl SceneSpawner {
                     }
                 }
             }
-        }
-        Ok(())
-    }
-
-    /// Immediately despawns all scenes scheduled for despawn by despawning their instances.
-    pub fn despawn_queued_scenes(&mut self, world: &mut World) -> Result<(), SceneSpawnError> {
-        let scenes_to_despawn = core::mem::take(&mut self.scenes_to_despawn);
-        for scene_handle in scenes_to_despawn {
-            self.despawn_sync(world, scene_handle)?;
-        }
-        let scenes_to_despawn = core::mem::take(&mut self.dynamic_scenes_to_despawn);
-        for scene_handle in scenes_to_despawn {
-            self.despawn_dynamic_sync(world, scene_handle)?;
         }
         Ok(())
     }
@@ -537,22 +410,6 @@ impl SceneSpawner {
     pub fn instance_is_ready(&self, instance_id: InstanceId) -> bool {
         self.spawned_instances.contains_key(&instance_id)
     }
-
-    /// Get an iterator over the entities in an instance, once it's spawned.
-    ///
-    /// Before the scene is spawned, the iterator will be empty. Use [`Self::instance_is_ready`]
-    /// to check if the instance is ready.
-    pub fn iter_instance_entities(
-        &'_ self,
-        instance_id: InstanceId,
-    ) -> impl Iterator<Item = Entity> + '_ {
-        self.spawned_instances
-            .get(&instance_id)
-            .map(|instance| instance.entity_map.values())
-            .into_iter()
-            .flatten()
-            .copied()
-    }
 }
 
 /// System that handles scheduled scene instance spawning and despawning through a [`SceneSpawner`].
@@ -622,7 +479,6 @@ pub fn scene_spawner_system(world: &mut World) {
             }
         }
 
-        scene_spawner.despawn_queued_scenes(world).unwrap();
         scene_spawner.despawn_queued_instances(world);
         scene_spawner
             .spawn_queued_scenes(world)
@@ -723,133 +579,19 @@ mod tests {
     };
     use bevy_reflect::Reflect;
 
-    use crate::{DynamicSceneBuilder, DynamicSceneRoot, ScenePlugin};
+    use crate::{DynamicSceneRoot, ScenePlugin};
 
     use super::*;
-    use crate::{DynamicScene, SceneSpawner};
+    use crate::{DynamicEntity, DynamicScene, SceneSpawner};
     use bevy_app::ScheduleRunnerPlugin;
     use bevy_asset::Assets;
-    use bevy_ecs::{
-        entity::Entity,
-        prelude::{AppTypeRegistry, World},
-    };
+    use bevy_ecs::{entity::Entity, prelude::World};
 
     #[derive(Component, Reflect, Default)]
     #[reflect(Component)]
     struct ComponentA {
         pub x: f32,
         pub y: f32,
-    }
-
-    #[test]
-    fn spawn_and_delete() {
-        let mut app = App::new();
-
-        app.add_plugins(ScheduleRunnerPlugin::default())
-            .add_plugins(AssetPlugin::default())
-            .add_plugins(ScenePlugin);
-        app.update();
-
-        let mut scene_world = World::new();
-
-        // create a new DynamicScene manually
-        let type_registry = app.world().resource::<AppTypeRegistry>().clone();
-        scene_world.insert_resource(type_registry);
-        scene_world.spawn(ComponentA { x: 3.0, y: 4.0 });
-        let scene = DynamicScene::from_world(&scene_world);
-        let scene_handle = app
-            .world_mut()
-            .resource_mut::<Assets<DynamicScene>>()
-            .add(scene);
-
-        // spawn the scene as a child of `entity` using `DynamicSceneRoot`
-        let entity = app
-            .world_mut()
-            .spawn(DynamicSceneRoot(scene_handle.clone()))
-            .id();
-
-        // run the app's schedule once, so that the scene gets spawned
-        app.update();
-
-        // make sure that the scene was added as a child of the root entity
-        let (scene_entity, scene_component_a) = app
-            .world_mut()
-            .query::<(Entity, &ComponentA)>()
-            .single(app.world())
-            .unwrap();
-        assert_eq!(scene_component_a.x, 3.0);
-        assert_eq!(scene_component_a.y, 4.0);
-        assert_eq!(
-            app.world().entity(entity).get::<Children>().unwrap().len(),
-            1
-        );
-
-        // let's try to delete the scene
-        let mut scene_spawner = app.world_mut().resource_mut::<SceneSpawner>();
-        scene_spawner.despawn_dynamic(&scene_handle);
-
-        // run the scene spawner system to despawn the scene
-        app.update();
-
-        // the scene entity does not exist anymore
-        assert!(app.world().get_entity(scene_entity).is_err());
-
-        // the root entity does not have any children anymore
-        assert!(app.world().entity(entity).get::<Children>().is_none());
-    }
-
-    #[derive(Reflect, Component, Debug, PartialEq, Eq, Clone, Copy, Default)]
-    #[reflect(Component)]
-    struct A(usize);
-
-    #[test]
-    fn clone_dynamic_entities() {
-        let mut world = World::default();
-
-        // setup
-        let atr = AppTypeRegistry::default();
-        atr.write().register::<A>();
-        world.insert_resource(atr);
-        world.insert_resource(Assets::<DynamicScene>::default());
-
-        // start test
-        world.spawn(A(42));
-
-        assert_eq!(world.query::<&A>().iter(&world).len(), 1);
-
-        // clone only existing entity
-        let mut scene_spawner = SceneSpawner::default();
-        let entity = world
-            .query_filtered::<Entity, With<A>>()
-            .single(&world)
-            .unwrap();
-        let scene = DynamicSceneBuilder::from_world(&world)
-            .extract_entity(entity)
-            .build();
-
-        let scene_id = world.resource_mut::<Assets<DynamicScene>>().add(scene);
-        let instance_id = scene_spawner
-            .spawn_dynamic_sync(&mut world, &scene_id)
-            .unwrap();
-
-        // verify we spawned exactly one new entity with our expected component
-        assert_eq!(world.query::<&A>().iter(&world).len(), 2);
-
-        // verify that we can get this newly-spawned entity by the instance ID
-        let new_entity = scene_spawner
-            .iter_instance_entities(instance_id)
-            .next()
-            .unwrap();
-
-        // verify this is not the original entity
-        assert_ne!(entity, new_entity);
-
-        // verify this new entity contains the same data as the original entity
-        let [old_a, new_a] = world
-            .query::<&A>()
-            .get_many(&world, [entity, new_entity])
-            .unwrap();
-        assert_eq!(old_a, new_a);
     }
 
     #[derive(Component, Reflect, Default)]
@@ -865,33 +607,29 @@ mod tests {
         app.init_resource::<TriggerCount>();
 
         app.register_type::<ComponentF>();
-        app.world_mut().spawn(ComponentF);
-        app.world_mut().spawn(ComponentF);
 
         app
     }
 
     fn build_scene(app: &mut App) -> Handle<Scene> {
-        app.world_mut()
-            .run_system_once(
-                |world: &World,
-                 type_registry: Res<'_, AppTypeRegistry>,
-                 asset_server: Res<'_, AssetServer>| {
-                    asset_server.add(
-                        Scene::from_dynamic_scene(&DynamicScene::from_world(world), &type_registry)
-                            .unwrap(),
-                    )
-                },
-            )
-            .expect("Failed to run scene builder system.")
+        let mut world = World::new();
+        world.spawn(ComponentF);
+        world.spawn(ComponentF);
+        app.world().resource::<AssetServer>().add(Scene::new(world))
     }
 
     fn build_dynamic_scene(app: &mut App) -> Handle<DynamicScene> {
-        app.world_mut()
-            .run_system_once(|world: &World, asset_server: Res<'_, AssetServer>| {
-                asset_server.add(DynamicScene::from_world(world))
+        let mut world = World::new();
+        let entities = (0..2)
+            .map(|_| DynamicEntity {
+                entity: world.spawn_empty().id(),
+                components: vec![Box::new(ComponentF)],
             })
-            .expect("Failed to run dynamic scene builder system.")
+            .collect();
+        app.world().resource::<AssetServer>().add(DynamicScene {
+            resources: Vec::new(),
+            entities,
+        })
     }
 
     fn observe_trigger(app: &mut App, scene_id: InstanceId, scene_entity: Option<Entity>) {
@@ -928,44 +666,6 @@ mod tests {
                 );
             })
             .unwrap();
-    }
-
-    #[test]
-    fn observe_scene() {
-        let mut app = setup();
-
-        // Build scene.
-        let scene = build_scene(&mut app);
-
-        // Spawn scene.
-        let scene_id = app
-            .world_mut()
-            .run_system_once(move |mut scene_spawner: ResMut<'_, SceneSpawner>| {
-                scene_spawner.spawn(scene.clone())
-            })
-            .unwrap();
-
-        // Check trigger.
-        observe_trigger(&mut app, scene_id, None);
-    }
-
-    #[test]
-    fn observe_dynamic_scene() {
-        let mut app = setup();
-
-        // Build scene.
-        let scene = build_dynamic_scene(&mut app);
-
-        // Spawn scene.
-        let scene_id = app
-            .world_mut()
-            .run_system_once(move |mut scene_spawner: ResMut<'_, SceneSpawner>| {
-                scene_spawner.spawn_dynamic(scene.clone())
-            })
-            .unwrap();
-
-        // Check trigger.
-        observe_trigger(&mut app, scene_id, None);
     }
 
     #[test]

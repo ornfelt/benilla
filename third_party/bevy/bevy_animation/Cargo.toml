@@ -98,7 +98,7 @@ default-features = false
 [dependencies.petgraph]
 version = "0.8"
 
-# Unused here: it keeps ron's default `std` feature on for bevy_asset and bevy_scene.
+# Unused here: it keeps ron's default `std` feature on for bevy_asset.
 [dependencies.ron]
 version = "0.12"
 

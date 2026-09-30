@@ -1,7 +1,7 @@
 use core::any::TypeId;
 
 use crate::reflect_utils::clone_reflect_value;
-use crate::{DynamicScene, SceneSpawnError};
+use crate::SceneSpawnError;
 use bevy_asset::Asset;
 use bevy_ecs::{
     component::ComponentCloneBehavior,
@@ -15,9 +15,7 @@ use bevy_reflect::TypePath;
 
 /// A composition of [`World`] objects.
 ///
-/// To spawn a scene, you can use either:
-/// * [`SceneSpawner::spawn`](crate::SceneSpawner::spawn)
-/// * adding the [`SceneRoot`](crate::components::SceneRoot) component to an entity.
+/// To spawn a scene, add the [`SceneRoot`](crate::components::SceneRoot) component to an entity.
 #[derive(Asset, TypePath, Debug)]
 pub struct Scene {
     /// The world of the scene, containing its entities and resources.
@@ -28,29 +26,6 @@ impl Scene {
     /// Creates a new scene with the given world.
     pub fn new(world: World) -> Self {
         Self { world }
-    }
-
-    /// Create a new scene from a given dynamic scene.
-    pub fn from_dynamic_scene(
-        dynamic_scene: &DynamicScene,
-        type_registry: &AppTypeRegistry,
-    ) -> Result<Scene, SceneSpawnError> {
-        let mut world = World::new();
-        let mut entity_map = EntityHashMap::default();
-        dynamic_scene.write_to_world_with(&mut world, &mut entity_map, type_registry)?;
-
-        Ok(Self { world })
-    }
-
-    /// Clone the scene.
-    ///
-    /// This method will return a [`SceneSpawnError`] if a type either is not registered in the
-    /// provided [`AppTypeRegistry`] or doesn't reflect the [`Component`](bevy_ecs::component::Component) trait.
-    pub fn clone_with(&self, type_registry: &AppTypeRegistry) -> Result<Scene, SceneSpawnError> {
-        let mut new_world = World::new();
-        let mut entity_map = EntityHashMap::default();
-        self.write_to_world_with(&mut new_world, &mut entity_map, type_registry)?;
-        Ok(Self { world: new_world })
     }
 
     /// Write the entities and their corresponding components to the given world.
