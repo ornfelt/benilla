@@ -9,8 +9,7 @@ use super::{states::States, take_next_state, transitions::*, NextState, State};
 
 /// This trait allows a state to be mutated directly using the [`NextState<S>`](crate::state::NextState) resource.
 ///
-/// While ordinary states are freely mutable (and implement this trait as part of their derive macro),
-/// computed states are not: instead, they can *only* change when the states that drive them do.
+/// States implement this trait as part of their derive macro.
 #[diagnostic::on_unimplemented(note = "consider annotating `{Self}` with `#[derive(States)]`")]
 pub trait FreelyMutableState: States {
     /// This function registers all the necessary systems to apply state changes and run transition schedules
@@ -32,11 +31,6 @@ pub trait FreelyMutableState: States {
                 last_transition::<Self>
                     .pipe(run_exit::<Self>)
                     .in_set(ExitSchedules::<Self>::default()),
-            )
-            .add_systems(
-                last_transition::<Self>
-                    .pipe(run_transition::<Self>)
-                    .in_set(TransitionSchedules::<Self>::default()),
             )
             .add_systems(
                 last_transition::<Self>

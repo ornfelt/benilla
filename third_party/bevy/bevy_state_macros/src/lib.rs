@@ -1,6 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! Macros for deriving `States` and `SubStates` traits.
+//! Macros for deriving the `States` trait.
 
 extern crate proc_macro;
 
@@ -14,13 +14,6 @@ use proc_macro::TokenStream;
 #[proc_macro_derive(States, attributes(states))]
 pub fn derive_states(input: TokenStream) -> TokenStream {
     states::derive_states(input)
-}
-
-/// Implements the `SubStates` trait for a type - see the trait
-/// docs for an example usage.
-#[proc_macro_derive(SubStates, attributes(states, source))]
-pub fn derive_substates(input: TokenStream) -> TokenStream {
-    states::derive_substates(input)
 }
 
 pub(crate) fn bevy_state_path() -> syn::Path {

@@ -46,7 +46,7 @@ use crate::{time::Time, virt::Virtual};
 ///
 /// The fixed timestep clock follows the [`Time<Virtual>`](Virtual) clock, which
 /// means it is affected by [`pause()`](Time::pause),
-/// [`set_relative_speed()`](Time::set_relative_speed) and
+/// [`set_relative_speed_f64()`](Time::set_relative_speed_f64) and
 /// [`set_max_delta()`](Time::set_max_delta) from virtual time. If the virtual
 /// clock is paused, the [`FixedUpdate`](bevy_app::FixedUpdate) schedule will
 /// not run. It is guaranteed that the [`elapsed()`](Time::elapsed) time in
@@ -83,17 +83,6 @@ impl Time<Fixed> {
     pub fn from_duration(timestep: Duration) -> Self {
         let mut ret = Self::default();
         ret.set_timestep(timestep);
-        ret
-    }
-
-    /// Return new fixed time clock with given timestep seconds as `f64`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `seconds` is zero, negative or not finite.
-    pub fn from_seconds(seconds: f64) -> Self {
-        let mut ret = Self::default();
-        ret.set_timestep_seconds(seconds);
         ret
     }
 
@@ -190,15 +179,6 @@ impl Time<Fixed> {
         self.context_mut().overstep += delta;
     }
 
-    /// Discard a part of the overstep amount.
-    ///
-    /// If `discard` is higher than overstep, the overstep becomes zero.
-    #[inline]
-    pub fn discard_overstep(&mut self, discard: Duration) {
-        let context = self.context_mut();
-        context.overstep = context.overstep.saturating_sub(discard);
-    }
-
     /// Returns the amount of overstep time accumulated toward new steps, as an
     /// [`f32`] fraction of the timestep.
     #[inline]
@@ -279,7 +259,7 @@ mod test {
 
     #[test]
     fn test_expend() {
-        let mut time = Time::<Fixed>::from_seconds(2.0);
+        let mut time = Time::<Fixed>::from_duration(Duration::from_secs(2));
 
         assert_eq!(time.delta(), Duration::ZERO);
         assert_eq!(time.elapsed(), Duration::ZERO);
@@ -343,7 +323,7 @@ mod test {
 
     #[test]
     fn test_expend_multiple() {
-        let mut time = Time::<Fixed>::from_seconds(2.0);
+        let mut time = Time::<Fixed>::from_duration(Duration::from_secs(2));
 
         time.accumulate_overstep(Duration::from_secs(7));
         assert_eq!(time.overstep(), Duration::from_secs(7));

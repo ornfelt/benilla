@@ -21,20 +21,6 @@ pub struct OnEnter<S: States>(pub S);
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct OnExit<S: States>(pub S);
 
-/// The label of a [`Schedule`] that **only** runs whenever [`State<S>`]
-/// exits AND enters the provided `exited` and `entered` states.
-///
-/// Systems added to this schedule are always ran *after* [`OnExit`], and *before* [`OnEnter`].
-///
-/// This schedule will run on identity transitions.
-#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
-pub struct OnTransition<S: States> {
-    /// The state being exited.
-    pub exited: S,
-    /// The state being entered.
-    pub entered: S,
-}
-
 /// Runs [state transitions](States).
 ///
 /// By default, it will be triggered once before [`PreStartup`] and then each frame after [`PreUpdate`], but
@@ -60,7 +46,7 @@ pub struct StateTransition;
 /// A [`Message`] sent when any state transition of `S` happens.
 /// This includes identity transitions, where `exited` and `entered` have the same value.
 ///
-/// If you know exactly what state you want to respond to ahead of time, consider [`OnEnter`], [`OnTransition`], or [`OnExit`]
+/// If you know exactly what state you want to respond to ahead of time, consider [`OnEnter`] or [`OnExit`]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Message)]
 pub struct StateTransitionEvent<S: States> {
     /// The state being exited.
@@ -248,21 +234,4 @@ pub(crate) fn run_exit<S: States>(
     };
 
     let _ = world.try_run_schedule(OnExit(exited));
-}
-
-pub(crate) fn run_transition<S: States>(
-    transition: In<Option<StateTransitionEvent<S>>>,
-    world: &mut World,
-) {
-    let Some(transition) = transition.0 else {
-        return;
-    };
-    let Some(exited) = transition.exited else {
-        return;
-    };
-    let Some(entered) = transition.entered else {
-        return;
-    };
-
-    let _ = world.try_run_schedule(OnTransition { exited, entered });
 }

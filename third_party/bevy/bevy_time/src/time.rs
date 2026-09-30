@@ -138,8 +138,8 @@ use {
 /// New custom clocks can be created by creating your own struct as a context
 /// and passing it to [`new_with()`](Time::new_with). These clocks can be
 /// inserted as resources as normal and then accessed by systems. You can use
-/// the [`advance_by()`](Time::advance_by) or [`advance_to()`](Time::advance_to)
-/// methods to move the clock forwards based on your own logic.
+/// the [`advance_by()`](Time::advance_by)
+/// method to move the clock forwards based on your own logic.
 ///
 /// If you want to add methods for your time instance and they require access to
 /// both your context and the generic time part, it's probably simplest to add a
@@ -230,23 +230,6 @@ impl<T: Default> Time<T> {
         self.elapsed_wrapped = duration_rem(self.elapsed, self.wrap_period);
         self.elapsed_secs_wrapped = self.elapsed_wrapped.as_secs_f32();
         self.elapsed_secs_wrapped_f64 = self.elapsed_wrapped.as_secs_f64();
-    }
-
-    /// Advance this clock to a specific `elapsed` time.
-    ///
-    /// [`Self::delta()`] will return the amount of time the clock was advanced
-    /// and [`Self::elapsed()`] will be the `elapsed` value passed in. Cannot be
-    /// used to move time backwards.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `elapsed` is less than `Self::elapsed()`.
-    pub fn advance_to(&mut self, elapsed: Duration) {
-        assert!(
-            elapsed >= self.elapsed,
-            "tried to move time backwards to an earlier elapsed moment"
-        );
-        self.advance_by(elapsed - self.elapsed);
     }
 
     /// Returns the modulus used to calculate [`elapsed_wrapped`](#method.elapsed_wrapped).
@@ -442,48 +425,6 @@ mod test {
         assert_eq!(time.elapsed(), Duration::from_millis(750));
         assert_eq!(time.elapsed_secs(), 0.75);
         assert_eq!(time.elapsed_secs_f64(), 0.75);
-    }
-
-    #[test]
-    fn test_advance_to() {
-        let mut time: Time = Time::default();
-
-        time.advance_to(Duration::from_millis(250));
-
-        assert_eq!(time.delta(), Duration::from_millis(250));
-        assert_eq!(time.delta_secs(), 0.25);
-        assert_eq!(time.delta_secs_f64(), 0.25);
-        assert_eq!(time.elapsed(), Duration::from_millis(250));
-        assert_eq!(time.elapsed_secs(), 0.25);
-        assert_eq!(time.elapsed_secs_f64(), 0.25);
-
-        time.advance_to(Duration::from_millis(750));
-
-        assert_eq!(time.delta(), Duration::from_millis(500));
-        assert_eq!(time.delta_secs(), 0.5);
-        assert_eq!(time.delta_secs_f64(), 0.5);
-        assert_eq!(time.elapsed(), Duration::from_millis(750));
-        assert_eq!(time.elapsed_secs(), 0.75);
-        assert_eq!(time.elapsed_secs_f64(), 0.75);
-
-        time.advance_to(Duration::from_millis(750));
-
-        assert_eq!(time.delta(), Duration::ZERO);
-        assert_eq!(time.delta_secs(), 0.0);
-        assert_eq!(time.delta_secs_f64(), 0.0);
-        assert_eq!(time.elapsed(), Duration::from_millis(750));
-        assert_eq!(time.elapsed_secs(), 0.75);
-        assert_eq!(time.elapsed_secs_f64(), 0.75);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_advance_to_backwards_panics() {
-        let mut time: Time = Time::default();
-
-        time.advance_to(Duration::from_millis(750));
-
-        time.advance_to(Duration::from_millis(250));
     }
 
     #[test]

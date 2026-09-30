@@ -12,8 +12,6 @@ extern crate std;
 
 extern crate alloc;
 
-/// Common run conditions
-pub mod common_conditions;
 mod fixed;
 mod real;
 mod stopwatch;
@@ -45,12 +43,6 @@ use bevy_ecs::{
 };
 use bevy_platform::time::Instant;
 use core::time::Duration;
-
-#[cfg(feature = "std")]
-pub use crossbeam_channel::TrySendError;
-
-#[cfg(feature = "std")]
-use crossbeam_channel::{Receiver, Sender};
 
 /// Adds time functionality to Apps.
 #[derive(Default)]
@@ -102,9 +94,7 @@ impl Plugin for TimePlugin {
 /// networking or similar, you may prefer to set the next [`Time`] value manually.
 #[derive(Resource, Default)]
 pub enum TimeUpdateStrategy {
-    /// [`Time`] will be automatically updated each frame using an [`Instant`] sent from the render world.
-    /// If nothing is sent, the system clock will be used instead.
-    #[cfg_attr(feature = "std", doc = "See [`TimeSender`] for more details.")]
+    /// [`Time`] will be automatically updated each frame using the system clock.
     #[default]
     Automatic,
     /// [`Time`] will be updated to the specified [`Instant`] value each frame.
@@ -119,60 +109,16 @@ pub enum TimeUpdateStrategy {
     FixedTimesteps(u32),
 }
 
-/// Channel resource used to receive time from the render world.
-#[cfg(feature = "std")]
-#[derive(Resource)]
-pub struct TimeReceiver(pub Receiver<Instant>);
-
-/// Channel resource used to send time from the render world.
-#[cfg(feature = "std")]
-#[derive(Resource)]
-pub struct TimeSender(pub Sender<Instant>);
-
-/// Creates channels used for sending time between the render world and the main world.
-#[cfg(feature = "std")]
-pub fn create_time_channels() -> (TimeSender, TimeReceiver) {
-    // bound the channel to 2 since when pipelined the render phase can finish before
-    // the time system runs.
-    let (s, r) = crossbeam_channel::bounded::<Instant>(2);
-    (TimeSender(s), TimeReceiver(r))
-}
-
-/// The system used to update the [`Time`] used by app logic. If there is a render world the time is
-/// sent from there to this system through channels. Otherwise the time is updated in this system.
+/// The system used to update the [`Time`] used by app logic.
 pub fn time_system(
     mut real_time: ResMut<Time<Real>>,
     mut virtual_time: ResMut<Time<Virtual>>,
     fixed_time: Res<Time<Fixed>>,
     mut time: ResMut<Time>,
     update_strategy: Res<TimeUpdateStrategy>,
-    #[cfg(feature = "std")] time_recv: Option<Res<TimeReceiver>>,
-    #[cfg(feature = "std")] mut has_received_time: Local<bool>,
 ) {
-    #[cfg(feature = "std")]
-    // TODO: Figure out how to handle this when using pipelined rendering.
-    let sent_time = match time_recv.map(|res| res.0.try_recv()) {
-        Some(Ok(new_time)) => {
-            *has_received_time = true;
-            Some(new_time)
-        }
-        Some(Err(_)) => {
-            if *has_received_time {
-                log::warn!("time_system did not receive the time from the render world! Calculations depending on the time may be incorrect.");
-            }
-            None
-        }
-        None => None,
-    };
-
     match update_strategy.as_ref() {
-        TimeUpdateStrategy::Automatic => {
-            #[cfg(feature = "std")]
-            real_time.update_with_instant(sent_time.unwrap_or_else(Instant::now));
-
-            #[cfg(not(feature = "std"))]
-            real_time.update_with_instant(Instant::now());
-        }
+        TimeUpdateStrategy::Automatic => real_time.update_with_instant(Instant::now()),
         TimeUpdateStrategy::ManualInstant(instant) => real_time.update_with_instant(*instant),
         TimeUpdateStrategy::ManualDuration(duration) => real_time.update_with_duration(*duration),
         TimeUpdateStrategy::FixedTimesteps(factor) => {

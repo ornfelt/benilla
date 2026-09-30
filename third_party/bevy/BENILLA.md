@@ -116,6 +116,21 @@ the same repository's.
   window-handle accessors and `ThreadLockedRawWindowHandleWrapper` went; nothing under gfx
   inserts one). `WindowWrapper` stays for `bevy_winit`'s `get_window`. The frame lost the two
   gamepad systems and `PreUpdate`'s one sync point, which was ordered only between them.
+- **`bevy_state` and `bevy_time`, to what benilla and the kept crates call.** `bevy_state`
+  keeps plain `States` (the derive, `State`, `NextState::set`, `init_state`/`insert_state`,
+  `in_state`, `OnEnter`/`OnExit`, the `StateTransition` schedule with its four sets): computed
+  and sub states with `StateSet` and the `SubStates` derive, `DEPENDENCY_DEPTH`,
+  `OnTransition` with its `run_transition` system, `DespawnOnEnter`/`DespawnOnExit` with their
+  two `StateTransition` systems, state-scoped messages, `CommandsStatesExt`, the reflection
+  type data and `register_type_*state`, `state_exists`/`state_changed`, and
+  `NextState::set_if_neq`/`reset` with the `PendingIfNeq` variant are gone (`bevy_platform` and
+  `variadics_please` left the manifest). The frame lost the three systems and the sync point
+  after the exit despawn; the `TransitionSchedules` sets stay. `bevy_time`: `common_conditions`,
+  the render-world time channel (`TimeSender`/`TimeReceiver`, `create_time_channels`,
+  `TrySendError`; `time_system` reads the clock directly, as it did with no sender), and
+  `Fixed::from_seconds`/`discard_overstep`, `Time::advance_to`, `Timer::almost_finish`/
+  `remaining_secs`, `Virtual::from_max_delta`/`set_relative_speed`/`effective_speed_f64`
+  (`crossbeam-channel` left the manifest).
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

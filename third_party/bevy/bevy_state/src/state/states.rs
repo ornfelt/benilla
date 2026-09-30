@@ -13,10 +13,6 @@ use core::hash::Hash;
 /// State transitions typically occur in the [`OnEnter<T::Variant>`](crate::state::OnEnter) and [`OnExit<T::Variant>`](crate::state::OnExit) schedules,
 /// which can be run by triggering the [`StateTransition`](crate::state::StateTransition) schedule.
 ///
-/// Types used as [`ComputedStates`](crate::state::ComputedStates) do not need to and should not derive [`States`].
-/// [`ComputedStates`](crate::state::ComputedStates) should not be manually mutated: functionality provided
-/// by the [`States`] derive and the associated [`FreelyMutableState`](crate::state::FreelyMutableState) trait.
-///
 /// # Example
 ///
 /// ```
@@ -61,9 +57,4 @@ use core::hash::Hash;
     label = "invalid state",
     note = "consider annotating `{Self}` with `#[derive(States)]`"
 )]
-pub trait States: 'static + Send + Sync + Clone + PartialEq + Eq + Hash + Debug {
-    /// How many other states this state depends on.
-    /// Used to help order transitions and de-duplicate [`ComputedStates`](crate::state::ComputedStates), as well as prevent cyclical
-    /// `ComputedState` dependencies.
-    const DEPENDENCY_DEPTH: usize = 1;
-}
+pub trait States: 'static + Send + Sync + Clone + PartialEq + Eq + Hash + Debug {}

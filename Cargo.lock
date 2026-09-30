@@ -1282,12 +1282,10 @@ version = "0.18.1"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
- "bevy_platform",
  "bevy_reflect",
  "bevy_state_macros",
  "bevy_utils",
  "log",
- "variadics_please",
 ]
 
 [[package]]
@@ -1347,7 +1345,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_platform",
  "bevy_reflect",
- "crossbeam-channel",
  "log",
  "serde",
 ]

@@ -1,52 +1,5 @@
 use crate::state::{State, States};
-use bevy_ecs::{change_detection::DetectChanges, system::Res};
-
-/// A [`SystemCondition`](bevy_ecs::prelude::SystemCondition)-satisfying system that returns `true`
-/// if the state machine exists.
-///
-/// # Example
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// # use bevy_state::prelude::*;
-/// # use bevy_app::{App, Update};
-/// # use bevy_state::app::StatesPlugin;
-/// # #[derive(Resource, Default)]
-/// # struct Counter(u8);
-/// # let mut app = App::new();
-/// # app
-/// #   .init_resource::<Counter>()
-/// #   .add_plugins(StatesPlugin);
-/// #[derive(States, Clone, Copy, Default, Eq, PartialEq, Hash, Debug)]
-/// enum GameState {
-///     #[default]
-///     Playing,
-///     Paused,
-/// }
-///
-/// app.add_systems(Update,
-///     // `state_exists` will only return true if the
-///     // given state exists
-///     my_system.run_if(state_exists::<GameState>),
-/// );
-///
-/// fn my_system(mut counter: ResMut<Counter>) {
-///     counter.0 += 1;
-/// }
-///
-/// // `GameState` does not yet exist so `my_system` won't run
-/// app.update();
-/// assert_eq!(app.world().resource::<Counter>().0, 0);
-///
-/// app.init_state::<GameState>();
-///
-/// // `GameState` now exists so `my_system` will run
-/// app.update();
-/// assert_eq!(app.world().resource::<Counter>().0, 1);
-/// ```
-pub fn state_exists<S: States>(current_state: Option<Res<State<S>>>) -> bool {
-    current_state.is_some()
-}
+use bevy_ecs::system::Res;
 
 /// Generates a [`SystemCondition`](bevy_ecs::prelude::SystemCondition)-satisfying closure that returns `true`
 /// if the state machine is currently in `state`.
@@ -107,68 +60,6 @@ pub fn in_state<S: States>(state: S) -> impl FnMut(Option<Res<State<S>>>) -> boo
     }
 }
 
-/// A [`SystemCondition`](bevy_ecs::prelude::SystemCondition)-satisfying system that returns `true`
-/// if the state machine changed state.
-///
-/// To do things on transitions to/from specific states, use their respective OnEnter/OnExit
-/// schedules. Use this run condition if you want to detect any change, regardless of the value.
-///
-/// Returns false if the state does not exist or the state has not changed.
-///
-/// # Example
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// # use bevy_state::prelude::*;
-/// # use bevy_state::app::StatesPlugin;
-/// # use bevy_app::{App, Update};
-/// # #[derive(Resource, Default)]
-/// # struct Counter(u8);
-/// # let mut app = App::new();
-/// # app
-/// #   .init_resource::<Counter>()
-/// #   .add_plugins(StatesPlugin);
-/// #[derive(States, Clone, Copy, Default, Eq, PartialEq, Hash, Debug)]
-/// enum GameState {
-///     #[default]
-///     Playing,
-///     Paused,
-/// }
-///
-/// app
-///     .init_state::<GameState>()
-///     .add_systems(Update,
-///         // `state_changed` will only return true if the
-///         // given states value has just been updated or
-///         // the state has just been added
-///         my_system.run_if(state_changed::<GameState>),
-///     );
-///
-/// fn my_system(mut counter: ResMut<Counter>) {
-///     counter.0 += 1;
-/// }
-///
-/// // `GameState` has just been added so `my_system` will run
-/// app.update();
-/// assert_eq!(app.world().resource::<Counter>().0, 1);
-///
-/// // `GameState` has not been updated so `my_system` will not run
-/// app.update();
-/// assert_eq!(app.world().resource::<Counter>().0, 1);
-///
-/// app.insert_state(GameState::Paused);
-///
-/// // Now that `GameState` has been updated `my_system` will run
-/// app.update();
-/// assert_eq!(app.world().resource::<Counter>().0, 2);
-/// ```
-pub fn state_changed<S: States>(current_state: Option<Res<State<S>>>) -> bool {
-    let Some(current_state) = current_state else {
-        return false;
-    };
-    current_state.is_changed()
-}
-
 #[cfg(test)]
 mod tests {
     use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, SystemCondition};
@@ -190,9 +81,7 @@ mod tests {
     fn distributive_run_if_compiles() {
         Schedule::default().add_systems(
             (test_system, test_system)
-                .distributive_run_if(state_exists::<TestState>)
-                .distributive_run_if(in_state(TestState::A).or(in_state(TestState::B)))
-                .distributive_run_if(state_changed::<TestState>),
+                .distributive_run_if(in_state(TestState::A).or(in_state(TestState::B))),
         );
     }
 }

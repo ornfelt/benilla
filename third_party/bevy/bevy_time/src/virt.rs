@@ -29,13 +29,13 @@ use crate::{real::Real, time::Time};
 /// value for the update currently being processed.
 ///
 /// The speed of the virtual clock can be changed by calling
-/// [`set_relative_speed()`](Time::set_relative_speed). A value of `2.0` means
+/// [`set_relative_speed_f64()`](Time::set_relative_speed_f64). A value of `2.0` means
 /// that virtual clock should advance twice as fast as real time, meaning that
 /// [`delta()`](Time::delta) values will be double of what
 /// [`Time<Real>::delta()`](Time::delta) reports and
 /// [`elapsed()`](Time::elapsed) will go twice as fast as
 /// [`Time<Real>::elapsed()`](Time::elapsed). Calling
-/// [`set_relative_speed()`](Time::set_relative_speed) will not affect the
+/// [`set_relative_speed_f64()`](Time::set_relative_speed_f64) will not affect the
 /// [`delta()`](Time::delta) value for the update currently being processed.
 ///
 /// The maximum amount of delta time that can be added by a single update can be
@@ -83,17 +83,6 @@ impl Time<Virtual> {
     ///
     /// Equal to 250 milliseconds.
     const DEFAULT_MAX_DELTA: Duration = Duration::from_millis(250);
-
-    /// Create new virtual clock with given maximum delta step [`Duration`]
-    ///
-    /// # Panics
-    ///
-    /// Panics if `max_delta` is zero.
-    pub fn from_max_delta(max_delta: Duration) -> Self {
-        let mut ret = Self::default();
-        ret.set_max_delta(max_delta);
-        ret
-    }
 
     /// Returns the maximum amount of time that can be added to this clock by a
     /// single update, as [`Duration`].
@@ -163,29 +152,6 @@ impl Time<Virtual> {
     #[inline]
     pub fn effective_speed(&self) -> f32 {
         self.context().effective_speed as f32
-    }
-
-    /// Returns the speed the clock advanced relative to your system clock in
-    /// this update, as [`f64`].
-    ///
-    /// Returns `0.0` if the game was paused or what the `relative_speed` value
-    /// was at the start of this update.
-    #[inline]
-    pub fn effective_speed_f64(&self) -> f64 {
-        self.context().effective_speed
-    }
-
-    /// Sets the speed the clock advances relative to your system clock, given as an [`f32`].
-    ///
-    /// For example, setting this to `2.0` will make the clock advance twice as fast as your system
-    /// clock.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `ratio` is negative or not finite.
-    #[inline]
-    pub fn set_relative_speed(&mut self, ratio: f32) {
-        self.set_relative_speed_f64(ratio as f64);
     }
 
     /// Sets the speed the clock advances relative to your system clock, given as an [`f64`].

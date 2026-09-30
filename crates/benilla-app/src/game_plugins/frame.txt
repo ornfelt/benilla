@@ -1264,18 +1264,11 @@ schedule Startup
 schedule StateTransition
   0 bevy_state::state::freely_mutable_state::apply_state_transition<benilla_app::char_select::ClientState>
     in ApplyStateTransition(PhantomData<benilla_app::char_select::ClientState>)
-  1 bevy_ecs::apply_deferred@1
+  1 bevy_ecs::apply_deferred
   2 Pipe(bevy_state::state::transitions::last_transition<benilla_app::char_select::ClientState>, bevy_state::state::transitions::run_exit<benilla_app::char_select::ClientState>)
     in ExitSchedules(PhantomData<benilla_app::char_select::ClientState>)
-  3 bevy_state::state_scoped::despawn_entities_on_exit_state<benilla_app::char_select::ClientState>
-    in ExitSchedules
-  4 bevy_ecs::apply_deferred@4
-  5 Pipe(bevy_state::state::transitions::last_transition<benilla_app::char_select::ClientState>, bevy_state::state::transitions::run_transition<benilla_app::char_select::ClientState>)
-    in TransitionSchedules(PhantomData<benilla_app::char_select::ClientState>)
-  6 Pipe(bevy_state::state::transitions::last_transition<benilla_app::char_select::ClientState>, bevy_state::state::transitions::run_enter<benilla_app::char_select::ClientState>)
+  3 Pipe(bevy_state::state::transitions::last_transition<benilla_app::char_select::ClientState>, bevy_state::state::transitions::run_enter<benilla_app::char_select::ClientState>)
     in EnterSchedules(PhantomData<benilla_app::char_select::ClientState>)
-  7 bevy_state::state_scoped::despawn_entities_on_enter_state<benilla_app::char_select::ClientState>
-    in EnterSchedules
   set ApplyStateTransition(PhantomData<benilla_app::char_select::ClientState>)
     in DependentTransitions
   set DependentTransitions
