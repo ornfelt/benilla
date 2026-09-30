@@ -23,12 +23,6 @@ pub trait PositionConstraint {
 
         body1.delta_position += impulse * inv_mass1;
 
-        #[cfg(feature = "2d")]
-        {
-            let delta_angle = Self::get_delta_rot(inv_angular_inertia1, r1, impulse);
-            body1.delta_rotation = body1.delta_rotation.add_angle_fast(delta_angle);
-        }
-        #[cfg(feature = "3d")]
         {
             let delta_quat = Self::get_delta_rot(inv_angular_inertia1, r1, impulse);
             body1.delta_rotation.0 = delta_quat * body1.delta_rotation.0;
@@ -36,12 +30,6 @@ pub trait PositionConstraint {
 
         body2.delta_position -= impulse * inv_mass2;
 
-        #[cfg(feature = "2d")]
-        {
-            let delta_angle = Self::get_delta_rot(inv_angular_inertia2, r2, -impulse);
-            body2.delta_rotation = body2.delta_rotation.add_angle_fast(delta_angle);
-        }
-        #[cfg(feature = "3d")]
         {
             let delta_quat = Self::get_delta_rot(inv_angular_inertia2, r2, -impulse);
             body2.delta_rotation.0 = delta_quat * body2.delta_rotation.0;
@@ -50,20 +38,6 @@ pub trait PositionConstraint {
 
     /// Computes the generalized inverse mass of a body when applying a positional correction
     /// at point `r` along the vector `n`.
-    #[cfg(feature = "2d")]
-    fn compute_generalized_inverse_mass(
-        &self,
-        inverse_mass: Scalar,
-        inverse_angular_inertia: SymmetricTensor,
-        r: Vector,
-        n: Vector,
-    ) -> Scalar {
-        inverse_mass + inverse_angular_inertia * r.perp_dot(n).powi(2)
-    }
-
-    /// Computes the generalized inverse mass of a body when applying a positional correction
-    /// at point `r` along the vector `n`.
-    #[cfg(feature = "3d")]
     fn compute_generalized_inverse_mass(
         &self,
         inverse_mass: Scalar,
@@ -79,14 +53,6 @@ pub trait PositionConstraint {
     }
 
     /// Computes the update in rotation when applying a positional correction `p` at point `r`.
-    #[cfg(feature = "2d")]
-    fn get_delta_rot(inverse_angular_inertia: SymmetricTensor, r: Vector, p: Vector) -> Scalar {
-        // Equation 8/9 but in 2D
-        inverse_angular_inertia * r.perp_dot(p)
-    }
-
-    /// Computes the update in rotation when applying a positional correction `p` at point `r`.
-    #[cfg(feature = "3d")]
     fn get_delta_rot(inverse_angular_inertia: SymmetricTensor, r: Vector, p: Vector) -> Quaternion {
         // Equation 8/9
         Quaternion::from_scaled_axis(inverse_angular_inertia * r.cross(p))

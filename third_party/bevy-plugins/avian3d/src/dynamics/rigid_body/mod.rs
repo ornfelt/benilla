@@ -15,9 +15,6 @@ pub use physics_material::{
 };
 pub use world_query::*;
 
-#[cfg(feature = "2d")]
-pub(crate) use forces::FloatZero;
-
 use crate::{
     physics_transform::init_physics_transform,
     prelude::{forces::AccumulatedLocalAcceleration, *},
@@ -44,8 +41,7 @@ use derive_more::From;
 /// and an optional [`Collider`]:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
@@ -69,8 +65,7 @@ use derive_more::From;
 /// To change the position of a rigid body, you can simply modify its `Transform`:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn move_bodies(mut query: Query<&mut Transform, With<RigidBody>>) {
@@ -88,8 +83,7 @@ use derive_more::From;
 /// and [`AngularVelocity`] components:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// # #[cfg(feature = "f32")]
@@ -100,14 +94,7 @@ use derive_more::From;
 ///     let delta_secs = time.delta_secs();
 ///     for (mut linear_velocity, mut angular_velocity) in &mut query {
 ///         linear_velocity.x += 2.0 * delta_secs;
-#[cfg_attr(
-    feature = "2d",
-    doc = "        angular_velocity.0 += 0.5 * delta_secs;"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        angular_velocity.z += 0.5 * delta_secs;"
-)]
+///         angular_velocity.z += 0.5 * delta_secs;
 ///     }
 /// }
 /// # #[cfg(feature = "f64")]
@@ -139,8 +126,7 @@ use derive_more::From;
 /// based on their shape and density.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -157,8 +143,7 @@ use derive_more::From;
 /// they override the values computed from colliders.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -167,8 +152,7 @@ use derive_more::From;
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.5),
 ///     Mass(5.0),
-#[cfg_attr(feature = "2d", doc = "    CenterOfMass::new(0.0, -0.5),")]
-#[cfg_attr(feature = "3d", doc = "    CenterOfMass::new(0.0, -0.5, 0.0),")]
+///     CenterOfMass::new(0.0, -0.5, 0.0),
 /// ));
 /// # }
 /// ```
@@ -177,31 +161,21 @@ use derive_more::From;
 /// the total [`ComputedMass`], [`ComputedAngularInertia`], and [`ComputedCenterOfMass`].
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
 /// // Total mass: 10.0 + 5.0 = 15.0
-#[cfg_attr(
-    feature = "2d",
-    doc = "// Total center of mass: (10.0 * [0.0, -0.5] + 5.0 * [0.0, 4.0]) / (10.0 + 5.0) = [0.0, 1.0]"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "// Total center of mass: (10.0 * [0.0, -0.5, 0.0] + 5.0 * [0.0, 4.0, 0.0]) / (10.0 + 5.0) = [0.0, 1.0, 0.0]"
-)]
+/// // Total center of mass: (10.0 * [0.0, -0.5, 0.0] + 5.0 * [0.0, 4.0, 0.0]) / (10.0 + 5.0) = [0.0, 1.0, 0.0]
 /// commands.spawn((
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.5),
 ///     Mass(10.0),
-#[cfg_attr(feature = "2d", doc = "    CenterOfMass::new(0.0, -0.5),")]
-#[cfg_attr(feature = "3d", doc = "    CenterOfMass::new(0.0, -0.5, 0.0),")]
+///     CenterOfMass::new(0.0, -0.5, 0.0),
 ///     Transform::default(),
 /// ))
 /// .with_child((
-#[cfg_attr(feature = "2d", doc = "    Collider::circle(1.0),")]
-#[cfg_attr(feature = "3d", doc = "    Collider::sphere(1.0),")]
+///     Collider::sphere(1.0),
 ///     Mass(5.0),
 ///     Transform::from_xyz(0.0, 4.0, 0.0),
 /// ));
@@ -212,27 +186,23 @@ use derive_more::From;
 /// [`NoAutoAngularInertia`], and [`NoAutoCenterOfMass`] marker components.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
 /// // Total mass: 10.0
-#[cfg_attr(feature = "2d", doc = "// Total center of mass: [0.0, -0.5]")]
-#[cfg_attr(feature = "3d", doc = "// Total center of mass: [0.0, -0.5, 0.0]")]
+/// // Total center of mass: [0.0, -0.5, 0.0]
 /// commands.spawn((
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.5),
 ///     Mass(10.0),
-#[cfg_attr(feature = "2d", doc = "    CenterOfMass::new(0.0, -0.5),")]
-#[cfg_attr(feature = "3d", doc = "    CenterOfMass::new(0.0, -0.5, 0.0),")]
+///     CenterOfMass::new(0.0, -0.5, 0.0),
 ///     NoAutoMass,
 ///     NoAutoCenterOfMass,
 ///     Transform::default(),
 /// ))
 /// .with_child((
-#[cfg_attr(feature = "2d", doc = "    Collider::circle(1.0),")]
-#[cfg_attr(feature = "3d", doc = "    Collider::sphere(1.0),")]
+///     Collider::sphere(1.0),
 ///     Mass(5.0),
 ///     Transform::from_xyz(0.0, 4.0, 0.0),
 /// ));
@@ -261,8 +231,6 @@ use derive_more::From;
 /// - [Temporarily disabling a rigid body](RigidBodyDisabled)
 /// - [Automatic deactivation with sleeping](Sleeping)
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 #[require(
     // TODO: Only dynamic and kinematic bodies need velocity,
@@ -341,8 +309,7 @@ pub(crate) type RigidBodyActiveFilter = (Without<RigidBodyDisabled>, Without<Sle
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// #[derive(Component)]
@@ -374,8 +341,6 @@ pub(crate) type RigidBodyActiveFilter = (Without<RigidBodyDisabled>, Without<Sle
 /// - [`ColliderDisabled`]: Disables a collider.
 /// - [`JointDisabled`]: Disables a joint constraint.
 #[derive(Clone, Copy, Component, Reflect, Debug, Default)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default)]
 pub struct RigidBodyDisabled;
 
@@ -384,8 +349,7 @@ pub struct RigidBodyDisabled;
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// # #[cfg(feature = "f32")]
@@ -406,8 +370,6 @@ pub struct RigidBodyDisabled;
 /// - [`LinearDamping`]: Reduces the linear velocity of a body over time, similar to air resistance.
 /// - [`MaxLinearSpeed`]: Clamps the linear velocity of a body.
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct LinearVelocity(pub Vector);
 
@@ -424,8 +386,7 @@ impl LinearVelocity {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// // Spawn a dynamic body with linear velocity clamped to `100.0` units per second.
@@ -434,8 +395,6 @@ impl LinearVelocity {
 /// }
 /// ```
 #[derive(Reflect, Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 #[doc(alias = "MaxLinearVelocity")]
 pub struct MaxLinearSpeed(pub Scalar);
@@ -454,8 +413,7 @@ impl Default for MaxLinearSpeed {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// // Spawn a dynamic body with angular velocity clamped to `20.0` radians per second.
@@ -464,8 +422,6 @@ impl Default for MaxLinearSpeed {
 /// }
 /// ```
 #[derive(Reflect, Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 #[doc(alias = "MaxAngularVelocity")]
 pub struct MaxAngularSpeed(pub Scalar);
@@ -475,39 +431,6 @@ impl Default for MaxAngularSpeed {
         Self(Scalar::INFINITY)
     }
 }
-
-/// The angular velocity of a [rigid body](RigidBody) in radians per second.
-/// Positive values will result in counterclockwise rotation.
-///
-/// # Example
-///
-/// ```
-/// use avian2d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// # #[cfg(feature = "f32")]
-/// fn accelerate_angular(mut query: Query<&mut AngularVelocity>, time: Res<Time>) {
-///     let delta_secs = time.delta_secs();
-///     for mut angular_velocity in &mut query {
-///         // Accelerate rotation counterclockwise at `0.5` radians per second squared.
-///         angular_velocity.0 += 0.5 * delta_secs;
-///     }
-/// }
-/// # #[cfg(feature = "f64")]
-/// # fn main() {}
-/// ```
-///
-/// # Related Components
-///
-/// - [`LinearVelocity`]: The linear velocity of a body.
-/// - [`AngularDamping`]: Reduces the angular velocity of a body over time, similar to air resistance.
-/// - [`MaxAngularSpeed`]: Clamps the angular velocity of a body.
-#[cfg(feature = "2d")]
-#[derive(Reflect, Clone, Copy, Deref, DerefMut, Component, Debug, Default, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
-#[reflect(Debug, Component, Default, PartialEq)]
-pub struct AngularVelocity(pub Scalar);
 
 /// The angular velocity of a [rigid body](RigidBody), represented as a rotation axis
 /// multiplied by the angular speed in radians per second.
@@ -535,19 +458,12 @@ pub struct AngularVelocity(pub Scalar);
 /// - [`LinearVelocity`]: The linear velocity of a body.
 /// - [`AngularDamping`]: Reduces the angular velocity of a body over time, similar to air resistance.
 /// - [`MaxAngularSpeed`]: Clamps the angular velocity of a body.
-#[cfg(feature = "3d")]
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct AngularVelocity(pub Vector);
 
 impl AngularVelocity {
     /// Zero angular velocity.
-    #[cfg(feature = "2d")]
-    pub const ZERO: AngularVelocity = AngularVelocity(0.0);
-    /// Zero angular velocity.
-    #[cfg(feature = "3d")]
     pub const ZERO: AngularVelocity = AngularVelocity(Vector::ZERO);
 }
 
@@ -559,8 +475,7 @@ impl AngularVelocity {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// // Spawn a dynamic body with `1.5` times the normal gravity.
@@ -569,8 +484,6 @@ impl AngularVelocity {
 /// }
 /// ```
 #[derive(Component, Reflect, Debug, Clone, Copy, PartialEq, PartialOrd, Deref, DerefMut, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct GravityScale(pub Scalar);
 
@@ -588,8 +501,7 @@ impl Default for GravityScale {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
@@ -599,8 +511,6 @@ impl Default for GravityScale {
 #[derive(
     Component, Reflect, Debug, Clone, Copy, PartialEq, PartialOrd, Default, Deref, DerefMut, From,
 )]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct LinearDamping(pub Scalar);
 
@@ -612,8 +522,7 @@ pub struct LinearDamping(pub Scalar);
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
@@ -623,8 +532,6 @@ pub struct LinearDamping(pub Scalar);
 #[derive(
     Component, Reflect, Debug, Clone, Copy, PartialEq, PartialOrd, Default, Deref, DerefMut, From,
 )]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct AngularDamping(pub Scalar);
 
@@ -641,8 +548,7 @@ pub struct AngularDamping(pub Scalar);
 /// # Example
 /// 
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// // Player dominates all dynamic bodies with a dominance lower than `5`.
@@ -656,7 +562,5 @@ pub struct AngularDamping(pub Scalar);
 /// ```
 #[rustfmt::skip]
 #[derive(Component, Reflect, Debug, Clone, Copy, Default, Deref, DerefMut, From, PartialEq, PartialOrd, Eq, Ord)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct Dominance(pub i8);

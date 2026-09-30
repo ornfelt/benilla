@@ -6,7 +6,6 @@ use bevy::prelude::*;
 ///
 /// This can be used for efficient storage and lookup of pairs of entities or other objects.
 #[derive(Clone, Copy, Debug, Deref, DerefMut, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct PairKey(pub u64);
 
 impl PairKey {

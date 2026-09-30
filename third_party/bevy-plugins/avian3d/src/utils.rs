@@ -25,38 +25,6 @@ pub(crate) use bevy::platform::time::Instant;
 /// ```
 #[inline(always)]
 #[allow(unused_variables, unused_mut)]
-#[cfg(not(feature = "parallel"))]
-pub fn par_for_each<T, F>(mut slice: &mut [T], min_len: usize, mut f: F)
-where
-    T: Send + Sync,
-    F: FnMut(usize, &mut T) + Send + Sync,
-{
-    slice.iter_mut().enumerate().for_each(|(index, item)| {
-        f(index, item);
-    });
-}
-
-/// A helper function for iterating over a slice in parallel or serially
-/// based on the `parallel` feature.
-///
-/// If `slice.len() < min_len`, serial iteration will be used.
-///
-/// The `ComputeTaskPool` is used if parallelism is enabled.
-///
-/// # Example
-///
-/// ```ignore
-/// let mut slice = vec![1, 2, 3, 4];
-///
-/// par_for_each(&mut slice, |index, item| {
-///     *item += index;
-/// });
-///
-/// assert_eq!(slice, vec![1, 3, 5, 7]);
-/// ```
-#[inline(always)]
-#[allow(unused_variables, unused_mut)]
-#[cfg(feature = "parallel")]
 pub fn par_for_each<T, F>(mut slice: &mut [T], min_len: usize, mut f: F)
 where
     T: Send + Sync,

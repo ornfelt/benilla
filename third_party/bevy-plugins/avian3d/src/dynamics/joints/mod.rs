@@ -3,19 +3,10 @@
 //!
 //! # Degrees of Freedom (DOF)
 //!
-#![cfg_attr(
-    feature = "2d",
-    doc = r#"In 2D, rigid bodies can normally translate along the x and y axes and rotate about the z axis.
-Therefore, they have 2 translational DOF and 1 rotational DOF, a total of 3 DOF."#
-)]
-#![cfg_attr(
-    feature = "3d",
-    doc = r#"In 3D, rigid bodies can normally translate and rotate along the x, y, and z axes.
-Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF."#
-)]
+#![doc = r#"In 3D, rigid bodies can normally translate and rotate along the x, y, and z axes.
+Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF."#]
 //!
-#![cfg_attr(feature="2d", doc = include_str!("./images/2d_dofs.svg"))]
-#![cfg_attr(feature="3d", doc = include_str!("./images/3d_dofs.svg"))]
+#![doc = include_str!("./images/3d_dofs.svg")]
 //!
 //! Joints limit the degrees of freedom that bodies can have. For example, a [`RevoluteJoint`] or hinge
 //! prevents any relative movement between two bodies, except for rotation about a single axis
@@ -29,10 +20,7 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! | [`DistanceJoint`]  | 1 Translation, 1 Rotation | 2 Translations, 3 Rotations |
 //! | [`PrismaticJoint`] | 1 Translation             | 1 Translation               |
 //! | [`RevoluteJoint`]  | 1 Rotation                | 1 Rotation                  |
-#![cfg_attr(
-    feature = "3d",
-    doc = "| [`SphericalJoint`] | -                         | 3 Rotations                 |"
-)]
+//! | [`SphericalJoint`] | -                         | 3 Rotations                 |
 //!
 //! # Using Joints
 //!
@@ -40,8 +28,7 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! providing the [`Entity`] identifiers of the bodies it should constrain.
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+//! use avian3d::prelude::*;
 //! use bevy::prelude::*;
 //!
 //! fn setup(mut commands: Commands) {
@@ -79,8 +66,7 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! Below is an example of configuring [`JointFrame`]s for a [`RevoluteJoint`].
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! # use core::f32::consts::PI;
 //! #
@@ -93,13 +79,8 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! // Set the global anchor point and rotate the first frame by 45 degrees about the local z axis.
 //! commands.spawn((
 //!     RevoluteJoint::new(body1, body2)
-#![cfg_attr(feature = "2d", doc = "        .with_anchor(Vec2::new(5.0, 2.0))")]
-#![cfg_attr(feature = "3d", doc = "        .with_anchor(Vec3::new(5.0, 2.0, 0.0))")]
-#![cfg_attr(feature = "2d", doc = "        .with_local_basis1(PI / 4.0),")]
-#![cfg_attr(
-    feature = "3d",
-    doc = "        .with_local_basis1(Quat::from_rotation_z(PI / 4.0)),"
-)]
+//!         .with_anchor(Vec3::new(5.0, 2.0, 0.0))
+//!         .with_local_basis1(Quat::from_rotation_z(PI / 4.0)),
 //! ));
 //! # }
 //! ```
@@ -113,8 +94,7 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! This can be done using the [`JointDamping`] component.
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! # fn setup(mut commands: Commands) {
@@ -139,8 +119,7 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! These forces can be read by adding the [`JointForces`] component to the joint entity:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! # fn setup(mut commands: Commands) {
@@ -159,8 +138,7 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! and querying for it in a system:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! fn read_joint_forces(query: Query<&JointForces>) {
@@ -182,8 +160,7 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //! This could be done with a system like the following:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! const BREAK_THRESHOLD: f32 = 500.0; // Example threshold
@@ -217,7 +194,6 @@ mod fixed;
 mod motor;
 mod prismatic;
 mod revolute;
-#[cfg(feature = "3d")]
 mod spherical;
 #[cfg(test)]
 mod tests;
@@ -227,7 +203,6 @@ pub use fixed::FixedJoint;
 pub use motor::{AngularMotor, LinearMotor, MotorModel};
 pub use prismatic::PrismaticJoint;
 pub use revolute::RevoluteJoint;
-#[cfg(feature = "3d")]
 pub use spherical::SphericalJoint;
 
 use crate::{dynamics::solver::joint_graph::JointGraph, prelude::*};
@@ -249,7 +224,6 @@ impl Plugin for JointPlugin {
             distance::plugin,
             prismatic::plugin,
             revolute::plugin,
-            #[cfg(feature = "3d")]
             spherical::plugin,
         ));
 
@@ -277,8 +251,6 @@ pub trait EntityConstraint<const ENTITY_COUNT: usize>: MapEntities {
 
 /// A limit that indicates that the distance between two points should be between `min` and `max`.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct DistanceLimit {
     /// The minimum distance between two points.
@@ -363,8 +335,6 @@ impl DistanceLimit {
 
 /// A limit that indicates that angles should be between `alpha` and `beta`.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct AngleLimit {
     /// The minimum angle.
@@ -406,28 +376,8 @@ impl AngleLimit {
         Self { min, max }
     }
 
-    /// Returns the angular correction required to limit the `angle_difference`
-    /// to be within the angle limits.
-    #[cfg(feature = "2d")]
-    pub fn compute_correction(
-        &self,
-        angle_difference: Scalar,
-        max_correction: Scalar,
-    ) -> Option<Scalar> {
-        let correction = if angle_difference < self.min {
-            angle_difference - self.min
-        } else if angle_difference > self.max {
-            angle_difference - self.max
-        } else {
-            return None;
-        };
-
-        Some(correction.min(max_correction))
-    }
-
     /// Returns the angular correction required to limit the angle between `axis1` and `axis2`
     /// to be within the angle limits with respect to the `limit_axis`.
-    #[cfg(feature = "3d")]
     pub fn compute_correction(
         &self,
         limit_axis: Vector,
@@ -492,8 +442,7 @@ impl AngleLimit {
 /// This could be done with a system like the following:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// const BREAK_THRESHOLD: f32 = 500.0;
@@ -521,8 +470,6 @@ impl AngleLimit {
 /// - [`RigidBodyDisabled`]: Disables a rigid body.
 /// - [`ColliderDisabled`]: Disables a collider.
 #[derive(Reflect, Clone, Copy, Component, Debug, Default)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default)]
 pub struct JointDisabled;
 
@@ -532,8 +479,7 @@ pub struct JointDisabled;
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -549,8 +495,6 @@ pub struct JointDisabled;
 /// # }
 /// ```
 #[derive(Component, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq)]
 #[component(on_add = JointCollisionDisabled::on_add, on_remove = JointCollisionDisabled::on_remove)]
 pub struct JointCollisionDisabled;
@@ -585,8 +529,7 @@ impl JointCollisionDisabled {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -605,8 +548,6 @@ impl JointCollisionDisabled {
 /// # }
 /// ```
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq)]
 pub struct JointDamping {
     /// Linear damping applied by the joint.
@@ -624,8 +565,7 @@ pub struct JointDamping {
 /// The forces exerted by a joint can be read by adding the [`JointForces`] component to the joint entity:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -644,8 +584,7 @@ pub struct JointDamping {
 /// and querying for it in a system:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// fn read_joint_forces(query: Query<&JointForces>) {
@@ -658,8 +597,6 @@ pub struct JointDamping {
 /// This can often be useful for determining when to "break" a joint with the [`JointDisabled`] component
 /// when its forces exceed a certain threshold. An example of this can be found in the [`JointDisabled`] documentation.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq)]
 pub struct JointForces {
     force: Vector,
@@ -746,8 +683,7 @@ impl JointForces {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// # use core::f32::consts::PI;
 /// #
@@ -760,19 +696,12 @@ impl JointForces {
 /// // Set the global anchor point and rotate the first frame by 45 degrees about the local z axis.
 /// commands.spawn((
 ///     RevoluteJoint::new(body1, body2)
-#[cfg_attr(feature = "2d", doc = "        .with_anchor(Vec2::new(5.0, 2.0))")]
-#[cfg_attr(feature = "3d", doc = "        .with_anchor(Vec3::new(5.0, 2.0, 0.0))")]
-#[cfg_attr(feature = "2d", doc = "        .with_local_basis1(PI / 4.0),")]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        .with_local_basis1(Quat::from_rotation_z(PI / 4.0)),"
-)]
+///         .with_anchor(Vec3::new(5.0, 2.0, 0.0))
+///         .with_local_basis1(Quat::from_rotation_z(PI / 4.0)),
 /// ));
 /// # }
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct JointFrame {
     /// The translation of the joint frame relative to the body transform.
@@ -798,18 +727,9 @@ impl JointFrame {
     #[inline]
     pub fn local(isometry: impl Into<Isometry>) -> Self {
         let isometry: Isometry = isometry.into();
-        #[cfg(feature = "2d")]
-        let anchor = isometry.translation.adjust_precision();
-        #[cfg(feature = "3d")]
         let anchor = Vec3::from(isometry.translation).adjust_precision();
         Self {
             anchor: JointAnchor::Local(anchor),
-            #[cfg(feature = "2d")]
-            basis: JointBasis::Local(Rotation::from_sin_cos(
-                isometry.rotation.sin as Scalar,
-                isometry.rotation.cos as Scalar,
-            )),
-            #[cfg(feature = "3d")]
             basis: JointBasis::Local(isometry.rotation.adjust_precision()),
         }
     }
@@ -821,18 +741,9 @@ impl JointFrame {
     #[inline]
     pub fn global(isometry: impl Into<Isometry>) -> Self {
         let isometry: Isometry = isometry.into();
-        #[cfg(feature = "2d")]
-        let anchor = isometry.translation.adjust_precision();
-        #[cfg(feature = "3d")]
         let anchor = Vec3::from(isometry.translation).adjust_precision();
         Self {
             anchor: JointAnchor::FromGlobal(anchor),
-            #[cfg(feature = "2d")]
-            basis: JointBasis::FromGlobal(Rotation::from_sin_cos(
-                isometry.rotation.sin as Scalar,
-                isometry.rotation.cos as Scalar,
-            )),
-            #[cfg(feature = "3d")]
             basis: JointBasis::FromGlobal(isometry.rotation.adjust_precision()),
         }
     }
@@ -848,9 +759,6 @@ impl JointFrame {
             JointAnchor::FromGlobal(_) => return None,
         };
         let rotation = match self.basis {
-            #[cfg(feature = "2d")]
-            JointBasis::Local(basis) => Rot2::from_sin_cos(basis.sin as f32, basis.cos as f32),
-            #[cfg(feature = "3d")]
             JointBasis::Local(basis) => basis.f32(),
             JointBasis::FromGlobal(_) => return None,
         };
@@ -868,9 +776,6 @@ impl JointFrame {
             JointAnchor::Local(_) => return None,
         };
         let rotation = match self.basis {
-            #[cfg(feature = "2d")]
-            JointBasis::FromGlobal(basis) => Rot2::from_sin_cos(basis.sin as f32, basis.cos as f32),
-            #[cfg(feature = "3d")]
             JointBasis::FromGlobal(basis) => basis.f32(),
             JointBasis::Local(_) => return None,
         };
@@ -919,8 +824,6 @@ impl JointFrame {
 ///
 /// By default, a local anchor of zero is used, and the anchor aligns with the body transform.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub enum JointAnchor {
     /// The anchor point is specified in local coordinates relative to the body transform.
@@ -996,8 +899,6 @@ impl From<JointAnchor> for JointFrame {
 ///
 /// By default, a local identity basis is used, and the basis aligns with the body transform.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub enum JointBasis {
     /// The basis is specified in local space relative to the body transform.
@@ -1018,35 +919,10 @@ impl JointBasis {
     /// This represents a basis that aligns with the body transform.
     pub const IDENTITY: Self = Self::Local(Rot::IDENTITY);
 
-    /// Creates a [`JointBasis::Local`] from the given local `x_axis`.
-    ///
-    /// The y-axis is computed as the counterclockwise perpendicular axis to the x-axis.
-    #[inline]
-    #[cfg(feature = "2d")]
-    pub fn from_local_x(x_axis: Vector) -> Self {
-        Self::Local(orthonormal_basis([
-            x_axis,
-            Vector::new(-x_axis.y, x_axis.x),
-        ]))
-    }
-
-    /// Creates a [`JointBasis::Local`] from the given local `y_axis`.
-    ///
-    /// The x-axis is computed as the clockwise perpendicular axis to the y-axis.
-    #[inline]
-    #[cfg(feature = "2d")]
-    pub fn from_local_y(y_axis: Vector) -> Self {
-        Self::Local(orthonormal_basis([
-            Vector::new(y_axis.y, -y_axis.x),
-            y_axis,
-        ]))
-    }
-
     /// Creates a [`JointBasis::Local`] from the given local `x_axis` and `y_axis`.
     ///
     /// The z-axis is computed as the cross product of the x and y axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn from_local_xy(x_axis: Vector, y_axis: Vector) -> Self {
         Self::Local(orthonormal_basis([x_axis, y_axis, x_axis.cross(y_axis)]))
     }
@@ -1055,7 +931,6 @@ impl JointBasis {
     ///
     /// The y-axis is computed as the cross product of the z and x axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn from_local_xz(x_axis: Vector, z_axis: Vector) -> Self {
         Self::Local(orthonormal_basis([x_axis, z_axis.cross(x_axis), z_axis]))
     }
@@ -1064,40 +939,14 @@ impl JointBasis {
     ///
     /// The x-axis is computed as the cross product of the y and z axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn from_local_yz(y_axis: Vector, z_axis: Vector) -> Self {
         Self::Local(orthonormal_basis([y_axis.cross(z_axis), y_axis, z_axis]))
-    }
-
-    /// Creates a [`JointBasis::FromGlobal`] from the given global `x_axis`.
-    ///
-    /// The y-axis is computed as the counterclockwise perpendicular axis to the x-axis.
-    #[inline]
-    #[cfg(feature = "2d")]
-    pub fn from_global_x(x_axis: Vector) -> Self {
-        Self::FromGlobal(orthonormal_basis([
-            x_axis,
-            Vector::new(-x_axis.y, x_axis.x),
-        ]))
-    }
-
-    /// Creates a [`JointBasis::FromGlobal`] from the given global `y_axis`.
-    ///
-    /// The x-axis is computed as the clockwise perpendicular axis to the y-axis.
-    #[inline]
-    #[cfg(feature = "2d")]
-    pub fn from_global_y(y_axis: Vector) -> Self {
-        Self::FromGlobal(orthonormal_basis([
-            Vector::new(y_axis.y, -y_axis.x),
-            y_axis,
-        ]))
     }
 
     /// Creates a [`JointBasis::FromGlobal`] from the given global `x_axis` and `y_axis`.
     ///
     /// The z-axis is computed as the cross product of the x and y axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn from_global_xy(x_axis: Vector, y_axis: Vector) -> Self {
         Self::FromGlobal(orthonormal_basis([x_axis, y_axis, x_axis.cross(y_axis)]))
     }
@@ -1106,7 +955,6 @@ impl JointBasis {
     ///
     /// The y-axis is computed as the cross product of the z and x axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn from_global_xz(x_axis: Vector, z_axis: Vector) -> Self {
         Self::FromGlobal(orthonormal_basis([x_axis, z_axis.cross(x_axis), z_axis]))
     }
@@ -1115,7 +963,6 @@ impl JointBasis {
     ///
     /// The x-axis is computed as the cross product of the y and z axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn from_global_yz(y_axis: Vector, z_axis: Vector) -> Self {
         Self::FromGlobal(orthonormal_basis([y_axis.cross(z_axis), y_axis, z_axis]))
     }

@@ -7,8 +7,6 @@ use bevy::prelude::*;
 /// The default is a [`SpringDamper`](MotorModel::SpringDamper) model that provides
 /// stable, predictable behavior across different configurations.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub enum MotorModel {
     /// A spring-damper model using implicit Euler integration.
@@ -118,8 +116,6 @@ impl MotorModel {
 ///     )
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct AngularMotor {
     /// Whether the motor is enabled.
@@ -222,8 +218,6 @@ impl AngularMotor {
 ///     )
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct LinearMotor {
     /// Whether the motor is enabled.

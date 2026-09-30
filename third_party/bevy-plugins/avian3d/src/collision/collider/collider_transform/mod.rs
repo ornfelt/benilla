@@ -14,8 +14,6 @@ use bevy::prelude::*;
 /// without having to traverse deeply nested hierarchies. It's updated automatically,
 /// so you shouldn't modify it manually.
 #[derive(Reflect, Clone, Copy, Component, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct ColliderTransform {
     /// The translation of a collider in a rigid body's frame of reference.
@@ -50,14 +48,8 @@ impl Default for ColliderTransform {
 impl From<Transform> for ColliderTransform {
     fn from(value: Transform) -> Self {
         Self {
-            #[cfg(feature = "2d")]
-            translation: value.translation.truncate().adjust_precision(),
-            #[cfg(feature = "3d")]
             translation: value.translation.adjust_precision(),
             rotation: Rotation::from(value.rotation.adjust_precision()),
-            #[cfg(feature = "2d")]
-            scale: value.scale.truncate().adjust_precision(),
-            #[cfg(feature = "3d")]
             scale: value.scale.adjust_precision(),
         }
     }

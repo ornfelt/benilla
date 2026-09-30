@@ -50,8 +50,7 @@ use bevy::{
 /// fn setup(mut commands: Commands) {
 ///     // Spawn a shape caster with a ball shape moving right starting from the origin
 ///     commands.spawn(ShapeCaster::new(
-#[cfg_attr(feature = "2d", doc = "        Collider::circle(0.5),")]
-#[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.5),")]
+///         Collider::sphere(0.5),
 ///         Vec3::ZERO,
 ///         Quat::default(),
 ///         Dir3::X,
@@ -67,8 +66,6 @@ use bevy::{
 /// }
 /// ```
 #[derive(Component, Clone, Debug, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component)]
 #[component(on_add = on_add_shape_caster)]
 #[require(ShapeHits)]
@@ -90,25 +87,12 @@ pub struct ShapeCaster {
     global_origin: Vector,
 
     /// The local rotation of the shape being cast relative to the [`Rotation`]
-    /// of the shape caster entity or its parent. Expressed in radians.
-    ///
-    /// To get the global shape rotation, use the `global_shape_rotation` method.
-    #[cfg(feature = "2d")]
-    pub shape_rotation: Scalar,
-
-    /// The local rotation of the shape being cast relative to the [`Rotation`]
     /// of the shape caster entity or its parent.
     ///
     /// To get the global shape rotation, use the `global_shape_rotation` method.
-    #[cfg(feature = "3d")]
     pub shape_rotation: Quaternion,
 
     /// The global rotation of the shape.
-    #[cfg(feature = "2d")]
-    global_shape_rotation: Scalar,
-
-    /// The global rotation of the shape.
-    #[cfg(feature = "3d")]
     global_shape_rotation: Quaternion,
 
     /// The local direction of the shapecast relative to the [`Rotation`] of the shape caster entity or its parent.
@@ -159,19 +143,10 @@ impl Default for ShapeCaster {
     fn default() -> Self {
         Self {
             enabled: true,
-            #[cfg(feature = "2d")]
-            shape: Collider::circle(0.0),
-            #[cfg(feature = "3d")]
             shape: Collider::sphere(0.0),
             origin: Vector::ZERO,
             global_origin: Vector::ZERO,
-            #[cfg(feature = "2d")]
-            shape_rotation: 0.0,
-            #[cfg(feature = "3d")]
             shape_rotation: Quaternion::IDENTITY,
-            #[cfg(feature = "2d")]
-            global_shape_rotation: 0.0,
-            #[cfg(feature = "3d")]
             global_shape_rotation: Quaternion::IDENTITY,
             direction: Dir::X,
             global_direction: Dir::X,
@@ -187,23 +162,6 @@ impl Default for ShapeCaster {
 }
 
 impl ShapeCaster {
-    /// Creates a new [`ShapeCaster`] with a given shape, origin, shape rotation and direction.
-    #[cfg(feature = "2d")]
-    pub fn new(
-        shape: impl Into<Collider>,
-        origin: Vector,
-        shape_rotation: Scalar,
-        direction: Dir,
-    ) -> Self {
-        Self {
-            shape: shape.into(),
-            origin,
-            shape_rotation,
-            direction,
-            ..default()
-        }
-    }
-    #[cfg(feature = "3d")]
     /// Creates a new [`ShapeCaster`] with a given shape, origin, shape rotation and direction.
     pub fn new(
         shape: impl Into<Collider>,
@@ -306,13 +264,6 @@ impl ShapeCaster {
     }
 
     /// Returns the global rotation of the shape.
-    #[cfg(feature = "2d")]
-    pub fn global_shape_rotation(&self) -> Scalar {
-        self.global_shape_rotation
-    }
-
-    /// Returns the global rotation of the shape.
-    #[cfg(feature = "3d")]
     pub fn global_shape_rotation(&self) -> Quaternion {
         self.global_shape_rotation
     }
@@ -328,13 +279,6 @@ impl ShapeCaster {
     }
 
     /// Sets the global rotation of the shape.
-    #[cfg(feature = "2d")]
-    pub(crate) fn set_global_shape_rotation(&mut self, global_rotation: Scalar) {
-        self.global_shape_rotation = global_rotation;
-    }
-
-    /// Sets the global rotation of the shape.
-    #[cfg(feature = "3d")]
     pub(crate) fn set_global_shape_rotation(&mut self, global_rotation: Quaternion) {
         self.global_shape_rotation = global_rotation;
     }
@@ -406,8 +350,6 @@ fn on_add_shape_caster(mut world: DeferredWorld, ctx: HookContext) {
 
 /// Configuration for a shape cast.
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ShapeCastConfig {
     /// The maximum distance the shape can travel.
@@ -508,8 +450,7 @@ impl ShapeCastConfig {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn print_hits(query: Query<&ShapeHits, With<ShapeCaster>>) {
@@ -522,8 +463,6 @@ impl ShapeCastConfig {
 /// }
 /// ```
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ShapeHits(pub Vec<ShapeHitData>);
 
@@ -575,8 +514,6 @@ impl MapEntities for ShapeHits {
 
 /// Data related to a hit during a [shapecast](spatial_query#shapecasting).
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ShapeHitData {
     /// The entity of the collider that was hit by the shape.

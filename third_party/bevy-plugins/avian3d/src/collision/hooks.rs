@@ -31,8 +31,7 @@ use bevy::{ecs::system::ReadOnlySystemParam, prelude::*};
 /// Below is an example of using collision hooks to implement interaction groups and one-way platforms:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::{ecs::system::SystemParam, prelude::*};
 ///
 /// /// A component that groups entities for interactions. Only entities in the same group can collide.
@@ -82,8 +81,7 @@ use bevy::{ecs::system::ReadOnlySystemParam, prelude::*};
 /// The hooks can then be added to the app using [`PhysicsPlugins::with_collision_hooks`]:
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::{ecs::system::SystemParam, prelude::*};
 /// #
 /// # #[derive(SystemParam)]
@@ -113,8 +111,7 @@ use bevy::{ecs::system::ReadOnlySystemParam, prelude::*};
 /// with the corresponding flags set. By default, no hooks are called.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -201,8 +198,7 @@ impl CollisionHooks for () {}
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -220,7 +216,6 @@ impl CollisionHooks for () {}
 /// # }
 /// ```
 #[repr(transparent)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Component, Hash, Clone, Copy, Default, PartialEq, Eq, Debug, Reflect)]
 #[component(immutable)]
 #[reflect(opaque, Hash, PartialEq, Debug, Default)]

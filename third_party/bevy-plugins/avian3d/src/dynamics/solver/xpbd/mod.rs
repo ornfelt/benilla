@@ -30,7 +30,7 @@
 //!     - [`FixedJoint`]
 //!     - [`RevoluteJoint`]
 //!     - [`DistanceJoint`]
-#![cfg_attr(feature = "3d", doc = "    - [`SphericalJoint`]")]
+//!     - [`SphericalJoint`]
 //!     - [`PrismaticJoint`]
 //!
 //! Avian's [`ContactConstraint`](dynamics::solver::contact::ContactConstraint)
@@ -53,14 +53,7 @@
 //! or world-space anchors from the beginning of the time step.
 //!
 //! ```
-#![cfg_attr(
-    feature = "2d",
-    doc = "# use avian2d::{dynamics::{joints::EntityConstraint, solver::{solver_body::{SolverBody, SolverBodyInertia}, xpbd::{XpbdConstraint, XpbdConstraintSolverData}}}, math::{Scalar, Vector}, prelude::*};"
-)]
-#![cfg_attr(
-    feature = "3d",
-    doc = "# use avian3d::{dynamics::{joints::EntityConstraint, solver::{solver_body::{SolverBody, SolverBodyInertia}, xpbd::{XpbdConstraint, XpbdConstraintSolverData}}}, math::{Scalar, Vector}, prelude::*};"
-)]
+//! # use avian3d::{dynamics::{joints::EntityConstraint, solver::{solver_body::{SolverBody, SolverBodyInertia}, xpbd::{XpbdConstraint, XpbdConstraintSolverData}}}, math::{Scalar, Vector}, prelude::*};
 //! # use bevy::{ecs::entity::{EntityMapper, MapEntities}, prelude::*};
 //! #
 //! struct CustomConstraint {

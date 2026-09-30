@@ -60,8 +60,7 @@ use crate::prelude::*;
 /// using the [`TransformInterpolation`] and [`TransformExtrapolation`] components respectively:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
@@ -88,8 +87,7 @@ use crate::prelude::*;
 /// [`RotationInterpolation`], and [`ScaleInterpolation`] components, and similarly for extrapolation.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// fn setup(mut commands: Commands) {
@@ -116,8 +114,7 @@ use crate::prelude::*;
 /// [`PhysicsInterpolationPlugin::interpolate_all()`] or [`PhysicsInterpolationPlugin::extrapolate_all()`]:
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// fn main() {
@@ -152,8 +149,7 @@ use crate::prelude::*;
 /// and [`RotationHermiteEasing`] components:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// fn setup(mut commands: Commands) {
@@ -315,25 +311,11 @@ impl VelocitySource for LinVelSource {
     type Current = LinearVelocity;
 
     fn previous(previous: &Self::Previous) -> Vec3 {
-        #[cfg(feature = "2d")]
-        {
-            previous.f32().extend(0.0)
-        }
-        #[cfg(feature = "3d")]
-        {
-            previous.f32()
-        }
+        previous.f32()
     }
 
     fn current(current: &Self::Current) -> Vec3 {
-        #[cfg(feature = "2d")]
-        {
-            current.0.f32().extend(0.0)
-        }
-        #[cfg(feature = "3d")]
-        {
-            current.0.f32()
-        }
+        current.0.f32()
     }
 }
 
@@ -346,25 +328,11 @@ impl VelocitySource for AngVelSource {
     type Current = AngularVelocity;
 
     fn previous(previous: &Self::Previous) -> Vec3 {
-        #[cfg(feature = "2d")]
-        {
-            Vec3::Z * previous.0.0 as f32
-        }
-        #[cfg(feature = "3d")]
-        {
-            previous.0.f32()
-        }
+        previous.0.f32()
     }
 
     fn current(current: &Self::Current) -> Vec3 {
-        #[cfg(feature = "2d")]
-        {
-            Vec3::Z * current.0 as f32
-        }
-        #[cfg(feature = "3d")]
-        {
-            current.0.f32()
-        }
+        current.0.f32()
     }
 }
 

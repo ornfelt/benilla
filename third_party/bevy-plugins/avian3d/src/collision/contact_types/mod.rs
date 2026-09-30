@@ -18,8 +18,6 @@ use bevy::prelude::*;
 
 /// A stable identifier for a [`ContactEdge`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ContactId(pub u32);
 
@@ -50,7 +48,6 @@ impl core::fmt::Display for ContactId {
 
 /// Cold contact data stored in the [`ContactGraph`]. Used as a persistent handle for a [`ContactPair`].
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContactEdge {
     /// The stable identifier of this contact edge.
     pub id: ContactId,
@@ -71,11 +68,6 @@ pub struct ContactEdge {
     pub pair_index: usize,
 
     /// The handles to the constraints associated with this contact edge.
-    #[cfg(feature = "2d")]
-    pub constraint_handles: SmallVec<[ContactConstraintHandle; 2]>,
-
-    /// The handles to the constraints associated with this contact edge.
-    #[cfg(feature = "3d")]
     pub constraint_handles: SmallVec<[ContactConstraintHandle; 4]>,
 
     /// The [`IslandNode`] associated with this contact edge.
@@ -126,7 +118,6 @@ impl ContactEdge {
 // the `ContactPair` when for example querying for touching contacts.
 /// Flags for a [`ContactEdge`].
 #[repr(transparent)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
 #[reflect(opaque, Hash, PartialEq, Debug)]
 pub struct ContactEdgeFlags(u8);
@@ -151,7 +142,6 @@ bitflags::bitflags! {
 /// Contact pairs exist in the [`ContactGraph`] between colliders whose [`ColliderAabb`]s
 /// are overlapping, even if the colliders themselves are not touching.
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContactPair {
     /// The stable identifier of the [`ContactEdge`] in the [`ContactGraph`].
     pub contact_id: ContactId,
@@ -179,7 +169,6 @@ pub struct ContactPair {
 
 /// Flags indicating the status and type of a [contact pair](ContactPair).
 #[repr(transparent)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
 #[reflect(opaque, Hash, PartialEq, Debug)]
 pub struct ContactPairFlags(u16);
@@ -332,23 +321,11 @@ impl ContactPair {
 ///
 /// A manifold can typically be a single point, a line segment, or a polygon formed by its contact points.
 /// Each contact point in a manifold shares the same contact normal.
-#[cfg_attr(
-    feature = "2d",
-    doc = "
-In 2D, contact manifolds are limited to 2 points."
-)]
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContactManifold {
-    /// The contact points in this manifold. Limited to 2 points in 2D.
-    ///
-    /// Each point in a manifold shares the same `normal`.
-    #[cfg(feature = "2d")]
-    pub points: arrayvec::ArrayVec<ContactPoint, 2>,
     /// The contact points in this manifold.
     ///
     /// Each point in a manifold shares the same `normal`.
-    #[cfg(feature = "3d")]
     // TODO: Store a maximum of 4 points in 3D in an `ArrayVec`.
     pub points: Vec<ContactPoint>,
     /// The unit contact normal in world space, pointing from the first shape to the second.
@@ -359,13 +336,6 @@ pub struct ContactManifold {
     pub friction: Scalar,
     /// The effective coefficient of [restitution](Restitution) used for the contact surface.
     pub restitution: Scalar,
-    /// The desired relative linear speed of the bodies along the surface,
-    /// expressed in world space as `tangent_speed2 - tangent_speed1`.
-    ///
-    /// Defaults to zero. If set to a non-zero value, this can be used to simulate effects
-    /// such as conveyor belts.
-    #[cfg(feature = "2d")]
-    pub tangent_speed: Scalar,
     // TODO: Jolt also supports a relative angular surface velocity, which can be used for making
     //       objects rotate on platforms. Would that be useful enough to warrant the extra memory usage?
     /// The desired relative linear velocity of the bodies along the surface,
@@ -373,7 +343,6 @@ pub struct ContactManifold {
     ///
     /// Defaults to zero. If set to a non-zero value, this can be used to simulate effects
     /// such as conveyor belts.
-    #[cfg(feature = "3d")]
     pub tangent_velocity: Vector,
 }
 
@@ -385,16 +354,10 @@ impl ContactManifold {
     #[inline]
     pub fn new(points: impl IntoIterator<Item = ContactPoint>, normal: Vector) -> Self {
         Self {
-            #[cfg(feature = "2d")]
-            points: arrayvec::ArrayVec::from_iter(points),
-            #[cfg(feature = "3d")]
             points: points.into_iter().collect(),
             normal,
             friction: 0.0,
             restitution: 0.0,
-            #[cfg(feature = "2d")]
-            tangent_speed: 0.0,
-            #[cfg(feature = "3d")]
             tangent_velocity: Vector::ZERO,
         }
     }
@@ -474,7 +437,6 @@ impl ContactManifold {
     /// Prunes the contact points in the manifold to a maximum of 4 points.
     /// This is done to improve performance and stability.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn prune_points(&mut self) {
         // Based on `PruneContactPoints` in Jolt by Jorrit Rouwe.
         // https://github.com/jrouwe/JoltPhysics/blob/f3dbdd2dadac4a5510391f103f264c0427d55c50/Jolt/Physics/Collision/ManifoldBetweenTwoFaces.cpp#L16
@@ -586,11 +548,6 @@ impl ContactManifold {
     where
         F: FnMut(&mut ContactPoint) -> bool,
     {
-        #[cfg(feature = "2d")]
-        {
-            self.points.retain(f);
-        }
-        #[cfg(feature = "3d")]
         {
             self.points.retain_mut(f);
         }
@@ -599,7 +556,6 @@ impl ContactManifold {
 
 /// Data associated with a contact point in a [`ContactManifold`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContactPoint {
     /// The world-space contact point on the first shape relative to the center of mass.
     pub anchor1: Vector,
@@ -641,14 +597,6 @@ pub struct ContactPoint {
     ///
     /// This corresponds to the clamped accumulated impulse from the last substep
     /// of the previous time step.
-    #[cfg(feature = "2d")]
-    #[doc(alias = "warm_start_friction_impulse")]
-    pub warm_start_tangent_impulse: Scalar,
-    /// The frictional impulse used to warm start the contact solver.
-    ///
-    /// This corresponds to the clamped accumulated impulse from the last substep
-    /// of the previous time step.
-    #[cfg(feature = "3d")]
     #[doc(alias = "warm_start_friction_impulse")]
     pub warm_start_tangent_impulse: Vector2,
     /// The contact feature ID on the first shape. This indicates the ID of
@@ -675,9 +623,6 @@ impl ContactPoint {
             normal_impulse: 0.0,
             normal_speed: 0.0,
             warm_start_normal_impulse: 0.0,
-            #[cfg(feature = "2d")]
-            warm_start_tangent_impulse: 0.0,
-            #[cfg(feature = "3d")]
             warm_start_tangent_impulse: Vector2::ZERO,
             feature_id1: PackedFeatureId::UNKNOWN,
             feature_id2: PackedFeatureId::UNKNOWN,
@@ -727,7 +672,6 @@ impl ContactPoint {
 /// If you want a contact that belongs to a [contact manifold](ContactManifold) and has more data,
 /// see [`ContactPoint`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct SingleContact {
     /// The contact point on the first shape in local space.
     pub local_point1: Vector,

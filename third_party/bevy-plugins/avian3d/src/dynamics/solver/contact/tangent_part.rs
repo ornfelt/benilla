@@ -1,18 +1,11 @@
 use crate::prelude::*;
 use bevy::reflect::Reflect;
-#[cfg(feature = "serialize")]
-use bevy::reflect::{ReflectDeserialize, ReflectSerialize};
 
-#[cfg(feature = "2d")]
-pub type TangentImpulse = Scalar;
-#[cfg(feature = "3d")]
 pub type TangentImpulse = Vector2;
 
 // TODO: One-body constraint version
 /// The tangential friction part of a [`ContactConstraintPoint`](super::ContactConstraintPoint).
 #[derive(Clone, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ContactTangentPart {
     /// The contact impulse magnitude along the contact tangent.
@@ -20,13 +13,8 @@ pub struct ContactTangentPart {
     /// This corresponds to the magnitude of the friction impulse.
     pub impulse: TangentImpulse,
 
-    /// The inertial properties of the bodies projected onto the contact tangent,
-    /// or in other words, the mass "seen" by the constraint along the tangent.
-    #[cfg(feature = "2d")]
-    pub effective_mass: Scalar,
     /// The inverse of the inertial properties of the bodies projected onto the contact tangents,
     /// or in other words, the inverse mass "seen" by the constraint along the tangents.
-    #[cfg(feature = "3d")]
     pub effective_inverse_mass: [Scalar; 3],
 }
 
@@ -46,9 +34,6 @@ impl ContactTangentPart {
 
         let mut part = Self {
             impulse: warm_start_impulse.unwrap_or_default(),
-            #[cfg(feature = "2d")]
-            effective_mass: 0.0,
-            #[cfg(feature = "3d")]
             effective_inverse_mass: [0.0; 3],
         };
 
@@ -105,18 +90,6 @@ impl ContactTangentPart {
         // K_x = m1 + m2 + dot(r1 x tangent_x, I1 * (r1 x tangent_x)) + dot(r2 x tangent_x, I2 * (r2 x tangent_x))
         // K_y = m1 + m2 + dot(r1 x tangent_y, I1 * (r1 x tangent_y)) + dot(r2 x tangent_y, I2 * (r2 x tangent_y))
 
-        #[cfg(feature = "2d")]
-        {
-            let rt1 = cross(r1, tangents[0]);
-            let rt2 = cross(r2, tangents[0]);
-
-            let k_linear = tangents[0].dot(effective_inverse_mass_sum * tangents[0]);
-            let k = k_linear + i1 * rt1 * rt1 + i2 * rt2 * rt2;
-
-            part.effective_mass = k.recip_or_zero();
-        }
-
-        #[cfg(feature = "3d")]
         {
             // Based on Rapier's two-body constraint.
             // https://github.com/dimforge/rapier/blob/af1ac9baa26b1199ae2728e91adf5345bcd1c693/src/dynamics/solver/contact_constraint/two_body_constraint.rs#L257-L289
@@ -157,8 +130,7 @@ impl ContactTangentPart {
         tangent_directions: [Vector; DIM - 1],
         relative_velocity: Vector,
         // The desired relative velocity along the contact surface, used to simulate things like conveyor belts.
-        #[cfg(feature = "2d")] surface_speed: Scalar,
-        #[cfg(feature = "3d")] surface_velocity: Vector,
+        surface_velocity: Vector,
         friction: Scalar,
         normal_impulse: Scalar,
     ) -> Vector {
@@ -186,23 +158,6 @@ impl ContactTangentPart {
 
         let impulse_limit = friction * normal_impulse;
 
-        #[cfg(feature = "2d")]
-        {
-            // Compute the relative velocity along the tangent.
-            // Add the relative speed along the surface to the total tangent speed.
-            let tangent = tangent_directions[0];
-            let tangent_speed = relative_velocity.dot(tangent) + surface_speed;
-
-            // Compute the incremental tangent impoulse magnitude.
-            let mut impulse = self.effective_mass * (-tangent_speed);
-            // Clamp the accumulated impulse.
-            let new_impulse = (self.impulse + impulse).clamp(-impulse_limit, impulse_limit);
-            impulse = new_impulse - self.impulse;
-            self.impulse = new_impulse;
-            // Return the incremental friction impulse.
-            impulse * tangent
-        }
-        #[cfg(feature = "3d")]
         {
             // Compute the relative velocity along the tangents.
             // Add the relative velocity along the surface to the total tangent speed.

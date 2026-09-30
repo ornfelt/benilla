@@ -23,8 +23,7 @@ use bevy::{
 /// For example, given the following entities:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// # fn setup(mut commands: Commands) {
 /// commands.spawn((
@@ -47,8 +46,6 @@ use bevy::{
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[component(immutable, on_insert = <ColliderOf as Relationship>::on_insert, on_replace = <ColliderOf as Relationship>::on_replace)]
 #[require(ColliderTransform)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct ColliderOf {
     /// The [`Entity`] ID of the [`RigidBody`] that this collider is attached to.
@@ -210,8 +207,6 @@ impl Relationship for ColliderOf {
 /// [`Relationship`]: bevy::ecs::relationship::Relationship
 #[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
 #[relationship_target(relationship = ColliderOf, linked_spawn)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct RigidBodyColliders(Vec<Entity>);
 

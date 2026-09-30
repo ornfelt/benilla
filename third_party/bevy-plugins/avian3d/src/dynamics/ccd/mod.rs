@@ -60,8 +60,7 @@
 //! and for individual entities using the [`SpeculativeMargin`] component.
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+//! use avian3d::prelude::*;
 //! use bevy::prelude::*;
 //!
 //! fn setup(mut commands: Commands) {
@@ -166,8 +165,7 @@
 //! in the [`PhysicsPlugins`] plugin group.
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+//! use avian3d::prelude::*;
 //! use bevy::prelude::*;
 //!
 //! fn setup(mut commands: Commands) {
@@ -230,16 +228,12 @@
 //! Finally, making the [physics timestep](Physics) smaller can also help.
 //! However, this comes at the cost of worse performance for the entire simulation.
 
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 use super::solver::solver_body::SolverBody;
 use crate::prelude::*;
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use derive_more::From;
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 use dynamics::solver::SolverDiagnostics;
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 use parry::query::{
     NonlinearRigidMotion, ShapeCastHit, ShapeCastOptions, cast_shapes, cast_shapes_nonlinear,
 };
@@ -260,7 +254,6 @@ impl Plugin for CcdPlugin {
                 .before(SolverSystems::Restitution),
         );
 
-        #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
         physics.add_systems(solve_swept_ccd.in_set(SweptCcdSystems));
     }
 }
@@ -289,8 +282,7 @@ pub type SweptCcdSet = SweptCcdSystems;
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
@@ -332,8 +324,7 @@ impl SpeculativeMargin {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// # #[cfg(feature = "f32")]
@@ -343,10 +334,8 @@ impl SpeculativeMargin {
 ///     commands.spawn((
 ///         RigidBody::Dynamic,
 ///         SweptCcd::default(),
-#[cfg_attr(feature = "2d", doc = "        LinearVelocity(Vec2::X * 100.0),")]
-#[cfg_attr(feature = "3d", doc = "        LinearVelocity(Vec3::X * 100.0),")]
-#[cfg_attr(feature = "2d", doc = "        Collider::circle(0.1),")]
-#[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.1),")]
+///         LinearVelocity(Vec3::X * 100.0),
+///         Collider::sphere(0.1),
 ///         Transform::from_xyz(-10.0, 3.0, 0.0),
 ///     ));
 ///
@@ -355,10 +344,8 @@ impl SpeculativeMargin {
 ///     commands.spawn((
 ///         RigidBody::Dynamic,
 ///         SweptCcd::LINEAR, // or `SweptCcd::new_with_mode(SweepMode::Linear)`
-#[cfg_attr(feature = "2d", doc = "        LinearVelocity(Vec2::X * 100.0),")]
-#[cfg_attr(feature = "3d", doc = "        LinearVelocity(Vec3::X * 100.0),")]
-#[cfg_attr(feature = "2d", doc = "        Collider::circle(0.1),")]
-#[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.1),")]
+///         LinearVelocity(Vec3::X * 100.0),
+///         Collider::sphere(0.1),
 ///         Transform::from_xyz(-10.0, -3.0, 0.0),
 ///     ));
 ///
@@ -368,18 +355,15 @@ impl SpeculativeMargin {
 ///     commands.spawn((
 ///         RigidBody::Dynamic,
 ///         LockedAxes::TRANSLATION_LOCKED,
-#[cfg_attr(feature = "2d", doc = "        AngularVelocity(100.0),")]
-#[cfg_attr(feature = "3d", doc = "        AngularVelocity(Vec3::Z * 100.0),")]
-#[cfg_attr(feature = "2d", doc = "        Collider::rectangle(0.2, 10.0),")]
-#[cfg_attr(feature = "3d", doc = "        Collider::cuboid(0.2, 10.0, 10.0),")]
+///         AngularVelocity(Vec3::Z * 100.0),
+///         Collider::cuboid(0.2, 10.0, 10.0),
 ///     ));
 ///
 ///     // Spawn another thin, long object, this time not rotating.
 ///     // The second ball should now hit this.
 ///     commands.spawn((
 ///         RigidBody::Static,
-#[cfg_attr(feature = "2d", doc = "        Collider::rectangle(0.2, 10.0),")]
-#[cfg_attr(feature = "3d", doc = "        Collider::cuboid(0.2, 10.0, 10.0),")]
+///         Collider::cuboid(0.2, 10.0, 10.0),
 ///         Transform::from_xyz(15.0, 0.0, 0.0),
 ///     ));
 /// }
@@ -497,7 +481,6 @@ pub enum SweepMode {
     NonLinear,
 }
 
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 #[derive(QueryData)]
 #[query_data(mutable)]
 struct SweptCcdBodyQuery {
@@ -519,7 +502,6 @@ struct SweptCcdBodyQuery {
 /// are essentially moved back in time, making them appear to momentarily move slower.
 /// Secondary contacts are also not accounted for.
 #[allow(clippy::useless_conversion)]
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 fn solve_swept_ccd(
     ccd_query: Query<Entity, With<SweptCcd>>,
     bodies: Query<SweptCcdBodyQuery>,
@@ -587,9 +569,6 @@ fn solve_swept_ccd(
                 let lin_vel2 = solver_body2.linear_velocity;
                 let ang_vel2 = solver_body2.angular_velocity;
 
-                #[cfg(feature = "2d")]
-                let ang_vel_below_threshold = (ang_vel1 - ang_vel2).abs() < ccd1.angular_threshold;
-                #[cfg(feature = "3d")]
                 let ang_vel_below_threshold =
                     (ang_vel1 - ang_vel2).length_squared() < ccd1.angular_threshold.powi(2);
 
@@ -659,11 +638,6 @@ fn solve_swept_ccd(
             solver_body1.delta_position = min_toi * lin_vel1;
 
             // TODO: Abstract the integration logic to reuse it here
-            #[cfg(feature = "2d")]
-            {
-                solver_body1.delta_rotation = Rotation::radians(ang_vel1 * min_toi);
-            }
-            #[cfg(feature = "3d")]
             {
                 let delta_rot = Quaternion::from_scaled_axis(ang_vel1 * min_toi);
                 solver_body1.delta_rotation.0 = delta_rot * solver_body1.delta_rotation.0;
@@ -671,11 +645,6 @@ fn solve_swept_ccd(
 
             solver_body2.delta_position = min_toi * lin_vel2;
 
-            #[cfg(feature = "2d")]
-            {
-                solver_body2.delta_rotation = Rotation::radians(ang_vel2 * min_toi);
-            }
-            #[cfg(feature = "3d")]
             {
                 let delta_rot = Quaternion::from_scaled_axis(ang_vel2 * min_toi);
                 solver_body2.delta_rotation.0 = delta_rot * solver_body2.delta_rotation.0;
@@ -688,7 +657,6 @@ fn solve_swept_ccd(
 
 /// Computes the time of impact for the motion of two objects for Continuous Collision Detection.
 /// If the TOI is larger than `min_toi` or the shapes never touch, `None` is returned.
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 fn compute_ccd_toi(
     mode: SweepMode,
     motion1: &NonlinearRigidMotion,

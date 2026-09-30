@@ -347,6 +347,18 @@ the same repository's.
   `update_tilemap_chunk_indices`. The manifest drops `bevy_platform`, `bevy_transform` and
   `tracing`; `bytemuck` stays, unused, because dropping it turns its `must_cast` feature off for
   the whole build.
+- **avian3d's off features.** The build enables `3d`, `f32`, `parry-f32`, `default-collider`,
+  `collider-from-mesh`, `bevy_scene`, `debug-plugin`, `parallel` and `xpbd_joints`; the code the
+  others gated is gone: the 2D half of every dimension split (`primitives2d.rs`, the 2D mass
+  properties, rotations, joints and shape casts), `f64` (`math/double.rs`), `serialize` (every
+  serde derive and reflected `Serialize`/`Deserialize`), `bevy_diagnostic`
+  (`PhysicsDiagnosticsPlugin`, `entity_counters.rs`, `total.rs`, `write_diagnostics`),
+  `validate`, `enhanced-determinism`, `simd`, and the 2D determinism test. The attributes of the
+  enabled features are gone too: a `cfg` that always holds is dropped and a `cfg_attr` that always
+  holds is its attribute (a doc string a `///` line); a tail block such a `cfg` gated lost its
+  braces. The manifest drops the seven features with the optional `libm`, `parry3d-f64` and
+  `serde`. `rustc -Zunpretty=expanded` of the crate is token-identical to the copy's apart from
+  docs, `tracing`'s line numbers, the unwrapped braces and one derive order.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
@@ -482,7 +494,7 @@ the same repository's.
   `getrandom`'s `wasm_js`, which only wasm builds compile.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
-  avian3d's and `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each
+  `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each
   enabling what it did minus the cut crates; `bevy`'s examples, tests, dev-dependencies, profiles
   and `dynamic_linking` are gone. The optional dependencies no kept feature reaches left with them
   (`bevy_audio`, `bevy_dev_tools`, `bevy_feathers`, `bevy_ui_widgets`, `bevy_solari`,

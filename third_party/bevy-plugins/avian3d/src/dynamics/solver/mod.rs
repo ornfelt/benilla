@@ -12,7 +12,6 @@ pub mod joint_graph;
 pub mod schedule;
 pub mod softness_parameters;
 pub mod solver_body;
-#[cfg(feature = "xpbd_joints")]
 pub mod xpbd;
 
 mod diagnostics;
@@ -73,10 +72,8 @@ impl PluginGroup for SolverPlugins {
             .add(JointGraphPlugin::<PrismaticJoint>::default())
             .add(JointGraphPlugin::<DistanceJoint>::default());
 
-        #[cfg(feature = "3d")]
         let builder = builder.add(JointGraphPlugin::<SphericalJoint>::default());
 
-        #[cfg(feature = "xpbd_joints")]
         let builder = builder.add(XpbdSolverPlugin);
 
         builder

@@ -336,7 +336,6 @@ impl Collider {
     }
 }
 
-#[cfg(feature = "collider-from-mesh")]
 impl From<Trimesh> for Mesh {
     fn from(trimesh: Trimesh) -> Self {
         use bevy::asset::RenderAssetUsages;

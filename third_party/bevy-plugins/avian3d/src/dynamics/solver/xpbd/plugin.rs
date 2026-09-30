@@ -22,7 +22,6 @@ impl Plugin for XpbdSolverPlugin {
     fn build(&self, app: &mut App) {
         app.register_required_components::<FixedJoint, FixedJointSolverData>();
         app.register_required_components::<RevoluteJoint, RevoluteJointSolverData>();
-        #[cfg(feature = "3d")]
         app.register_required_components::<SphericalJoint, SphericalJointSolverData>();
         app.register_required_components::<PrismaticJoint, PrismaticJointSolverData>();
         app.register_required_components::<DistanceJoint, DistanceJointSolverData>();
@@ -46,7 +45,6 @@ impl Plugin for XpbdSolverPlugin {
             (
                 prepare_xpbd_joint::<FixedJoint>,
                 prepare_xpbd_joint::<RevoluteJoint>,
-                #[cfg(feature = "3d")]
                 prepare_xpbd_joint::<SphericalJoint>,
                 prepare_xpbd_joint::<PrismaticJoint>,
                 prepare_xpbd_joint::<DistanceJoint>,
@@ -92,7 +90,6 @@ impl Plugin for XpbdSolverPlugin {
                 },
                 solve_xpbd_joint::<FixedJoint>,
                 solve_xpbd_joint::<RevoluteJoint>,
-                #[cfg(feature = "3d")]
                 solve_xpbd_joint::<SphericalJoint>,
                 solve_xpbd_joint::<PrismaticJoint>,
                 solve_xpbd_joint::<DistanceJoint>,
@@ -115,7 +112,6 @@ impl Plugin for XpbdSolverPlugin {
             (
                 writeback_joint_forces::<FixedJoint>,
                 writeback_joint_forces::<RevoluteJoint>,
-                #[cfg(feature = "3d")]
                 writeback_joint_forces::<SphericalJoint>,
                 writeback_joint_forces::<PrismaticJoint>,
                 writeback_joint_forces::<DistanceJoint>,
@@ -270,21 +266,6 @@ fn project_linear_velocity(
 }
 
 /// Updates the angular velocity of all dynamic bodies based on the change in rotation from the XPBD solver.
-#[cfg(feature = "2d")]
-fn project_angular_velocity(
-    mut bodies: Query<(&mut SolverBody, &PreSolveDeltaRotation), RigidBodyActiveFilter>,
-    time: Res<Time>,
-) {
-    let delta_secs = time.delta_seconds_adjusted();
-
-    for (mut body, pre_solve_delta_rot) in &mut bodies {
-        let new_ang_vel = pre_solve_delta_rot.angle_between(body.delta_rotation) / delta_secs;
-        body.angular_velocity += new_ang_vel;
-    }
-}
-
-/// Updates the angular velocity of all dynamic bodies based on the change in rotation from the XPBD solver.
-#[cfg(feature = "3d")]
 fn project_angular_velocity(
     mut bodies: Query<(&mut SolverBody, &PreSolveDeltaRotation), RigidBodyActiveFilter>,
     time: Res<Time>,

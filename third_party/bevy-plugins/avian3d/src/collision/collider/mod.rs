@@ -15,33 +15,20 @@ mod backend;
 
 pub use backend::{ColliderBackendPlugin, ColliderMarker};
 
-#[cfg(all(feature = "collider-from-mesh", feature = "default-collider"))]
 mod cache;
-#[cfg(all(feature = "collider-from-mesh", feature = "default-collider"))]
 pub use cache::ColliderCachePlugin;
 pub mod collider_hierarchy;
 pub mod collider_transform;
-#[cfg(all(feature = "3d", any(feature = "parry-f32", feature = "parry-f64")))]
 pub mod trimesh_builder;
 
 mod layers;
 pub use layers::*;
 
 /// The default [`Collider`] that uses Parry.
-#[cfg(all(
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
 mod parry;
-#[cfg(all(
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
 pub use parry::*;
 
-#[cfg(feature = "default-collider")]
 mod constructor;
-#[cfg(feature = "default-collider")]
 pub use constructor::{
     ColliderConstructor, ColliderConstructorHierarchy, ColliderConstructorHierarchyConfig,
     ColliderConstructorHierarchyReady, ColliderConstructorReady,
@@ -136,14 +123,7 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
     /// # Example
     ///
     /// ```
-    #[cfg_attr(
-        feature = "2d",
-        doc = "# use avian2d::{prelude::*, math::{Vector, Scalar}};"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "# use avian3d::{prelude::*, math::{Vector, Scalar}};"
-    )]
+    /// # use avian3d::{prelude::*, math::{Vector, Scalar}};
     /// # use bevy::prelude::*;
     /// # use bevy::ecs::system::{SystemParam, lifetimeless::{SRes, SQuery}};
     /// #
@@ -207,10 +187,6 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
     /// with the given position and rotation.
     ///
     /// See [`SimpleCollider::aabb`] for collider types with empty [`AnyCollider::Context`]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "\n\nThe rotation is counterclockwise and in radians."
-    )]
     fn aabb_with_context(
         &self,
         position: Vector,
@@ -223,10 +199,6 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
     /// start position to the given end position.
     ///
     /// See [`SimpleCollider::swept_aabb`] for collider types with empty [`AnyCollider::Context`]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "\n\nThe rotation is counterclockwise and in radians."
-    )]
     fn swept_aabb_with_context(
         &self,
         start_position: Vector,
@@ -355,8 +327,7 @@ pub trait ScalableCollider: AnyCollider {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// #[derive(Component)]
@@ -388,8 +359,6 @@ pub trait ScalableCollider: AnyCollider {
 /// - [`RigidBodyDisabled`]: Disables a rigid body.
 /// - [`JointDisabled`]: Disables a joint constraint.
 #[derive(Reflect, Clone, Copy, Component, Debug, Default)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default)]
 pub struct ColliderDisabled;
 
@@ -404,27 +373,17 @@ pub struct ColliderDisabled;
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
 ///     // Spawn a static body with a sensor collider.
 ///     // Other bodies will pass through, but it will still send collision events.
-#[cfg_attr(
-    feature = "2d",
-    doc = "    commands.spawn((RigidBody::Static, Collider::circle(0.5), Sensor));"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    commands.spawn((RigidBody::Static, Collider::sphere(0.5), Sensor));"
-)]
+///     commands.spawn((RigidBody::Static, Collider::sphere(0.5), Sensor));
 /// }
 /// ```
 #[doc(alias = "Trigger")]
 #[derive(Reflect, Clone, Component, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct Sensor;
 
@@ -432,8 +391,6 @@ pub struct Sensor;
 ///
 /// This is updated automatically.
 #[derive(Reflect, Clone, Copy, Component, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct ColliderAabb {
     /// The minimum point of the AABB.
@@ -469,10 +426,6 @@ impl ColliderAabb {
     }
 
     /// Creates a new [`ColliderAabb`] from a given `SharedShape`.
-    #[cfg(all(
-        feature = "default-collider",
-        any(feature = "parry-f32", feature = "parry-f64")
-    ))]
     pub fn from_shape(shape: &crate::parry::shape::SharedShape) -> Self {
         let aabb = shape.compute_local_aabb();
         Self {
@@ -526,16 +479,6 @@ impl ColliderAabb {
 
     /// Checks if `self` intersects with `other`.
     #[inline(always)]
-    #[cfg(feature = "2d")]
-    pub fn intersects(&self, other: &Self) -> bool {
-        let x_overlaps = self.min.x <= other.max.x && self.max.x >= other.min.x;
-        let y_overlaps = self.min.y <= other.max.y && self.max.y >= other.min.y;
-        x_overlaps && y_overlaps
-    }
-
-    /// Checks if `self` intersects with `other`.
-    #[inline(always)]
-    #[cfg(feature = "3d")]
     pub fn intersects(&self, other: &Self) -> bool {
         let x_overlaps = self.min.x <= other.max.x && self.max.x >= other.min.x;
         let y_overlaps = self.min.y <= other.max.y && self.max.y >= other.min.y;
@@ -553,13 +496,7 @@ impl ColliderAabb {
 impl From<ColliderAabb> for obvhs::aabb::Aabb {
     fn from(value: ColliderAabb) -> Self {
         Self {
-            #[cfg(feature = "2d")]
-            min: value.min.f32().extend(-0.5).to_array().into(),
-            #[cfg(feature = "2d")]
-            max: value.max.f32().extend(0.5).to_array().into(),
-            #[cfg(feature = "3d")]
             min: value.min.f32().to_array().into(),
-            #[cfg(feature = "3d")]
             max: value.max.f32().to_array().into(),
         }
     }
@@ -573,8 +510,6 @@ impl From<ColliderAabb> for obvhs::aabb::Aabb {
 /// The enlarged AABB is updated automatically whenever the [`ColliderAabb`]
 /// moves beyond the bounds of the current enlarged AABB.
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct EnlargedAabb(ColliderAabb);
 
@@ -632,38 +567,22 @@ impl EnlargedAabb {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
-#[cfg_attr(
-    feature = "2d",
-    doc = "    // Spawn a rigid body with a collider.
-    // A margin of `0.1` is added around the shape.
-    commands.spawn((
-        RigidBody::Dynamic,
-        Collider::capsule(2.0, 0.5),
-        CollisionMargin(0.1),
-    ));"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    let mesh = Mesh::from(Torus::default());
-
-    // Spawn a rigid body with a triangle mesh collider.
-    // A margin of `0.1` is added around the shape.
-    commands.spawn((
-        RigidBody::Dynamic,
-        Collider::trimesh_from_mesh(&mesh).unwrap(),
-        CollisionMargin(0.1),
-    ));"
-)]
+///     let mesh = Mesh::from(Torus::default());
+///
+///     // Spawn a rigid body with a triangle mesh collider.
+///     // A margin of `0.1` is added around the shape.
+///     commands.spawn((
+///         RigidBody::Dynamic,
+///         Collider::trimesh_from_mesh(&mesh).unwrap(),
+///         CollisionMargin(0.1),
+///     ));
 /// }
 /// ```
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component)]
 #[doc(alias = "ContactSkin")]
 pub struct CollisionMargin(pub Scalar);
@@ -674,8 +593,7 @@ pub struct CollisionMargin(pub Scalar);
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
@@ -698,8 +616,6 @@ pub struct CollisionMargin(pub Scalar);
 /// }
 /// ```
 #[derive(Reflect, Clone, Component, Debug, Default, Deref, DerefMut, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct CollidingEntities(pub EntityHashSet);
 

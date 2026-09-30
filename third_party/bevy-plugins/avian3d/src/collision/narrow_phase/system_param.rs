@@ -1,4 +1,3 @@
-#[cfg(feature = "parallel")]
 use core::cell::RefCell;
 
 use crate::{
@@ -22,7 +21,6 @@ use bevy::{
     },
     prelude::*,
 };
-#[cfg(feature = "parallel")]
 use thread_local::ThreadLocal;
 
 #[derive(QueryData)]
@@ -80,7 +78,6 @@ pub struct NarrowPhase<'w, 's, C: AnyCollider> {
     pub constraint_graph: ResMut<'w, ConstraintGraph>,
     pub islands: Option<ResMut<'w, PhysicsIslands>>,
     contact_status_bits: ResMut<'w, ContactStatusBits>,
-    #[cfg(feature = "parallel")]
     thread_local_contact_status_bits: ResMut<'w, ThreadLocalContactStatusBits>,
     pub config: Res<'w, NarrowPhaseConfig>,
     default_friction: Res<'w, DefaultFriction>,
@@ -102,7 +99,6 @@ pub(super) struct ContactStatusBits(pub BitVec);
 /// Set bits correspond to contact pairs that were either added or removed.
 ///
 /// The thread-local bit vectors are combined with the global [`ContactStatusBits`].
-#[cfg(feature = "parallel")]
 #[derive(Resource, Default, Deref, DerefMut)]
 pub(super) struct ThreadLocalContactStatusBits(pub ThreadLocal<RefCell<BitVec>>);
 
@@ -454,7 +450,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
         // Clear the bit vector used to track status changes for each contact pair.
         self.contact_status_bits.set_bit_count_and_clear(bit_count);
 
-        #[cfg(feature = "parallel")]
         self.thread_local_contact_status_bits
             .iter_mut()
             .for_each(|context| {
@@ -480,11 +475,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
         crate::utils::par_for_each(self.contact_graph.active_pairs_mut(), 64, |_i, contacts| {
             let contact_id = contacts.contact_id.0 as usize;
 
-            #[cfg(not(feature = "parallel"))]
-            let status_change_bits = &mut self.contact_status_bits;
-
             // TODO: Move this out of the chunk iteration? Requires refactoring `par_for_each!`.
-            #[cfg(feature = "parallel")]
             // Get the thread-local narrow phase context.
             let mut thread_context = self
                 .thread_local_contact_status_bits
@@ -496,7 +487,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     RefCell::new(contact_status_bits)
                 })
                 .borrow_mut();
-            #[cfg(feature = "parallel")]
             let status_change_bits = &mut *thread_context;
 
             // Get the colliders for the contact pair.
@@ -719,11 +709,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     // Set the initial surface properties.
                     manifold.friction = friction;
                     manifold.restitution = restitution;
-                    #[cfg(feature = "2d")]
-                    {
-                        manifold.tangent_speed = 0.0;
-                    }
-                    #[cfg(feature = "3d")]
                     {
                         manifold.tangent_velocity = Vector::ZERO;
                     }
@@ -740,11 +725,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                         point.penetration += collision_margin_sum;
 
                         // Compute the relative velocity along the contact normal.
-                        #[cfg(feature = "2d")]
-                        let relative_velocity = relative_linear_velocity
-                            + ang_vel2 * point.anchor2.perp()
-                            - ang_vel1 * point.anchor1.perp();
-                        #[cfg(feature = "3d")]
                         let relative_velocity = relative_linear_velocity
                             + ang_vel2.cross(point.anchor2)
                             - ang_vel1.cross(point.anchor1);
@@ -760,7 +740,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     });
 
                     // Prune extra contact points.
-                    #[cfg(feature = "3d")]
                     if manifold.points.len() > 4 {
                         manifold.prune_points();
                     }
@@ -820,7 +799,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
             };
         });
 
-        #[cfg(feature = "parallel")]
         {
             // Combine the thread-local bit vectors serially using bit-wise OR.
             self.thread_local_contact_status_bits

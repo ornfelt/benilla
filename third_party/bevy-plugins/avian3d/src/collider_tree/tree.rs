@@ -51,8 +51,6 @@ pub struct ColliderTreeProxy {
 /// Flags for a [`ColliderTreeProxy`].
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ColliderTreeProxyFlags(u32);
 

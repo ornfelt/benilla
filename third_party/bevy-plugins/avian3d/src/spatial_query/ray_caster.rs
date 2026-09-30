@@ -65,8 +65,6 @@ use bevy::{
 /// }
 /// ```
 #[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 #[component(on_add = on_add_ray_caster)]
 #[require(RayHits)]
@@ -238,10 +236,6 @@ impl RayCaster {
         self.global_direction = global_direction;
     }
 
-    #[cfg(all(
-        feature = "default-collider",
-        any(feature = "parry-f32", feature = "parry-f64")
-    ))]
     pub(crate) fn cast(
         &mut self,
         caster_entity: Entity,
@@ -310,8 +304,7 @@ fn on_add_ray_caster(mut world: DeferredWorld, ctx: HookContext) {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn print_hits(query: Query<&RayHits, With<RayCaster>>) {
@@ -324,8 +317,6 @@ fn on_add_ray_caster(mut world: DeferredWorld, ctx: HookContext) {
 /// }
 /// ```
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct RayHits(pub Vec<RayHitData>);
 
@@ -377,8 +368,6 @@ impl MapEntities for RayHits {
 
 /// Data related to a hit during a [raycast](spatial_query#raycasting).
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct RayHitData {
     /// The entity of the collider that was hit by the ray.

@@ -9,15 +9,9 @@ use bevy::prelude::*;
 
 /// Constraint data required by the XPBD constraint solver for a fixed angle constraint.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct FixedAngleConstraintShared {
     /// The target rotation difference between the two bodies.
-    #[cfg(feature = "2d")]
-    pub rotation_difference: Scalar,
-    /// The target rotation difference between the two bodies.
-    #[cfg(feature = "3d")]
     pub rotation_difference: Quaternion,
     /// The total Lagrange multiplier across the whole time step.
     pub total_lagrange: AngularVector,
@@ -43,12 +37,6 @@ impl FixedAngleConstraintShared {
         local_basis2: Rot,
     ) {
         // Prepare the base rotation difference.
-        #[cfg(feature = "2d")]
-        {
-            self.rotation_difference =
-                (*rotation1 * local_basis1).angle_between(*rotation2 * local_basis2);
-        }
-        #[cfg(feature = "3d")]
         {
             self.rotation_difference =
                 (rotation1.0 * local_basis1) * (rotation2.0 * local_basis2).inverse();
@@ -69,10 +57,6 @@ impl FixedAngleConstraintShared {
         let inv_inertia1 = inertia1.effective_inv_angular_inertia();
         let inv_inertia2 = inertia2.effective_inv_angular_inertia();
 
-        #[cfg(feature = "2d")]
-        let difference =
-            self.rotation_difference + body1.delta_rotation.angle_between(body2.delta_rotation);
-        #[cfg(feature = "3d")]
         // TODO: The XPBD paper doesn't have this minus sign, but it seems to be needed for stability.
         //       The angular correction code might have a wrong sign elsewhere.
         let difference = -2.0

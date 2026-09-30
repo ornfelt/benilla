@@ -206,22 +206,6 @@ fn on_add_joint(mut world: DeferredWorld, ctx: HookContext) {
     if let Some(old_joint) = old_joint {
         // Joint already exists, remove the old one.
         world.commands().entity(entity).remove_by_id(old_joint);
-
-        #[cfg(feature = "validate")]
-        {
-            use disqualified::ShortName;
-
-            // Log a warning about the joint replacement in case it was not intentional.
-            let components = world.components();
-            let old_joint_shortname = components.get_info(old_joint).unwrap().name();
-            let old_joint_name = ShortName(&old_joint_shortname);
-            let new_joint_shortname = components.get_info(component_id).unwrap().name();
-            let new_joint_name = ShortName(&new_joint_shortname);
-
-            warn!(
-                "{old_joint_name} was replaced with {new_joint_name} on entity {entity}. An entity can only hold one joint type at a time."
-            );
-        }
     }
 }
 

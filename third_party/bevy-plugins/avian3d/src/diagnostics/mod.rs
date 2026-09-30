@@ -16,8 +16,7 @@
 //! # Example
 //!
 //! ```no_run
-#![cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+//! use avian3d::prelude::*;
 //! use bevy::prelude::*;
 //!
 //! fn main() {
@@ -54,51 +53,16 @@
 //! [`SolverDiagnostics`]: crate::dynamics::solver::SolverDiagnostics
 //! [`SpatialQueryDiagnostics`]: crate::spatial_query::SpatialQueryDiagnostics
 
-#[cfg(feature = "bevy_diagnostic")]
-mod entity_counters;
 mod path_macro;
-#[cfg(feature = "bevy_diagnostic")]
-mod total;
 
-#[cfg(feature = "bevy_diagnostic")]
-pub use entity_counters::{PhysicsEntityDiagnostics, PhysicsEntityDiagnosticsPlugin};
 pub(crate) use path_macro::impl_diagnostic_paths;
-#[cfg(feature = "bevy_diagnostic")]
-pub use total::{PhysicsTotalDiagnostics, PhysicsTotalDiagnosticsPlugin};
 
 use crate::{PhysicsStepSystems, schedule::PhysicsSchedule};
 use bevy::{
     diagnostic::DiagnosticPath,
     prelude::{App, IntoScheduleConfigs, ResMut, Resource, SystemSet},
 };
-#[cfg(feature = "bevy_diagnostic")]
-use bevy::{
-    diagnostic::{Diagnostic, Diagnostics, RegisterDiagnostic},
-    prelude::{Plugin, Res},
-};
 use core::time::Duration;
-
-/// A plugin that enables writing [physics diagnostics](crate::diagnostics)
-/// to [`bevy::diagnostic::DiagnosticsStore`]. It is not enabled by default
-/// and must be added manually.
-///
-/// See the [module-level documentation](crate::diagnostics) for more information.
-#[cfg(feature = "bevy_diagnostic")]
-pub struct PhysicsDiagnosticsPlugin;
-
-#[cfg(feature = "bevy_diagnostic")]
-impl Plugin for PhysicsDiagnosticsPlugin {
-    fn build(&self, app: &mut App) {
-        // Configure system sets for physics diagnostics.
-        app.configure_sets(
-            PhysicsSchedule,
-            (
-                PhysicsDiagnosticsSystems::Reset.before(PhysicsStepSystems::First),
-                PhysicsDiagnosticsSystems::WriteDiagnostics.after(PhysicsStepSystems::Last),
-            ),
-        );
-    }
-}
 
 /// A system set for [physics diagnostics](crate::diagnostics).
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -124,18 +88,6 @@ pub trait PhysicsDiagnostics: Default + Resource {
     /// A system that resets the diagnostics to their default values.
     fn reset(mut physics_diagnostics: ResMut<Self>) {
         *physics_diagnostics = Self::default();
-    }
-
-    /// A system that writes diagnostics to the given [`Diagnostics`] instance.
-    #[cfg(feature = "bevy_diagnostic")]
-    fn write_diagnostics(physics_diagnostics: Res<Self>, mut diagnostics: Diagnostics) {
-        for (path, duration) in physics_diagnostics.timer_paths() {
-            diagnostics.add_measurement(path, || duration.as_secs_f64() * 1000.0);
-        }
-
-        for (path, count) in physics_diagnostics.counter_paths() {
-            diagnostics.add_measurement(path, || count as f64);
-        }
     }
 }
 
@@ -171,36 +123,5 @@ impl AppDiagnosticsExt for App {
                 .in_set(PhysicsDiagnosticsSystems::Reset)
                 .ambiguous_with_all(),
         );
-
-        #[cfg(feature = "bevy_diagnostic")]
-        {
-            // If physics diagnostics are not enabled, return early.
-            if !self.is_plugin_added::<PhysicsDiagnosticsPlugin>() {
-                return;
-            }
-
-            // Register diagnostics for the paths returned by the diagnostics resource.
-            let diagnostics = T::default();
-            let timer_paths = diagnostics.timer_paths();
-            let counter_paths = diagnostics.counter_paths();
-
-            for path in timer_paths.iter().map(|(path, _)| *path) {
-                // All timers are in milliseconds.
-                self.register_diagnostic(Diagnostic::new(path.clone()).with_suffix("ms"));
-            }
-
-            for path in counter_paths.iter().map(|(path, _)| *path) {
-                // All counters are in whole numbers.
-                self.register_diagnostic(Diagnostic::new(path.clone()).with_smoothing_factor(0.0));
-            }
-
-            // Add systems to reset the diagnostics and write them to the `DiagnosticsStore` resource.
-            self.add_systems(
-                PhysicsSchedule,
-                T::write_diagnostics
-                    .in_set(PhysicsDiagnosticsSystems::WriteDiagnostics)
-                    .ambiguous_with_all(),
-            );
-        }
     }
 }

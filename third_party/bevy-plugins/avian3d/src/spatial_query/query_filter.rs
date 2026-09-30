@@ -7,19 +7,11 @@ use crate::prelude::*;
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
-#[cfg_attr(
-    feature = "2d",
-    doc = "    let object = commands.spawn(Collider::circle(0.5)).id();"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    let object = commands.spawn(Collider::sphere(0.5)).id();"
-)]
+///     let object = commands.spawn(Collider::sphere(0.5)).id();
 ///
 ///     // A query filter that has three collision layers and excludes the `object` entity
 ///     let query_filter = SpatialQueryFilter::from_mask(0b1011).with_excluded_entities([object]);
@@ -29,8 +21,6 @@ use crate::prelude::*;
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct SpatialQueryFilter {
     /// Specifies which [collision layers](CollisionLayers) will be included in the [spatial query](crate::spatial_query).

@@ -68,7 +68,6 @@ pub fn project_velocity_bruteforce(v: Vector, normals: &[Dir]) -> Vector {
     }
 
     // Case 2b: Edge projections (two-plane active set)
-    #[cfg(feature = "3d")]
     {
         let n = normals.len();
         for i in 0..n {
@@ -136,10 +135,7 @@ pub fn project_velocity(v: Vector, normals: &[Dir]) -> Vector {
 ///  - Point: the origin
 ///  - Line segment: a ray extending in some direction from the origin
 ///  - Triangle: a wedge spanning the area between two of the above rays
-#[cfg_attr(
-    feature = "3d",
-    doc = " - Tetrahedron: a \"solid wedge\" spanning the volume between three rays"
-)]
+///  - Tetrahedron: a "solid wedge" spanning the volume between three rays
 ///
 /// The last of these is not directly represented as a variant of [`SimplicialCone`],
 /// as the projection method always prunes its output down to a simplex of non-full
@@ -150,8 +146,7 @@ enum SimplicialCone {
     Origin,
     /// A simplicial cone consisting of two points, the origin and a point at infinity,
     /// which together form a semi-infinite ray, the analog to a line segment.
-    Ray(#[cfg(feature = "3d")] Dir),
-    #[cfg(feature = "3d")]
+    Ray(Dir),
     /// A simplicial cone consisting of three points, the origin and two points at infinity.
     /// It forms a wedge between two rays, the analog to a triangle.
     Wedge(Dir, Dir),
@@ -237,23 +232,9 @@ impl SimplicialCone {
 
                 // The preconditions of this method imply that dot >= 0.0.
                 let dot = new_direction_vec.dot(x0);
-                #[cfg(feature = "2d")]
-                let ray = Self::Ray();
-                #[cfg(feature = "3d")]
                 let ray = Self::Ray(new_direction);
                 (Some(ray), x0 - dot * new_direction_vec)
             }
-            #[cfg(feature = "2d")]
-            // Preconditions imply that:
-            // - dot product between new_direction and old search_direction is > 0.0
-            //   - i.e. x0 and new_direction are in the same half-disk relative to current ray
-            // - dot product between new_direction and x0 is smaller than between the current ray and x0
-            //   - i.e. new_direction can't fall between current ray and x0
-            //   - the two rays must be on either side of x0
-            // Therefore can deduce that x0 falls within the wedge, so we can just return (None, ZERO)
-            // without any more checking.
-            SimplicialCone::Ray() => (None, Vector::ZERO),
-            #[cfg(feature = "3d")]
             SimplicialCone::Ray(previous_direction) => {
                 let cross = new_direction_vec.cross(previous_direction.adjust_precision());
                 let dot = x0.dot(cross);
@@ -268,7 +249,6 @@ impl SimplicialCone {
 
                 (Some(new_cone), new_search_vector)
             }
-            #[cfg(feature = "3d")]
             SimplicialCone::Wedge(n1, n2) => {
                 // According to preconditions, dot product between new_direction and old search_direction is > 0.0
                 // - therefore `new_direction` falls on the same side of the plane spanned by `n1`, `n2` as `x0` does
@@ -337,16 +317,6 @@ pub mod test {
     /// Tests that `project_velocity` agrees with `project_velocity_bruteforce`.
     #[test]
     fn check_agreement() {
-        #[cfg(feature = "2d")]
-        let normals = &[
-            Dir::Y,
-            Dir::from_xy(2.0, 1.0).unwrap(),
-            Dir::from_xy(-2.0, 1.0).unwrap(),
-            Dir::from_xy(1.0, 1.0).unwrap(),
-            Dir::from_xy(-1.0, 1.0).unwrap(),
-        ];
-
-        #[cfg(feature = "3d")]
         let normals = &[
             Dir::Z,
             Dir::from_xyz(2.0, 0.0, 1.0).unwrap(),
@@ -413,24 +383,15 @@ pub mod test {
     /// the limits of floating-point precision.
     #[derive(Default)]
     pub struct QuasiRandomDirection {
-        #[cfg(feature = "3d")]
         i: Scalar,
         j: Scalar,
     }
 
-    #[cfg(feature = "3d")]
     impl QuasiRandomDirection {
         #[allow(clippy::excessive_precision)]
         const PLASTIC: Scalar = 1.32471795724475;
         const INV_PLASTIC: Scalar = 1.0 / Self::PLASTIC;
         const INV_PLASTIC_SQ: Scalar = Self::INV_PLASTIC * Self::INV_PLASTIC;
-    }
-
-    #[cfg(feature = "2d")]
-    impl QuasiRandomDirection {
-        #[allow(clippy::excessive_precision)]
-        const GOLDEN: Scalar = 1.61803398875;
-        const INV_GOLDEN: Scalar = 1.0 / Self::GOLDEN;
     }
 
     impl QuasiRandomDirection {
@@ -450,18 +411,12 @@ pub mod test {
             let phi = 2.0 * PI * self.j;
             let x = phi.cos();
             let y = phi.sin();
-            #[cfg(feature = "3d")]
             {
                 let z = 2.0 * self.i - 1.0;
                 let rho = (1.0 - z * z).sqrt();
                 self.i = (self.i + Self::INV_PLASTIC) % 1.0;
                 self.j = (self.j + Self::INV_PLASTIC_SQ) % 1.0;
                 Some(Vector::new(rho * x, rho * y, z))
-            }
-            #[cfg(feature = "2d")]
-            {
-                self.j = (self.j + Self::INV_GOLDEN) % 1.0;
-                Some(Vector::new(x, y))
             }
         }
     }

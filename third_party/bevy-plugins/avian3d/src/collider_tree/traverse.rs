@@ -90,9 +90,6 @@ impl ColliderTree {
         target_distance: Scalar,
         mut intersection_fn: F,
     ) -> Option<(ProxyId, Scalar)> {
-        #[cfg(feature = "2d")]
-        let direction = direction.extend(0.0).to_array().into();
-        #[cfg(feature = "3d")]
         let direction = direction.to_array().into();
         let sweep = Sweep::new(aabb, direction, target_distance as f32, max_distance as f32);
 
@@ -132,9 +129,6 @@ impl ColliderTree {
         max_distance: Scalar,
         mut intersection_fn: F,
     ) {
-        #[cfg(feature = "2d")]
-        let direction = direction.extend(0.0).to_array().into();
-        #[cfg(feature = "3d")]
         let direction = direction.to_array().into();
         let sweep = Sweep::new(aabb, direction, target_distance as f32, max_distance as f32);
 
@@ -167,9 +161,6 @@ impl ColliderTree {
         max_distance_squared: Scalar,
         mut eval: F,
     ) -> Option<(ProxyId, Scalar)> {
-        #[cfg(feature = "2d")]
-        let point = point.f32().extend(0.0).to_array().into();
-        #[cfg(feature = "3d")]
         let point = point.f32().to_array().into();
 
         let closest_leaf = self.bvh.squared_distance_traverse(
@@ -198,9 +189,6 @@ impl ColliderTree {
     ///   Return false to halt traversal early.
     #[inline(always)]
     pub fn point_traverse<F: FnMut(ProxyId) -> bool>(&self, point: Vector, mut eval: F) {
-        #[cfg(feature = "2d")]
-        let point = point.f32().extend(0.0).to_array().into();
-        #[cfg(feature = "3d")]
         let point = point.f32().to_array().into();
 
         self.bvh.point_traverse(point, |bvh, node_index| {

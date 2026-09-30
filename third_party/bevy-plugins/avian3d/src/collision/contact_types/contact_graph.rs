@@ -35,8 +35,7 @@ use super::{ContactEdge, ContactId};
 /// For example, to iterate over all collisions with a given entity:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// #[derive(Component)]

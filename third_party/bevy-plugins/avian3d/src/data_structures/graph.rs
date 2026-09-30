@@ -11,7 +11,6 @@ use derive_more::derive::From;
 
 /// A node identifier for a graph structure.
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Eq, Ord, Hash, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeIndex(pub u32);
 
 impl NodeIndex {
@@ -34,7 +33,6 @@ impl NodeIndex {
 
 /// An edge identifier for a graph structure.
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Eq, Ord, Hash, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct EdgeIndex(pub u32);
 
 impl EdgeIndex {
@@ -57,7 +55,6 @@ impl EdgeIndex {
 
 /// The direction of a graph edge.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[repr(usize)]
 pub enum EdgeDirection {
     /// An `Outgoing` edge is an outward edge *from* the current node.
@@ -73,7 +70,6 @@ impl EdgeDirection {
 
 /// The node type for a graph structure.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Node<N> {
     /// Associated node data.
     pub weight: N,
@@ -83,7 +79,6 @@ pub struct Node<N> {
 
 /// The edge type for a graph structure.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Edge<E> {
     /// Associated edge data.
     pub weight: E,
@@ -110,7 +105,6 @@ impl<E> Edge<E> {
 /// The graph can invalidate node or edge indices when items are removed.
 /// If you need stable indices, use [`StableUnGraph`](super::stable_graph::StableUnGraph).
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct UnGraph<N, E> {
     pub(super) nodes: Vec<Node<N>>,
     pub(super) edges: Vec<Edge<E>>,

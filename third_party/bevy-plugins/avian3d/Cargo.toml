@@ -39,7 +39,6 @@ repository = "https://github.com/avianphysics/avian"
 
 [features]
 3d = []
-bevy_diagnostic = []
 bevy_scene = ["bevy/bevy_scene"]
 collider-from-mesh = [
     "bevy/bevy_mesh",
@@ -61,46 +60,16 @@ default = [
     "bevy_scene",
 ]
 default-collider = []
-enhanced-determinism = [
-    "dep:libm",
-    "bevy_math/libm",
-    "bevy_heavy/libm",
-    "parry3d?/enhanced-determinism",
-    "parry3d-f64?/enhanced-determinism",
-]
 f32 = []
-f64 = []
 parallel = [
     "bevy/multi_threaded",
     "parry3d?/parallel",
-    "parry3d-f64?/parallel",
 ]
 parry-f32 = [
     "f32",
     "dep:parry3d",
     "default-collider",
 ]
-parry-f64 = [
-    "f64",
-    "dep:parry3d-f64",
-    "default-collider",
-]
-serialize = [
-    "dep:serde",
-    "bevy/serialize",
-    "glam_matrix_extras/serde",
-    "bevy_heavy/serialize",
-    "bevy_transform_interpolation/serialize",
-    "parry3d?/serde-serialize",
-    "parry3d-f64?/serde-serialize",
-    "smallvec/serde",
-    "bitflags/serde",
-]
-simd = [
-    "parry3d?/simd-stable",
-    "parry3d-f64?/simd-stable",
-]
-validate = []
 xpbd_joints = []
 
 [lib]
@@ -327,9 +296,6 @@ features = ["bevy_reflect"]
 [dependencies.itertools]
 version = "0.14"
 
-[dependencies.libm]
-version = "0.2"
-optional = true
 
 [dependencies.obvhs]
 version = "0.3"
@@ -338,14 +304,7 @@ version = "0.3"
 version = "0.26"
 optional = true
 
-[dependencies.parry3d-f64]
-version = "0.26"
-optional = true
 
-[dependencies.serde]
-version = "1"
-features = ["derive"]
-optional = true
 
 [dependencies.smallvec]
 version = "1.15"

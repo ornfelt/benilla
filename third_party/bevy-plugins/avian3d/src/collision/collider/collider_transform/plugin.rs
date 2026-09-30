@@ -82,11 +82,6 @@ pub(crate) fn update_child_collider_position(
         };
 
         position.0 = rb_pos.0 + rb_rot * collider_transform.translation;
-        #[cfg(feature = "2d")]
-        {
-            *rotation = *rb_rot * collider_transform.rotation;
-        }
-        #[cfg(feature = "3d")]
         {
             *rotation = (rb_rot.0 * collider_transform.rotation.0)
                 .normalize()
@@ -264,9 +259,6 @@ unsafe fn propagate_collider_transforms_recursive(
                 } else {
                     ColliderTransform {
                         translation: transform.transform_point(child_transform.translation),
-                        #[cfg(feature = "2d")]
-                        rotation: transform.rotation * child_transform.rotation,
-                        #[cfg(feature = "3d")]
                         rotation: Rotation(transform.rotation.0 * child_transform.rotation.0),
                         scale,
                     }

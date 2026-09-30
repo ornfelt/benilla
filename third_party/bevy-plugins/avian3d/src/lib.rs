@@ -54,10 +54,7 @@
 //! | `parry-f32`            | Enables the `f32` version of the Parry collision detection library. Also enables the `default-collider` feature.                                   | Yes             |
 //! | `parry-f64`            | Enables the `f64` version of the Parry collision detection library. Also enables the `default-collider` feature.                                   | No              |
 //! | `xpbd_joints`          | Enables support for [XPBD joints](dynamics::solver::xpbd).                            .                                                            | Yes             |
-#![cfg_attr(
-    feature = "3d",
-    doc = "| `collider-from-mesh`   | Allows you to create [`Collider`]s from `Mesh`es.                                                                                                  | Yes             |"
-)]
+//! | `collider-from-mesh`   | Allows you to create [`Collider`]s from `Mesh`es.                                                                                                  | Yes             |
 //! | `bevy_scene`           | Enables [`ColliderConstructorHierarchy`] to wait until a [`Scene`] has loaded before processing it.                                                 | Yes             |
 //! | `bevy_diagnostic`      | Enables writing [physics diagnostics] to the [`DiagnosticsStore`] with the [`PhysicsDiagnosticsPlugin`]. The plugin must be added separately.       | No              |
 //! | `debug-plugin`         | Enables `bevy_gizmos` and `bevy_render`; the physics debug renderer (`PhysicsDebugPlugin`) is cut from this copy.                                   | Yes             |
@@ -78,8 +75,7 @@
 //! the [`PhysicsPlugins`] plugin group.
 //!
 //! ```no_run
-#![cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+//! use avian3d::prelude::*;
 //! use bevy::prelude::*;
 //!
 //! fn main() {
@@ -96,19 +92,11 @@
 //! with the [`RigidBody`] and [`Collider`] components:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+//! use avian3d::prelude::*;
 //! use bevy::prelude::*;
 //!
 //! fn setup(mut commands: Commands) {
-#![cfg_attr(
-    feature = "2d",
-    doc = "    commands.spawn((RigidBody::Dynamic, Collider::circle(0.5)));"
-)]
-#![cfg_attr(
-    feature = "3d",
-    doc = "    commands.spawn((RigidBody::Dynamic, Collider::sphere(0.5)));"
-)]
+//!     commands.spawn((RigidBody::Dynamic, Collider::sphere(0.5)));
 //! }
 //! ```
 //!
@@ -149,10 +137,7 @@
 //!     - [Friction] and [restitution](Restitution) (bounciness)
 //!     - [Collision layers](CollisionLayers)
 //!     - [Sensors](Sensor)
-#![cfg_attr(
-    feature = "3d",
-    doc = "- Generating colliders for meshes and scenes with [`ColliderConstructor`] and [`ColliderConstructorHierarchy`]"
-)]
+//! - Generating colliders for meshes and scenes with [`ColliderConstructor`] and [`ColliderConstructorHierarchy`]
 //! - [Get colliding entities](CollidingEntities)
 //! - [Collision events](collision#collision-events)
 //! - [Accessing collision data](Collisions)
@@ -169,12 +154,9 @@
 //!     - [Distance joint](DistanceJoint)
 //!     - [Prismatic joint](PrismaticJoint)
 //!     - [Revolute joint](RevoluteJoint)
-#![cfg_attr(feature = "3d", doc = "    - [Spherical joint](SphericalJoint)")]
+//!     - [Spherical joint](SphericalJoint)
 //! - [Temporarily disabling a joint](JointDisabled)
-#![cfg_attr(
-    feature = "xpbd_joints",
-    doc = "- [Custom XPBD constraints](dynamics::solver::xpbd#constraints) (advanced)"
-)]
+//! - [Custom XPBD constraints](dynamics::solver::xpbd#constraints) (advanced)
 //!
 //! Joint motors and articulations are not supported yet, but they will be implemented in a future release.
 //!
@@ -315,8 +297,7 @@
 //! Interpolation can be enabled for an individual entity by adding the [`TransformInterpolation`] component:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! fn setup(mut commands: Commands) {
@@ -332,8 +313,7 @@
 //! To make *all* rigid bodies interpolated by default, use [`PhysicsInterpolationPlugin::interpolate_all()`]:
 //!
 //! ```no_run
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! fn main() {
@@ -373,25 +353,10 @@
 //! (kinematic) and [`bevy_tnua`](https://github.com/idanarye/bevy-tnua) (dynamic) that work with Avian.
 //!
 //! For custom character controllers, you can take a look at the
-#![cfg_attr(
-    feature = "2d",
-    doc = "[`dynamic_character_2d`] and [`kinematic_character_2d`] examples to get started."
-)]
-#![cfg_attr(
-    feature = "3d",
-    doc = "[`dynamic_character_3d`] and [`kinematic_character_3d`] examples to get started."
-)]
+//! [`dynamic_character_3d`] and [`kinematic_character_3d`] examples to get started.
 //!
-#![cfg_attr(
-    feature = "2d",
-    doc = "[`dynamic_character_2d`]: https://github.com/avianphysics/avian/tree/main/crates/avian2d/examples/dynamic_character_2d
-[`kinematic_character_2d`]: https://github.com/avianphysics/avian/tree/main/crates/avian2d/examples/kinematic_character_2d"
-)]
-#![cfg_attr(
-    feature = "3d",
-    doc = "[`dynamic_character_3d`]: https://github.com/avianphysics/avian/tree/main/crates/avian3d/examples/dynamic_character_3d
-[`kinematic_character_3d`]: https://github.com/avianphysics/avian/tree/main/crates/avian3d/examples/kinematic_character_3d"
-)]
+//! [`dynamic_character_3d`]: https://github.com/avianphysics/avian/tree/main/crates/avian3d/examples/dynamic_character_3d
+//! [`kinematic_character_3d`]: https://github.com/avianphysics/avian/tree/main/crates/avian3d/examples/kinematic_character_3d
 //!
 //! ## Why are there separate `Position` and `Rotation` components?
 //!
@@ -456,54 +421,10 @@
 )]
 #![warn(clippy::doc_markdown, missing_docs)]
 
-#[cfg(all(not(feature = "f32"), not(feature = "f64")))]
-compile_error!("either feature \"f32\" or \"f64\" must be enabled");
-
-#[cfg(all(feature = "f32", feature = "f64"))]
-compile_error!("feature \"f32\" and feature \"f64\" cannot be enabled at the same time");
-
-#[cfg(all(not(feature = "2d"), not(feature = "3d")))]
-compile_error!("either feature \"2d\" or \"3d\" must be enabled");
-
-#[cfg(all(feature = "2d", feature = "3d"))]
-compile_error!("feature \"2d\" and feature \"3d\" cannot be enabled at the same time");
-
-#[cfg(all(
-    feature = "default-collider",
-    feature = "f32",
-    not(feature = "parry-f32")
-))]
-compile_error!(
-    "feature \"default-collider\" requires the feature \"parry-f32\" when \"f32\" is enabled"
-);
-
-#[cfg(all(
-    feature = "default-collider",
-    feature = "f64",
-    not(feature = "parry-f64")
-))]
-compile_error!(
-    "feature \"default-collider\" requires the feature \"parry-f64\" when \"f64\" is enabled"
-);
-
 extern crate alloc;
 
-#[cfg(all(feature = "2d", feature = "parry-f32"))]
-pub extern crate parry2d as parry;
-
-#[cfg(all(feature = "2d", feature = "parry-f64"))]
-pub extern crate parry2d_f64 as parry;
-
-#[cfg(all(feature = "3d", feature = "parry-f32"))]
 pub extern crate parry3d as parry;
 
-#[cfg(all(feature = "3d", feature = "parry-f64"))]
-pub extern crate parry3d_f64 as parry;
-
-#[cfg(all(
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
 pub mod character_controller;
 pub mod collider_tree;
 pub mod collision;
@@ -522,9 +443,6 @@ pub(crate) mod ancestor_marker;
 
 /// Re-exports common components, bundles, resources, plugins and types.
 pub mod prelude {
-    #[cfg(feature = "bevy_diagnostic")]
-    pub use crate::diagnostics::PhysicsDiagnosticsPlugin;
-    #[cfg(feature = "default-collider")]
     pub(crate) use crate::physics_transform::RotationValue;
     #[expect(deprecated)]
     pub use crate::{
@@ -541,10 +459,6 @@ pub mod prelude {
         spatial_query::{self, *},
     };
 
-    #[cfg(all(
-        feature = "default-collider",
-        any(feature = "parry-f32", feature = "parry-f64")
-    ))]
     pub use crate::character_controller::prelude::*;
     pub(crate) use crate::{
         diagnostics::AppDiagnosticsExt,
@@ -580,10 +494,7 @@ use prelude::*;
 /// | [`ColliderBackendPlugin`]         | Handles generic collider backend logic, like initializing colliders and AABBs and updating related components.                                             |
 /// | [`ColliderHierarchyPlugin`]       | Manages [`ColliderOf`] relationships based on the entity hierarchy.                                                                                        |
 /// | [`ColliderTransformPlugin`]       | Propagates and updates transforms for colliders.
-#[cfg_attr(
-    all(feature = "collider-from-mesh", feature = "default-collider"),
-    doc = "| [`ColliderCachePlugin`]           | Caches colliders created from meshes. Requires `collider-from-mesh` and `default-collider` features.                                                       |"
-)]
+/// | [`ColliderCachePlugin`]           | Caches colliders created from meshes. Requires `collider-from-mesh` and `default-collider` features.                                                       |
 /// | [`ColliderTreePlugin`]            | Manages [`ColliderTrees`] for broad phase collision detection and spatial queries.                                                                         |
 /// | [`BroadPhaseCorePlugin`]          | The core [broad phase] plugin that sets up the required resources, system sets, and diagnostics.                                                           |
 /// | [`BvhBroadPhasePlugin`]           | A [broad phase] plugin that uses a [Bounding Volume Hierarchy (BVH)][BVH] to efficiently find pairs of colliders with overlapping AABBs.                   |
@@ -647,8 +558,7 @@ use prelude::*;
 /// You can run the [`PhysicsSchedule`] in any schedule you want by specifying the schedule when adding the plugin group:
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn main() {
@@ -743,13 +653,8 @@ impl PluginGroup for PhysicsPlugins {
             .add(ColliderHierarchyPlugin)
             .add(ColliderTransformPlugin::new(self.schedule));
 
-        #[cfg(all(feature = "collider-from-mesh", feature = "default-collider"))]
         let builder = builder.add(ColliderCachePlugin);
 
-        #[cfg(all(
-            feature = "default-collider",
-            any(feature = "parry-f32", feature = "parry-f64")
-        ))]
         let builder = builder
             .add(ColliderBackendPlugin::<Collider>::new(self.schedule))
             .add(ColliderTreePlugin::<Collider>::default())
@@ -819,10 +724,6 @@ where
             .disable::<BvhBroadPhasePlugin>()
             .add(BvhBroadPhasePlugin::<H>::default());
 
-        #[cfg(all(
-            feature = "default-collider",
-            any(feature = "parry-f32", feature = "parry-f64")
-        ))]
         let builder = builder
             .disable::<NarrowPhasePlugin<Collider>>()
             .add(NarrowPhasePlugin::<Collider, H>::default());

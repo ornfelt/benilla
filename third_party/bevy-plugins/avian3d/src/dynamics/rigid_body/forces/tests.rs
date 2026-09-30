@@ -15,9 +15,7 @@ fn create_app() -> App {
         MinimalPlugins,
         PhysicsPlugins::default(),
         TransformPlugin,
-        #[cfg(feature = "bevy_scene")]
         AssetPlugin::default(),
-        #[cfg(feature = "bevy_scene")]
         bevy::scene::ScenePlugin,
         MeshPlugin,
     ));
@@ -43,9 +41,6 @@ fn spawn_body(app: &mut App, mass: f32, angular_inertia: f32) -> EntityWorldMut<
     app.world_mut().spawn((
         RigidBody::Dynamic,
         Mass(mass),
-        #[cfg(feature = "2d")]
-        AngularInertia(angular_inertia),
-        #[cfg(feature = "3d")]
         AngularInertia::new(Vec3::splat(angular_inertia)),
     ))
 }
@@ -351,9 +346,6 @@ fn apply_torque() {
     // Continuously apply a torque of 1.5 N⋅m about the Z axis.
     app.add_systems(FixedUpdate, |mut query: Query<Forces>| {
         for mut forces in query.iter_mut() {
-            #[cfg(feature = "2d")]
-            forces.apply_torque(1.5);
-            #[cfg(feature = "3d")]
             forces.apply_torque(Vector::Z * 1.5);
         }
     });
@@ -394,7 +386,6 @@ fn apply_torque() {
 }
 
 #[test]
-#[cfg(feature = "3d")]
 fn apply_local_torque() {
     let mut app = create_app();
     app.finish();
@@ -454,9 +445,6 @@ fn apply_angular_impulse() {
     // Continuously apply an angular impulse of 1.5 kg⋅m²/s multiplied by the timestep about the Z axis.
     app.add_systems(FixedUpdate, |mut query: Query<Forces>| {
         for mut forces in query.iter_mut() {
-            #[cfg(feature = "2d")]
-            forces.apply_angular_impulse(1.5 * TIMESTEP as Scalar);
-            #[cfg(feature = "3d")]
             forces.apply_angular_impulse(Vector::Z * 1.5 * TIMESTEP as Scalar);
         }
     });
@@ -497,7 +485,6 @@ fn apply_angular_impulse() {
 }
 
 #[test]
-#[cfg(feature = "3d")]
 fn apply_local_angular_impulse() {
     let mut app = create_app();
     app.finish();
@@ -557,9 +544,6 @@ fn apply_angular_acceleration() {
     // Continuously apply a torque of 1.5 rad/s² about the Z axis.
     app.add_systems(FixedUpdate, |mut query: Query<Forces>| {
         for mut forces in query.iter_mut() {
-            #[cfg(feature = "2d")]
-            forces.apply_angular_acceleration(1.5);
-            #[cfg(feature = "3d")]
             forces.apply_angular_acceleration(Vector::Z * 1.5);
         }
     });
@@ -600,7 +584,6 @@ fn apply_angular_acceleration() {
 }
 
 #[test]
-#[cfg(feature = "3d")]
 fn apply_local_angular_acceleration() {
     let mut app = create_app();
     app.finish();

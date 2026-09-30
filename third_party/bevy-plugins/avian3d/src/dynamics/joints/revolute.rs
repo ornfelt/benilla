@@ -10,39 +10,19 @@ use bevy::{
     prelude::*,
 };
 
-#[cfg_attr(
-    feature = "2d",
-    doc = "A revolute [joint](dynamics::joints) or hinge prevents any relative movement between two bodies, except for rotation about a pivot point defined by the joint anchor."
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "A revolute [joint](dynamics::joints) or hinge prevents any relative movement between two bodies, except for rotation about the [`hinge_axis`](Self::hinge_axis) at a pivot point defined by the joint anchor."
-)]
+/// A revolute [joint](dynamics::joints) or hinge prevents any relative movement between two bodies, except for rotation about the [`hinge_axis`](Self::hinge_axis) at a pivot point defined by the joint anchor.
 ///
 /// This can be useful for things like wheels, fans, doors, and other rotating mechanisms.
 ///
-#[cfg_attr(
-    feature = "2d",
-    doc = "Each revolute joint is defined by a [`JointFrame`] on each body,"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "Each revolute joint is defined by a [`JointFrame`] on each body, a [`hinge_axis`](Self::hinge_axis) about which the bodies can rotate,"
-)]
+/// Each revolute joint is defined by a [`JointFrame`] on each body, a [`hinge_axis`](Self::hinge_axis) about which the bodies can rotate,
 /// and an optional [`AngleLimit`] that defines the extents of the allowed rotation. The joint aims to keep the anchor point of each frame aligned,
-#[cfg_attr(feature = "2d", doc = "while allowing rotation at the anchor point.")]
-#[cfg_attr(
-    feature = "3d",
-    doc = "while allowing rotation about the hinge axis at the anchor point."
-)]
+/// while allowing rotation about the hinge axis at the anchor point.
 ///
 #[doc = include_str!("./images/revolute_joint.svg")]
 ///
 /// The joint can also include an [`AngularMotor`] for driving the rotation about the pivot point.
 /// Use this to create wheels, fans, servos, or other rotating mechanisms.
 #[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, MapEntities, PartialEq)]
 #[doc(alias = "HingeJoint")]
 pub struct RevoluteJoint {
@@ -59,14 +39,12 @@ pub struct RevoluteJoint {
     /// The local axis about which the bodies can rotate relative to each other.
     ///
     /// By default, this is the z-axis.
-    #[cfg(feature = "3d")]
     pub hinge_axis: Vector,
     /// The extents of the allowed relative rotation of the bodies.
     pub angle_limit: Option<AngleLimit>,
     /// The compliance of the point-to-point constraint (inverse of stiffness, m / N).
     pub point_compliance: Scalar,
     /// The compliance used for aligning the bodies along the [`hinge_axis`](Self::hinge_axis) (inverse of stiffness, N * m / rad).
-    #[cfg(feature = "3d")]
     pub align_compliance: Scalar,
     /// The compliance of the angle limit (inverse of stiffness, N * m / rad).
     pub limit_compliance: Scalar,
@@ -82,7 +60,6 @@ impl EntityConstraint<2> for RevoluteJoint {
 
 impl RevoluteJoint {
     /// The default [`hinge_axis`](Self::hinge_axis) for a revolute joint.
-    #[cfg(feature = "3d")]
     pub const DEFAULT_HINGE_AXIS: Vector = Vector::Z;
 
     /// Creates a new [`RevoluteJoint`] between two entities.
@@ -93,11 +70,9 @@ impl RevoluteJoint {
             body2,
             frame1: JointFrame::IDENTITY,
             frame2: JointFrame::IDENTITY,
-            #[cfg(feature = "3d")]
             hinge_axis: Self::DEFAULT_HINGE_AXIS,
             angle_limit: None,
             point_compliance: 0.0,
-            #[cfg(feature = "3d")]
             align_compliance: 0.0,
             limit_compliance: 0.0,
             motor: AngularMotor::new_disabled(MotorModel::DEFAULT),
@@ -108,7 +83,6 @@ impl RevoluteJoint {
     ///
     /// The axis should be a unit vector. By default, this is the z-axis.
     #[inline]
-    #[cfg(feature = "3d")]
     pub const fn with_hinge_axis(mut self, axis: Vector) -> Self {
         self.hinge_axis = axis;
         self
@@ -121,7 +95,6 @@ impl RevoluteJoint {
     /// This method is deprecated in favor of [`with_hinge_axis`](Self::with_hinge_axis).
     #[inline]
     #[deprecated(since = "0.4.0", note = "Use `with_hinge_axis` instead.")]
-    #[cfg(feature = "3d")]
     pub const fn with_aligned_axis(self, axis: Vector) -> Self {
         self.with_hinge_axis(axis)
     }
@@ -275,7 +248,6 @@ impl RevoluteJoint {
     /// If the [`JointBasis`] is set to [`FromGlobal`](JointBasis::FromGlobal),
     /// and the local basis has not yet been computed, this will return `None`.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn local_hinge_axis1(&self) -> Option<Vector> {
         match self.frame1.basis {
             JointBasis::Local(basis) => Some(basis * self.hinge_axis),
@@ -291,7 +263,6 @@ impl RevoluteJoint {
     /// If the [`JointBasis`] is set to [`FromGlobal`](JointBasis::FromGlobal),
     /// and the local basis has not yet been computed, this will return `None`.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn local_hinge_axis2(&self) -> Option<Vector> {
         match self.frame2.basis {
             JointBasis::Local(basis) => Some(basis * self.hinge_axis),
@@ -314,7 +285,6 @@ impl RevoluteJoint {
     )]
     pub const fn with_compliance(mut self, compliance: Scalar) -> Self {
         self.point_compliance = compliance;
-        #[cfg(feature = "3d")]
         {
             self.align_compliance = compliance;
         }
@@ -331,7 +301,6 @@ impl RevoluteJoint {
 
     /// Sets the compliance of the axis alignment constraint (inverse of stiffness, N * m / rad).
     #[inline]
-    #[cfg(feature = "3d")]
     pub const fn with_align_compliance(mut self, compliance: Scalar) -> Self {
         self.align_compliance = compliance;
         self

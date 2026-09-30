@@ -175,8 +175,6 @@ fn split_island(
 
 /// A stable identifier for a [`PhysicsIsland`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct IslandId(pub u32);
 
@@ -564,16 +562,6 @@ impl PhysicsIslands {
 
         island.contact_count += 1;
 
-        #[cfg(feature = "validate")]
-        {
-            // Validate the island.
-            island.validate(
-                &body_islands.as_readonly(),
-                &contact_graph.edges,
-                joint_graph,
-            );
-        }
-
         Some(island)
     }
 
@@ -647,12 +635,6 @@ impl PhysicsIslands {
         island.contact_count -= 1;
         island.constraints_removed += 1;
 
-        #[cfg(feature = "validate")]
-        {
-            // Validate the island.
-            island.validate(&body_islands.as_readonly(), contact_graph, joint_graph);
-        }
-
         island
     }
 
@@ -716,16 +698,6 @@ impl PhysicsIslands {
 
         island.joint_count += 1;
 
-        #[cfg(feature = "validate")]
-        {
-            // Validate the island.
-            island.validate(
-                &body_islands.as_readonly(),
-                &contact_graph.edges,
-                joint_graph,
-            );
-        }
-
         Some(island)
     }
 
@@ -786,16 +758,6 @@ impl PhysicsIslands {
         debug_assert!(island.joint_count > 0);
         island.joint_count -= 1;
         island.constraints_removed += 1;
-
-        #[cfg(feature = "validate")]
-        {
-            // Validate the island.
-            island.validate(
-                &body_islands.as_readonly(),
-                &contact_graph.edges,
-                joint_graph,
-            );
-        }
 
         Some(island)
     }
@@ -967,16 +929,6 @@ impl PhysicsIslands {
             big.sleep_timer = small.sleep_timer.max(big.sleep_timer);
         }
 
-        #[cfg(feature = "validate")]
-        {
-            // Validate the big island.
-            big.validate(
-                &body_islands.as_readonly(),
-                &contact_graph.edges,
-                joint_graph,
-            );
-        }
-
         // 4. Remove the small island.
         let big_id = big.id;
         let small_id = small.id;
@@ -1006,16 +958,6 @@ impl PhysicsIslands {
         if island.constraints_removed == 0 {
             // No constraints have been removed, so no need to split the island.
             return;
-        }
-
-        #[cfg(feature = "validate")]
-        {
-            // Validate the island before splitting.
-            island.validate(
-                &body_islands.as_readonly(),
-                &contact_graph.edges,
-                joint_graph,
-            );
         }
 
         let body_count = island.body_count;
@@ -1246,16 +1188,6 @@ impl PhysicsIslands {
                 }
             }
 
-            #[cfg(feature = "validate")]
-            {
-                // Validate the new island.
-                island.validate(
-                    &body_islands.as_readonly(),
-                    &contact_graph.edges,
-                    joint_graph,
-                );
-            }
-
             // Add the new island to the list.
             self.islands.push(island);
         }
@@ -1264,7 +1196,6 @@ impl PhysicsIslands {
 
 /// A node in a linked list in a [`PhysicsIsland`].
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct IslandNode<Id> {
     /// The ID of the island that the node belongs to.
     pub(crate) island_id: IslandId,
@@ -1308,7 +1239,6 @@ impl<Id: Copy> Copy for IslandNode<Id> {}
 
 /// A component that stores [`PhysicsIsland`] connectivity data for a rigid body.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[component(on_add = BodyIslandNode::on_add, on_remove = BodyIslandNode::on_remove)]
 pub struct BodyIslandNode(IslandNode<Entity>);
 
@@ -1359,9 +1289,6 @@ impl BodyIslandNode {
         debug_assert!(island.body_count > 0);
         island.body_count -= 1;
 
-        #[cfg(feature = "validate")]
-        let mut island_removed = false;
-
         if island.head_body == Some(ctx.entity) {
             island.head_body = next_body_entity;
 
@@ -1374,37 +1301,9 @@ impl BodyIslandNode {
                 world
                     .resource_mut::<PhysicsIslands>()
                     .remove_island(island_id);
-
-                #[cfg(feature = "validate")]
-                {
-                    island_removed = true;
-                }
             }
         } else if island.tail_body == Some(ctx.entity) {
             island.tail_body = prev_body_entity;
-        }
-
-        #[cfg(feature = "validate")]
-        if !island_removed {
-            // Validate the island.
-            world.commands().queue(move |world: &mut World| {
-                use bevy::ecs::system::RunSystemOnce;
-                // TODO: This is probably quite inefficient.
-                let _ = world.run_system_once(
-                    move |bodies: Query<
-                        &BodyIslandNode,
-                        Or<(With<Disabled>, Without<Disabled>)>,
-                    >,
-                          islands: Res<PhysicsIslands>,
-                          contact_graph: Res<ContactGraph>,
-                          joint_graph: Res<JointGraph>| {
-                        let island = islands
-                            .get(island_id)
-                            .unwrap_or_else(|| panic!("Island {island_id} does not exist"));
-                        island.validate(&bodies, &contact_graph.edges, &joint_graph);
-                    },
-                );
-            });
         }
     }
 }

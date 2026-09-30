@@ -9,8 +9,6 @@ use bevy::prelude::*;
 
 /// Constraint data required by the XPBD constraint solver for a point constraint.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct PointConstraintShared {
     /// The world-space anchor point relative to the center of mass of the first body.

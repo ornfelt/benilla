@@ -20,7 +20,6 @@
 mod system_param;
 use system_param::ContactStatusBits;
 pub use system_param::NarrowPhase;
-#[cfg(feature = "parallel")]
 use system_param::ThreadLocalContactStatusBits;
 
 use core::marker::PhantomData;
@@ -114,7 +113,6 @@ where
             .init_resource::<DefaultFriction>()
             .init_resource::<DefaultRestitution>();
 
-        #[cfg(feature = "parallel")]
         app.init_resource::<ThreadLocalContactStatusBits>();
 
         app.add_message::<CollisionStart>()
@@ -199,8 +197,6 @@ pub struct CollisionEventSystems;
 
 /// A resource for configuring the [narrow phase](NarrowPhasePlugin).
 #[derive(Resource, Reflect, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Resource, PartialEq)]
 pub struct NarrowPhaseConfig {
     /// The default maximum [speculative margin](SpeculativeMargin) used for

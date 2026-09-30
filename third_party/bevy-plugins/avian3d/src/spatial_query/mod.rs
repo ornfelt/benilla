@@ -152,9 +152,7 @@
 
 mod query_filter;
 mod ray_caster;
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 mod shape_caster;
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 mod system_param;
 
 mod diagnostics;
@@ -162,9 +160,7 @@ pub use diagnostics::SpatialQueryDiagnostics;
 
 pub use query_filter::*;
 pub use ray_caster::*;
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 pub use shape_caster::*;
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 pub use system_param::*;
 
 use crate::prelude::*;
@@ -183,10 +179,6 @@ impl Plugin for SpatialQueryPlugin {
         physics_schedule.add_systems(
             (
                 update_ray_caster_positions,
-                #[cfg(all(
-                    feature = "default-collider",
-                    any(feature = "parry-f32", feature = "parry-f64")
-                ))]
                 (update_shape_caster_positions, raycast, shapecast).chain(),
             )
                 .chain()
@@ -267,7 +259,6 @@ fn update_ray_caster_positions(
     }
 }
 
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 type ShapeCasterPositionQueryComponents = (
     &'static mut ShapeCaster,
     Option<&'static Position>,
@@ -276,7 +267,6 @@ type ShapeCasterPositionQueryComponents = (
     Option<&'static GlobalTransform>,
 );
 
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 #[allow(clippy::type_complexity)]
 fn update_shape_caster_positions(
     mut shape_casters: Query<ShapeCasterPositionQueryComponents>,
@@ -307,22 +297,11 @@ fn update_shape_caster_positions(
         if let Some(global_rotation) = global_rotation {
             let global_direction = global_rotation * shape_caster.direction;
             shape_caster.set_global_direction(global_direction);
-            #[cfg(feature = "2d")]
-            {
-                shape_caster
-                    .set_global_shape_rotation(shape_rotation + global_rotation.as_radians());
-            }
-            #[cfg(feature = "3d")]
             {
                 shape_caster.set_global_shape_rotation(shape_rotation * global_rotation.0);
             }
         } else if parent.is_none() {
             shape_caster.set_global_direction(direction);
-            #[cfg(feature = "2d")]
-            {
-                shape_caster.set_global_shape_rotation(shape_rotation);
-            }
-            #[cfg(feature = "3d")]
             {
                 shape_caster.set_global_shape_rotation(shape_rotation);
             }
@@ -350,11 +329,6 @@ fn update_shape_caster_positions(
             {
                 let global_direction = rotation * shape_caster.direction;
                 shape_caster.set_global_direction(global_direction);
-                #[cfg(feature = "2d")]
-                {
-                    shape_caster.set_global_shape_rotation(shape_rotation + rotation.as_radians());
-                }
-                #[cfg(feature = "3d")]
                 {
                     shape_caster.set_global_shape_rotation(shape_rotation * rotation.0);
                 }
@@ -363,7 +337,6 @@ fn update_shape_caster_positions(
     }
 }
 
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 fn raycast(
     mut rays: Query<(Entity, &mut RayCaster, &mut RayHits)>,
     spatial_query: SpatialQuery,
@@ -382,7 +355,6 @@ fn raycast(
     diagnostics.update_ray_casters = start.elapsed();
 }
 
-#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 fn shapecast(
     mut shape_casters: Query<(Entity, &mut ShapeCaster, &mut ShapeHits)>,
     spatial_query: SpatialQuery,

@@ -14,10 +14,6 @@ pub const TAU: Scalar = core::f32::consts::TAU;
 pub const FRAC_1_SQRT_2: Scalar = core::f32::consts::FRAC_1_SQRT_2;
 
 /// The vector type used by Avian.
-#[cfg(feature = "2d")]
-pub type Vector = Vec2;
-/// The vector type used by Avian.
-#[cfg(feature = "3d")]
 pub type Vector = Vec3;
 /// The vector type used by Avian. This is always a 2D vector regardless of the chosen dimension.
 pub type Vector2 = Vec2;
@@ -25,20 +21,12 @@ pub type Vector2 = Vec2;
 pub type Vector3 = Vec3;
 
 /// The dimension-specific matrix type used by Avian.
-#[cfg(feature = "2d")]
-pub type Matrix = Mat2;
-/// The dimension-specific matrix type used by Avian.
-#[cfg(feature = "3d")]
 pub type Matrix = Mat3;
 /// The 2x2 matrix type used by Avian.
 pub type Matrix2 = Mat2;
 /// The 3x3 matrix type used by Avian.
 pub type Matrix3 = Mat3;
 /// The dimension-specific matrix type used by Avian.
-#[cfg(feature = "2d")]
-pub type SymmetricMatrix = SymmetricMat2;
-/// The dimension-specific matrix type used by Avian.
-#[cfg(feature = "3d")]
 pub type SymmetricMatrix = SymmetricMat3;
 /// The 2x2 matrix type used by Avian.
 pub type SymmetricMatrix2 = SymmetricMat2;

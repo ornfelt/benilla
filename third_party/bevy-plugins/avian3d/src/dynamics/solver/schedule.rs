@@ -167,8 +167,7 @@ pub type SubstepSolverSet = SubstepSolverSystems;
 /// You can change the number of substeps by inserting the [`SubstepCount`] resource:
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn main() {
@@ -179,8 +178,6 @@ pub type SubstepSolverSet = SubstepSolverSystems;
 /// }
 /// ```
 #[derive(Debug, Reflect, Resource, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Resource, PartialEq)]
 pub struct SubstepCount(pub u32);
 

@@ -4,14 +4,12 @@
 
 use core::marker::PhantomData;
 
-#[cfg(all(feature = "collider-from-mesh", feature = "default-collider"))]
 use crate::collision::collider::cache::ColliderCache;
 use crate::{
     collision::collider::EnlargedAabb,
     physics_transform::{PhysicsTransformConfig, PhysicsTransformSystems, init_physics_transform},
     prelude::*,
 };
-#[cfg(all(feature = "bevy_scene", feature = "default-collider"))]
 use bevy::scene::SceneInstance;
 use bevy::{
     ecs::{intern::Interned, schedule::ScheduleLabel},
@@ -37,8 +35,7 @@ use mass_properties::{MassPropertySystems, components::RecomputeMassProperties};
 /// To use a custom collider backend, simply add the [`ColliderBackendPlugin`] with your collider type:
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 /// #
 /// # type MyCollider = Collider;
@@ -124,8 +121,6 @@ impl<C: ScalableCollider> Plugin for ColliderBackendPlugin<C> {
                     .get::<GlobalTransform>()
                     .map(|gt| gt.scale())
                     .unwrap_or_default();
-                #[cfg(feature = "2d")]
-                let scale = scale.xy();
 
                 let mut entity_mut = world.entity_mut(ctx.entity);
 
@@ -235,7 +230,6 @@ impl<C: ScalableCollider> Plugin for ColliderBackendPlugin<C> {
                 .chain(),
         );
 
-        #[cfg(feature = "default-collider")]
         app.add_systems(
             Update,
             (
@@ -261,12 +255,11 @@ pub struct ColliderMarker;
 /// # Panics
 ///
 /// Panics if the [`ColliderConstructor`] requires a mesh but no mesh handle is found.
-#[cfg(feature = "default-collider")]
 fn init_collider_constructors(
     mut commands: Commands,
-    #[cfg(feature = "collider-from-mesh")] meshes: Res<Assets<Mesh>>,
-    #[cfg(feature = "collider-from-mesh")] mesh_handles: Query<&Mesh3d>,
-    #[cfg(feature = "collider-from-mesh")] mut collider_cache: Option<ResMut<ColliderCache>>,
+    meshes: Res<Assets<Mesh>>,
+    mesh_handles: Query<&Mesh3d>,
+    mut collider_cache: Option<ResMut<ColliderCache>>,
     constructors: Query<(
         Entity,
         Option<&Collider>,
@@ -284,7 +277,6 @@ fn init_collider_constructors(
             commands.entity(entity).remove::<ColliderConstructor>();
             continue;
         }
-        #[cfg(feature = "collider-from-mesh")]
         let collider = if constructor.requires_mesh() {
             let mesh_handle = mesh_handles.get(entity).unwrap_or_else(|_| panic!(
                 "Tried to add a collider to entity {name} via {constructor:#?} that requires a mesh, \
@@ -300,9 +292,6 @@ fn init_collider_constructors(
         } else {
             Collider::try_from_constructor(constructor.clone(), None)
         };
-
-        #[cfg(not(feature = "collider-from-mesh"))]
-        let collider = Collider::try_from_constructor(constructor.clone());
 
         if let Some(collider) = collider {
             commands.entity(entity).insert(collider);
@@ -320,15 +309,14 @@ fn init_collider_constructors(
 /// Generates [`Collider`]s for descendants of entities with the [`ColliderConstructorHierarchy`] component.
 ///
 /// If an entity has a `SceneInstance`, its collider hierarchy is only generated once the scene is ready.
-#[cfg(feature = "default-collider")]
 fn init_collider_constructor_hierarchies(
     mut commands: Commands,
-    #[cfg(feature = "collider-from-mesh")] meshes: Res<Assets<Mesh>>,
-    #[cfg(feature = "collider-from-mesh")] mesh_handles: Query<&Mesh3d>,
-    #[cfg(feature = "collider-from-mesh")] mut collider_cache: Option<ResMut<ColliderCache>>,
-    #[cfg(feature = "bevy_scene")] scene_spawner: Res<SceneSpawner>,
-    #[cfg(feature = "bevy_scene")] scenes: Query<&SceneRoot>,
-    #[cfg(feature = "bevy_scene")] scene_instances: Query<&SceneInstance>,
+    meshes: Res<Assets<Mesh>>,
+    mesh_handles: Query<&Mesh3d>,
+    mut collider_cache: Option<ResMut<ColliderCache>>,
+    scene_spawner: Res<SceneSpawner>,
+    scenes: Query<&SceneRoot>,
+    scene_instances: Query<&SceneInstance>,
     collider_constructors: Query<(Entity, &ColliderConstructorHierarchy)>,
     children: Query<&Children>,
     child_query: Query<(Option<&Name>, Option<&Collider>)>,
@@ -336,7 +324,6 @@ fn init_collider_constructor_hierarchies(
     use super::ColliderConstructorHierarchyConfig;
 
     for (scene_entity, collider_constructor_hierarchy) in collider_constructors.iter() {
-        #[cfg(feature = "bevy_scene")]
         {
             if scenes.contains(scene_entity) {
                 if let Ok(scene_instance) = scene_instances.get(scene_entity) {
@@ -396,7 +383,6 @@ fn init_collider_constructor_hierarchies(
                 continue;
             };
 
-            #[cfg(feature = "collider-from-mesh")]
             let collider = if constructor.requires_mesh() {
                 let Ok(mesh_handle) = mesh_handles.get(child_entity) else {
                     // This child entity does not have a mesh, so we skip it.
@@ -415,9 +401,6 @@ fn init_collider_constructor_hierarchies(
             } else {
                 Collider::try_from_constructor(constructor.clone(), None)
             };
-
-            #[cfg(not(feature = "collider-from-mesh"))]
-            let collider = Collider::try_from_constructor(constructor);
 
             if let Some(collider) = collider {
                 commands.entity(child_entity).insert((
@@ -447,7 +430,6 @@ fn init_collider_constructor_hierarchies(
     }
 }
 
-#[cfg(feature = "default-collider")]
 fn pretty_name(name: Option<&Name>, entity: Entity) -> String {
     name.map(|n| n.to_string())
         .unwrap_or_else(|| format!("<unnamed entity {}>", entity.index()))
@@ -470,9 +452,6 @@ pub fn update_collider_scale<C: ScalableCollider>(
     if config.transform_to_collider_scale {
         // Update collider scale for root bodies
         for (transform, mut collider) in &mut colliders.p0() {
-            #[cfg(feature = "2d")]
-            let scale = transform.scale.truncate().adjust_precision();
-            #[cfg(feature = "3d")]
             let scale = transform.scale.adjust_precision();
             if scale != collider.scale() {
                 // TODO: Support configurable subdivision count for shapes that
@@ -510,11 +489,9 @@ pub(crate) fn update_collider_mass_properties<C: AnyCollider>(
 mod tests {
     #![allow(clippy::unnecessary_cast)]
 
-    #[cfg(feature = "default-collider")]
     use super::*;
 
     #[test]
-    #[cfg(feature = "default-collider")]
     fn sensor_mass_properties() {
         let mut app = App::new();
 

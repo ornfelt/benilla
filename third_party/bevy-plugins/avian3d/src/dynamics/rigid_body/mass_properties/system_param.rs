@@ -94,12 +94,6 @@ impl MassPropertyHelper<'_, '_> {
 
         if no_auto_inertia {
             if let Some(angular_inertia) = angular_inertia {
-                #[cfg(feature = "2d")]
-                {
-                    mass_props.angular_inertia = angular_inertia.0;
-                    computed_inertia.set(mass_props.angular_inertia as Scalar);
-                }
-                #[cfg(feature = "3d")]
                 {
                     mass_props.principal_angular_inertia = angular_inertia.principal;
                     mass_props.local_inertial_frame = angular_inertia.local_frame;
@@ -110,11 +104,6 @@ impl MassPropertyHelper<'_, '_> {
                 }
             }
         } else {
-            #[cfg(feature = "2d")]
-            {
-                computed_inertia.set(mass_props.angular_inertia as Scalar);
-            }
-            #[cfg(feature = "3d")]
             {
                 *computed_inertia = ComputedAngularInertia::new_with_local_frame(
                     mass_props.principal_angular_inertia.adjust_precision(),
@@ -183,11 +172,6 @@ impl MassPropertyHelper<'_, '_> {
 
         // Set the angular inertia if the `AngularInertia` component is present.
         if let Some(angular_inertia) = angular_inertia {
-            #[cfg(feature = "2d")]
-            {
-                mass_props.angular_inertia = angular_inertia.0;
-            }
-            #[cfg(feature = "3d")]
             {
                 mass_props.principal_angular_inertia = angular_inertia.principal;
                 mass_props.local_inertial_frame = angular_inertia.local_frame;
@@ -200,14 +184,6 @@ impl MassPropertyHelper<'_, '_> {
         }
 
         if let Some(collider_transform) = collider_mass.and(collider_transform) {
-            #[cfg(feature = "2d")]
-            {
-                mass_props.transform_by(Isometry2d::new(
-                    collider_transform.translation.f32(),
-                    Rot2::from(collider_transform.rotation),
-                ));
-            }
-            #[cfg(feature = "3d")]
             {
                 mass_props.transform_by(Isometry3d::new(
                     collider_transform.translation.f32(),

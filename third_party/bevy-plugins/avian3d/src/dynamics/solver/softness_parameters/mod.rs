@@ -7,8 +7,6 @@
 #![doc = include_str!("README.md")]
 
 use bevy::reflect::Reflect;
-#[cfg(feature = "serialize")]
-use bevy::reflect::{ReflectDeserialize, ReflectSerialize};
 
 use crate::{Scalar, TAU};
 
@@ -81,8 +79,6 @@ impl SoftnessParameters {
 
 /// Coefficients used by soft constraints.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct SoftnessCoefficients {
     /// The bias coefficient used for scaling how strongly impulses

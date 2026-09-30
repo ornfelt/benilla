@@ -18,8 +18,6 @@
 //! [Box2D - SIMD Matters]: https://box2d.org/posts/2024/08/simd-matters/
 //! [Erin Catto]: https://github.com/erincatto
 
-#[cfg(feature = "serialize")]
-use bevy::reflect::{ReflectDeserialize, ReflectSerialize};
 use bevy::{
     ecs::{entity::Entity, resource::Resource},
     reflect::Reflect,
@@ -60,8 +58,6 @@ pub const DYNAMIC_COLOR_COUNT: usize = GRAPH_COLOR_COUNT - 4;
 ///
 /// [`SolverBody`]: crate::dynamics::solver::solver_body::SolverBody
 #[derive(Clone, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug)]
 pub struct GraphColor {
     /// A bit vector representing the [`SolverBody`]s that are part of this color.
@@ -83,8 +79,6 @@ pub struct GraphColor {
 ///
 /// [`ContactGraph`]: crate::collision::contact_types::ContactGraph
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ContactManifoldHandle {
     /// The stable identifier of the contact pair in the [`ContactGraph`].
@@ -98,8 +92,6 @@ pub struct ContactManifoldHandle {
 
 /// A handle to a contact constraint in the [`ConstraintGraph`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ContactConstraintHandle {
     /// The index of the [`GraphColor`] of the constraint in the [`ConstraintGraph`].
@@ -123,8 +115,6 @@ pub struct ContactConstraintHandle {
 ///
 /// [`ContactManifold`]: crate::collision::contact_types::ContactManifold
 #[derive(Resource, Clone, Debug, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug)]
 pub struct ConstraintGraph {
     /// The colors in the graph.

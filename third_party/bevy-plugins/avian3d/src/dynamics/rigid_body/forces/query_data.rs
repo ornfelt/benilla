@@ -18,22 +18,14 @@ use super::AccumulatedLocalAcceleration;
 /// and use the associated methods to apply forces, impulses, and accelerations to the rigid bodies.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # #[cfg(feature = "f32")]
 /// fn apply_forces(mut query: Query<Forces>) {
 ///     for mut forces in &mut query {
 ///         // Apply a force of 10 N in the positive Y direction to the entity.
-#[cfg_attr(
-    feature = "2d",
-    doc = "        forces.apply_force(Vec2::new(0.0, 10.0));"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        forces.apply_force(Vec3::new(0.0, 10.0, 0.0));"
-)]
+///         forces.apply_force(Vec3::new(0.0, 10.0, 0.0));
 ///     }
 /// }
 /// ```
@@ -45,8 +37,7 @@ use super::AccumulatedLocalAcceleration;
 /// that allows applying forces to a body without waking it up.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::{math::Vector, prelude::*};")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::{math::Vector, prelude::*};")]
+/// # use avian3d::{math::Vector, prelude::*};
 /// # use bevy::prelude::*;
 /// #
 /// # fn apply_impulses(mut query: Query<Forces>) {
@@ -62,8 +53,7 @@ use super::AccumulatedLocalAcceleration;
 /// with the [center of mass](CenterOfMass), it will apply a torque to the body.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::{math::Vector, prelude::*};")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::{math::Vector, prelude::*};")]
+/// # use avian3d::{math::Vector, prelude::*};
 /// # use bevy::prelude::*;
 /// #
 /// # fn apply_impulses(mut query: Query<Forces>) {
@@ -81,8 +71,7 @@ use super::AccumulatedLocalAcceleration;
 /// with a system like the following:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # #[cfg(feature = "f32")]
@@ -91,14 +80,7 @@ use super::AccumulatedLocalAcceleration;
 ///         // Compute the direction towards the center of the world.
 ///         let direction = -global_transform.translation().normalize_or_zero();
 ///         // Apply a linear acceleration of 9.81 m/s² towards the center of the world.
-#[cfg_attr(
-    feature = "2d",
-    doc = "        forces.apply_linear_acceleration(direction.truncate() * 9.81);"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        forces.apply_linear_acceleration(direction * 9.81);"
-)]
+///         forces.apply_linear_acceleration(direction * 9.81);
 ///     }
 /// }
 /// ```
@@ -236,21 +218,6 @@ pub trait ReadRigidBodyForces: ReadRigidBodyForcesInternal {
     ///
     /// This does not include gravity, contact forces, or joint forces.
     /// Only torques and accelerations applied through [`Forces`] are included.
-    #[cfg(feature = "2d")]
-    #[inline]
-    fn accumulated_angular_acceleration(&self) -> AngularVector {
-        // The angular increment is treated as angular acceleration until the integration step.
-        self.locked_axes()
-            .apply_to_angular_velocity(self.integration_data().angular_increment)
-    }
-
-    /// Returns the angular acceleration that the body has accumulated
-    /// before the physics step in world space, including acceleration
-    /// caused by torques.
-    ///
-    /// This does not include gravity, contact forces, or joint forces.
-    /// Only torques and accelerations applied through [`Forces`] are included.
-    #[cfg(feature = "3d")]
     #[inline]
     fn accumulated_angular_acceleration(&self) -> AngularVector {
         // The angular increment is treated as angular acceleration until the integration step.
@@ -268,14 +235,7 @@ pub trait ReadRigidBodyForces: ReadRigidBodyForcesInternal {
     #[doc(alias = "linear_velocity_at_point")]
     fn velocity_at_point(&self, world_point: Vector) -> Vector {
         let offset = world_point - self.global_center_of_mass();
-        #[cfg(feature = "2d")]
-        {
-            self.linear_velocity() + self.angular_velocity() * offset.perp()
-        }
-        #[cfg(feature = "3d")]
-        {
-            self.linear_velocity() + self.angular_velocity().cross(offset)
-        }
+        self.linear_velocity() + self.angular_velocity().cross(offset)
     }
 }
 
@@ -369,7 +329,6 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// By default, a non-zero torque will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
-    #[cfg(feature = "3d")]
     #[inline]
     fn apply_local_torque(&mut self, torque: AngularVector) {
         if torque != AngularVector::ZERO && self.try_wake_up() {
@@ -461,7 +420,6 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
-    #[cfg(feature = "3d")]
     #[inline]
     fn apply_local_angular_impulse(&mut self, impulse: AngularVector) {
         if impulse != AngularVector::ZERO && self.try_wake_up() {
@@ -549,7 +507,6 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// By default, a non-zero acceleration will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
-    #[cfg(feature = "3d")]
     #[inline]
     fn apply_local_angular_acceleration(&mut self, acceleration: AngularVector) {
         if acceleration != AngularVector::ZERO && self.try_wake_up() {
@@ -580,7 +537,6 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     #[inline]
     fn reset_accumulated_angular_acceleration(&mut self) {
         self.integration_data_mut().angular_increment = AngularVector::ZERO;
-        #[cfg(feature = "3d")]
         {
             self.accumulated_local_acceleration_mut().angular = AngularVector::ZERO;
         }
@@ -604,7 +560,6 @@ trait WriteRigidBodyForcesInternal: ReadRigidBodyForcesInternal {
     fn lin_vel_mut(&mut self) -> &mut Vector;
     fn ang_vel_mut(&mut self) -> &mut AngularVector;
     fn inverse_mass(&self) -> Scalar;
-    #[cfg(feature = "3d")]
     fn inverse_angular_inertia(&self) -> SymmetricTensor;
     fn effective_inverse_angular_inertia(&self) -> SymmetricTensor;
     fn integration_data_mut(&mut self) -> &mut VelocityIntegrationData;
@@ -661,15 +616,11 @@ impl WriteRigidBodyForcesInternal for ForcesItem<'_, '_> {
         self.mass.inverse()
     }
     #[inline]
-    #[cfg(feature = "3d")]
     fn inverse_angular_inertia(&self) -> SymmetricTensor {
         self.angular_inertia.inverse()
     }
     #[inline]
     fn effective_inverse_angular_inertia(&self) -> SymmetricTensor {
-        #[cfg(feature = "2d")]
-        let global_angular_inertia = *self.angular_inertia;
-        #[cfg(feature = "3d")]
         let global_angular_inertia = self.angular_inertia.rotated(self.rotation.0);
         self.locked_axes()
             .apply_to_angular_inertia(global_angular_inertia)
@@ -777,7 +728,6 @@ impl WriteRigidBodyForcesInternal for NonWakingForcesItem<'_, '_> {
         self.0.inverse_mass()
     }
     #[inline]
-    #[cfg(feature = "3d")]
     fn inverse_angular_inertia(&self) -> SymmetricTensor {
         self.0.inverse_angular_inertia()
     }

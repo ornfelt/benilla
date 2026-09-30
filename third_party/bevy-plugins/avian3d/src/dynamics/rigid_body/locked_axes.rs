@@ -12,22 +12,18 @@ use crate::prelude::*;
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn spawn(mut commands: Commands) {
 ///     commands.spawn((
 ///         RigidBody::Dynamic,
 ///         Collider::capsule(0.5, 1.0),
-#[cfg_attr(feature = "2d", doc = "        LockedAxes::ROTATION_LOCKED,")]
-#[cfg_attr(feature = "3d", doc = "        LockedAxes::new().lock_rotation_z(),")]
+///         LockedAxes::new().lock_rotation_z(),
 ///     ));
 /// }
 /// ```
 #[derive(Component, Reflect, Clone, Copy, Debug, Default, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default)]
 pub struct LockedAxes(u8);
 
@@ -76,7 +72,6 @@ impl LockedAxes {
     }
 
     /// Locks translation along the `Z` axis.
-    #[cfg(feature = "3d")]
     #[must_use]
     pub const fn lock_translation_z(mut self) -> Self {
         self.0 |= 0b001_000;
@@ -84,14 +79,12 @@ impl LockedAxes {
     }
 
     /// Locks rotation around the `X` axis.
-    #[cfg(feature = "3d")]
     pub const fn lock_rotation_x(mut self) -> Self {
         self.0 |= 0b000_100;
         self
     }
 
     /// Locks rotation around the `Y` axis.
-    #[cfg(feature = "3d")]
     #[must_use]
     pub const fn lock_rotation_y(mut self) -> Self {
         self.0 |= 0b000_010;
@@ -99,17 +92,8 @@ impl LockedAxes {
     }
 
     /// Locks rotation around the `Z` axis.
-    #[cfg(feature = "3d")]
     #[must_use]
     pub const fn lock_rotation_z(mut self) -> Self {
-        self.0 |= 0b000_001;
-        self
-    }
-
-    /// Locks all rotation.
-    #[cfg(feature = "2d")]
-    #[must_use]
-    pub const fn lock_rotation(mut self) -> Self {
         self.0 |= 0b000_001;
         self
     }
@@ -129,7 +113,6 @@ impl LockedAxes {
     }
 
     /// Unlocks translation along the `Z` axis.
-    #[cfg(feature = "3d")]
     #[must_use]
     pub const fn unlock_translation_z(mut self) -> Self {
         self.0 &= !0b001_000;
@@ -137,7 +120,6 @@ impl LockedAxes {
     }
 
     /// Unlocks rotation around the `X` axis.
-    #[cfg(feature = "3d")]
     #[must_use]
     pub const fn unlock_rotation_x(mut self) -> Self {
         self.0 &= !0b000_100;
@@ -145,7 +127,6 @@ impl LockedAxes {
     }
 
     /// Unlocks rotation around the `Y` axis.
-    #[cfg(feature = "3d")]
     #[must_use]
     pub const fn unlock_rotation_y(mut self) -> Self {
         self.0 &= !0b000_010;
@@ -153,17 +134,8 @@ impl LockedAxes {
     }
 
     /// Unlocks rotation around the `Z` axis.
-    #[cfg(feature = "3d")]
     #[must_use]
     pub const fn unlock_rotation_z(mut self) -> Self {
-        self.0 &= !0b000_001;
-        self
-    }
-
-    /// Unlocks all rotation.
-    #[cfg(feature = "2d")]
-    #[must_use]
-    pub const fn unlock_rotation(mut self) -> Self {
         self.0 &= !0b000_001;
         self
     }
@@ -179,49 +151,31 @@ impl LockedAxes {
     }
 
     /// Returns true if translation is locked along the `X` axis.
-    #[cfg(feature = "3d")]
     pub const fn is_translation_z_locked(&self) -> bool {
         (self.0 & 0b001_000) != 0
     }
 
     /// Returns true if all translation is locked.
-    #[cfg(feature = "2d")]
-    pub const fn is_translation_locked(&self) -> bool {
-        (self.0 & 0b110_000) == 0b110_000
-    }
-
-    /// Returns true if all translation is locked.
-    #[cfg(feature = "3d")]
     pub const fn is_translation_locked(&self) -> bool {
         (self.0 & 0b111_000) == 0b111_000
     }
 
     /// Returns true if rotation is locked around the `X` axis.
-    #[cfg(feature = "3d")]
     pub const fn is_rotation_x_locked(&self) -> bool {
         (self.0 & 0b000_100) != 0
     }
 
     /// Returns true if rotation is locked around the `Y` axis.
-    #[cfg(feature = "3d")]
     pub const fn is_rotation_y_locked(&self) -> bool {
         (self.0 & 0b000_010) != 0
     }
 
     /// Returns true if rotation is locked around the `Z` axis.
-    #[cfg(feature = "3d")]
     pub const fn is_rotation_z_locked(&self) -> bool {
         (self.0 & 0b000_001) != 0
     }
 
     /// Returns true if all rotation is locked.
-    #[cfg(feature = "2d")]
-    pub const fn is_rotation_locked(&self) -> bool {
-        (self.0 & 0b000_001) != 0
-    }
-
-    /// Returns true if all rotation is locked.
-    #[cfg(feature = "3d")]
     pub const fn is_rotation_locked(&self) -> bool {
         (self.0 & 0b000_111) == 0b000_111
     }
@@ -234,29 +188,13 @@ impl LockedAxes {
         if self.is_translation_y_locked() {
             vector.y = 0.0;
         }
-        #[cfg(feature = "3d")]
         if self.is_translation_z_locked() {
             vector.z = 0.0;
         }
         vector
     }
 
-    /// Sets the given angular inertia to zero if rotational axes are locked.
-    #[cfg(feature = "2d")]
-    pub(crate) fn apply_to_angular_inertia(
-        &self,
-        angular_inertia: impl Into<ComputedAngularInertia>,
-    ) -> ComputedAngularInertia {
-        let mut angular_inertia = angular_inertia.into();
-        let angular_inertia_mut = angular_inertia.inverse_mut();
-        if self.is_rotation_locked() {
-            *angular_inertia_mut = 0.0;
-        }
-        angular_inertia
-    }
-
     /// Sets axes of the given angular inertia to zero based on the [`LockedAxes`] configuration.
-    #[cfg(feature = "3d")]
     pub(crate) fn apply_to_angular_inertia(
         &self,
         angular_inertia: impl Into<ComputedAngularInertia>,
@@ -281,17 +219,7 @@ impl LockedAxes {
         angular_inertia
     }
 
-    /// Sets the given angular velocity to zero if rotational axes are locked.
-    #[cfg(feature = "2d")]
-    pub(crate) fn apply_to_angular_velocity(&self, mut angular_velocity: Scalar) -> Scalar {
-        if self.is_rotation_locked() {
-            angular_velocity = 0.0;
-        }
-        angular_velocity
-    }
-
     /// Sets axes of the given angular velocity to zero based on the [`LockedAxes`] configuration.
-    #[cfg(feature = "3d")]
     pub(crate) fn apply_to_angular_velocity(&self, mut angular_velocity: Vector) -> Vector {
         if self.is_rotation_x_locked() {
             angular_velocity.x = 0.0;

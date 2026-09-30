@@ -140,7 +140,6 @@ impl Plugin for SolverPlugin {
             (
                 joint_damping::<FixedJoint>,
                 joint_damping::<RevoluteJoint>,
-                #[cfg(feature = "3d")]
                 joint_damping::<SphericalJoint>,
                 joint_damping::<PrismaticJoint>,
                 joint_damping::<DistanceJoint>,

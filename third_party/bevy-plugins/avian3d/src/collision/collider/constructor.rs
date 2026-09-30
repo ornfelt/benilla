@@ -35,46 +35,23 @@ use itertools::Either;
 /// for a glTF scene at runtime. Note that this requires the `bevy_scene` feature to be enabled.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands, mut assets: ResMut<AssetServer>) {
 ///     let scene = assets.load("my_model.gltf#Scene0");
 ///
-#[cfg_attr(
-    feature = "2d",
-    doc = "    // Spawn the scene and automatically generate circle colliders"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    // Spawn the scene and automatically generate triangle mesh colliders"
-)]
+///     // Spawn the scene and automatically generate triangle mesh colliders
 ///     commands.spawn((
 ///         SceneRoot(scene.clone()),
-#[cfg_attr(
-    feature = "2d",
-    doc = "        ColliderConstructorHierarchy::new(ColliderConstructor::Circle { radius: 2.0 }),"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMesh),"
-)]
+///         ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMesh),
 ///     ));
 ///
 ///     // Specify configuration for specific meshes by name
 ///     commands.spawn((
 ///         SceneRoot(scene.clone()),
-#[cfg_attr(
-    feature = "2d",
-    doc = "        ColliderConstructorHierarchy::new(ColliderConstructor::Circle { radius: 2.0 })
-            .with_constructor_for_name(\"Tree\", ColliderConstructor::Rectangle { x_length: 1.0, y_length: 2.0 })"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMesh)
-            .with_constructor_for_name(\"Tree\", ColliderConstructor::ConvexHullFromMesh)"
-)]
+///         ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMesh)
+///             .with_constructor_for_name("Tree", ColliderConstructor::ConvexHullFromMesh)
 ///             .with_layers_for_name("Tree", CollisionLayers::from_bits(0b0010, 0b1111))
 ///             .with_density_for_name("Tree", 2.5),
 ///     ));
@@ -83,37 +60,20 @@ use itertools::Either;
 ///     commands.spawn((
 ///         SceneRoot(scene.clone()),
 ///         ColliderConstructorHierarchy::new(None)
-#[cfg_attr(
-    feature = "2d",
-    doc = "            .with_constructor_for_name(\"Tree\", ColliderConstructor::Circle { radius: 2.0 }),"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "            .with_constructor_for_name(\"Tree\", ColliderConstructor::ConvexHullFromMesh),"
-)]
+///             .with_constructor_for_name("Tree", ColliderConstructor::ConvexHullFromMesh),
 ///     ));
 ///
 ///     // Generate colliders for everything except specific meshes by name
 ///     commands.spawn((
 ///         SceneRoot(scene),
-#[cfg_attr(
-    feature = "2d",
-    doc = "        ColliderConstructorHierarchy::new(ColliderConstructor::Circle { radius: 2.0 })
-            .without_constructor_for_name(\"Tree\"),"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMeshWithConfig(
-             TrimeshFlags::MERGE_DUPLICATE_VERTICES
-        ))
-        .without_constructor_for_name(\"Tree\"),"
-)]
+///         ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMeshWithConfig(
+///              TrimeshFlags::MERGE_DUPLICATE_VERTICES
+///         ))
+///         .without_constructor_for_name("Tree"),
 ///     ));
 /// }
 /// ```
 #[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq, Default)]
 pub struct ColliderConstructorHierarchy {
     /// The default collider type used for each entity that isn't included in [`config`](Self::config).
@@ -140,7 +100,6 @@ pub struct ColliderConstructorHierarchy {
 /// The event is not triggered when the [`ColliderConstructor`] failed to construct the [`Collider`]
 /// or when there was already a [`Collider`] on the entity.
 #[derive(EntityEvent, Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct ColliderConstructorReady {
     /// The entity that held the [`ColliderConstructor`].
     pub entity: Entity,
@@ -152,7 +111,6 @@ pub struct ColliderConstructorReady {
 /// or failed to insert all of them, so this event is not a guarantee that there are actually
 /// any colliders in the scene.
 #[derive(EntityEvent, Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct ColliderConstructorHierarchyReady {
     /// The entity that held the [`ColliderConstructorHierarchy`].
     pub entity: Entity,
@@ -244,8 +202,6 @@ impl ColliderConstructorHierarchy {
 
 /// Configuration for a specific collider generated from a scene using [`ColliderConstructorHierarchy`].
 #[derive(Clone, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Default, PartialEq)]
 pub struct ColliderConstructorHierarchyConfig {
     /// The type of collider generated for the mesh.
@@ -281,70 +237,33 @@ pub struct ColliderConstructorHierarchyConfig {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands, mut assets: ResMut<AssetServer>, mut meshes: Assets<Mesh>) {
-#[cfg_attr(feature = "2d", doc = "     // Spawn a circle with radius 2")]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    // Spawn a cube with a convex hull collider generated from the mesh"
-)]
+///     // Spawn a cube with a convex hull collider generated from the mesh
 ///     commands.spawn((
-#[cfg_attr(
-    feature = "2d",
-    doc = "        ColliderConstructor::Circle { radius: 2.0 },"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "        ColliderConstructor::ConvexHullFromMesh,"
-)]
+///         ColliderConstructor::ConvexHullFromMesh,
 ///         Mesh3d(meshes.add(Cuboid::default())),
 ///     ));
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Reflect, Component)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
-#[cfg_attr(feature = "collider-from-mesh", derive(Default))]
-#[cfg_attr(feature = "collider-from-mesh", reflect(Default))]
+#[derive(Clone, Debug, PartialEq, Reflect, Component, Default)]
+#[reflect(Default)]
 #[reflect(Debug, Component, PartialEq)]
 #[reflect(no_field_bounds)]
 #[non_exhaustive]
 #[allow(missing_docs)]
 pub enum ColliderConstructor {
-    /// Constructs a collider with [`Collider::circle`].
-    #[cfg(feature = "2d")]
-    Circle { radius: Scalar },
     /// Constructs a collider with [`Collider::sphere`].
-    #[cfg(feature = "3d")]
     Sphere { radius: Scalar },
-    /// Constructs a collider with [`Collider::ellipse`].
-    #[cfg(feature = "2d")]
-    Ellipse {
-        half_width: Scalar,
-        half_height: Scalar,
-    },
-    /// Constructs a collider with [`Collider::rectangle`].
-    #[cfg(feature = "2d")]
-    Rectangle { x_length: Scalar, y_length: Scalar },
     /// Constructs a collider with [`Collider::cuboid`].
-    #[cfg(feature = "3d")]
     Cuboid {
         x_length: Scalar,
         y_length: Scalar,
         z_length: Scalar,
     },
-    /// Constructs a collider with [`Collider::round_rectangle`].
-    #[cfg(feature = "2d")]
-    RoundRectangle {
-        x_length: Scalar,
-        y_length: Scalar,
-        border_radius: Scalar,
-    },
     /// Constructs a collider with [`Collider::round_cuboid`].
-    #[cfg(feature = "3d")]
     RoundCuboid {
         x_length: Scalar,
         y_length: Scalar,
@@ -352,10 +271,8 @@ pub enum ColliderConstructor {
         border_radius: Scalar,
     },
     /// Constructs a collider with [`Collider::cylinder`].
-    #[cfg(feature = "3d")]
     Cylinder { radius: Scalar, height: Scalar },
     /// Constructs a collider with [`Collider::cone`].
-    #[cfg(feature = "3d")]
     Cone { radius: Scalar, height: Scalar },
     /// Constructs a collider with [`Collider::capsule`].
     Capsule { radius: Scalar, height: Scalar },
@@ -371,9 +288,6 @@ pub enum ColliderConstructor {
     Segment { a: Vector, b: Vector },
     /// Constructs a collider with [`Collider::triangle`].
     Triangle { a: Vector, b: Vector, c: Vector },
-    /// Constructs a collider with [`Collider::regular_polygon`].
-    #[cfg(feature = "2d")]
-    RegularPolygon { circumradius: f32, sides: u32 },
     /// Constructs a collider with [`Collider::polyline`].
     Polyline {
         vertices: Vec<Vector>,
@@ -391,55 +305,24 @@ pub enum ColliderConstructor {
         flags: TrimeshFlags,
     },
     /// Constructs a collider with [`Collider::convex_decomposition`].
-    #[cfg(feature = "2d")]
-    ConvexDecomposition {
-        vertices: Vec<Vector>,
-        indices: Vec<[u32; 2]>,
-    },
-    /// Constructs a collider with [`Collider::convex_decomposition`].
-    #[cfg(feature = "3d")]
     ConvexDecomposition {
         vertices: Vec<Vector>,
         indices: Vec<[u32; 3]>,
     },
     /// Constructs a collider with [`Collider::convex_decomposition_with_config`].
-    #[cfg(feature = "2d")]
-    ConvexDecompositionWithConfig {
-        vertices: Vec<Vector>,
-        indices: Vec<[u32; 2]>,
-        params: VhacdParameters,
-    },
-    /// Constructs a collider with [`Collider::convex_decomposition_with_config`].
-    #[cfg(feature = "3d")]
     ConvexDecompositionWithConfig {
         vertices: Vec<Vector>,
         indices: Vec<[u32; 3]>,
         params: VhacdParameters,
     },
     /// Constructs a collider with [`Collider::convex_hull`].
-    #[cfg(feature = "2d")]
     ConvexHull { points: Vec<Vector> },
-    /// Constructs a collider with [`Collider::convex_hull`].
-    #[cfg(feature = "3d")]
-    ConvexHull { points: Vec<Vector> },
-    /// Constructs a collider with [`Collider::convex_polyline`].
-    #[cfg(feature = "2d")]
-    ConvexPolyline { points: Vec<Vector> },
     /// Constructs a collider with [`Collider::voxels`].
     Voxels {
         voxel_size: Vector,
         grid_coordinates: Vec<IVector>,
     },
-    /// Constructs a collider with [`Collider::voxelized_polyline`].
-    #[cfg(feature = "2d")]
-    VoxelizedPolyline {
-        vertices: Vec<Vector>,
-        indices: Vec<[u32; 2]>,
-        voxel_size: Scalar,
-        fill_mode: FillMode,
-    },
     /// Constructs a collider with [`Collider::voxelized_trimesh`].
-    #[cfg(feature = "3d")]
     VoxelizedTrimesh {
         vertices: Vec<Vector>,
         indices: Vec<[u32; 3]>,
@@ -447,40 +330,22 @@ pub enum ColliderConstructor {
         fill_mode: FillMode,
     },
     /// Constructs a collider with [`Collider::heightfield`].
-    #[cfg(feature = "2d")]
-    Heightfield { heights: Vec<Scalar>, scale: Vector },
-    /// Constructs a collider with [`Collider::heightfield`].
-    #[cfg(feature = "3d")]
     Heightfield {
         heights: Vec<Vec<Scalar>>,
         scale: Vector,
     },
     /// Constructs a collider with [`Collider::trimesh_from_mesh`].
-    #[cfg(feature = "collider-from-mesh")]
     #[default]
     TrimeshFromMesh,
     /// Constructs a collider with [`Collider::trimesh_from_mesh_with_config`].
-    #[cfg(all(
-        feature = "3d",
-        feature = "collider-from-mesh",
-        feature = "default-collider"
-    ))]
     TrimeshFromMeshWithConfig(TrimeshFlags),
     /// Constructs a collider with [`Collider::convex_decomposition_from_mesh`].
-    #[cfg(feature = "collider-from-mesh")]
     ConvexDecompositionFromMesh,
     /// Constructs a collider with [`Collider::convex_decomposition_from_mesh_with_config`].
-    #[cfg(all(
-        feature = "3d",
-        feature = "collider-from-mesh",
-        feature = "default-collider"
-    ))]
     ConvexDecompositionFromMeshWithConfig(VhacdParameters),
     /// Constructs a collider with [`Collider::convex_hull_from_mesh`].
-    #[cfg(feature = "collider-from-mesh")]
     ConvexHullFromMesh,
     /// Constructs a collider with [`Collider::voxelized_trimesh_from_mesh`].
-    #[cfg(feature = "collider-from-mesh")]
     VoxelizedTrimeshFromMesh {
         voxel_size: Scalar,
         fill_mode: FillMode,
@@ -491,7 +356,6 @@ pub enum ColliderConstructor {
 
 impl ColliderConstructor {
     /// Returns `true` if the collider type requires a mesh to be generated.
-    #[cfg(feature = "collider-from-mesh")]
     pub fn requires_mesh(&self) -> bool {
         matches!(
             self,
@@ -544,7 +408,6 @@ impl ColliderConstructor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "bevy_scene")]
     use bevy::scene::ScenePlugin;
     use bevy::{ecs::query::QueryData, mesh::MeshPlugin};
 
@@ -560,7 +423,6 @@ mod tests {
         assert!(app.query_err::<&ColliderConstructor>(entity));
     }
 
-    #[cfg(feature = "collider-from-mesh")]
     #[test]
     #[should_panic]
     fn collider_constructor_requires_mesh_on_computed() {
@@ -571,7 +433,6 @@ mod tests {
         app.update();
     }
 
-    #[cfg(feature = "collider-from-mesh")]
     #[test]
     fn collider_constructor_converts_mesh_on_computed() {
         let mut app = create_test_app();
@@ -606,7 +467,6 @@ mod tests {
         assert!(app.query_err::<&Collider>(entity));
     }
 
-    #[cfg(feature = "collider-from-mesh")]
     #[test]
     fn collider_constructor_hierarchy_does_nothing_on_self_with_computed() {
         let mut app = create_test_app();
@@ -627,7 +487,6 @@ mod tests {
         assert!(app.query_err::<&Collider>(entity));
     }
 
-    #[cfg(feature = "collider-from-mesh")]
     #[test]
     fn collider_constructor_hierarchy_does_not_require_mesh_on_self_with_computed() {
         let mut app = create_test_app();
@@ -682,7 +541,6 @@ mod tests {
         assert!(app.query_ok::<&Collider>(child3));
     }
 
-    #[cfg(feature = "collider-from-mesh")]
     #[test]
     fn collider_constructor_hierarchy_inserts_computed_colliders_only_on_descendants_with_mesh() {
         let mut app = create_test_app();
@@ -743,7 +601,6 @@ mod tests {
         assert!(app.query_ok::<&Collider>(child8));
     }
 
-    #[cfg(all(feature = "collider-from-mesh", feature = "bevy_scene"))]
     #[test]
     #[cfg_attr(
         target_os = "linux",
@@ -835,7 +692,6 @@ mod tests {
         radius: 0.5,
     };
 
-    #[cfg(feature = "collider-from-mesh")]
     const COMPUTED_COLLIDER: ColliderConstructor = ColliderConstructor::TrimeshFromMesh;
 
     fn create_test_app() -> App {
@@ -843,7 +699,6 @@ mod tests {
         app.add_plugins((
             MinimalPlugins,
             AssetPlugin::default(),
-            #[cfg(feature = "bevy_scene")]
             ScenePlugin,
             MeshPlugin,
             PhysicsPlugins::default(),
@@ -852,7 +707,6 @@ mod tests {
         app
     }
 
-    #[cfg(all(feature = "collider-from-mesh", feature = "bevy_scene"))]
     fn create_gltf_test_app() -> App {
         use bevy::{diagnostic::DiagnosticsPlugin, winit::WinitPlugin};
 
@@ -878,7 +732,6 @@ mod tests {
             !self.query_ok::<D>(entity)
         }
 
-        #[cfg(feature = "collider-from-mesh")]
         fn add_mesh(&mut self) -> Handle<Mesh>;
     }
 
@@ -889,7 +742,6 @@ mod tests {
             component.is_ok()
         }
 
-        #[cfg(feature = "collider-from-mesh")]
         fn add_mesh(&mut self) -> Handle<Mesh> {
             self.world_mut()
                 .get_resource_mut::<Assets<Mesh>>()

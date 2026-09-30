@@ -72,12 +72,6 @@ impl PhysicsTransformHelper<'_, '_> {
         let Ok((mut position, mut rotation)) = self.query.get_mut(entity) else {
             return Err(UpdatePhysicsTransformError::MissingTransform(entity));
         };
-        #[cfg(feature = "2d")]
-        {
-            position.0 = global_transform.translation().truncate().adjust_precision();
-            *rotation = Rotation::from(global_transform.rotation().adjust_precision());
-        }
-        #[cfg(feature = "3d")]
         {
             position.0 = global_transform.translation().adjust_precision();
             rotation.0 = global_transform.rotation().adjust_precision();

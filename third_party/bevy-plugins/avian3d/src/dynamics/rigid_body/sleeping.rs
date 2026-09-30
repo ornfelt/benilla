@@ -55,8 +55,6 @@ use bevy::prelude::*;
 /// [`IslandPlugin`]: crate::dynamics::solver::islands::IslandPlugin
 /// [`IslandSleepingPlugin`]: crate::dynamics::solver::islands::IslandSleepingPlugin
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default)]
 pub struct Sleeping;
 
@@ -64,8 +62,6 @@ pub struct Sleeping;
 ///
 /// [`RigidBody`]: super::RigidBody
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default)]
 pub struct SleepingDisabled;
 
@@ -78,8 +74,6 @@ pub struct SleepingDisabled;
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
 #[derive(Component, Clone, Copy, PartialEq, PartialOrd, Debug, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq)]
 pub struct SleepThreshold {
     /// The maximum linear velocity for the body to be allowed to be [`Sleeping`].
@@ -118,8 +112,6 @@ impl Default for SleepThreshold {
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct SleepTimer(pub f32);
 
@@ -137,8 +129,6 @@ pub type TimeSleeping = SleepTimer;
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
 #[derive(Resource, Clone, Copy, Debug, PartialEq, PartialOrd, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Default, PartialEq)]
 pub struct TimeToSleep(pub f32);
 

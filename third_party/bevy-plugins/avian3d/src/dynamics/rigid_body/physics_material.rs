@@ -7,8 +7,6 @@ use bevy::prelude::*;
 /// When combine rules clash with each other, the following priority order is used:
 /// `Max > Multiply > Min > GeometricMean > Average`.
 #[derive(Reflect, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub enum CoefficientCombine {
     /// Coefficients are combined by computing their average `(a + b) / 2.0`.
@@ -42,8 +40,6 @@ impl CoefficientCombine {
 ///
 /// Defaults to dynamic and static friction coefficients of `0.5` with a combine rule of [`CoefficientCombine::Average`].
 #[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Default, PartialEq)]
 pub struct DefaultFriction(pub Friction);
 
@@ -53,8 +49,6 @@ pub struct DefaultFriction(pub Friction);
 ///
 /// Defaults to a coefficient of `0.0` with a combine rule of [`CoefficientCombine::Average`].
 #[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Default, PartialEq)]
 pub struct DefaultRestitution(pub Restitution);
 
@@ -108,8 +102,7 @@ pub struct DefaultRestitution(pub Restitution);
 /// Combine the properties of two [`Friction`] components:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// #
 /// let first = Friction::new(0.8).with_combine_rule(CoefficientCombine::Average);
 /// let second = Friction::new(0.5).with_combine_rule(CoefficientCombine::Multiply);
@@ -131,8 +124,6 @@ pub struct DefaultRestitution(pub Restitution);
 /// and numerous other factors, and they are not uniform across surfaces. For game purposes however, it is impractical to consider
 /// all of these factors, so instead, material interactions are controlled using simple [`CoefficientCombine`] rules.
 #[derive(Reflect, Clone, Copy, Component, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct Friction {
     /// Coefficient of dynamic friction. Applied when bodies are sliding relative to each other.
@@ -260,8 +251,7 @@ impl From<Scalar> for Friction {
 /// Combine the properties of two [`Restitution`] components:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// #
 /// let first = Restitution::new(0.8).with_combine_rule(CoefficientCombine::Average);
 /// let second = Restitution::new(0.5).with_combine_rule(CoefficientCombine::Multiply);
@@ -299,8 +289,6 @@ impl From<Scalar> for Friction {
 #[doc(alias = "Bounciness")]
 #[doc(alias = "Elasticity")]
 #[derive(Reflect, Clone, Copy, Component, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct Restitution {
     /// The [coefficient of restitution](https://en.wikipedia.org/wiki/Coefficient_of_restitution).

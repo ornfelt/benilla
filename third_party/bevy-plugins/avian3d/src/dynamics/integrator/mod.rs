@@ -126,22 +126,14 @@ pub type IntegrationSet = IntegrationSystems;
 /// # Example
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// # #[cfg(feature = "f32")]
 /// fn main() {
 ///     App::new()
 ///         .add_plugins((DefaultPlugins, PhysicsPlugins::default()))
-#[cfg_attr(
-    feature = "2d",
-    doc = "         .insert_resource(Gravity(Vec2::NEG_Y * 100.0))"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "         .insert_resource(Gravity(Vec3::NEG_Y * 19.6))"
-)]
+///          .insert_resource(Gravity(Vec3::NEG_Y * 19.6))
 ///         .run();
 /// }
 /// # #[cfg(not(feature = "f32"))]
@@ -150,8 +142,6 @@ pub type IntegrationSet = IntegrationSystems;
 ///
 /// You can also modify gravity while the app is running.
 #[derive(Reflect, Resource, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Resource)]
 pub struct Gravity(pub Vector);
 
@@ -176,8 +166,6 @@ impl Gravity {
 /// - Contact impulses and joint impulses for dynamic bodies
 /// - Impulses applied via [`Forces`]
 #[derive(Component, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default)]
 pub struct CustomVelocityIntegration;
 
@@ -189,8 +177,6 @@ pub struct CustomVelocityIntegration;
 /// This can be useful for implementing kinematic bodies that are moved according to custom logic,
 /// such as with [`MoveAndSlide`].
 #[derive(Component, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default)]
 pub struct CustomPositionIntegration;
 
@@ -210,8 +196,6 @@ pub struct CustomPositionIntegration;
 // 20 bytes in 2D with f32
 // 32 bytes in 3D with f32
 #[derive(Component, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct VelocityIntegrationData {
     /// The linear velocity increment to be applied to the body at each substep.
@@ -333,9 +317,7 @@ fn clear_velocity_increments(
 pub struct VelocityIntegrationQuery {
     solver_body: &'static mut SolverBody,
     integration: &'static mut VelocityIntegrationData,
-    #[cfg(feature = "3d")]
     angular_inertia: &'static ComputedAngularInertia,
-    #[cfg(feature = "3d")]
     rotation: &'static Rotation,
 }
 
@@ -346,11 +328,10 @@ pub fn integrate_velocities(
         (RigidBodyActiveFilter, Without<CustomVelocityIntegration>),
     >,
     mut diagnostics: ResMut<SolverDiagnostics>,
-    #[cfg(feature = "3d")] time: Res<Time>,
+    time: Res<Time>,
 ) {
     let start = crate::utils::Instant::now();
 
-    #[cfg(feature = "3d")]
     let delta_secs = time.delta_secs_f64() as Scalar;
 
     bodies.par_iter_mut().for_each(|mut body| {
@@ -367,7 +348,6 @@ pub fn integrate_velocities(
         body.solver_body.linear_velocity += body.integration.linear_increment;
         body.solver_body.angular_velocity += body.integration.angular_increment;
 
-        #[cfg(feature = "3d")]
         {
             if body.solver_body.is_gyroscopic() {
                 // TODO: Should this be opt-in with a `GyroscopicMotion` component?
@@ -398,7 +378,6 @@ pub fn integrate_velocities(
 ///
 /// Gyroscopic motion is important for realistic spinning behavior, and for simulating
 /// gyroscopic phenomena such as the Dzhanibekov effect.
-#[cfg(feature = "3d")]
 #[inline]
 pub fn solve_gyroscopic_torque(
     ang_vel: &mut Vector,
@@ -483,16 +462,9 @@ fn clamp_velocities(
 
     // Clamp angular velocity.
     bodies.p1().iter_mut().for_each(|(mut body, max_speed)| {
-        #[cfg(feature = "2d")]
-        if body.angular_velocity.abs() > max_speed.0 {
-            body.angular_velocity = max_speed.copysign(body.angular_velocity);
-        }
-        #[cfg(feature = "3d")]
-        {
-            let angular_speed_squared = body.angular_velocity.length_squared();
-            if angular_speed_squared > max_speed.0 * max_speed.0 {
-                body.angular_velocity *= max_speed.0 / angular_speed_squared.sqrt();
-            }
+        let angular_speed_squared = body.angular_velocity.length_squared();
+        if angular_speed_squared > max_speed.0 * max_speed.0 {
+            body.angular_velocity *= max_speed.0 / angular_speed_squared.sqrt();
         }
     });
 
@@ -519,12 +491,6 @@ pub fn integrate_positions(
         } = body.into_inner();
 
         *delta_position += *linear_velocity * delta_secs;
-        #[cfg(feature = "2d")]
-        {
-            // Note: We should probably use `add_angle_fast` here
-            *delta_rotation = Rotation::radians(*angular_velocity * delta_secs) * *delta_rotation;
-        }
-        #[cfg(feature = "3d")]
         {
             delta_rotation.0 =
                 Quaternion::from_scaled_axis(*angular_velocity * delta_secs) * delta_rotation.0;
@@ -549,9 +515,7 @@ mod tests {
             MinimalPlugins,
             PhysicsPlugins::default(),
             TransformPlugin,
-            #[cfg(feature = "bevy_scene")]
             AssetPlugin::default(),
-            #[cfg(feature = "bevy_scene")]
             bevy::scene::ScenePlugin,
             MeshPlugin,
         ));
@@ -566,23 +530,12 @@ mod tests {
 
         let body_entity = app
             .world_mut()
-            .spawn((
-                RigidBody::Dynamic,
-                #[cfg(feature = "2d")]
-                {
-                    (
-                        MassPropertiesBundle::from_shape(&Rectangle::from_length(1.0), 1.0),
-                        AngularVelocity(2.0),
-                    )
-                },
-                #[cfg(feature = "3d")]
-                {
-                    (
-                        MassPropertiesBundle::from_shape(&Cuboid::from_length(1.0), 1.0),
-                        AngularVelocity(Vector::Z * 2.0),
-                    )
-                },
-            ))
+            .spawn((RigidBody::Dynamic, {
+                (
+                    MassPropertiesBundle::from_shape(&Cuboid::from_length(1.0), 1.0),
+                    AngularVelocity(Vector::Z * 2.0),
+                )
+            }))
             .id();
 
         // Step by 100 steps of 0.1 seconds.
@@ -608,13 +561,6 @@ mod tests {
         // Euler methods have some precision issues, but this seems weirdly inaccurate.
         assert_relative_eq!(position, Vector::NEG_Y * 490.5, epsilon = 10.0);
 
-        #[cfg(feature = "2d")]
-        assert_relative_eq!(
-            rotation.as_radians(),
-            Rotation::radians(20.0).as_radians(),
-            epsilon = 0.00001
-        );
-        #[cfg(feature = "3d")]
         assert_relative_eq!(
             rotation.0,
             Quaternion::from_rotation_z(20.0),
@@ -622,9 +568,6 @@ mod tests {
         );
 
         assert_relative_eq!(linear_velocity, Vector::NEG_Y * 98.1, epsilon = 0.0001);
-        #[cfg(feature = "2d")]
-        assert_relative_eq!(angular_velocity, 2.0, epsilon = 0.00001);
-        #[cfg(feature = "3d")]
         assert_relative_eq!(angular_velocity, Vector::Z * 2.0, epsilon = 0.00001);
     }
 }

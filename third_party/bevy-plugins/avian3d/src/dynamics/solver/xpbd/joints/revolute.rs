@@ -13,20 +13,12 @@ use bevy::prelude::*;
 
 /// Constraint data required by the XPBD constraint solver for a [`RevoluteJoint`].
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq)]
 pub struct RevoluteJointSolverData {
     pub(super) point_constraint: PointConstraintShared,
-    #[cfg(feature = "2d")]
-    pub(super) rotation_difference: Scalar,
-    #[cfg(feature = "3d")]
     pub(super) a1: Vector,
-    #[cfg(feature = "3d")]
     pub(super) a2: Vector,
-    #[cfg(feature = "3d")]
     pub(super) b1: Vector,
-    #[cfg(feature = "3d")]
     pub(super) b2: Vector,
     pub(super) total_align_lagrange: AngularVector,
     pub(super) total_limit_lagrange: AngularVector,
@@ -48,14 +40,7 @@ impl XpbdConstraintSolverData for RevoluteJointSolverData {
     }
 
     fn total_motor_lagrange(&self) -> Scalar {
-        #[cfg(feature = "2d")]
-        {
-            self.total_motor_lagrange
-        }
-        #[cfg(feature = "3d")]
-        {
-            self.total_motor_lagrange.length()
-        }
+        self.total_motor_lagrange.length()
     }
 
     fn total_position_lagrange(&self) -> Vector {
@@ -94,12 +79,6 @@ impl XpbdConstraint<2> for RevoluteJoint {
             .prepare(bodies, local_anchor1, local_anchor2);
 
         // Prepare the base rotation difference.
-        #[cfg(feature = "2d")]
-        {
-            solver_data.rotation_difference = (*bodies[0].rotation * local_basis1)
-                .angle_between(*bodies[1].rotation * local_basis2);
-        }
-        #[cfg(feature = "3d")]
         {
             // Prepare the base axes.
             solver_data.a1 = *bodies[0].rotation * local_basis1 * self.hinge_axis;
@@ -125,7 +104,6 @@ impl XpbdConstraint<2> for RevoluteJoint {
         let inv_angular_inertia1 = inertia1.effective_inv_angular_inertia();
         let inv_angular_inertia2 = inertia2.effective_inv_angular_inertia();
 
-        #[cfg(feature = "3d")]
         {
             // Constrain the relative rotation of the bodies, only allowing rotation around one free axis
             let a1 = body1.delta_rotation * solver_data.a1;
@@ -209,13 +187,6 @@ impl RevoluteJoint {
         dt: Scalar,
     ) {
         let Some(Some(correction)) = self.angle_limit.map(|angle_limit| {
-            #[cfg(feature = "2d")]
-            {
-                let rotation_difference = solver_data.rotation_difference
-                    + body1.delta_rotation.angle_between(body2.delta_rotation);
-                angle_limit.compute_correction(rotation_difference, PI)
-            }
-            #[cfg(feature = "3d")]
             {
                 // [n, n1, n2] = [a1, b1, b2], where [a, b, c] are perpendicular unit axes on the bodies.
                 let a1 = body1.delta_rotation * solver_data.a1;
@@ -257,12 +228,7 @@ impl RevoluteJoint {
             return;
         }
 
-        #[cfg(feature = "2d")]
-        let current_angle = solver_data.rotation_difference
-            + body1.delta_rotation.angle_between(body2.delta_rotation);
-        #[cfg(feature = "3d")]
         let a1 = body1.delta_rotation * solver_data.a1;
-        #[cfg(feature = "3d")]
         let current_angle = {
             let b1 = body1.delta_rotation * solver_data.b1;
             let b2 = body2.delta_rotation * solver_data.b2;
@@ -271,14 +237,8 @@ impl RevoluteJoint {
             sin_angle.atan2(cos_angle)
         };
 
-        #[cfg(feature = "2d")]
-        let relative_angular_velocity = body2.angular_velocity - body1.angular_velocity;
-        #[cfg(feature = "3d")]
         let relative_angular_velocity = (body2.angular_velocity - body1.angular_velocity).dot(a1);
 
-        #[cfg(feature = "2d")]
-        let w_sum = inv_angular_inertia1 + inv_angular_inertia2;
-        #[cfg(feature = "3d")]
         let w_sum =
             AngularConstraint::compute_generalized_inverse_mass(self, inv_angular_inertia1, a1)
                 + AngularConstraint::compute_generalized_inverse_mass(
@@ -303,25 +263,11 @@ impl RevoluteJoint {
             return;
         };
 
-        #[cfg(feature = "2d")]
-        {
-            solver_data.total_motor_lagrange += delta_lagrange;
-        }
-        #[cfg(feature = "3d")]
         {
             solver_data.total_motor_lagrange += delta_lagrange * a1;
         }
 
         // Positive delta_lagrange increases body2's angular velocity relative to body1.
-        #[cfg(feature = "2d")]
-        self.apply_angular_lagrange_update(
-            body1,
-            body2,
-            inv_angular_inertia1,
-            inv_angular_inertia2,
-            delta_lagrange,
-        );
-        #[cfg(feature = "3d")]
         self.apply_angular_lagrange_update(
             body1,
             body2,

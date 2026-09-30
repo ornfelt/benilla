@@ -10,8 +10,6 @@ use bevy::prelude::*;
 
 /// Solver data for the [`FixedJoint`].
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq)]
 pub struct FixedJointSolverData {
     pub(super) point_constraint: PointConstraintShared,

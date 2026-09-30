@@ -1,7 +1,5 @@
 use core::time::Duration;
 
-#[cfg(feature = "2d")]
-use approx::assert_relative_eq;
 use bevy::{mesh::MeshPlugin, prelude::*, time::TimeUpdateStrategy};
 
 use crate::prelude::*;
@@ -14,9 +12,7 @@ fn create_app() -> App {
         MinimalPlugins,
         PhysicsPlugins::default(),
         TransformPlugin,
-        #[cfg(feature = "bevy_scene")]
         AssetPlugin::default(),
-        #[cfg(feature = "bevy_scene")]
         bevy::scene::ScenePlugin,
         MeshPlugin,
     ));
@@ -52,9 +48,6 @@ fn revolute_motor_spins_body() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -85,15 +78,6 @@ fn revolute_motor_spins_body() {
     let body_ref = app.world().entity(dynamic);
     let angular_velocity = body_ref.get::<AngularVelocity>().unwrap();
 
-    #[cfg(feature = "2d")]
-    {
-        assert!(
-            angular_velocity.0.abs() > 1.0,
-            "Angular velocity should be significant"
-        );
-        assert_relative_eq!(angular_velocity.0, 2.0, epsilon = 0.5);
-    }
-    #[cfg(feature = "3d")]
     {
         let speed = angular_velocity.0.length();
         assert!(speed > 1.0, "Angular velocity should be significant");
@@ -117,9 +101,6 @@ fn prismatic_motor_moves_body() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -179,9 +160,6 @@ fn revolute_motor_respects_max_torque() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(100.0), // Heavy body to test torque limiting
-            #[cfg(feature = "2d")]
-            AngularInertia(100.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(100.0)),
         ))
         .id();
@@ -213,14 +191,6 @@ fn revolute_motor_respects_max_torque() {
     let body_ref = app.world().entity(dynamic);
     let angular_velocity = body_ref.get::<AngularVelocity>().unwrap();
 
-    #[cfg(feature = "2d")]
-    {
-        assert!(
-            angular_velocity.0.abs() < 5.0,
-            "Velocity should be limited by max torque"
-        );
-    }
-    #[cfg(feature = "3d")]
     {
         let speed = angular_velocity.0.length();
         assert!(speed < 5.0, "Velocity should be limited by max torque");
@@ -244,9 +214,6 @@ fn revolute_motor_position_target() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -280,16 +247,6 @@ fn revolute_motor_position_target() {
     let rotation = body_ref.get::<Rotation>().unwrap();
 
     // The body should have rotated towards the target angle (allow some tolerance).
-    #[cfg(feature = "2d")]
-    {
-        let angle = rotation.as_radians();
-        assert!(
-            angle.abs() > 0.3,
-            "Motor should have rotated the body: {}",
-            angle
-        );
-    }
-    #[cfg(feature = "3d")]
     {
         let (axis, angle) = rotation.to_axis_angle();
         let signed_angle = angle * axis.z.signum();
@@ -318,9 +275,6 @@ fn prismatic_motor_position_target() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -393,9 +347,6 @@ fn revolute_motor_respects_angle_limits() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -429,23 +380,6 @@ fn revolute_motor_respects_angle_limits() {
     let body_ref = app.world().entity(dynamic);
     let rotation = body_ref.get::<Rotation>().unwrap();
 
-    #[cfg(feature = "2d")]
-    {
-        let angle = rotation.as_radians();
-        assert!(
-            angle <= angle_limit + 0.1,
-            "Angle {} should not exceed limit {}",
-            angle,
-            angle_limit
-        );
-        assert!(
-            angle > angle_limit - 0.3,
-            "Angle {} should be near the limit {}",
-            angle,
-            angle_limit
-        );
-    }
-    #[cfg(feature = "3d")]
     {
         let (axis, angle) = rotation.to_axis_angle();
         let signed_angle = angle * axis.z.signum();
@@ -485,9 +419,6 @@ fn prismatic_motor_respects_limits() {
             RigidBody::Dynamic,
             Position(Vector::ZERO),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -569,9 +500,6 @@ fn revolute_motor_force_based() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -593,9 +521,6 @@ fn revolute_motor_force_based() {
 
     let body_ref = app.world().entity(dynamic);
     let angular_velocity = body_ref.get::<AngularVelocity>().unwrap();
-    #[cfg(feature = "2d")]
-    let initial_speed = angular_velocity.0.abs();
-    #[cfg(feature = "3d")]
     let initial_speed = angular_velocity.0.length();
 
     assert!(
@@ -616,15 +541,6 @@ fn revolute_motor_force_based() {
     let angular_velocity = body_ref.get::<AngularVelocity>().unwrap();
 
     // The body should have gained angular velocity.
-    #[cfg(feature = "2d")]
-    {
-        assert!(
-            angular_velocity.0.abs() > 0.5,
-            "ForceBased motor should spin the body: {}",
-            angular_velocity.0
-        );
-    }
-    #[cfg(feature = "3d")]
     {
         let speed = angular_velocity.0.length();
         assert!(
@@ -654,9 +570,6 @@ fn revolute_motor_spring_damper() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -690,16 +603,6 @@ fn revolute_motor_spring_damper() {
     let rotation = body_ref.get::<Rotation>().unwrap();
 
     // The body should have rotated towards the target.
-    #[cfg(feature = "2d")]
-    {
-        let angle = rotation.as_radians();
-        assert!(
-            angle.abs() > 0.3,
-            "SpringDamper motor should rotate towards target: {}",
-            angle
-        );
-    }
-    #[cfg(feature = "3d")]
     {
         let (axis, angle) = rotation.to_axis_angle();
         let signed_angle = angle * axis.z.signum();
@@ -730,9 +633,6 @@ fn revolute_motor_combined_position_velocity() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();
@@ -767,16 +667,6 @@ fn revolute_motor_combined_position_velocity() {
     let rotation = body_ref.get::<Rotation>().unwrap();
 
     // The body should have rotated in the positive direction.
-    #[cfg(feature = "2d")]
-    {
-        let angle = rotation.as_radians();
-        assert!(
-            angle > 0.2,
-            "Combined motor should rotate body positively: {}",
-            angle
-        );
-    }
-    #[cfg(feature = "3d")]
     {
         let (axis, angle) = rotation.to_axis_angle();
         let signed_angle = angle * axis.z.signum();
@@ -805,9 +695,6 @@ fn prismatic_motor_combined_position_velocity() {
             RigidBody::Dynamic,
             Position(Vector::X * 2.0),
             Mass(1.0),
-            #[cfg(feature = "2d")]
-            AngularInertia(1.0),
-            #[cfg(feature = "3d")]
             AngularInertia::new(Vec3::splat(1.0)),
         ))
         .id();

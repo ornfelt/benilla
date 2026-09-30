@@ -16,7 +16,6 @@ use super::id_pool::IdPool;
 /// are replaced with vacant slots, which can be reused later in order
 /// of lowest index first.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct StableUnGraph<N, E> {
     graph: UnGraph<Option<N>, Option<E>>,
     node_ids: IdPool,

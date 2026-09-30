@@ -524,13 +524,7 @@ impl ObvhsAabbExt for Aabb {
 
 #[inline(always)]
 pub fn obvhs_ray(ray: &Ray, max_distance: f32) -> obvhs::ray::Ray {
-    #[cfg(feature = "2d")]
-    let origin = ray.origin.extend(0.0).to_array().into();
-    #[cfg(feature = "3d")]
     let origin = ray.origin.to_array().into();
-    #[cfg(feature = "2d")]
-    let direction = ray.direction.extend(0.0).to_array().into();
-    #[cfg(feature = "3d")]
     let direction = ray.direction.to_array().into();
 
     obvhs::ray::Ray::new(origin, direction, 0.0, max_distance)

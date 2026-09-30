@@ -47,10 +47,8 @@ impl Plugin for ForcePlugin {
                 apply_constant_linear_acceleration,
                 apply_constant_angular_acceleration,
                 apply_constant_local_forces,
-                #[cfg(feature = "3d")]
                 apply_constant_local_torques,
                 apply_constant_local_linear_acceleration,
-                #[cfg(feature = "3d")]
                 apply_constant_local_angular_acceleration,
             )
                 .chain()
@@ -76,14 +74,7 @@ impl Plugin for ForcePlugin {
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ForceSystems {
     /// Adds [`ConstantForce`], [`ConstantTorque`], [`ConstantLinearAcceleration`], and [`ConstantAngularAcceleration`]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "to [`VelocityIntegrationData`], and [`ConstantLocalForce`] and [`ConstantLocalLinearAcceleration`]"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "to [`VelocityIntegrationData`], and [`ConstantLocalForce`], [`ConstantLocalTorque`], [`ConstantLocalLinearAcceleration`], and [`ConstantLocalAngularAcceleration`]"
-    )]
+    /// to [`VelocityIntegrationData`], and [`ConstantLocalForce`], [`ConstantLocalTorque`], [`ConstantLocalLinearAcceleration`], and [`ConstantLocalAngularAcceleration`]
     /// to [`AccumulatedLocalAcceleration`].
     ApplyConstantForces,
     /// Applies [`AccumulatedLocalAcceleration`] to the linear and angular velocities of bodies.
@@ -157,7 +148,6 @@ fn apply_constant_local_forces(
 }
 
 /// Applies [`ConstantLocalTorque`] to the accumulated torques.
-#[cfg(feature = "3d")]
 fn apply_constant_local_torques(
     mut bodies: Query<(
         &mut AccumulatedLocalAcceleration,
@@ -187,7 +177,6 @@ fn apply_constant_local_linear_acceleration(
 }
 
 /// Applies [`ConstantLocalAngularAcceleration`] to the accumulated local acceleration.
-#[cfg(feature = "3d")]
 fn apply_constant_local_angular_acceleration(
     mut bodies: Query<(
         &mut AccumulatedLocalAcceleration,
@@ -225,13 +214,11 @@ fn apply_local_acceleration(
             // Compute the world space velocity increments with locked axes applied.
             let world_linear_acceleration =
                 locked_axes.apply_to_vec(rotation * acceleration.linear);
-            #[cfg(feature = "3d")]
             let world_angular_acceleration =
                 locked_axes.apply_to_vec(rotation * acceleration.angular);
 
             // Apply acceleration.
             body.linear_velocity += world_linear_acceleration * delta_secs;
-            #[cfg(feature = "3d")]
             {
                 body.angular_velocity += world_angular_acceleration * delta_secs;
             }
@@ -243,7 +230,6 @@ fn apply_local_acceleration(
 fn clear_accumulated_local_acceleration(mut query: Query<&mut AccumulatedLocalAcceleration>) {
     query.iter_mut().for_each(|mut acceleration| {
         acceleration.linear = Vector::ZERO;
-        #[cfg(feature = "3d")]
         {
             acceleration.angular = Vector::ZERO;
         }

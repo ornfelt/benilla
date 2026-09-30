@@ -32,15 +32,9 @@
 //! They also have local space equivalents:
 //!
 //! - [`ConstantLocalForce`]: Applies a constant force in local space.
-#![cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalTorque`]: Applies a constant torque in local space."
-)]
+//! - [`ConstantLocalTorque`]: Applies a constant torque in local space.
 //! - [`ConstantLocalLinearAcceleration`]: Applies a constant linear acceleration in local space.
-#![cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space."
-)]
+//! - [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space.
 //!
 //! These components are useful for simulating continuously applied forces that are expected
 //! to remain the same across time steps, such as per-body gravity or force fields.
@@ -48,8 +42,7 @@
 //! You can use constant forces by adding the components to your entities:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! # fn setup(mut commands: Commands) {
@@ -57,8 +50,7 @@
 //!     RigidBody::Dynamic,
 //!     Collider::capsule(0.5, 1.0),
 //!     // Apply a constant force of 10 N in the positive Y direction.
-#![cfg_attr(feature = "2d", doc = "    ConstantForce::new(0.0, 10.0),")]
-#![cfg_attr(feature = "3d", doc = "    ConstantForce::new(0.0, 10.0, 0.0),")]
+//!     ConstantForce::new(0.0, 10.0, 0.0),
 //! ));
 //! # }
 //! ```
@@ -75,22 +67,14 @@
 //! to apply forces, impulses, and accelerations to the rigid bodies.
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! # #[cfg(feature = "f32")]
 //! fn apply_forces(mut query: Query<Forces>) {
 //!     for mut forces in &mut query {
 //!         // Apply a force of 10 N in the positive Y direction to the entity.
-#![cfg_attr(
-    feature = "2d",
-    doc = "        forces.apply_force(Vec2::new(0.0, 10.0));"
-)]
-#![cfg_attr(
-    feature = "3d",
-    doc = "        forces.apply_force(Vec3::new(0.0, 10.0, 0.0));"
-)]
+//!         forces.apply_force(Vec3::new(0.0, 10.0, 0.0));
 //!     }
 //! }
 //! ```
@@ -102,8 +86,7 @@
 //! that allows applying forces to a body without waking it up.
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::{math::Vector, prelude::*};")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::{math::Vector, prelude::*};")]
+//! # use avian3d::{math::Vector, prelude::*};
 //! # use bevy::prelude::*;
 //! #
 //! # fn apply_forces(mut query: Query<Forces>) {
@@ -119,8 +102,7 @@
 //! with the [center of mass](CenterOfMass), it will apply a torque to the body.
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::{math::Vector, prelude::*};")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::{math::Vector, prelude::*};")]
+//! # use avian3d::{math::Vector, prelude::*};
 //! # use bevy::prelude::*;
 //! #
 //! # fn apply_impulses(mut query: Query<Forces>) {
@@ -138,8 +120,7 @@
 //! with a system like the following:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! # #[cfg(feature = "f32")]
@@ -148,14 +129,7 @@
 //!         // Compute the direction towards the center of the world.
 //!         let direction = -global_transform.translation().normalize_or_zero();
 //!         // Apply a linear acceleration of 9.81 m/s² towards the center of the world.
-#![cfg_attr(
-    feature = "2d",
-    doc = "        forces.apply_linear_acceleration(direction.truncate() * 9.81);"
-)]
-#![cfg_attr(
-    feature = "3d",
-    doc = "        forces.apply_linear_acceleration(direction * 9.81);"
-)]
+//!         forces.apply_linear_acceleration(direction * 9.81);
 //!     }
 //! }
 //! ```
@@ -167,8 +141,7 @@
 //! implement gravity by simply modifying the velocity of the rigid bodies in a system:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! // In `FixedUpdate`
@@ -209,16 +182,6 @@ pub use query_data::{
 use crate::prelude::*;
 use bevy::prelude::*;
 
-#[cfg(feature = "2d")]
-pub(crate) trait FloatZero {
-    const ZERO: Self;
-}
-
-#[cfg(feature = "2d")]
-impl FloatZero for Scalar {
-    const ZERO: Self = 0.0;
-}
-
 /// A component for applying a constant force to a dynamic rigid body in world space.
 /// The unit is typically N or kg⋅m/s².
 ///
@@ -231,8 +194,7 @@ impl FloatZero for Scalar {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -240,8 +202,7 @@ impl FloatZero for Scalar {
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.0),
 ///     // Apply a constant force of 10 N in the positive Y direction.
-#[cfg_attr(feature = "2d", doc = "    ConstantForce::new(0.0, 10.0),")]
-#[cfg_attr(feature = "3d", doc = "    ConstantForce::new(0.0, 10.0, 0.0),")]
+///     ConstantForce::new(0.0, 10.0, 0.0),
 /// ));
 /// # }
 /// ```
@@ -254,20 +215,11 @@ impl FloatZero for Scalar {
 /// - [`ConstantLinearAcceleration`]: Applies a constant linear acceleration in world space.
 /// - [`ConstantAngularAcceleration`]: Applies a constant angular acceleration in world space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantForce(pub Vector);
 
 impl ConstantForce {
-    /// Creates a new [`ConstantForce`] with the given `x` and `y` components.
-    #[cfg(feature = "2d")]
-    pub fn new(x: Scalar, y: Scalar) -> Self {
-        Self(Vector::new(x, y))
-    }
-
     /// Creates a new [`ConstantForce`] with the given `x`, `y`, and `z` components.
-    #[cfg(feature = "3d")]
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
         Self(Vector::new(x, y, z))
     }
@@ -285,8 +237,7 @@ impl ConstantForce {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -294,8 +245,7 @@ impl ConstantForce {
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.0),
 ///     // Apply a constant torque of 5 N⋅m in the positive Z direction.
-#[cfg_attr(feature = "2d", doc = "    ConstantTorque(5.0),")]
-#[cfg_attr(feature = "3d", doc = "    ConstantTorque::new(0.0, 0.0, 5.0),")]
+///     ConstantTorque::new(0.0, 0.0, 5.0),
 /// ));
 /// # }
 /// ```
@@ -303,20 +253,14 @@ impl ConstantForce {
 /// # Related Types
 ///
 /// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
-#[cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalTorque`]: Applies a constant torque in local space."
-)]
+/// - [`ConstantLocalTorque`]: Applies a constant torque in local space.
 /// - [`ConstantForce`]: Applies a constant force in world space.
 /// - [`ConstantLinearAcceleration`]: Applies a constant linear acceleration in world space.
 /// - [`ConstantAngularAcceleration`]: Applies a constant angular acceleration in world space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantTorque(pub AngularVector);
 
-#[cfg(feature = "3d")]
 impl ConstantTorque {
     /// Creates a new [`ConstantTorque`] with the given `x`, `y`, and `z` components.
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
@@ -336,8 +280,7 @@ impl ConstantTorque {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -345,8 +288,7 @@ impl ConstantTorque {
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.0),
 ///     // Apply a constant force of 10 N in the positive Y direction in local space.
-#[cfg_attr(feature = "2d", doc = "    ConstantLocalForce::new(0.0, 10.0),")]
-#[cfg_attr(feature = "3d", doc = "    ConstantLocalForce::new(0.0, 10.0, 0.0),")]
+///     ConstantLocalForce::new(0.0, 10.0, 0.0),
 /// ));
 /// # }
 /// ```
@@ -355,30 +297,15 @@ impl ConstantTorque {
 ///
 /// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantForce`]: Applies a constant force in world space.
-#[cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalTorque`]: Applies a constant torque in local space."
-)]
+/// - [`ConstantLocalTorque`]: Applies a constant torque in local space.
 /// - [`ConstantLocalLinearAcceleration`]: Applies a constant linear acceleration in local space.
-#[cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space."
-)]
+/// - [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLocalForce(pub Vector);
 
 impl ConstantLocalForce {
-    /// Creates a new [`ConstantLocalForce`] with the given `x` and `y` components.
-    #[cfg(feature = "2d")]
-    pub fn new(x: Scalar, y: Scalar) -> Self {
-        Self(Vector::new(x, y))
-    }
-
     /// Creates a new [`ConstantLocalForce`] with the given `x`, `y`, and `z` components.
-    #[cfg(feature = "3d")]
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
         Self(Vector::new(x, y, z))
     }
@@ -417,13 +344,9 @@ impl ConstantLocalForce {
 /// - [`ConstantLocalLinearAcceleration`]: Applies a constant linear acceleration in local space.
 /// - [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
-#[cfg(feature = "3d")]
 pub struct ConstantLocalTorque(pub AngularVector);
 
-#[cfg(feature = "3d")]
 impl ConstantLocalTorque {
     /// Creates a new [`ConstantLocalTorque`] with the given `x`, `y`, and `z` components.
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
@@ -442,8 +365,7 @@ impl ConstantLocalTorque {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -452,14 +374,7 @@ impl ConstantLocalTorque {
 ///     Collider::capsule(0.5, 1.0),
 ///     // Apply a constant linear acceleration of 9.81 m/s² in the negative Y direction.
 ///     // This is equivalent to using the `Gravity` resource, but only for this entity.
-#[cfg_attr(
-    feature = "2d",
-    doc = "    ConstantLinearAcceleration::new(0.0, -9.81),"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    ConstantLinearAcceleration::new(0.0, -9.81, 0.0),"
-)]
+///     ConstantLinearAcceleration::new(0.0, -9.81, 0.0),
 /// ));
 /// # }
 /// ```
@@ -472,20 +387,11 @@ impl ConstantLocalTorque {
 /// - [`ConstantTorque`]: Applies a constant torque in world space.
 /// - [`ConstantAngularAcceleration`]: Applies a constant angular acceleration in world space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLinearAcceleration(pub Vector);
 
 impl ConstantLinearAcceleration {
-    /// Creates a new [`ConstantLinearAcceleration`] with the given `x` and `y` components.
-    #[cfg(feature = "2d")]
-    pub fn new(x: Scalar, y: Scalar) -> Self {
-        Self(Vector::new(x, y))
-    }
-
     /// Creates a new [`ConstantLinearAcceleration`] with the given `x`, `y`, and `z` components.
-    #[cfg(feature = "3d")]
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
         Self(Vector::new(x, y, z))
     }
@@ -503,8 +409,7 @@ impl ConstantLinearAcceleration {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -512,11 +417,7 @@ impl ConstantLinearAcceleration {
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.0),
 ///     // Apply a constant angular acceleration of 1.0 rad/s² in the positive Z direction.
-#[cfg_attr(feature = "2d", doc = "    ConstantAngularAcceleration(1.0),")]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    ConstantAngularAcceleration::new(0.0, 0.0, 1.0),"
-)]
+///     ConstantAngularAcceleration::new(0.0, 0.0, 1.0),
 /// ));
 /// # }
 /// ```
@@ -524,20 +425,14 @@ impl ConstantLinearAcceleration {
 /// # Related Types
 ///
 /// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
-#[cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space."
-)]
+/// - [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space.
 /// - [`ConstantForce`]: Applies a constant force in world space.
 /// - [`ConstantTorque`]: Applies a constant torque in world space.
 /// - [`ConstantLinearAcceleration`]: Applies a constant linear acceleration in world space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantAngularAcceleration(pub AngularVector);
 
-#[cfg(feature = "3d")]
 impl ConstantAngularAcceleration {
     /// Creates a new [`ConstantAngularAcceleration`] with the given `x`, `y`, and `z` components.
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
@@ -557,8 +452,7 @@ impl ConstantAngularAcceleration {
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -566,14 +460,7 @@ impl ConstantAngularAcceleration {
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.0),
 ///     // Apply a constant linear acceleration of 10.0 m/s² in the positive Y direction in local space.
-#[cfg_attr(
-    feature = "2d",
-    doc = "    ConstantLocalLinearAcceleration::new(0.0, 10.0),"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    ConstantLocalLinearAcceleration::new(0.0, 10.0, 0.0),"
-)]
+///     ConstantLocalLinearAcceleration::new(0.0, 10.0, 0.0),
 /// ));
 /// # }
 /// ```
@@ -583,29 +470,14 @@ impl ConstantAngularAcceleration {
 /// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantLinearAcceleration`]: Applies a constant linear acceleration in world space.
 /// - [`ConstantLocalForce`]: Applies a constant force in local space.
-#[cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalTorque`]: Applies a constant torque in local space."
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "- [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space."
-)]
+/// - [`ConstantLocalTorque`]: Applies a constant torque in local space.
+/// - [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct ConstantLocalLinearAcceleration(pub Vector);
 
 impl ConstantLocalLinearAcceleration {
-    /// Creates a new [`ConstantLocalLinearAcceleration`] with the given `x` and `y` components.
-    #[cfg(feature = "2d")]
-    pub fn new(x: Scalar, y: Scalar) -> Self {
-        Self(Vector::new(x, y))
-    }
-
     /// Creates a new [`ConstantLocalLinearAcceleration`] with the given `x`, `y`, and `z` components.
-    #[cfg(feature = "3d")]
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
         Self(Vector::new(x, y, z))
     }
@@ -644,13 +516,9 @@ impl ConstantLocalLinearAcceleration {
 /// - [`ConstantLocalTorque`]: Applies a constant torque in local space.
 /// - [`ConstantLocalLinearAcceleration`]: Applies a constant linear acceleration in local space.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
-#[cfg(feature = "3d")]
 pub struct ConstantLocalAngularAcceleration(pub AngularVector);
 
-#[cfg(feature = "3d")]
 impl ConstantLocalAngularAcceleration {
     /// Creates a new [`ConstantLocalAngularAcceleration`] with the given `x`, `y`, and `z` components.
     pub fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
@@ -661,13 +529,10 @@ impl ConstantLocalAngularAcceleration {
 /// A component with the user-applied local acceleration
 /// accumulated for a rigid body before the physics step.
 #[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct AccumulatedLocalAcceleration {
     /// The accumulated linear acceleration in local space.
     pub linear: Vector,
     /// The accumulated angular acceleration in local space.
-    #[cfg(feature = "3d")]
     pub angular: Vector,
 }

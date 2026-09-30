@@ -44,8 +44,7 @@
 //! First, we define our brute-force broad phase plugin:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#![cfg_attr(not(feature = "2d"), doc = "use avian3d::prelude::*;")]
+//! use avian3d::prelude::*;
 //! use bevy::prelude::*;
 //!
 //! pub struct BruteForceBroadPhasePlugin;
@@ -66,14 +65,7 @@
 //! check for AABB overlaps, and create contacts for overlapping colliders:
 //!
 //! ```
-#![cfg_attr(
-    feature = "2d",
-    doc = "# use avian2d::{dynamics::solver::joint_graph::JointGraph, prelude::*};"
-)]
-#![cfg_attr(
-    not(feature = "2d"),
-    doc = "# use avian3d::{dynamics::solver::joint_graph::JointGraph, prelude::*};"
-)]
+//! # use avian3d::{dynamics::solver::joint_graph::JointGraph, prelude::*};
 //! # use bevy::prelude::*;
 //! #
 //! fn collect_collision_pairs(
@@ -132,8 +124,7 @@
 //! `BruteForceBroadPhasePlugin` when building the app:
 //!
 //! ```
-#![cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#![cfg_attr(not(feature = "2d"), doc = "# use avian3d::prelude::*;")]
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! # fn main() {

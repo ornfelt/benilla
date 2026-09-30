@@ -15,7 +15,6 @@ use bevy::prelude::*;
 
 use super::{Rotation, Vector};
 use crate::{SymmetricTensor, math::Scalar, prelude::LockedAxes};
-#[cfg(feature = "3d")]
 use crate::{math::Quaternion, prelude::ComputedAngularInertia};
 
 // The `SolverBody` layout is inspired by `b2BodyState` in Box2D v3.
@@ -53,8 +52,6 @@ use crate::{math::Quaternion, prelude::ComputedAngularInertia};
 /// are implemented.
 // TODO: Is there a better layout for 3D?
 #[derive(Component, Clone, Debug, Default, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug)]
 pub struct SolverBody {
     /// The linear velocity of the body.
@@ -63,13 +60,7 @@ pub struct SolverBody {
     pub linear_velocity: Vector,
     /// The angular velocity of the body.
     ///
-    /// 4 bytes in 2D and 12 bytes in 3D with the `f32` feature.
-    #[cfg(feature = "2d")]
-    pub angular_velocity: Scalar,
-    /// The angular velocity of the body.
-    ///
     /// 8 bytes in 2D and 12 bytes in 3D with the `f32` feature.
-    #[cfg(feature = "3d")]
     pub angular_velocity: Vector,
     /// The change in position of the body.
     ///
@@ -94,9 +85,6 @@ impl SolverBody {
     /// A dummy [`SolverBody`] for static bodies.
     pub const DUMMY: Self = Self {
         linear_velocity: Vector::ZERO,
-        #[cfg(feature = "2d")]
-        angular_velocity: 0.0,
-        #[cfg(feature = "3d")]
         angular_velocity: Vector::ZERO,
         delta_position: Vector::ZERO,
         delta_rotation: Rotation::IDENTITY,
@@ -105,14 +93,7 @@ impl SolverBody {
 
     /// Computes the velocity at the given `point` relative to the center of the body.
     pub fn velocity_at_point(&self, point: Vector) -> Vector {
-        #[cfg(feature = "2d")]
-        {
-            self.linear_velocity + self.angular_velocity * point.perp()
-        }
-        #[cfg(feature = "3d")]
-        {
-            self.linear_velocity + self.angular_velocity.cross(point)
-        }
+        self.linear_velocity + self.angular_velocity.cross(point)
     }
 
     /// Returns `true` if gyroscopic motion is enabled for this body.
@@ -124,8 +105,6 @@ impl SolverBody {
 /// Flags for [`SolverBody`].
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct SolverBodyFlags(u32);
 
@@ -212,34 +191,16 @@ The API abstracts over this difference in representation to reduce complexity.
 ///
 /// 16 bytes in 2D and 32 bytes in 3D with the `f32` feature.
 #[derive(Component, Clone, Debug, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug)]
 pub struct SolverBodyInertia {
-    /// The effective inverse mass of the body,
-    /// taking into account any locked axes.
-    ///
-    /// 8 bytes with the `f32` feature.
-    #[cfg(feature = "2d")]
-    effective_inv_mass: Vector,
-
     /// The inverse mass of the body.
     ///
     /// 4 bytes with the `f32` feature.
-    #[cfg(feature = "3d")]
     inv_mass: Scalar,
-
-    /// The effective inverse angular inertia of the body,
-    /// taking into account any locked axes.
-    ///
-    /// 4 bytes with the `f32` feature.
-    #[cfg(feature = "2d")]
-    effective_inv_angular_inertia: SymmetricTensor,
 
     /// The world-space inverse angular inertia of the body.
     ///
     /// 32 bytes with the `f32` feature.
-    #[cfg(feature = "3d")]
     effective_inv_angular_inertia: SymmetricTensor,
 
     /// The [dominance] of the body.
@@ -263,13 +224,7 @@ pub struct SolverBodyInertia {
 impl SolverBodyInertia {
     /// A dummy [`SolverBodyInertia`] for static bodies.
     pub const DUMMY: Self = Self {
-        #[cfg(feature = "2d")]
-        effective_inv_mass: Vector::ZERO,
-        #[cfg(feature = "3d")]
         inv_mass: 0.0,
-        #[cfg(feature = "2d")]
-        effective_inv_angular_inertia: 0.0,
-        #[cfg(feature = "3d")]
         effective_inv_angular_inertia: SymmetricTensor::ZERO,
         dominance: i8::MAX as i16 + 1,
         flags: InertiaFlags::STATIC,
@@ -285,8 +240,6 @@ impl Default for SolverBodyInertia {
 /// Flags indicating the inertial properties of a body.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct InertiaFlags(u16);
 
@@ -330,51 +283,6 @@ impl SolverBodyInertia {
     /// Creates a new [`SolverBodyInertia`] with the given mass, angular inertia,
     /// and locked axes.
     #[inline]
-    #[cfg(feature = "2d")]
-    pub fn new(
-        inv_mass: Scalar,
-        inv_inertia: SymmetricTensor,
-        locked_axes: LockedAxes,
-        dominance: i8,
-        is_dynamic: bool,
-    ) -> Self {
-        let mut effective_inv_mass = Vector::splat(inv_mass);
-        let mut effective_inv_angular_inertia = inv_inertia;
-        let mut flags = InertiaFlags(locked_axes.to_bits() as u16);
-
-        if inv_mass == 0.0 {
-            flags |= InertiaFlags::INFINITE_MASS;
-        }
-        if inv_inertia == 0.0 {
-            flags |= InertiaFlags::INFINITE_ANGULAR_INERTIA;
-        }
-
-        if locked_axes.is_translation_x_locked() {
-            effective_inv_mass.x = 0.0;
-        }
-        if locked_axes.is_translation_y_locked() {
-            effective_inv_mass.y = 0.0;
-        }
-        if locked_axes.is_rotation_locked() {
-            effective_inv_angular_inertia = 0.0;
-        }
-
-        Self {
-            effective_inv_mass,
-            effective_inv_angular_inertia,
-            dominance: if is_dynamic {
-                dominance as i16
-            } else {
-                i8::MAX as i16 + 1
-            },
-            flags: InertiaFlags(flags.0),
-        }
-    }
-
-    /// Creates a new [`SolverBodyInertia`] with the given mass, angular inertia,
-    /// and locked axes.
-    #[inline]
-    #[cfg(feature = "3d")]
     pub fn new(
         inv_mass: Scalar,
         inv_inertia: SymmetricTensor,
@@ -425,15 +333,6 @@ impl SolverBodyInertia {
     /// Returns the effective inverse mass of the body,
     /// taking into account any locked axes.
     #[inline]
-    #[cfg(feature = "2d")]
-    pub fn effective_inv_mass(&self) -> Vector {
-        self.effective_inv_mass
-    }
-
-    /// Returns the effective inverse mass of the body,
-    /// taking into account any locked axes.
-    #[inline]
-    #[cfg(feature = "3d")]
     pub fn effective_inv_mass(&self) -> Vector {
         let mut inv_mass = Vector::splat(self.inv_mass);
 
@@ -450,18 +349,9 @@ impl SolverBodyInertia {
         inv_mass
     }
 
-    /// Returns the effective inverse angular inertia of the body,
-    /// taking into account any locked axes.
-    #[inline]
-    #[cfg(feature = "2d")]
-    pub fn effective_inv_angular_inertia(&self) -> SymmetricTensor {
-        self.effective_inv_angular_inertia
-    }
-
     /// Returns the effective inverse angular inertia of the body in world space,
     /// taking into account any locked axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn effective_inv_angular_inertia(&self) -> SymmetricTensor {
         self.effective_inv_angular_inertia
     }
@@ -469,7 +359,6 @@ impl SolverBodyInertia {
     /// Updates the effective inverse angular inertia of the body in world space,
     /// taking into account any locked axes.
     #[inline]
-    #[cfg(feature = "3d")]
     pub fn update_effective_inv_angular_inertia(
         &mut self,
         computed_angular_inertia: &ComputedAngularInertia,

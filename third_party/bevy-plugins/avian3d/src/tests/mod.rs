@@ -1,8 +1,4 @@
 use crate::prelude::*;
-#[cfg(all(
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
 use approx::assert_relative_eq;
 use bevy::{
     ecs::schedule::{LogLevel, ScheduleBuildSettings, ScheduleLabel},
@@ -10,9 +6,6 @@ use bevy::{
     time::TimeUpdateStrategy,
 };
 use core::time::Duration;
-
-#[cfg(all(feature = "2d", feature = "enhanced-determinism"))]
-mod determinism_2d;
 
 fn create_app() -> App {
     let mut app = App::new();
@@ -22,9 +15,7 @@ fn create_app() -> App {
         TransformPlugin,
         PhysicsPlugins::default(),
         bevy::asset::AssetPlugin::default(),
-        #[cfg(all(feature = "collider-from-mesh", feature = "default-collider"))]
         bevy::mesh::MeshPlugin,
-        #[cfg(feature = "bevy_scene")]
         bevy::scene::ScenePlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
@@ -48,7 +39,6 @@ fn tick_app(app: &mut App, timestep: f64) {
     app.update();
 }
 
-#[cfg(all(feature = "3d", feature = "default-collider"))]
 fn setup_cubes_simulation(mut commands: Commands) {
     let mut next_id = 0;
     // copied from "cubes" example
@@ -96,10 +86,6 @@ fn it_loads_plugin_without_errors() -> Result<(), Box<dyn core::error::Error>> {
 }
 
 #[test]
-#[cfg(all(
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
 fn body_with_velocity_moves() {
     let mut app = create_app();
 
@@ -111,9 +97,6 @@ fn body_with_velocity_moves() {
             Transform::default(),
             RigidBody::Dynamic,
             LinearVelocity(Vector::X),
-            #[cfg(feature = "2d")]
-            MassPropertiesBundle::from_shape(&Circle::new(0.5), 1.0),
-            #[cfg(feature = "3d")]
             MassPropertiesBundle::from_shape(&Sphere::new(0.5), 1.0),
         ));
     });
@@ -143,10 +126,8 @@ fn body_with_velocity_moves() {
 }
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord)]
-#[cfg(all(feature = "3d", feature = "default-collider"))]
 struct Id(usize);
 
-#[cfg(all(feature = "3d", feature = "default-collider"))]
 #[test]
 fn cubes_simulation_is_locally_deterministic() {
     use itertools::Itertools;
@@ -194,9 +175,7 @@ fn no_ambiguity_errors() {
                 .build()
                 .disable::<ColliderHierarchyPlugin>(),
             bevy::asset::AssetPlugin::default(),
-            #[cfg(feature = "bevy_scene")]
             bevy::scene::ScenePlugin,
-            #[cfg(all(feature = "collider-from-mesh", feature = "default-collider"))]
             bevy::mesh::MeshPlugin,
         ))
         .edit_schedule(DeterministicSchedule, |s| {

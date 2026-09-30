@@ -1280,8 +1280,6 @@ impl SpatialQuery<'_, '_> {
 
 /// The result of a [point projection](spatial_query#point-projection) on a [collider](Collider).
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct PointProjection {
     /// The entity of the collider that the point was projected onto.

@@ -31,8 +31,6 @@ pub struct JointGraph {
 
 /// A stable identifier for a [`JointGraphEdge`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct JointId(pub u32);
 
@@ -61,8 +59,6 @@ impl core::fmt::Display for JointId {
 
 /// An edge in the [`JointGraph`].
 #[derive(Clone, Debug, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug)]
 pub struct JointGraphEdge {
     /// The stable identifier of this joint edge.

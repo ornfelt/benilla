@@ -30,14 +30,7 @@ pub struct RigidBodyQuery {
 impl RigidBodyQueryItem<'_, '_> {
     /// Computes the velocity at the given `point` relative to the center of the body.
     pub fn velocity_at_point(&self, point: Vector) -> Vector {
-        #[cfg(feature = "2d")]
-        {
-            self.linear_velocity.0 + self.angular_velocity.0 * point.perp()
-        }
-        #[cfg(feature = "3d")]
-        {
-            self.linear_velocity.0 + self.angular_velocity.cross(point)
-        }
+        self.linear_velocity.0 + self.angular_velocity.cross(point)
     }
 
     /// Computes the effective inverse mass, taking into account any translation locking.
@@ -70,9 +63,6 @@ impl RigidBodyQueryItem<'_, '_> {
             return ComputedAngularInertia::INFINITY;
         }
 
-        #[cfg(feature = "2d")]
-        let mut angular_inertia = *self.angular_inertia;
-        #[cfg(feature = "3d")]
         let mut angular_inertia = self.angular_inertia.rotated(self.rotation.0);
 
         if let Some(locked_axes) = self.locked_axes {
@@ -98,14 +88,7 @@ impl RigidBodyQueryItem<'_, '_> {
 impl RigidBodyQueryReadOnlyItem<'_, '_> {
     /// Computes the velocity at the given `point` relative to the center of mass.
     pub fn velocity_at_point(&self, point: Vector) -> Vector {
-        #[cfg(feature = "2d")]
-        {
-            self.linear_velocity.0 + self.angular_velocity.0 * point.perp()
-        }
-        #[cfg(feature = "3d")]
-        {
-            self.linear_velocity.0 + self.angular_velocity.cross(point)
-        }
+        self.linear_velocity.0 + self.angular_velocity.cross(point)
     }
 
     /// Returns the mass. If the rigid body is not dynamic, the returned mass is infinite.
@@ -147,9 +130,6 @@ impl RigidBodyQueryReadOnlyItem<'_, '_> {
             return ComputedAngularInertia::INFINITY;
         }
 
-        #[cfg(feature = "2d")]
-        let mut angular_inertia = *self.angular_inertia;
-        #[cfg(feature = "3d")]
         let mut angular_inertia = self.angular_inertia.rotated(self.rotation.0);
 
         if let Some(locked_axes) = self.locked_axes {

@@ -4,96 +4,43 @@
 
 #![allow(unused_imports)]
 
-#[cfg(feature = "f32")]
 mod single;
 use approx::abs_diff_ne;
 use glam_matrix_extras::{SymmetricDMat2, SymmetricDMat3, SymmetricMat2, SymmetricMat3};
-#[cfg(feature = "f32")]
 pub use single::*;
-
-#[cfg(feature = "f64")]
-mod double;
-#[cfg(feature = "f64")]
-pub use double::*;
 
 use bevy_math::{prelude::*, *};
 
 /// The active dimension.
-#[cfg(feature = "2d")]
-pub const DIM: usize = 2;
-/// The active dimension.
-#[cfg(feature = "3d")]
 pub const DIM: usize = 3;
 
 /// The `f32` vector type chosen based on the dimension.
-#[cfg(feature = "2d")]
-pub(crate) use bevy_math::Vec2 as VectorF32;
-
-/// The `f32` vector type chosen based on the dimension.
-#[cfg(feature = "3d")]
 pub(crate) use bevy_math::Vec3 as VectorF32;
 
 /// The `i32` vector type chosen based on the dimension.
-#[cfg(feature = "2d")]
-pub(crate) use bevy_math::IVec2 as IVector;
-
-/// The `i32` vector type chosen based on the dimension.
-#[cfg(feature = "3d")]
 pub(crate) use bevy_math::IVec3 as IVector;
 
 /// The ray type chosen based on the dimension.
-#[cfg(feature = "2d")]
-pub(crate) type Ray = Ray2d;
-
-/// The ray type chosen based on the dimension.
-#[cfg(feature = "3d")]
 pub(crate) type Ray = Ray3d;
 
 // Note: This is called `Dir` instead of `Direction` because Bevy has a conflicting `Direction` type.
-/// The direction type chosen based on the dimension.
-#[cfg(feature = "2d")]
-pub type Dir = Dir2;
 
 /// The direction type chosen based on the dimension.
-#[cfg(feature = "3d")]
 pub type Dir = Dir3;
 
 /// The vector type for angular values chosen based on the dimension.
-#[cfg(feature = "2d")]
-pub(crate) type AngularVector = Scalar;
-
-/// The vector type for angular values chosen based on the dimension.
-#[cfg(feature = "3d")]
 pub(crate) type AngularVector = Vector;
 
 /// The symmetric tensor type chosen based on the dimension.
 /// Often used for angular inertia.
 ///
 /// In 2D, this is a scalar, while in 3D, it is a 3x3 matrix.
-#[cfg(feature = "2d")]
-pub(crate) type SymmetricTensor = Scalar;
-
-/// The symmetric tensor type chosen based on the dimension.
-/// Often used for angular inertia.
-///
-/// In 2D, this is a scalar, while in 3D, it is a 3x3 matrix.
-#[cfg(feature = "3d")]
 pub(crate) type SymmetricTensor = SymmetricMatrix;
 
 /// The rotation type chosen based on the dimension.
-#[cfg(feature = "2d")]
-pub(crate) type Rot = crate::physics_transform::Rotation;
-
-/// The rotation type chosen based on the dimension.
-#[cfg(feature = "3d")]
 pub(crate) type Rot = Quaternion;
 
 /// The isometry type chosen based on the dimension.
-#[cfg(feature = "2d")]
-pub(crate) type Isometry = Isometry2d;
-
-/// The isometry type chosen based on the dimension.
-#[cfg(feature = "3d")]
 pub(crate) type Isometry = Isometry3d;
 
 /// Adjust the precision of the math construct to the precision chosen for compilation.
@@ -228,12 +175,6 @@ impl AsF32 for SymmetricMat3 {
     }
 }
 
-#[cfg(feature = "2d")]
-pub(crate) fn cross(a: Vector, b: Vector) -> Scalar {
-    a.perp_dot(b)
-}
-
-#[cfg(feature = "3d")]
 pub(crate) fn cross(a: Vector, b: Vector) -> Vector {
     a.cross(b)
 }
@@ -576,38 +517,8 @@ impl MatExt for SymmetricDMat3 {
     }
 }
 
-#[allow(clippy::unnecessary_cast)]
-#[cfg(all(feature = "2d", any(feature = "parry-f32", feature = "parry-f64")))]
-pub(crate) fn pose_to_isometry(pose: &parry::math::Pose) -> Isometry2d {
-    let rotation = Rot2::from_sin_cos(pose.rotation.im as f32, pose.rotation.re as f32);
-    Isometry2d::new(pose.translation.f32(), rotation)
-}
-
-#[cfg(all(
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
 use crate::prelude::*;
 
-#[cfg(all(
-    feature = "2d",
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
-pub(crate) fn make_pose(
-    position: impl Into<Position>,
-    rotation: impl Into<Rotation>,
-) -> parry::math::Pose2 {
-    let position: Position = position.into();
-    let rotation: Rotation = rotation.into();
-    parry::math::Pose2::new(position.0, rotation.as_radians())
-}
-
-#[cfg(all(
-    feature = "3d",
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
 pub(crate) fn make_pose(
     position: impl Into<Position>,
     rotation: impl Into<Rotation>,
@@ -626,7 +537,6 @@ pub(crate) fn make_pose(
 /// ```
 #[inline]
 #[must_use]
-#[cfg(feature = "3d")]
 pub fn skew_symmetric_mat3(v: Vector3) -> Matrix3 {
     Matrix3::from_cols_array(&[0.0, v.z, -v.y, -v.z, 0.0, v.x, v.y, -v.x, 0.0])
 }
@@ -637,12 +547,6 @@ pub fn skew_symmetric_mat3(v: Vector3) -> Matrix3 {
 #[inline]
 #[must_use]
 pub fn orthonormal_basis_from_vec(axis: Vector) -> Rot {
-    #[cfg(feature = "2d")]
-    {
-        let normal = axis.perp();
-        orthonormal_basis([axis, normal])
-    }
-    #[cfg(feature = "3d")]
     {
         let (normal1, normal2) = axis.any_orthonormal_pair();
         orthonormal_basis([axis, normal1, normal2])
@@ -655,12 +559,6 @@ pub fn orthonormal_basis_from_vec(axis: Vector) -> Rot {
 #[inline]
 #[must_use]
 pub fn orthonormal_basis(axes: [Vector; DIM]) -> Rot {
-    #[cfg(feature = "2d")]
-    {
-        let mat = Matrix2::from_cols(axes[0], axes[1]);
-        crate::physics_transform::Rotation::from(mat)
-    }
-    #[cfg(feature = "3d")]
     {
         let mat = Matrix3::from_cols(axes[0], axes[1], axes[2]);
         Quaternion::from_mat3(&mat)

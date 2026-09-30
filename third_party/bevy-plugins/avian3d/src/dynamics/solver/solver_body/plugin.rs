@@ -13,7 +13,6 @@ use crate::{
         LockedAxes,
     },
 };
-#[cfg(feature = "3d")]
 use crate::{
     MatExt,
     dynamics::integrator::{IntegrationSystems, integrate_positions},
@@ -114,7 +113,6 @@ impl Plugin for SolverBodyPlugin {
 
         // Update the world-space angular inertia of solver bodies right after position integration
         // in the substepping loop.
-        #[cfg(feature = "3d")]
         app.add_systems(
             SubstepSchedule,
             update_solver_body_angular_inertia
@@ -214,9 +212,6 @@ fn prepare_solver_bodies(
             let locked_axes = locked_axes.copied().unwrap_or_default();
             *inertial_properties = SolverBodyInertia::new(
                 mass.inverse(),
-                #[cfg(feature = "2d")]
-                angular_inertia.inverse(),
-                #[cfg(feature = "3d")]
                 angular_inertia.rotated(rotation.0).inverse(),
                 locked_axes,
                 dominance.map_or(0, |dominance| dominance.0),
@@ -227,7 +222,6 @@ fn prepare_solver_bodies(
                 .flags
                 .set(SolverBodyFlags::IS_KINEMATIC, rb.is_kinematic());
 
-            #[cfg(feature = "3d")]
             {
                 // Only compute gyroscopic motion if the following conditions are met:
                 //
@@ -291,7 +285,6 @@ fn writeback_solver_bodies(
     diagnostics.finalize += start.elapsed();
 }
 
-#[cfg(feature = "3d")]
 pub(crate) fn update_solver_body_angular_inertia(
     mut query: Query<(&mut SolverBodyInertia, &ComputedAngularInertia, &Rotation)>,
 ) {

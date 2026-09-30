@@ -20,8 +20,6 @@ use bevy::{
 ///
 #[doc = include_str!("./images/distance_joint.svg")]
 #[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, MapEntities, PartialEq)]
 pub struct DistanceJoint {
     /// The first body constrained by the joint.

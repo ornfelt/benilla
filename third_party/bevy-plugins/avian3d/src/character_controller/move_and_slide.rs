@@ -88,8 +88,6 @@ pub struct MoveAndSlide<'w, 's> {
 
 /// Configuration for [`MoveAndSlide::move_and_slide`].
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct MoveAndSlideConfig {
     /// How many iterations to use when moving the character.
@@ -184,8 +182,6 @@ impl Default for MoveAndSlideConfig {
 
 /// Configuration for [`MoveAndSlide::depenetrate`].
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct DepenetrationConfig {
     /// How many iterations to use when performing depenetration.
@@ -251,8 +247,6 @@ impl From<&MoveAndSlideConfig> for DepenetrationConfig {
 
 /// Output from [`MoveAndSlide::move_and_slide`].
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct MoveAndSlideOutput {
     /// The final position of the character after move and slide.
@@ -342,8 +336,6 @@ pub enum MoveAndSlideHitResponse {
 
 /// Data related to a hit during [`MoveAndSlide::cast_move`].
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct MoveHitData {
     /// The entity of the collider that was hit by the shape.
@@ -417,14 +409,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     /// ```
     /// use bevy::prelude::*;
     /// use std::collections::HashSet;
-    #[cfg_attr(
-        feature = "2d",
-        doc = "use avian2d::{prelude::*, math::{Vector, AdjustPrecision as _, AsF32 as _}};"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "use avian3d::{prelude::*, math::{Vector, AdjustPrecision as _, AsF32 as _}};"
-    )]
+    /// use avian3d::{prelude::*, math::{Vector, AdjustPrecision as _, AsF32 as _}};
     ///
     /// #[derive(Component)]
     /// struct CharacterController {
@@ -442,22 +427,8 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///     let mut collisions = HashSet::new();
     ///     let out = move_and_slide.move_and_slide(
     ///         collider,
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.translation.xy().adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.translation.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.rotation.to_euler(EulerRot::XYZ).2.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.rotation.adjust_precision(),"
-    )]
+    ///          transform.translation.adjust_precision(),
+    ///          transform.rotation.adjust_precision(),
     ///         velocity,
     ///         time.delta(),
     ///         &MoveAndSlideConfig::default(),
@@ -467,14 +438,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///             MoveAndSlideHitResponse::Accept
     ///         },
     ///     );
-    #[cfg_attr(
-        feature = "2d",
-        doc = "     transform.translation = out.position.f32().extend(0.0);"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "     transform.translation = out.position.f32();"
-    )]
+    ///      transform.translation = out.position.f32();
     ///     controller.velocity = out.projected_velocity;
     ///     info!("Colliding with entities: {:?}", collisions);
     /// }
@@ -494,16 +458,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
         mut on_hit: impl FnMut(MoveAndSlideHitData) -> MoveAndSlideHitResponse,
     ) -> MoveAndSlideOutput {
         let mut position = shape_position;
-        let mut time_left = {
-            #[cfg(feature = "f32")]
-            {
-                delta_time.as_secs_f32()
-            }
-            #[cfg(feature = "f64")]
-            {
-                delta_time.as_secs_f64()
-            }
-        };
+        let mut time_left = delta_time.as_secs_f32();
         let skin_width = self.length_unit.0 * config.skin_width;
 
         // Initial depenetration pass
@@ -673,14 +628,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///
     /// ```
     /// use bevy::prelude::*;
-    #[cfg_attr(
-        feature = "2d",
-        doc = "use avian2d::{prelude::*, math::{Vector, Dir, AdjustPrecision as _, AsF32 as _}};"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "use avian3d::{prelude::*, math::{Vector, Dir, AdjustPrecision as _, AsF32 as _}};"
-    )]
+    /// use avian3d::{prelude::*, math::{Vector, Dir, AdjustPrecision as _, AsF32 as _}};
     ///
     /// #[derive(Component)]
     /// struct CharacterController {
@@ -699,77 +647,31 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///     // Ensure that the character is not intersecting with any colliders.
     ///     let offset = move_and_slide.depenetrate(
     ///         collider,
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.translation.xy().adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.translation.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.rotation.to_euler(EulerRot::XYZ).2.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.rotation.adjust_precision(),"
-    )]
+    ///          transform.translation.adjust_precision(),
+    ///          transform.rotation.adjust_precision(),
     ///         &((&config).into()),
     ///         &filter,
     ///     );
-    #[cfg_attr(
-        feature = "2d",
-        doc = "     transform.translation += offset.f32().extend(0.0);"
-    )]
-    #[cfg_attr(feature = "3d", doc = "     transform.translation += offset.f32();")]
+    ///      transform.translation += offset.f32();
     ///     let velocity = controller.velocity;
     ///
     ///     let hit = move_and_slide.cast_move(
     ///         collider,
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.translation.xy().adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.translation.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.rotation.to_euler(EulerRot::XYZ).2.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.rotation.adjust_precision(),"
-    )]
+    ///          transform.translation.adjust_precision(),
+    ///          transform.rotation.adjust_precision(),
     ///         velocity * time.delta_secs().adjust_precision(),
     ///         config.skin_width,
     ///         &filter,
     ///     );
     ///     if let Some(hit) = hit {
     ///         // We collided with something on the way. Advance as much as possible.
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.translation += (velocity.normalize_or_zero() * hit.distance).extend(0.0).f32();"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.translation += (velocity.normalize_or_zero() * hit.distance).f32();"
-    )]
+    ///          transform.translation += (velocity.normalize_or_zero() * hit.distance).f32();
     ///         // Then project the velocity to make sure it no longer points towards the contact plane.
     ///         controller.velocity =
     ///             MoveAndSlide::project_velocity(velocity, &[Dir::new_unchecked(hit.normal1.f32())])
     ///     } else {
     ///         // We traveled the full distance without colliding.
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.translation += velocity.extend(0.0).f32();"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.translation += velocity.f32();"
-    )]
+    ///          transform.translation += velocity.f32();
     ///     }
     /// }
     /// ```
@@ -851,14 +753,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///
     /// ```
     /// use bevy::prelude::*;
-    #[cfg_attr(
-        feature = "2d",
-        doc = "use avian2d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "use avian3d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};"
-    )]
+    /// use avian3d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};
     /// fn depenetrate_player(
     ///     player: Single<(Entity, &Collider, &mut Transform)>,
     ///     move_and_slide: MoveAndSlide,
@@ -869,30 +764,12 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///
     ///     let offset = move_and_slide.depenetrate(
     ///         collider,
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.translation.xy().adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.translation.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.rotation.to_euler(EulerRot::XYZ).2.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.rotation.adjust_precision(),"
-    )]
+    ///          transform.translation.adjust_precision(),
+    ///          transform.rotation.adjust_precision(),
     ///         &DepenetrationConfig::default(),
     ///         &filter,
     ///     );
-    #[cfg_attr(
-        feature = "2d",
-        doc = "     transform.translation += offset.f32().extend(0.0);"
-    )]
-    #[cfg_attr(feature = "3d", doc = "     transform.translation += offset.f32();")]
+    ///      transform.translation += offset.f32();
     /// }
     /// ```
     ///
@@ -959,14 +836,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///
     /// ```
     /// use bevy::prelude::*;
-    #[cfg_attr(
-        feature = "2d",
-        doc = "use avian2d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "use avian3d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};"
-    )]
+    /// use avian3d::{prelude::*, character_controller::move_and_slide::DepenetrationConfig, math::{AdjustPrecision as _, AsF32 as _}};
     /// fn depenetrate_player_manually(
     ///     player: Single<(Entity, &Collider, &mut Transform)>,
     ///     move_and_slide: MoveAndSlide,
@@ -979,22 +849,8 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///     let mut intersections = Vec::new();
     ///     move_and_slide.intersections(
     ///         collider,
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.translation.xy().adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.translation.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "2d",
-        doc = "         transform.rotation.to_euler(EulerRot::XYZ).2.adjust_precision(),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "         transform.rotation.adjust_precision(),"
-    )]
+    ///          transform.translation.adjust_precision(),
+    ///          transform.rotation.adjust_precision(),
     ///         config.skin_width,
     ///         &filter,
     ///         |contact_point, normal| {
@@ -1003,11 +859,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///         },
     ///     );
     ///     let offset = move_and_slide.depenetrate_intersections(&config, &intersections);
-    #[cfg_attr(
-        feature = "2d",
-        doc = "     transform.translation += offset.f32().extend(0.0);"
-    )]
-    #[cfg_attr(feature = "3d", doc = "     transform.translation += offset.f32();")]
+    ///      transform.translation += offset.f32();
     /// }
     /// ```
     ///

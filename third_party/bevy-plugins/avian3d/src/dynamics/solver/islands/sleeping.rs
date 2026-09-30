@@ -205,9 +205,6 @@ fn update_sleeping_states(
     // TODO: This would be nice to do in parallel.
     for (mut sleep_timer, sleep_threshold, solver_body, island_data) in query.iter_mut() {
         let lin_vel_squared = solver_body.linear_velocity.length_squared();
-        #[cfg(feature = "2d")]
-        let ang_vel_squared = solver_body.angular_velocity * solver_body.angular_velocity;
-        #[cfg(feature = "3d")]
         let ang_vel_squared = solver_body.angular_velocity.length_squared();
 
         // Keep signs.
@@ -536,16 +533,6 @@ impl Command for WakeIslands {
     }
 }
 
-#[cfg(feature = "2d")]
-type ConstantForceChanges = Or<(
-    Changed<ConstantForce>,
-    Changed<ConstantTorque>,
-    Changed<ConstantLinearAcceleration>,
-    Changed<ConstantAngularAcceleration>,
-    Changed<ConstantLocalForce>,
-    Changed<ConstantLocalLinearAcceleration>,
-)>;
-#[cfg(feature = "3d")]
 type ConstantForceChanges = Or<(
     Changed<ConstantForce>,
     Changed<ConstantTorque>,

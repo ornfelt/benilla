@@ -11,23 +11,19 @@ use derive_more::derive::From;
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// // Spawn a body with a collider that has a density of `2.5`.
 /// fn setup(mut commands: Commands) {
 ///     commands.spawn((
 ///         RigidBody::Dynamic,
-#[cfg_attr(feature = "2d", doc = "        Collider::circle(0.5),")]
-#[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.5),")]
+///         Collider::sphere(0.5),
 ///         ColliderDensity(2.5),
 ///     ));
 /// }
 /// ```
 #[derive(Reflect, Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, PartialOrd, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct ColliderDensity(pub f32);
 
@@ -52,19 +48,11 @@ impl ColliderDensity {
 /// # Example
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
-#[cfg_attr(
-    feature = "2d",
-    doc = "    commands.spawn((RigidBody::Dynamic, Collider::circle(0.5)));"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "    commands.spawn((RigidBody::Dynamic, Collider::sphere(0.5)));"
-)]
+///     commands.spawn((RigidBody::Dynamic, Collider::sphere(0.5)));
 /// }
 ///
 /// fn print_collider_masses(query: Query<&ColliderMassProperties>) {
@@ -74,8 +62,6 @@ impl ColliderDensity {
 /// }
 /// ```
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 pub struct ColliderMassProperties(MassProperties);
 

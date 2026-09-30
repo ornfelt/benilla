@@ -13,8 +13,6 @@ use bevy::prelude::*;
 
 /// Constraint data required by the XPBD constraint solver for a [`PrismaticJoint`].
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Component, Debug, PartialEq)]
 pub struct PrismaticJointSolverData {
     pub(super) world_r1: Vector,
@@ -181,16 +179,6 @@ impl PrismaticJoint {
 
         let zero_distance_limit = DistanceLimit::ZERO;
 
-        #[cfg(feature = "2d")]
-        {
-            let axis2 = Vector::new(axis1.y, -axis1.x);
-
-            let separation = (body2.delta_position - body1.delta_position)
-                + (world_r2 - world_r1)
-                + solver_data.center_difference;
-            delta_x += zero_distance_limit.compute_correction_along_axis(separation, axis2);
-        }
-        #[cfg(feature = "3d")]
         {
             let axis2 = axis1.any_orthogonal_vector();
             let axis3 = axis1.cross(axis2);

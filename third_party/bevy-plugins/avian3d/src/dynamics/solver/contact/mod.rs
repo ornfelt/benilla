@@ -13,8 +13,6 @@ use crate::{
     dynamics::solver::{BodyQueryItem, ContactSoftnessCoefficients},
     prelude::*,
 };
-#[cfg(feature = "serialize")]
-use bevy::reflect::{ReflectDeserialize, ReflectSerialize};
 use bevy::{
     ecs::entity::{Entity, EntityMapper, MapEntities},
     reflect::Reflect,
@@ -26,8 +24,6 @@ use super::solver_body::{SolverBody, SolverBodyInertia};
 // TODO: One-body constraint version
 /// Data and logic for solving a single contact point for a [`ContactConstraint`].
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ContactConstraintPoint {
     /// The normal part of the contact constraint.
@@ -58,8 +54,6 @@ pub struct ContactConstraintPoint {
 /// Each constraint corresponds to a [`ContactManifold`] indicated by the `manifold_index`.
 /// The contact points are stored in `points`, and they all share the same `normal`.
 #[derive(Clone, Debug, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct ContactConstraint {
     /// The first rigid body entity in the contact.
@@ -75,24 +69,15 @@ pub struct ContactConstraint {
     pub friction: Scalar,
     /// The combined coefficient of [restitution](Restitution) of the bodies.
     pub restitution: Scalar,
-    /// The desired relative linear speed of the bodies along the surface,
-    /// expressed in world space as `tangent_speed2 - tangent_speed1`.
-    ///
-    /// Defaults to zero. If set to a non-zero value, this can be used to simulate effects
-    /// such as conveyor belts.
-    #[cfg(feature = "2d")]
-    pub tangent_speed: Scalar,
     /// The desired relative linear velocity of the bodies along the surface,
     /// expressed in world space as `tangent_velocity2 - tangent_velocity1`.
     ///
     /// Defaults to zero. If set to a non-zero value, this can be used to simulate effects
     /// such as conveyor belts.
-    #[cfg(feature = "3d")]
     pub tangent_velocity: Vector,
     /// The world-space contact normal shared by all points in the contact manifold.
     pub normal: Vector,
     /// The first world-space tangent direction shared by all points in the contact manifold.
-    #[cfg(feature = "3d")]
     pub tangent1: Vector,
     /// The contact points in the manifold. Each point shares the same `normal`.
     // TODO: Use a `SmallVec`
@@ -206,12 +191,8 @@ impl ContactConstraint {
             relative_dominance,
             friction: manifold.friction,
             restitution: manifold.restitution,
-            #[cfg(feature = "2d")]
-            tangent_speed: manifold.tangent_speed,
-            #[cfg(feature = "3d")]
             tangent_velocity: manifold.tangent_velocity,
             normal: manifold.normal,
-            #[cfg(feature = "3d")]
             tangent1: tangents[0],
             points,
             contact_id,
@@ -245,11 +226,6 @@ impl ContactConstraint {
                 .as_ref()
                 .map_or(default(), |part| part.impulse);
 
-            #[cfg(feature = "2d")]
-            let p = warm_start_coefficient
-                * (point.normal_part.impulse * self.normal
-                    + tangent_impulse * tangent_directions[0]);
-            #[cfg(feature = "3d")]
             let p = warm_start_coefficient
                 * (point.normal_part.impulse * self.normal
                     + tangent_impulse.x * tangent_directions[0]
@@ -336,9 +312,6 @@ impl ContactConstraint {
             let impulse = friction_part.solve_impulse(
                 tangent_directions,
                 relative_velocity,
-                #[cfg(feature = "2d")]
-                self.tangent_speed,
-                #[cfg(feature = "3d")]
                 self.tangent_velocity,
                 self.friction,
                 point.normal_part.impulse,
@@ -409,11 +382,6 @@ impl ContactConstraint {
     /// Returns the tangent directions for the contact constraint.
     #[inline(always)]
     pub fn tangent_directions(&self) -> [Vector; DIM - 1] {
-        #[cfg(feature = "2d")]
-        {
-            [Vector::new(self.normal.y, -self.normal.x)]
-        }
-        #[cfg(feature = "3d")]
         {
             // Note: The order is flipped here so that we use `-normal`.
             [self.tangent1, self.tangent1.cross(self.normal)]
@@ -429,11 +397,6 @@ fn compute_tangent_directions(
     velocity1: Vector,
     velocity2: Vector,
 ) -> [Vector; DIM - 1] {
-    #[cfg(feature = "2d")]
-    {
-        [Vector::new(normal.y, -normal.x)]
-    }
-    #[cfg(feature = "3d")]
     {
         let force_direction = -normal;
         let relative_velocity = velocity1 - velocity2;

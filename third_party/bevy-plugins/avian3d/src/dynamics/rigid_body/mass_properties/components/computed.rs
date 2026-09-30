@@ -42,8 +42,6 @@ use super::{AngularInertia, AngularInertiaError, CenterOfMass, Mass, MassError};
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct ComputedMass {
     /// The inverse mass.
@@ -178,205 +176,6 @@ impl From<ComputedMass> for Mass {
     }
 }
 
-/// The total [angular inertia] computed for a dynamic [rigid body], taking into account
-/// colliders and descendants. Represents resistance to angular acceleration.
-///
-/// The total angular inertia is computed as the sum of the inertias of all attached colliders
-/// and the angular inertia of the rigid body entity itself. The angular inertia of an entity is determined
-/// by its [`AngularInertia`] component, or if it is not present, from an attached [`Collider`]
-/// based on its shape and mass.
-///
-/// A total angular inertia of zero is a special case, and is interpreted as infinite angular inertia,
-/// meaning the rigid body will not be affected by any torque.
-///
-/// [angular inertia]: https://en.wikipedia.org/wiki/Moment_of_inertia
-/// [rigid body]: RigidBody
-///
-/// # Representation
-///
-/// Internally, the angular inertia is actually stored as the inverse angular inertia `1.0 / angular_inertia`.
-/// This is because most physics calculations operate on the inverse angular inertia, and storing it directly
-/// allows for fewer divisions and guards against division by zero.
-///
-/// When using [`ComputedAngularInertia`], you shouldn't need to worry about this internal representation.
-/// The provided constructors and getters abstract away the implementation details.
-///
-/// In terms of performance, the main thing to keep in mind is that [`inverse`](Self::inverse) is a no-op
-/// and [`value`](Self::value) contains a division. When dividing by the angular inertia, it's better to use
-/// `foo * angular_inertia.inverse()` than `foo / angular_inertia.value()`.
-///
-/// # Related Types
-///
-/// - [`AngularInertia`] can be used to set the angular inertia associated with an individual entity.
-/// - [`ComputedMass`] stores the total mass of a rigid body, taking into account colliders and descendants.
-/// - [`ComputedCenterOfMass`] stores the total center of mass of a rigid body, taking into account colliders and descendants.
-/// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
-///
-/// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[cfg(feature = "2d")]
-#[derive(Reflect, Clone, Copy, Component, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
-#[reflect(Debug, Component, Default, PartialEq)]
-#[doc(alias = "ComputedMomentOfInertia")]
-pub struct ComputedAngularInertia {
-    /// The inverse angular inertia.
-    ///
-    /// This is stored as an inverse to minimize the number of divisions
-    /// and to guard against division by zero. Most physics calculations
-    /// use the inverse angular inertia.
-    inverse: Scalar,
-}
-
-#[cfg(feature = "2d")]
-impl ComputedAngularInertia {
-    /// Infinite angular inertia.
-    pub const INFINITY: Self = Self { inverse: 0.0 };
-
-    /// Creates a new [`ComputedAngularInertia`] from the given angular inertia.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the angular inertia is negative or NaN when `debug_assertions` are enabled.
-    #[inline]
-    pub fn new(angular_inertia: Scalar) -> Self {
-        Self::from_inverse(angular_inertia.recip_or_zero())
-    }
-
-    /// Tries to create a new [`ComputedAngularInertia`] from the given angular inertia.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Err(AngularInertiaError)`](AngularInertiaError) if the angular inertia is negative or NaN.
-    #[inline]
-    pub fn try_new(angular_inertia: Scalar) -> Result<Self, AngularInertiaError> {
-        if angular_inertia.is_nan() {
-            Err(AngularInertiaError::NaN)
-        } else if angular_inertia < 0.0 {
-            Err(AngularInertiaError::Negative)
-        } else {
-            Ok(Self::from_inverse(angular_inertia.recip_or_zero()))
-        }
-    }
-
-    /// Creates a new [`ComputedAngularInertia`] from the given inverse angular inertia.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the inverse angular inertia is negative or NaN when `debug_assertions` are enabled.
-    #[inline]
-    pub fn from_inverse(inverse_angular_inertia: Scalar) -> Self {
-        debug_assert!(
-            inverse_angular_inertia >= 0.0 && !inverse_angular_inertia.is_nan(),
-            "angular inertia must be positive or zero"
-        );
-
-        Self {
-            inverse: inverse_angular_inertia,
-        }
-    }
-
-    /// Tries to create a new [`ComputedAngularInertia`] from the given inverse angular inertia.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Err(AngularInertiaError)`](AngularInertiaError) if the inverse angular inertia is negative or NaN.
-    #[inline]
-    pub fn try_from_inverse(inverse_angular_inertia: Scalar) -> Result<Self, AngularInertiaError> {
-        if inverse_angular_inertia.is_nan() {
-            Err(AngularInertiaError::NaN)
-        } else if inverse_angular_inertia < 0.0 {
-            Err(AngularInertiaError::Negative)
-        } else {
-            Ok(Self {
-                inverse: inverse_angular_inertia,
-            })
-        }
-    }
-
-    /// Returns the angular inertia. If it is infinite, returns zero.
-    ///
-    /// Note that this involves a division because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
-    /// If dividing by the angular inertia, consider using `foo * angular_inertia.inverse()` instead of `foo / angular_inertia.value()`.
-    #[inline]
-    pub fn value(self) -> Scalar {
-        self.inverse.recip_or_zero()
-    }
-
-    /// Returns the inverse angular inertia.
-    ///
-    /// This is a no-op because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
-    #[inline]
-    pub fn inverse(self) -> Scalar {
-        self.inverse
-    }
-
-    /// Returns a mutable reference to the inverse of the angular inertia.
-    ///
-    /// Note that this is a no-op because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
-    #[inline]
-    pub fn inverse_mut(&mut self) -> &mut Scalar {
-        &mut self.inverse
-    }
-
-    /// Sets the angular inertia.
-    #[inline]
-    pub fn set(&mut self, angular_inertia: impl Into<ComputedAngularInertia>) {
-        *self = angular_inertia.into();
-    }
-
-    /// Computes the angular inertia shifted by the given offset, taking into account the given mass.
-    #[inline]
-    pub fn shifted(&self, mass: Scalar, offset: Vector) -> Scalar {
-        AngularInertia::from(*self).shifted(mass as f32, offset.f32()) as Scalar
-    }
-
-    /// Computes the angular inertia shifted by the given offset, taking into account the given mass.
-    #[inline]
-    pub fn shifted_inverse(&self, mass: Scalar, offset: Vector) -> Scalar {
-        self.shifted(mass, offset).recip_or_zero()
-    }
-
-    /// Returns `true` if the angular inertia is neither infinite nor NaN.
-    #[inline]
-    pub fn is_finite(self) -> bool {
-        !self.is_infinite() && !self.is_nan()
-    }
-
-    /// Returns `true` if the angular inertia is positive infinity or negative infinity.
-    #[inline]
-    pub fn is_infinite(self) -> bool {
-        self == Self::INFINITY
-    }
-
-    /// Returns `true` if the angular inertia is NaN.
-    #[inline]
-    pub fn is_nan(self) -> bool {
-        self.inverse.is_nan()
-    }
-}
-
-#[cfg(feature = "2d")]
-impl From<Scalar> for ComputedAngularInertia {
-    fn from(angular_inertia: Scalar) -> Self {
-        Self::new(angular_inertia)
-    }
-}
-
-#[cfg(feature = "2d")]
-impl From<AngularInertia> for ComputedAngularInertia {
-    fn from(inertia: AngularInertia) -> Self {
-        ComputedAngularInertia::new(inertia.0 as Scalar)
-    }
-}
-
-#[cfg(feature = "2d")]
-impl From<ComputedAngularInertia> for AngularInertia {
-    fn from(inertia: ComputedAngularInertia) -> Self {
-        Self(inertia.value() as f32)
-    }
-}
-
 /// The total local [angular inertia] computed for a dynamic [rigid body] as a 3x3 [tensor] matrix,
 /// taking into account colliders and descendants. Represents resistance to angular acceleration.
 ///
@@ -419,10 +218,7 @@ impl From<ComputedAngularInertia> for AngularInertia {
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[cfg(feature = "3d")]
 #[derive(Reflect, Clone, Copy, Component, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 #[doc(alias = "ComputedMomentOfInertia")]
 pub struct ComputedAngularInertia {
@@ -437,7 +233,6 @@ impl Default for ComputedAngularInertia {
     }
 }
 
-#[cfg(feature = "3d")]
 impl ComputedAngularInertia {
     /// Infinite angular inertia.
     pub const INFINITY: Self = Self {
@@ -707,14 +502,12 @@ impl ComputedAngularInertia {
     }
 }
 
-#[cfg(feature = "3d")]
 impl From<SymmetricMatrix> for ComputedAngularInertia {
     fn from(tensor: SymmetricMatrix) -> Self {
         Self::from_tensor(tensor)
     }
 }
 
-#[cfg(feature = "3d")]
 impl From<AngularInertia> for ComputedAngularInertia {
     fn from(inertia: AngularInertia) -> Self {
         ComputedAngularInertia::new_with_local_frame(
@@ -724,20 +517,9 @@ impl From<AngularInertia> for ComputedAngularInertia {
     }
 }
 
-#[cfg(feature = "3d")]
 impl From<ComputedAngularInertia> for AngularInertia {
     fn from(inertia: ComputedAngularInertia) -> Self {
         Self::from_tensor(inertia.tensor().f32())
-    }
-}
-
-#[cfg(feature = "2d")]
-impl core::ops::Mul<Scalar> for ComputedAngularInertia {
-    type Output = Scalar;
-
-    #[inline]
-    fn mul(self, rhs: Scalar) -> Scalar {
-        self.value() * rhs
     }
 }
 
@@ -770,8 +552,6 @@ impl core::ops::Mul<Vector> for ComputedAngularInertia {
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct ComputedCenterOfMass(pub Vector);
 
@@ -781,14 +561,6 @@ impl ComputedCenterOfMass {
 
     /// Creates a new [`ComputedCenterOfMass`] at the given local position.
     #[inline]
-    #[cfg(feature = "2d")]
-    pub const fn new(x: Scalar, y: Scalar) -> Self {
-        Self(Vector::new(x, y))
-    }
-
-    /// Creates a new [`ComputedCenterOfMass`] at the given local position.
-    #[inline]
-    #[cfg(feature = "3d")]
     pub const fn new(x: Scalar, y: Scalar, z: Scalar) -> Self {
         Self(Vector::new(x, y, z))
     }
@@ -809,7 +581,6 @@ impl From<ComputedCenterOfMass> for CenterOfMass {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "3d")]
     use approx::assert_relative_eq;
 
     #[test]
@@ -870,76 +641,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "2d")]
-    fn angular_inertia_creation() {
-        let angular_inertia = ComputedAngularInertia::new(10.0);
-        assert_eq!(angular_inertia, ComputedAngularInertia::from_inverse(0.1));
-        assert_eq!(angular_inertia.value(), 10.0);
-        assert_eq!(angular_inertia.inverse(), 0.1);
-    }
-
-    #[test]
-    #[cfg(feature = "2d")]
-    fn zero_angular_inertia() {
-        // Zero angular inertia should be equivalent to infinite angular inertia.
-        let angular_inertia = ComputedAngularInertia::new(0.0);
-        assert_eq!(
-            angular_inertia,
-            ComputedAngularInertia::new(Scalar::INFINITY)
-        );
-        assert_eq!(angular_inertia, ComputedAngularInertia::from_inverse(0.0));
-        assert_eq!(angular_inertia.value(), 0.0);
-        assert_eq!(angular_inertia.inverse(), 0.0);
-        assert!(angular_inertia.is_infinite());
-        assert!(!angular_inertia.is_finite());
-        assert!(!angular_inertia.is_nan());
-    }
-
-    #[test]
-    #[cfg(feature = "2d")]
-    fn infinite_angular_inertia() {
-        let angular_inertia = ComputedAngularInertia::INFINITY;
-        assert_eq!(
-            angular_inertia,
-            ComputedAngularInertia::new(Scalar::INFINITY)
-        );
-        assert_eq!(angular_inertia, ComputedAngularInertia::from_inverse(0.0));
-        assert_eq!(angular_inertia.value(), 0.0);
-        assert_eq!(angular_inertia.inverse(), 0.0);
-        assert!(angular_inertia.is_infinite());
-        assert!(!angular_inertia.is_finite());
-        assert!(!angular_inertia.is_nan());
-    }
-
-    #[test]
-    #[should_panic]
-    #[cfg(feature = "2d")]
-    fn negative_angular_inertia_panics() {
-        ComputedAngularInertia::new(-1.0);
-    }
-
-    #[test]
-    #[cfg(feature = "2d")]
-    fn negative_angular_inertia_error() {
-        assert_eq!(
-            ComputedAngularInertia::try_new(-1.0),
-            Err(AngularInertiaError::Negative),
-            "negative angular inertia should return an error"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "2d")]
-    fn nan_angular_inertia_error() {
-        assert_eq!(
-            ComputedAngularInertia::try_new(Scalar::NAN),
-            Err(AngularInertiaError::NaN),
-            "NaN angular inertia should return an error"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "3d")]
     fn angular_inertia_creation() {
         let angular_inertia = ComputedAngularInertia::new(Vector::new(10.0, 20.0, 30.0));
         assert_relative_eq!(
@@ -960,7 +661,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "3d")]
     fn zero_angular_inertia() {
         let angular_inertia = ComputedAngularInertia::new(Vector::ZERO);
         assert_eq!(
@@ -981,7 +681,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "3d")]
     fn infinite_angular_inertia() {
         let angular_inertia = ComputedAngularInertia::INFINITY;
         assert_eq!(
@@ -1001,13 +700,11 @@ mod tests {
 
     #[test]
     #[should_panic]
-    #[cfg(feature = "3d")]
     fn negative_angular_inertia_panics() {
         ComputedAngularInertia::new(Vector::new(-1.0, 2.0, 3.0));
     }
 
     #[test]
-    #[cfg(feature = "3d")]
     fn negative_angular_inertia_error() {
         assert_eq!(
             ComputedAngularInertia::try_new(Vector::new(-1.0, 2.0, 3.0)),
@@ -1017,7 +714,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "3d")]
     fn nan_angular_inertia_error() {
         assert_eq!(
             ComputedAngularInertia::try_new(Vector::new(Scalar::NAN, 2.0, 3.0)),

@@ -19,8 +19,7 @@ use bevy::prelude::*;
 /// using [`with_relative_speed`], or when the app is running using [`set_relative_speed`]:
 ///
 /// ```no_run
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn main() {
@@ -40,8 +39,7 @@ use bevy::prelude::*;
 /// [`Time<Physics>`](Physics) can be used to pause and resume the simulation:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 ///
 /// fn pause(mut time: ResMut<Time<Physics>>) {
@@ -57,8 +55,7 @@ use bevy::prelude::*;
 /// [`Time<Physics>`](Physics) clock and manually run the [`PhysicsSchedule`] in an exclusive system:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use avian3d::prelude::*;
 /// use bevy::prelude::*;
 /// use core::time::Duration;
 ///
@@ -117,8 +114,6 @@ use bevy::prelude::*;
 /// independence, but it's still recommended so that the physical units are more logical.
 
 #[derive(Reflect, Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, PartialEq)]
 pub struct Physics {
     paused: bool,
@@ -280,13 +275,6 @@ impl TimePrecisionAdjusted for Time {
     /// Returns how much time has advanced since the last [`update`](#method.update)
     /// as [`Scalar`] seconds.
     fn delta_seconds_adjusted(&self) -> Scalar {
-        #[cfg(feature = "f32")]
-        {
-            self.delta_secs()
-        }
-        #[cfg(feature = "f64")]
-        {
-            self.delta_secs_f64()
-        }
+        self.delta_secs()
     }
 }

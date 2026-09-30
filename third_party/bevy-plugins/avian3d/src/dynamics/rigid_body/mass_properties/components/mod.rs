@@ -5,10 +5,8 @@ use bevy::{
     ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
-#[cfg(feature = "3d")]
 use bevy_heavy::AngularInertiaTensor;
 use derive_more::From;
-#[cfg(feature = "3d")]
 use glam_matrix_extras::{MatConversionError, SymmetricMat3};
 
 mod collider;
@@ -48,8 +46,7 @@ pub enum MassError {
 /// The [`Mass`] component can be used to define the mass of a [rigid body] entity or its descendants:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -65,8 +62,7 @@ pub enum MassError {
 /// based on its shape and [`ColliderDensity`].
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -82,8 +78,7 @@ pub enum MassError {
 /// If the rigid body has child colliders, their masses will be added to the total [`ComputedMass`].
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -93,14 +88,7 @@ pub enum MassError {
 ///     Collider::capsule(0.5, 1.5),
 ///     Mass(10.0),
 /// ))
-#[cfg_attr(
-    feature = "2d",
-    doc = ".with_child((Collider::circle(1.0), Mass(5.0)));"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = ".with_child((Collider::sphere(1.0), Mass(5.0)));"
-)]
+/// .with_child((Collider::sphere(1.0), Mass(5.0)));
 /// # }
 /// ```
 ///
@@ -108,8 +96,7 @@ pub enum MassError {
 /// add the [`NoAutoMass`] component. This can be useful when full control over mass is desired.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -120,14 +107,7 @@ pub enum MassError {
 ///     Mass(10.0),
 ///     NoAutoMass,
 /// ))
-#[cfg_attr(
-    feature = "2d",
-    doc = ".with_child((Collider::circle(1.0), Mass(5.0)));"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = ".with_child((Collider::sphere(1.0), Mass(5.0)));"
-)]
+/// .with_child((Collider::sphere(1.0), Mass(5.0)));
 /// # }
 /// ```
 ///
@@ -154,8 +134,6 @@ pub enum MassError {
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct Mass(pub f32);
 
@@ -166,29 +144,14 @@ impl Mass {
     /// Computes the [`Mass`] of the given shape using the given density.
     ///
     /// ```
-    #[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-    #[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+    /// # use avian3d::prelude::*;
     /// # use bevy::prelude::*;
     /// #
     /// // Compute the mass from a collider with a density of `2.0`.
-    #[cfg_attr(
-        feature = "2d",
-        doc = "let mass = Mass::from_shape(&Collider::circle(1.0), 2.0);"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "let mass = Mass::from_shape(&Collider::sphere(1.0), 2.0);"
-    )]
+    /// let mass = Mass::from_shape(&Collider::sphere(1.0), 2.0);
     ///
     /// // Bevy's primitive shapes can also be used.
-    #[cfg_attr(
-        feature = "2d",
-        doc = "let mass = Mass::from_shape(&Circle::new(1.0), 2.0);"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "let mass = Mass::from_shape(&Sphere::new(1.0), 2.0);"
-    )]
+    /// let mass = Mass::from_shape(&Sphere::new(1.0), 2.0);
     /// ```
     #[inline]
     pub fn from_shape<T: ComputeMassProperties>(shape: &T, density: f32) -> Self {
@@ -204,158 +167,6 @@ pub enum AngularInertiaError {
     Negative,
     /// The angular inertia is NaN.
     NaN,
-}
-
-/// The [angular inertia] of an entity, representing resistance to angular acceleration.
-/// A higher angular inertia requires more torque for the same acceleration.
-///
-/// If [`AngularInertia`] is not present, but the entity has a [`Collider`], its [`ColliderMassProperties`]
-/// computed based on the shape and will be used instead. Angular inertia scales with mass,
-/// so a higher [`Mass`] or [`ColliderDensity`] will result in higher inertia.
-///
-/// The [`AngularInertia`] component does *not* take into account the inertia of child entities, and it is never modified
-/// by the engine. The total angular inertia of a dynamic [rigid body] that *does* consider child entities and colliders
-/// is stored in the [`ComputedAngularInertia`] component. It is updated automatically when mass properties are changed,
-/// or when colliders are added or removed.
-///
-/// A total angular inertia of zero is a special case, and is interpreted as infinite inertia, meaning the rigid body
-/// will not be affected by any torque.
-///
-/// [angular inertia]: https://en.wikipedia.org/wiki/Moment_of_inertia
-/// [rigid body]: RigidBody
-///
-/// # Usage
-///
-/// The [`AngularInertia`] component can be used to define the angular inertia of a [rigid body]
-/// entity or its descendants:
-///
-/// ```
-/// # use avian2d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # fn setup(mut commands: Commands) {
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     AngularInertia(2.0),
-/// ));
-/// # }
-/// ```
-///
-/// If no [`AngularInertia`] is present, the [`ComputedAngularInertia`] will be computed from the collider
-/// based on its mass and shape.
-///
-/// ```
-/// # use avian2d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # fn setup(mut commands: Commands) {
-/// // Note: `ColliderDensity` is optional, and defaults to `1.0` if not present.
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     ColliderDensity(2.0),
-/// ));
-/// # }
-/// ```
-///
-/// If the rigid body has child colliders, their angular inertia will be added to the total [`ComputedAngularInertia`].
-///
-/// ```
-/// # use avian2d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # fn setup(mut commands: Commands) {
-/// // Total angular inertia: 3.0 + 2.0 = 5.0
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     AngularInertia(3.0),
-/// ))
-/// .with_child((Collider::circle(1.0), AngularInertia(2.0)));
-/// # }
-/// ```
-///
-/// To prevent angular inertia of child entities from contributing to the total [`ComputedAngularInertia`],
-/// add the [`NoAutoAngularInertia`] component. This can be useful when full control over inertia is desired.
-///
-/// ```
-/// # use avian2d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # fn setup(mut commands: Commands) {
-/// // Total angular inertia: 3.0
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     AngularInertia(3.0),
-///     NoAutoAngularInertia,
-/// ))
-/// .with_child((Collider::circle(1.0), AngularInertia(2.0)));
-/// # }
-/// ```
-///
-/// # Angular Inertia Updates
-///
-/// The [`AngularInertia`] component is never modified by the engine, so you can safely update it at any time.
-///
-/// The total [`ComputedAngularInertia`] is updated automatically whenever the mass properties of a [rigid body]
-/// or its descendants change, or when colliders are added or removed. This update is triggered by adding
-/// the [`RecomputeMassProperties`] component, which is removed after the update is performed
-/// in [`MassPropertySystems::UpdateComputedMassProperties`](super::MassPropertySystems::UpdateComputedMassProperties).
-///
-/// To immediately perform a manual update of the total mass properties for a specific rigid body entity,
-/// you can call [`MassPropertyHelper::update_mass_properties`] in a system.
-///
-/// # Related Types
-///
-/// - [`ComputedAngularInertia`] stores the total angular inertia of a dynamic [rigid body] that considers child entities and colliders.
-/// - [`NoAutoAngularInertia`] disables the mass properties of child entities being taken into account for the [`ComputedAngularInertia`].
-/// - [`Mass`] is the linear equivalent of angular inertia, representing resistance to linear acceleration.
-/// - [`CenterOfMass`] is the local point where the mass is concentrated. Applying forces at this point produces no torque.
-/// - [`MassPropertiesBundle`] is a bundle containing mass properties.
-/// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
-///
-/// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[cfg(feature = "2d")]
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
-#[reflect(Debug, Component, Default, PartialEq)]
-#[doc(alias = "MomentOfInertia")]
-pub struct AngularInertia(pub f32);
-
-#[cfg(feature = "2d")]
-impl AngularInertia {
-    /// An angular inertia of `0.0`.
-    pub const ZERO: Self = Self(0.0);
-
-    /// Computes the [`AngularInertia`] of the given shape using the given mass.
-    ///
-    /// ```
-    /// # use avian2d::prelude::*;
-    /// # use bevy::prelude::*;
-    /// #
-    /// // Compute the angular inertia from a collider with a mass of `2.0`.
-    /// let inertia = AngularInertia::from_shape(&Collider::circle(1.0), 2.0);
-    ///
-    /// // Bevy's primitive shapes can also be used.
-    /// let inertia = AngularInertia::from_shape(&Circle::new(1.0), 2.0);
-    /// ```
-    #[inline]
-    pub fn from_shape<T: ComputeMassProperties>(shape: &T, mass: f32) -> Self {
-        Self(shape.angular_inertia(mass))
-    }
-
-    /// Computes the angular inertia shifted by the given offset, taking into account the given mass.
-    #[inline]
-    pub fn shifted(&self, mass: f32, offset: Vec2) -> f32 {
-        if mass > 0.0 && mass.is_finite() && offset != Vec2::ZERO {
-            self.0 + offset.length_squared() * mass
-        } else {
-            self.0
-        }
-    }
 }
 
 /// The local [angular inertia] of an entity, representing resistance to angular acceleration.
@@ -527,10 +338,7 @@ impl AngularInertia {
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[cfg(feature = "3d")]
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, PartialEq)]
 #[doc(alias = "MomentOfInertia")]
 pub struct AngularInertia {
@@ -541,7 +349,6 @@ pub struct AngularInertia {
     pub local_frame: Quat,
 }
 
-#[cfg(feature = "3d")]
 impl AngularInertia {
     /// An angular inertia of `0.0` for all axes, with an identity local frame.
     pub const ZERO: Self = Self {
@@ -747,7 +554,6 @@ impl AngularInertia {
     }
 }
 
-#[cfg(feature = "3d")]
 impl TryFrom<Mat3> for AngularInertia {
     type Error = MatConversionError;
 
@@ -756,21 +562,18 @@ impl TryFrom<Mat3> for AngularInertia {
     }
 }
 
-#[cfg(feature = "3d")]
 impl From<SymmetricMat3> for AngularInertia {
     fn from(tensor: SymmetricMat3) -> Self {
         Self::from_tensor(tensor)
     }
 }
 
-#[cfg(feature = "3d")]
 impl From<AngularInertiaTensor> for AngularInertia {
     fn from(tensor: AngularInertiaTensor) -> Self {
         Self::from_tensor(tensor)
     }
 }
 
-#[cfg(feature = "3d")]
 impl From<AngularInertia> for AngularInertiaTensor {
     fn from(inertia: AngularInertia) -> Self {
         inertia.tensor()
@@ -796,8 +599,7 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// The [`CenterOfMass`] component can be used to define the center of mass of a [rigid body] entity or its descendants:
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -805,8 +607,7 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// commands.spawn((
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.5),
-#[cfg_attr(feature = "2d", doc = "    CenterOfMass::new(0.0, -0.5),")]
-#[cfg_attr(feature = "3d", doc = "    CenterOfMass::new(0.0, -0.5, 0.0),")]
+///     CenterOfMass::new(0.0, -0.5, 0.0),
 /// ));
 /// # }
 /// ```
@@ -815,8 +616,7 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// based on its shape.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
@@ -829,30 +629,20 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// based on weighted average of their global centers of mass.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
-#[cfg_attr(
-    feature = "2d",
-    doc = "// Total center of mass: (10.0 * [0.0, -0.5] + 5.0 * [0.0, 4.0]) / (10.0 + 5.0) = [0.0, 1.0]"
-)]
-#[cfg_attr(
-    feature = "3d",
-    doc = "// Total center of mass: (10.0 * [0.0, -0.5, 0.0] + 5.0 * [0.0, 4.0, 0.0]) / (10.0 + 5.0) = [0.0, 1.0, 0.0]"
-)]
+/// // Total center of mass: (10.0 * [0.0, -0.5, 0.0] + 5.0 * [0.0, 4.0, 0.0]) / (10.0 + 5.0) = [0.0, 1.0, 0.0]
 /// commands.spawn((
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.5),
 ///     Mass(10.0),
-#[cfg_attr(feature = "2d", doc = "    CenterOfMass::new(0.0, -0.5),")]
-#[cfg_attr(feature = "3d", doc = "    CenterOfMass::new(0.0, -0.5, 0.0),")]
+///     CenterOfMass::new(0.0, -0.5, 0.0),
 ///     Transform::default(),
 /// ))
 /// .with_child((
-#[cfg_attr(feature = "2d", doc = "    Collider::circle(1.0),")]
-#[cfg_attr(feature = "3d", doc = "    Collider::sphere(1.0),")]
+///     Collider::sphere(1.0),
 ///     Mass(5.0),
 ///     Transform::from_xyz(0.0, 4.0, 0.0),
 /// ));
@@ -863,23 +653,19 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// add the [`NoAutoCenterOfMass`], component. This can be useful when full control over the center of mass is desired.
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+/// # use avian3d::prelude::*;
 /// # use bevy::prelude::*;
 /// #
 /// # fn setup(mut commands: Commands) {
-#[cfg_attr(feature = "2d", doc = "// Total center of mass: [0.0, -0.5]")]
-#[cfg_attr(feature = "3d", doc = "// Total center of mass: [0.0, -0.5, 0.0]")]
+/// // Total center of mass: [0.0, -0.5, 0.0]
 /// commands.spawn((
 ///     RigidBody::Dynamic,
 ///     Collider::capsule(0.5, 1.5),
-#[cfg_attr(feature = "2d", doc = "    CenterOfMass::new(0.0, -0.5),")]
-#[cfg_attr(feature = "3d", doc = "    CenterOfMass::new(0.0, -0.5, 0.0),")]
+///     CenterOfMass::new(0.0, -0.5, 0.0),
 ///     Transform::default(),
 /// ))
 /// .with_child((
-#[cfg_attr(feature = "2d", doc = "    Collider::circle(1.0),")]
-#[cfg_attr(feature = "3d", doc = "    Collider::sphere(1.0),")]
+///     Collider::sphere(1.0),
 ///     Mass(5.0),
 ///     Transform::from_xyz(0.0, 4.0, 0.0),
 /// ));
@@ -909,8 +695,6 @@ impl From<AngularInertia> for AngularInertiaTensor {
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct CenterOfMass(pub VectorF32);
 
@@ -920,14 +704,6 @@ impl CenterOfMass {
 
     /// Creates a new [`CenterOfMass`] at the given local position.
     #[inline]
-    #[cfg(feature = "2d")]
-    pub const fn new(x: f32, y: f32) -> Self {
-        Self(Vec2::new(x, y))
-    }
-
-    /// Creates a new [`CenterOfMass`] at the given local position.
-    #[inline]
-    #[cfg(feature = "3d")]
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self(Vec3::new(x, y, z))
     }
@@ -935,29 +711,14 @@ impl CenterOfMass {
     /// Computes the [`CenterOfMass`] of the given shape.
     ///
     /// ```
-    #[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-    #[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+    /// # use avian3d::prelude::*;
     /// # use bevy::prelude::*;
     /// #
     /// // Compute the center of mass from a collider.
-    #[cfg_attr(
-        feature = "2d",
-        doc = "let center_of_mass = CenterOfMass::from_shape(&Collider::circle(1.0));"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "let center_of_mass = CenterOfMass::from_shape(&Collider::sphere(1.0));"
-    )]
+    /// let center_of_mass = CenterOfMass::from_shape(&Collider::sphere(1.0));
     ///
     /// // Bevy's primitive shapes can also be used.
-    #[cfg_attr(
-        feature = "2d",
-        doc = "let center_of_mass = CenterOfMass::from_shape(&Circle::new(1.0));"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "let center_of_mass = CenterOfMass::from_shape(&Sphere::new(1.0));"
-    )]
+    /// let center_of_mass = CenterOfMass::from_shape(&Sphere::new(1.0));
     /// ```
     #[inline]
     pub fn from_shape<T: ComputeMassProperties>(shape: &T) -> Self {
@@ -973,8 +734,6 @@ impl CenterOfMass {
 ///
 /// [rigid body]: RigidBody
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 #[require(RecomputeMassProperties)]
 #[component(on_remove = on_remove_no_auto_mass_property)]
@@ -988,8 +747,6 @@ pub struct NoAutoMass;
 ///
 /// [rigid body]: RigidBody
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 #[require(RecomputeMassProperties)]
 #[component(on_remove = on_remove_no_auto_mass_property)]
@@ -1003,8 +760,6 @@ pub struct NoAutoAngularInertia;
 ///
 /// [rigid body]: RigidBody
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Component, Default, PartialEq)]
 #[require(RecomputeMassProperties)]
 #[component(on_remove = on_remove_no_auto_mass_property)]
@@ -1034,7 +789,6 @@ pub struct RecomputeMassProperties;
 /// [mass properties]: super
 #[allow(missing_docs)]
 #[derive(Bundle, Debug, Default, Clone, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct MassPropertiesBundle {
     pub mass: Mass,
     pub angular_inertia: AngularInertia,
@@ -1045,35 +799,20 @@ impl MassPropertiesBundle {
     /// Computes the mass properties for a [`Collider`] based on its shape and a given density.
     ///
     /// ```
-    #[cfg_attr(feature = "2d", doc = "# use avian2d::prelude::*;")]
-    #[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
+    /// # use avian3d::prelude::*;
     /// # use bevy::prelude::*;
     /// #
     /// # fn setup(mut commands: Commands) {
     /// // Compute mass properties from a collider with a density of `2.0`.
     /// commands.spawn((
     ///     RigidBody::Dynamic,
-    #[cfg_attr(
-        feature = "2d",
-        doc = "    MassPropertiesBundle::from_shape(&Collider::circle(0.5), 2.0),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "    MassPropertiesBundle::from_shape(&Collider::sphere(0.5), 2.0),"
-    )]
+    ///     MassPropertiesBundle::from_shape(&Collider::sphere(0.5), 2.0),
     /// ));
     ///
     /// // Bevy's primitive shapes can also be used.
     /// commands.spawn((
     ///     RigidBody::Dynamic,
-    #[cfg_attr(
-        feature = "2d",
-        doc = "    MassPropertiesBundle::from_shape(&Circle::new(0.5), 2.0),"
-    )]
-    #[cfg_attr(
-        feature = "3d",
-        doc = "    MassPropertiesBundle::from_shape(&Sphere::new(0.5), 2.0),"
-    )]
+    ///     MassPropertiesBundle::from_shape(&Sphere::new(0.5), 2.0),
     /// ));
     /// # }
     /// ```
@@ -1085,13 +824,10 @@ impl MassPropertiesBundle {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "3d")]
     use super::*;
-    #[cfg(feature = "3d")]
     use approx::assert_relative_eq;
 
     #[test]
-    #[cfg(feature = "3d")]
     fn angular_inertia_creation() {
         use bevy_heavy::AngularInertiaTensor;
 
@@ -1106,13 +842,11 @@ mod tests {
 
     #[test]
     #[should_panic]
-    #[cfg(feature = "3d")]
     fn negative_angular_inertia_panics() {
         AngularInertia::new(Vec3::new(-1.0, 2.0, 3.0));
     }
 
     #[test]
-    #[cfg(feature = "3d")]
     fn negative_angular_inertia_error() {
         assert_eq!(
             AngularInertia::try_new(Vec3::new(-1.0, 2.0, 3.0)),
@@ -1122,7 +856,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "3d")]
     fn nan_angular_inertia_error() {
         assert_eq!(
             AngularInertia::try_new(Vec3::new(f32::NAN, 2.0, 3.0)),
