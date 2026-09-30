@@ -24,7 +24,6 @@ use bevy_text::ComputedTextBlock;
 use bevy_text::CosmicFontSystem;
 
 mod convert;
-pub mod debug;
 pub mod ui_surface;
 
 pub struct LayoutContext {

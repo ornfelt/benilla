@@ -15,7 +15,6 @@ pub mod measurement;
 pub mod update;
 pub mod widget;
 
-pub mod gradients;
 pub mod ui_transform;
 
 use bevy_derive::{Deref, DerefMut};
@@ -32,7 +31,6 @@ mod ui_node;
 
 pub use focus::*;
 pub use geometry::*;
-pub use gradients::*;
 pub use interaction_states::{Checkable, Checked, InteractionDisabled, Pressed};
 pub use layout::*;
 pub use measurement::*;
@@ -49,10 +47,9 @@ pub mod prelude {
     pub use {
         crate::{
             geometry::*,
-            gradients::*,
             ui_node::*,
             ui_transform::*,
-            widget::{Button, ImageNode, Label, NodeImageMode, ViewportNode},
+            widget::{Button, ImageNode, Label, NodeImageMode},
             Interaction, UiScale,
         },
         // `bevy_sprite` re-exports for texture slicing

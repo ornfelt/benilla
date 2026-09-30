@@ -34,27 +34,6 @@ impl Val2 {
         y: Val::ZERO,
     };
 
-    /// Creates a new [`Val2`] where both components are in logical pixels
-    pub const fn px(x: f32, y: f32) -> Self {
-        Self {
-            x: Val::Px(x),
-            y: Val::Px(y),
-        }
-    }
-
-    /// Creates a new [`Val2`] where both components are percentage values
-    pub const fn percent(x: f32, y: f32) -> Self {
-        Self {
-            x: Val::Percent(x),
-            y: Val::Percent(y),
-        }
-    }
-
-    /// Creates a new [`Val2`]
-    pub const fn new(x: Val, y: Val) -> Self {
-        Self { x, y }
-    }
-
     /// Resolves this [`Val2`] from the given `scale_factor`, `parent_size`,
     /// and `viewport_size`.
     ///
@@ -104,30 +83,6 @@ impl UiTransform {
         rotation: Rot2::IDENTITY,
     };
 
-    /// Creates a UI transform representing a rotation.
-    pub const fn from_rotation(rotation: Rot2) -> Self {
-        Self {
-            rotation,
-            ..Self::IDENTITY
-        }
-    }
-
-    /// Creates a UI transform representing a responsive translation.
-    pub const fn from_translation(translation: Val2) -> Self {
-        Self {
-            translation,
-            ..Self::IDENTITY
-        }
-    }
-
-    /// Creates a UI transform representing a scaling.
-    pub const fn from_scale(scale: Vec2) -> Self {
-        Self {
-            scale,
-            ..Self::IDENTITY
-        }
-    }
-
     /// Resolves the translation from the given `scale_factor`, `base_value`, and `target_size`
     /// and returns a 2d affine transform from the resolved translation, and the `UiTransform`'s rotation, and scale.
     pub fn compute_affine(&self, scale_factor: f32, base_size: Vec2, target_size: Vec2) -> Affine2 {
@@ -170,37 +125,6 @@ impl UiGlobalTransform {
     #[inline]
     pub fn try_inverse(&self) -> Option<Affine2> {
         (self.matrix2.determinant() != 0.).then_some(self.inverse())
-    }
-
-    /// Creates a `UiGlobalTransform` from the given 2D translation.
-    #[inline]
-    pub fn from_translation(translation: Vec2) -> Self {
-        Self(Affine2::from_translation(translation))
-    }
-
-    /// Creates a `UiGlobalTransform` from the given 2D translation.
-    #[inline]
-    pub fn from_xy(x: f32, y: f32) -> Self {
-        Self::from_translation(Vec2::new(x, y))
-    }
-
-    /// Creates a `UiGlobalTransform` from the given rotation.
-    #[inline]
-    pub fn from_rotation(rotation: Rot2) -> Self {
-        Self(Affine2::from_mat2(rotation.into()))
-    }
-
-    /// Creates a `UiGlobalTransform` from the given scaling.
-    #[inline]
-    pub fn from_scale(scale: Vec2) -> Self {
-        Self(Affine2::from_scale(scale))
-    }
-
-    /// Extracts scale, angle and translation from self.
-    /// The transform is expected to be non-degenerate and without shearing, or the output will be invalid.
-    #[inline]
-    pub fn to_scale_angle_translation(&self) -> (Vec2, f32, Vec2) {
-        self.0.to_scale_angle_translation()
     }
 
     /// Returns the transform as an [`Affine2`]

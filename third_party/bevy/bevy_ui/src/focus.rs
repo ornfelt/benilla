@@ -41,7 +41,6 @@ use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 /// # See also
 ///
 /// - [`Button`](crate::widget::Button) which requires this component
-/// - [`RelativeCursorPosition`] to obtain the position of the cursor relative to current node
 #[derive(Component, Copy, Clone, Eq, PartialEq, Debug, Reflect)]
 #[reflect(Component, Default, PartialEq, Debug, Clone)]
 #[cfg_attr(
@@ -67,34 +66,6 @@ impl Interaction {
 impl Default for Interaction {
     fn default() -> Self {
         Self::DEFAULT
-    }
-}
-
-/// A component storing the position of the mouse relative to the node, (0., 0.) being the center and (0.5, 0.5) being the bottom-right
-/// If the mouse is not over the node, the value will go beyond the range of (-0.5, -0.5) to (0.5, 0.5)
-///
-/// It can be used alongside [`Interaction`] to get the position of the press.
-///
-/// The component is updated when it is in the same entity with [`Node`].
-#[derive(Component, Copy, Clone, Default, PartialEq, Debug, Reflect)]
-#[reflect(Component, Default, PartialEq, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub struct RelativeCursorPosition {
-    /// True if the cursor position is over an unclipped area of the Node.
-    pub cursor_over: bool,
-    /// Cursor position relative to the size and position of the Node.
-    /// A None value indicates that the cursor position is unknown.
-    pub normalized: Option<Vec2>,
-}
-
-impl RelativeCursorPosition {
-    /// A helper function to check if the mouse is over the node
-    pub fn cursor_over(&self) -> bool {
-        self.cursor_over
     }
 }
 
@@ -137,7 +108,6 @@ pub struct NodeQuery {
     node: &'static ComputedNode,
     transform: &'static UiGlobalTransform,
     interaction: Option<&'static mut Interaction>,
-    relative_cursor_position: Option<&'static mut RelativeCursorPosition>,
     focus_policy: Option<&'static FocusPolicy>,
     inherited_visibility: Option<&'static InheritedVisibility>,
     target_camera: &'static ComputedUiTargetCamera,
@@ -270,21 +240,6 @@ pub fn ui_focus_system(
                 // false positives for mouse_over (#12395)
                 node.node.normalize_point(*node.transform, *cursor_position)
             });
-
-            // If the current cursor position is within the bounds of the node's visible area, consider it for
-            // clicking
-            let relative_cursor_position_component = RelativeCursorPosition {
-                cursor_over: contains_cursor,
-                normalized: normalized_cursor_position,
-            };
-
-            // Save the relative cursor position to the correct component
-            if let Some(mut node_relative_cursor_position_component) = node.relative_cursor_position
-            {
-                // Avoid triggering change detection when not necessary.
-                node_relative_cursor_position_component
-                    .set_if_neq(relative_cursor_position_component);
-            }
 
             if contains_cursor {
                 hovered_nodes.push(entity);

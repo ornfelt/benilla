@@ -312,6 +312,24 @@ the same repository's.
   `ComputedTextureSlices` and `Sprite`'s `SyncToRenderWorld` requirement went with them. The
   manifest drops seven dependencies (the `bevy_text` feature no longer enables `bevy_window`);
   `bevy_sprite_render` keeps its `bevy_sprite` edge, which its `bevy_text` feature names.
+- **`bevy_ui`, its API to what benilla, benilla-gfx and the kept code call** (the first half;
+  its systems stay). benilla spawns `Node`s, `ImageNode`s and `Text`, reads `Interaction`,
+  `ComputedNode`, `UiGlobalTransform` and `ScrollPosition`, and never uses grid layout, border
+  radii, gradients, shadows or viewports. Gone: `gradients.rs` (every gradient type) with
+  `UiPosition`, which only it read; `BoxShadow` and `ShadowStyle` (only the cut renderer read
+  them); `ViewportNode`; `RelativeCursorPosition` (`ui_focus_system` no longer fills it: nothing
+  adds one); `Val`'s string parsing (`FromStr`, `ValParseError`) and the `auto`/`px`/`percent`/
+  `vw`/`vh`/`vmin`/`vmax` helpers with `ValNum`; `UiRect`'s `with_*` setters; `ComputedNode`'s
+  `border_box`/`padding_box`/`content_box` and scrollbar geometry; `Overflow`'s `clip_x`,
+  `clip_y`, `hidden_x`, `hidden_y`; `OverflowClipMargin`'s constructors; the grid builders no kept
+  test calls (`GridTrack`'s `minmax` and viewport units, `RepeatedGridTrack`'s but `px` and
+  `min_content`, `GridPlacement`'s but `auto`, `start`, `span` and the getters); `BorderRadius`'s
+  per-corner and per-side constructors and setters; `ImageNode`'s builders but `new`; the
+  uncalled `UiTransform`, `UiGlobalTransform` and `Val2` constructors; `layout::debug`
+  (`print_ui_layout_tree`); the off `ghost_nodes` feature with its half of
+  `experimental::ghost_hierarchy` (`GhostNode`, the ghost-aware `UiChildren`), and the
+  non-ghost `UiChildren`'s uncalled `get_parent` and `is_ui_node`. **Stand-in** in PostUpdate:
+  `update_viewport_render_target_size`, with its place, sets and ambiguities.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

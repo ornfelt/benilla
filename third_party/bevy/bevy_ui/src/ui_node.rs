@@ -293,102 +293,6 @@ impl ComputedNode {
 
         clip_rect
     }
-
-    /// Returns the node's border-box in object-centered physical coordinates.
-    /// This is the full rectangle enclosing the node.
-    #[inline]
-    pub fn border_box(&self) -> Rect {
-        Rect::from_center_size(Vec2::ZERO, self.size)
-    }
-
-    /// Returns the node's padding-box in object-centered physical coordinates.
-    /// This is the region inside the border containing the node's padding and content areas.
-    #[inline]
-    pub fn padding_box(&self) -> Rect {
-        let mut out = self.border_box();
-        out.min += self.border.min_inset;
-        out.max -= self.border.max_inset;
-        out
-    }
-
-    /// Returns the node's content-box in object-centered physical coordinates.
-    /// This is the innermost region of the node, where its content is placed.
-    #[inline]
-    pub fn content_box(&self) -> Rect {
-        let mut out = self.border_box();
-        let content_inset = self.content_inset();
-        out.min += content_inset.min_inset;
-        out.max -= content_inset.max_inset;
-        out
-    }
-
-    const fn compute_thumb(
-        gutter_min: f32,
-        content_length: f32,
-        gutter_length: f32,
-        scroll_position: f32,
-    ) -> [f32; 2] {
-        if content_length <= gutter_length {
-            return [gutter_min, gutter_min + gutter_length];
-        }
-        let thumb_len = gutter_length * gutter_length / content_length;
-        let thumb_min = gutter_min + scroll_position * gutter_length / content_length;
-        [thumb_min, thumb_min + thumb_len]
-    }
-
-    /// Compute the bounds of the horizontal scrollbar and the thumb
-    /// in object-centered coordinates.
-    pub fn horizontal_scrollbar(&self) -> Option<(Rect, [f32; 2])> {
-        if self.scrollbar_size.y <= 0. {
-            return None;
-        }
-        let content_inset = self.content_inset();
-        let half_size = 0.5 * self.size;
-        let min_x = -half_size.x + content_inset.min_inset.x;
-        let max_x = half_size.x - content_inset.max_inset.x;
-        let min_y = half_size.y - content_inset.max_inset.y;
-        let max_y = min_y + self.scrollbar_size.y;
-        let gutter = Rect {
-            min: Vec2::new(min_x, min_y),
-            max: Vec2::new(max_x, max_y),
-        };
-        Some((
-            gutter,
-            Self::compute_thumb(
-                gutter.min.x,
-                self.content_size.x,
-                gutter.size().x,
-                self.scroll_position.x,
-            ),
-        ))
-    }
-
-    /// Compute the bounds of the vertical scrollbar and the thumb
-    /// in object-centered coordinates.
-    pub fn vertical_scrollbar(&self) -> Option<(Rect, [f32; 2])> {
-        if self.scrollbar_size.x <= 0. {
-            return None;
-        }
-        let content_inset = self.content_inset();
-        let half_size = 0.5 * self.size;
-        let min_x = half_size.x - content_inset.max_inset.x;
-        let max_x = min_x + self.scrollbar_size.x;
-        let min_y = -half_size.y + content_inset.min_inset.y;
-        let max_y = half_size.y - content_inset.max_inset.y;
-        let gutter = Rect {
-            min: Vec2::new(min_x, min_y),
-            max: Vec2::new(max_x, max_y),
-        };
-        Some((
-            gutter,
-            Self::compute_thumb(
-                gutter.min.y,
-                self.content_size.y,
-                gutter.size().y,
-                self.scroll_position.y,
-            ),
-        ))
-    }
 }
 
 impl ComputedNode {
@@ -475,7 +379,6 @@ impl From<BVec2> for IgnoreScroll {
 ///
 /// # See also
 ///
-/// - [`RelativeCursorPosition`](crate::RelativeCursorPosition) to obtain the cursor position relative to this node
 /// - [`Interaction`](crate::Interaction) to obtain the interaction state of this node
 
 #[derive(Component, Clone, PartialEq, Debug, Reflect)]
@@ -1254,42 +1157,10 @@ impl Overflow {
         }
     }
 
-    /// Clip overflowing items on the x axis
-    pub const fn clip_x() -> Self {
-        Self {
-            x: OverflowAxis::Clip,
-            y: OverflowAxis::Visible,
-        }
-    }
-
-    /// Clip overflowing items on the y axis
-    pub const fn clip_y() -> Self {
-        Self {
-            x: OverflowAxis::Visible,
-            y: OverflowAxis::Clip,
-        }
-    }
-
     /// Hide overflowing items on both axes by influencing layout and then clipping
     pub const fn hidden() -> Self {
         Self {
             x: OverflowAxis::Hidden,
-            y: OverflowAxis::Hidden,
-        }
-    }
-
-    /// Hide overflowing items on the x axis by influencing layout and then clipping
-    pub const fn hidden_x() -> Self {
-        Self {
-            x: OverflowAxis::Hidden,
-            y: OverflowAxis::Visible,
-        }
-    }
-
-    /// Hide overflowing items on the y axis by influencing layout and then clipping
-    pub const fn hidden_y() -> Self {
-        Self {
-            x: OverflowAxis::Visible,
             y: OverflowAxis::Hidden,
         }
     }
@@ -1384,37 +1255,6 @@ impl OverflowClipMargin {
         visual_box: OverflowClipBox::PaddingBox,
         margin: 0.,
     };
-
-    /// Clip any content that overflows outside the content box
-    pub const fn content_box() -> Self {
-        Self {
-            visual_box: OverflowClipBox::ContentBox,
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Clip any content that overflows outside the padding box
-    pub const fn padding_box() -> Self {
-        Self {
-            visual_box: OverflowClipBox::PaddingBox,
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Clip any content that overflows outside the border box
-    pub const fn border_box() -> Self {
-        Self {
-            visual_box: OverflowClipBox::BorderBox,
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Add a margin on each edge of the visual box in logical pixels.
-    /// The width of the margin will be zero if a negative value is set.
-    pub const fn with_margin(mut self, margin: f32) -> Self {
-        self.margin = margin;
-        self
-    }
 }
 
 /// Used to determine the bounds of the visible area when a UI node is clipped.
@@ -1696,53 +1536,6 @@ impl GridTrack {
         }
         .into()
     }
-
-    /// Create a `minmax()` grid track.
-    ///
-    /// <https://developer.mozilla.org/en-US/docs/Web/CSS/minmax>
-    pub fn minmax<T: From<Self>>(min: MinTrackSizingFunction, max: MaxTrackSizingFunction) -> T {
-        Self {
-            min_sizing_function: min,
-            max_sizing_function: max,
-        }
-        .into()
-    }
-
-    /// Create a grid track with a percentage of the viewport's smaller dimension
-    pub fn vmin<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::VMin(value),
-            max_sizing_function: MaxTrackSizingFunction::VMin(value),
-        }
-        .into()
-    }
-
-    /// Create a grid track with a percentage of the viewport's larger dimension
-    pub fn vmax<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::VMax(value),
-            max_sizing_function: MaxTrackSizingFunction::VMax(value),
-        }
-        .into()
-    }
-
-    /// Create a grid track with a percentage of the viewport's height dimension
-    pub fn vh<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Vh(value),
-            max_sizing_function: MaxTrackSizingFunction::Vh(value),
-        }
-        .into()
-    }
-
-    /// Create a grid track with a percentage of the viewport's width dimension
-    pub fn vw<T: From<Self>>(value: f32) -> T {
-        Self {
-            min_sizing_function: MinTrackSizingFunction::Vw(value),
-            max_sizing_function: MaxTrackSizingFunction::Vw(value),
-        }
-        .into()
-    }
 }
 
 impl Default for GridTrack {
@@ -1828,137 +1621,11 @@ impl RepeatedGridTrack {
         .into()
     }
 
-    /// Create a repeating set of grid tracks with a percentage size
-    pub fn percent<T: From<Self>>(repetition: impl Into<GridTrackRepetition>, value: f32) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_buf([GridTrack::percent(value)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with automatic size
-    pub fn auto<T: From<Self>>(repetition: u16) -> T {
-        Self {
-            repetition: GridTrackRepetition::Count(repetition),
-            tracks: SmallVec::from_buf([GridTrack::auto()]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with an `fr` size.
-    /// Note that this will give the track a content-based minimum size.
-    /// Usually you are best off using `GridTrack::flex` instead which uses a zero minimum size.
-    pub fn fr<T: From<Self>>(repetition: u16, value: f32) -> T {
-        Self {
-            repetition: GridTrackRepetition::Count(repetition),
-            tracks: SmallVec::from_buf([GridTrack::fr(value)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with a `minmax(0, Nfr)` size.
-    pub fn flex<T: From<Self>>(repetition: u16, value: f32) -> T {
-        Self {
-            repetition: GridTrackRepetition::Count(repetition),
-            tracks: SmallVec::from_buf([GridTrack::flex(value)]),
-        }
-        .into()
-    }
-
     /// Create a repeating set of grid tracks with min-content size
     pub fn min_content<T: From<Self>>(repetition: u16) -> T {
         Self {
             repetition: GridTrackRepetition::Count(repetition),
             tracks: SmallVec::from_buf([GridTrack::min_content()]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with max-content size
-    pub fn max_content<T: From<Self>>(repetition: u16) -> T {
-        Self {
-            repetition: GridTrackRepetition::Count(repetition),
-            tracks: SmallVec::from_buf([GridTrack::max_content()]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of `fit-content()` grid tracks with fixed pixel limit
-    pub fn fit_content_px<T: From<Self>>(repetition: u16, limit: f32) -> T {
-        Self {
-            repetition: GridTrackRepetition::Count(repetition),
-            tracks: SmallVec::from_buf([GridTrack::fit_content_px(limit)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of `fit-content()` grid tracks with percentage limit
-    pub fn fit_content_percent<T: From<Self>>(repetition: u16, limit: f32) -> T {
-        Self {
-            repetition: GridTrackRepetition::Count(repetition),
-            tracks: SmallVec::from_buf([GridTrack::fit_content_percent(limit)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of `minmax()` grid track
-    pub fn minmax<T: From<Self>>(
-        repetition: impl Into<GridTrackRepetition>,
-        min: MinTrackSizingFunction,
-        max: MaxTrackSizingFunction,
-    ) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_buf([GridTrack::minmax(min, max)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with the percentage size of the viewport's smaller dimension
-    pub fn vmin<T: From<Self>>(repetition: impl Into<GridTrackRepetition>, value: f32) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_buf([GridTrack::vmin(value)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with the percentage size of the viewport's larger dimension
-    pub fn vmax<T: From<Self>>(repetition: impl Into<GridTrackRepetition>, value: f32) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_buf([GridTrack::vmax(value)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with the percentage size of the viewport's height dimension
-    pub fn vh<T: From<Self>>(repetition: impl Into<GridTrackRepetition>, value: f32) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_buf([GridTrack::vh(value)]),
-        }
-        .into()
-    }
-
-    /// Create a repeating set of grid tracks with the percentage size of the viewport's width dimension
-    pub fn vw<T: From<Self>>(repetition: impl Into<GridTrackRepetition>, value: f32) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_buf([GridTrack::vw(value)]),
-        }
-        .into()
-    }
-
-    /// Create a repetition of a set of tracks
-    pub fn repeat_many<T: From<Self>>(
-        repetition: impl Into<GridTrackRepetition>,
-        tracks: impl Into<Vec<GridTrack>>,
-    ) -> T {
-        Self {
-            repetition: repetition.into(),
-            tracks: SmallVec::from_vec(tracks.into()),
         }
         .into()
     }
@@ -2074,87 +1741,6 @@ impl GridPlacement {
             start: try_into_grid_index(start).expect("Invalid start value of 0."),
             ..Self::DEFAULT
         }
-    }
-
-    /// Place the grid item specifying the `end` grid line (letting the `span` default to `1`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `end` is `0`.
-    pub fn end(end: i16) -> Self {
-        Self {
-            end: try_into_grid_index(end).expect("Invalid end value of 0."),
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Place the grid item specifying the `start` grid line and how many tracks it should `span`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `start` or `span` is `0`.
-    pub fn start_span(start: i16, span: u16) -> Self {
-        Self {
-            start: try_into_grid_index(start).expect("Invalid start value of 0."),
-            end: None,
-            span: try_into_grid_span(span).expect("Invalid span value of 0."),
-        }
-    }
-
-    /// Place the grid item specifying `start` and `end` grid lines (`span` will be inferred)
-    ///
-    /// # Panics
-    ///
-    /// Panics if `start` or `end` is `0`.
-    pub fn start_end(start: i16, end: i16) -> Self {
-        Self {
-            start: try_into_grid_index(start).expect("Invalid start value of 0."),
-            end: try_into_grid_index(end).expect("Invalid end value of 0."),
-            span: None,
-        }
-    }
-
-    /// Place the grid item specifying the `end` grid line and how many tracks it should `span`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `end` or `span` is `0`.
-    pub fn end_span(end: i16, span: u16) -> Self {
-        Self {
-            start: None,
-            end: try_into_grid_index(end).expect("Invalid end value of 0."),
-            span: try_into_grid_span(span).expect("Invalid span value of 0."),
-        }
-    }
-
-    /// Mutate the item, setting the `start` grid line
-    ///
-    /// # Panics
-    ///
-    /// Panics if `start` is `0`.
-    pub fn set_start(mut self, start: i16) -> Self {
-        self.start = try_into_grid_index(start).expect("Invalid start value of 0.");
-        self
-    }
-
-    /// Mutate the item, setting the `end` grid line
-    ///
-    /// # Panics
-    ///
-    /// Panics if `end` is `0`.
-    pub fn set_end(mut self, end: i16) -> Self {
-        self.end = try_into_grid_index(end).expect("Invalid end value of 0.");
-        self
-    }
-
-    /// Mutate the item, setting the number of tracks the item should `span`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `span` is `0`.
-    pub fn set_span(mut self, span: u16) -> Self {
-        self.span = try_into_grid_span(span).expect("Invalid span value of 0.");
-        self
     }
 
     /// Returns the grid line at which the item should start, or `None` if not set.
@@ -2538,150 +2124,6 @@ impl BorderRadius {
         }
     }
 
-    #[inline]
-    /// Sets the radius for the top left corner.
-    /// Remaining corners will be right-angled.
-    pub const fn top_left(radius: Val) -> Self {
-        Self {
-            top_left: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    #[inline]
-    /// Sets the radius for the top right corner.
-    /// Remaining corners will be right-angled.
-    pub const fn top_right(radius: Val) -> Self {
-        Self {
-            top_right: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    #[inline]
-    /// Sets the radius for the bottom right corner.
-    /// Remaining corners will be right-angled.
-    pub const fn bottom_right(radius: Val) -> Self {
-        Self {
-            bottom_right: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    #[inline]
-    /// Sets the radius for the bottom left corner.
-    /// Remaining corners will be right-angled.
-    pub const fn bottom_left(radius: Val) -> Self {
-        Self {
-            bottom_left: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    #[inline]
-    /// Sets the radii for the top left and bottom left corners.
-    /// Remaining corners will be right-angled.
-    pub const fn left(radius: Val) -> Self {
-        Self {
-            top_left: radius,
-            bottom_left: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    #[inline]
-    /// Sets the radii for the top right and bottom right corners.
-    /// Remaining corners will be right-angled.
-    pub const fn right(radius: Val) -> Self {
-        Self {
-            top_right: radius,
-            bottom_right: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    #[inline]
-    /// Sets the radii for the top left and top right corners.
-    /// Remaining corners will be right-angled.
-    pub const fn top(radius: Val) -> Self {
-        Self {
-            top_left: radius,
-            top_right: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    #[inline]
-    /// Sets the radii for the bottom left and bottom right corners.
-    /// Remaining corners will be right-angled.
-    pub const fn bottom(radius: Val) -> Self {
-        Self {
-            bottom_left: radius,
-            bottom_right: radius,
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Returns the [`BorderRadius`] with its `top_left` field set to the given value.
-    #[inline]
-    pub const fn with_top_left(mut self, radius: Val) -> Self {
-        self.top_left = radius;
-        self
-    }
-
-    /// Returns the [`BorderRadius`] with its `top_right` field set to the given value.
-    #[inline]
-    pub const fn with_top_right(mut self, radius: Val) -> Self {
-        self.top_right = radius;
-        self
-    }
-
-    /// Returns the [`BorderRadius`] with its `bottom_right` field set to the given value.
-    #[inline]
-    pub const fn with_bottom_right(mut self, radius: Val) -> Self {
-        self.bottom_right = radius;
-        self
-    }
-
-    /// Returns the [`BorderRadius`] with its `bottom_left` field set to the given value.
-    #[inline]
-    pub const fn with_bottom_left(mut self, radius: Val) -> Self {
-        self.bottom_left = radius;
-        self
-    }
-
-    /// Returns the [`BorderRadius`] with its `top_left` and `bottom_left` fields set to the given value.
-    #[inline]
-    pub const fn with_left(mut self, radius: Val) -> Self {
-        self.top_left = radius;
-        self.bottom_left = radius;
-        self
-    }
-
-    /// Returns the [`BorderRadius`] with its `top_right` and `bottom_right` fields set to the given value.
-    #[inline]
-    pub const fn with_right(mut self, radius: Val) -> Self {
-        self.top_right = radius;
-        self.bottom_right = radius;
-        self
-    }
-
-    /// Returns the [`BorderRadius`] with its `top_left` and `top_right` fields set to the given value.
-    #[inline]
-    pub const fn with_top(mut self, radius: Val) -> Self {
-        self.top_left = radius;
-        self.top_right = radius;
-        self
-    }
-
-    /// Returns the [`BorderRadius`] with its `bottom_left` and `bottom_right` fields set to the given value.
-    #[inline]
-    pub const fn with_bottom(mut self, radius: Val) -> Self {
-        self.bottom_left = radius;
-        self.bottom_right = radius;
-        self
-    }
-
     /// Resolve the border radius for a single corner from the given context values.
     /// Returns the radius of the corner in physical pixels.
     pub const fn resolve_single_corner(
@@ -2764,78 +2206,6 @@ impl From<ResolvedBorderRadius> for [f32; 4] {
             radius.bottom_right,
             radius.bottom_left,
         ]
-    }
-}
-
-#[derive(Component, Clone, Debug, Default, PartialEq, Reflect, Deref, DerefMut)]
-#[reflect(Component, PartialEq, Default, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-/// List of shadows to draw for a [`Node`].
-///
-/// Draw order is determined implicitly from the vector of [`ShadowStyle`]s, back-to-front.
-pub struct BoxShadow(pub Vec<ShadowStyle>);
-
-impl BoxShadow {
-    /// A single drop shadow
-    pub fn new(
-        color: Color,
-        x_offset: Val,
-        y_offset: Val,
-        spread_radius: Val,
-        blur_radius: Val,
-    ) -> Self {
-        Self(vec![ShadowStyle {
-            color,
-            x_offset,
-            y_offset,
-            spread_radius,
-            blur_radius,
-        }])
-    }
-}
-
-impl From<ShadowStyle> for BoxShadow {
-    fn from(value: ShadowStyle) -> Self {
-        Self(vec![value])
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Reflect)]
-#[reflect(PartialEq, Default, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
-pub struct ShadowStyle {
-    /// The shadow's color
-    pub color: Color,
-    /// Horizontal offset
-    pub x_offset: Val,
-    /// Vertical offset
-    pub y_offset: Val,
-    /// How much the shadow should spread outward.
-    ///
-    /// Negative values will make the shadow shrink inwards.
-    /// Percentage values are based on the width of the UI node.
-    pub spread_radius: Val,
-    /// Blurriness of the shadow
-    pub blur_radius: Val,
-}
-
-impl Default for ShadowStyle {
-    fn default() -> Self {
-        Self {
-            color: Color::BLACK,
-            x_offset: Val::Percent(20.),
-            y_offset: Val::Percent(20.),
-            spread_radius: Val::ZERO,
-            blur_radius: Val::Percent(10.),
-        }
     }
 }
 
@@ -3007,176 +2377,17 @@ impl ComputedUiRenderTargetInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::ComputedNode;
     use crate::GridPlacement;
-    use bevy_math::{Rect, Vec2};
-    use bevy_sprite::BorderRect;
 
     #[test]
     fn invalid_grid_placement_values() {
         assert!(std::panic::catch_unwind(|| GridPlacement::span(0)).is_err());
         assert!(std::panic::catch_unwind(|| GridPlacement::start(0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::end(0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::start_end(0, 1)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::start_end(-1, 0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::start_span(1, 0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::start_span(0, 1)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::end_span(0, 1)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::end_span(1, 0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::default().set_start(0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::default().set_end(0)).is_err());
-        assert!(std::panic::catch_unwind(|| GridPlacement::default().set_span(0)).is_err());
     }
 
     #[test]
     fn grid_placement_accessors() {
         assert_eq!(GridPlacement::start(5).get_start(), Some(5));
-        assert_eq!(GridPlacement::end(-4).get_end(), Some(-4));
         assert_eq!(GridPlacement::span(2).get_span(), Some(2));
-        assert_eq!(GridPlacement::start_end(11, 21).get_span(), None);
-        assert_eq!(GridPlacement::start_span(3, 5).get_end(), None);
-        assert_eq!(GridPlacement::end_span(-4, 12).get_start(), None);
-    }
-
-    #[test]
-    fn computed_node_both_scrollbars() {
-        let node = ComputedNode {
-            size: Vec2::splat(100.),
-            scrollbar_size: Vec2::splat(10.),
-            content_size: Vec2::splat(100.),
-            ..Default::default()
-        };
-
-        let (gutter, thumb) = node.horizontal_scrollbar().unwrap();
-        assert_eq!(
-            gutter,
-            Rect {
-                min: Vec2::new(-50., 40.),
-                max: Vec2::new(40., 50.)
-            }
-        );
-        assert_eq!(thumb, [-50., 31.]);
-
-        let (gutter, thumb) = node.vertical_scrollbar().unwrap();
-        assert_eq!(
-            gutter,
-            Rect {
-                min: Vec2::new(40., -50.),
-                max: Vec2::new(50., 40.)
-            }
-        );
-        assert_eq!(thumb, [-50., 31.]);
-    }
-
-    #[test]
-    fn computed_node_single_horizontal_scrollbar() {
-        let mut node = ComputedNode {
-            size: Vec2::splat(100.),
-            scrollbar_size: Vec2::new(0., 10.),
-            content_size: Vec2::new(200., 100.),
-            scroll_position: Vec2::new(0., 0.),
-            ..Default::default()
-        };
-
-        assert_eq!(None, node.vertical_scrollbar());
-
-        let (gutter, thumb) = node.horizontal_scrollbar().unwrap();
-        assert_eq!(
-            gutter,
-            Rect {
-                min: Vec2::new(-50., 40.),
-                max: Vec2::new(50., 50.)
-            }
-        );
-        assert_eq!(thumb, [-50., 0.]);
-
-        node.scroll_position.x += 100.;
-        let (gutter, thumb) = node.horizontal_scrollbar().unwrap();
-        assert_eq!(
-            gutter,
-            Rect {
-                min: Vec2::new(-50., 40.),
-                max: Vec2::new(50., 50.)
-            }
-        );
-        assert_eq!(thumb, [0., 50.]);
-    }
-
-    #[test]
-    fn computed_node_single_vertical_scrollbar() {
-        let mut node = ComputedNode {
-            size: Vec2::splat(100.),
-            scrollbar_size: Vec2::new(10., 0.),
-            content_size: Vec2::new(100., 200.),
-            scroll_position: Vec2::new(0., 0.),
-            ..Default::default()
-        };
-
-        assert_eq!(None, node.horizontal_scrollbar());
-
-        let (gutter, thumb) = node.vertical_scrollbar().unwrap();
-        assert_eq!(
-            gutter,
-            Rect {
-                min: Vec2::new(40., -50.),
-                max: Vec2::new(50., 50.)
-            }
-        );
-        assert_eq!(thumb, [-50., 0.]);
-
-        node.scroll_position.y += 100.;
-        let (gutter, thumb) = node.vertical_scrollbar().unwrap();
-        assert_eq!(
-            gutter,
-            Rect {
-                min: Vec2::new(40., -50.),
-                max: Vec2::new(50., 50.)
-            }
-        );
-        assert_eq!(thumb, [0., 50.]);
-    }
-
-    #[test]
-    fn border_box_is_centered_rect_of_node_size() {
-        let node = ComputedNode {
-            size: Vec2::new(100.0, 50.0),
-            ..Default::default()
-        };
-        let border_box = node.border_box();
-
-        assert_eq!(border_box.min, Vec2::new(-50.0, -25.0));
-        assert_eq!(border_box.max, Vec2::new(50.0, 25.0));
-    }
-
-    #[test]
-    fn padding_box_subtracts_border_thickness() {
-        let node = ComputedNode {
-            size: Vec2::new(100.0, 60.0),
-            border: BorderRect {
-                min_inset: Vec2::new(5.0, 3.0),
-                max_inset: Vec2::new(7.0, 9.0),
-            },
-            ..Default::default()
-        };
-        let padding_box = node.padding_box();
-
-        assert_eq!(padding_box.min, Vec2::new(-50.0 + 5.0, -30.0 + 3.0));
-        assert_eq!(padding_box.max, Vec2::new(50.0 - 7.0, 30.0 - 9.0));
-    }
-
-    #[test]
-    fn content_box_uses_content_inset() {
-        let node = ComputedNode {
-            size: Vec2::new(80.0, 40.0),
-            padding: BorderRect {
-                min_inset: Vec2::new(4.0, 2.0),
-                max_inset: Vec2::new(6.0, 8.0),
-            },
-            ..Default::default()
-        };
-        let content_box = node.content_box();
-
-        assert_eq!(content_box.min, Vec2::new(-40.0 + 4.0, -20.0 + 2.0));
-        assert_eq!(content_box.max, Vec2::new(40.0 - 6.0, 20.0 - 8.0));
     }
 }

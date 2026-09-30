@@ -45,7 +45,7 @@ impl Default for ImageNode {
     ///
     /// This will be invisible by default.
     /// To set this to a visible image, you need to set the `texture` field to a valid image handle,
-    /// or use [`Handle<Image>`]'s default 1x1 solid white texture (as is done in [`ImageNode::solid_color`]).
+    /// or use [`Handle<Image>`]'s default 1x1 solid white texture.
     fn default() -> Self {
         ImageNode {
             // This should be white because the tint is multiplied with the image,
@@ -70,63 +70,6 @@ impl ImageNode {
             color: Color::WHITE,
             ..Default::default()
         }
-    }
-
-    /// Create a solid color [`ImageNode`].
-    ///
-    /// This is primarily useful for debugging / mocking the extents of your image.
-    pub fn solid_color(color: Color) -> Self {
-        Self {
-            image: Handle::default(),
-            color,
-            flip_x: false,
-            flip_y: false,
-            texture_atlas: None,
-            rect: None,
-            image_mode: NodeImageMode::Auto,
-        }
-    }
-
-    /// Create a [`ImageNode`] from an image, with an associated texture atlas
-    pub fn from_atlas_image(image: Handle<Image>, atlas: TextureAtlas) -> Self {
-        Self {
-            image,
-            texture_atlas: Some(atlas),
-            ..Default::default()
-        }
-    }
-
-    /// Set the color tint
-    #[must_use]
-    pub const fn with_color(mut self, color: Color) -> Self {
-        self.color = color;
-        self
-    }
-
-    /// Flip the image along its x-axis
-    #[must_use]
-    pub const fn with_flip_x(mut self) -> Self {
-        self.flip_x = true;
-        self
-    }
-
-    /// Flip the image along its y-axis
-    #[must_use]
-    pub const fn with_flip_y(mut self) -> Self {
-        self.flip_y = true;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_rect(mut self, rect: Rect) -> Self {
-        self.rect = Some(rect);
-        self
-    }
-
-    #[must_use]
-    pub const fn with_mode(mut self, mode: NodeImageMode) -> Self {
-        self.image_mode = mode;
-        self
     }
 }
 
