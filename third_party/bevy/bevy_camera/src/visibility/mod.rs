@@ -26,9 +26,6 @@ use crate::{
 };
 use bevy_mesh::{mark_3d_meshes_as_changed_if_their_assets_changed, Mesh, Mesh2d, Mesh3d};
 
-#[derive(Component, Default)]
-pub struct NoCpuCulling;
-
 /// User indication of whether an entity is visible. Propagates down the entity hierarchy.
 ///
 /// If an entity is hidden in this way, all [`Children`] (and all of their children and so on) who
@@ -52,39 +49,6 @@ pub enum Visibility {
     /// Note that an entity with `Visibility::Visible` will be visible regardless of whether the
     /// [`ChildOf`] target entity is hidden.
     Visible,
-}
-
-impl Visibility {
-    /// Toggles between `Visibility::Inherited` and `Visibility::Visible`.
-    /// If the value is `Visibility::Hidden`, it remains unaffected.
-    #[inline]
-    pub fn toggle_inherited_visible(&mut self) {
-        *self = match *self {
-            Visibility::Inherited => Visibility::Visible,
-            Visibility::Visible => Visibility::Inherited,
-            _ => *self,
-        };
-    }
-    /// Toggles between `Visibility::Inherited` and `Visibility::Hidden`.
-    /// If the value is `Visibility::Visible`, it remains unaffected.
-    #[inline]
-    pub fn toggle_inherited_hidden(&mut self) {
-        *self = match *self {
-            Visibility::Inherited => Visibility::Hidden,
-            Visibility::Hidden => Visibility::Inherited,
-            _ => *self,
-        };
-    }
-    /// Toggles between `Visibility::Visible` and `Visibility::Hidden`.
-    /// If the value is `Visibility::Inherited`, it remains unaffected.
-    #[inline]
-    pub fn toggle_visible_hidden(&mut self) {
-        *self = match *self {
-            Visibility::Visible => Visibility::Hidden,
-            Visibility::Hidden => Visibility::Visible,
-            _ => *self,
-        };
-    }
 }
 
 // Allows `&Visibility == Visibility`
@@ -588,12 +552,10 @@ fn reset_view_visibility(mut query: Query<&mut ViewVisibility>) {
 pub fn check_visibility(
     mut thread_queues: Local<Parallel<TypeIdMap<Vec<Entity>>>>,
     mut view_query: Query<(
-        Entity,
         &mut VisibleEntities,
         &Frustum,
         Option<&RenderLayers>,
         &Camera,
-        Has<NoCpuCulling>,
     )>,
     mut visible_aabb_query: Query<(
         Entity,
@@ -604,15 +566,9 @@ pub fn check_visibility(
         Option<&Aabb>,
         &GlobalTransform,
         Has<NoFrustumCulling>,
-        Has<VisibilityRange>,
     )>,
-    visible_entity_ranges: Option<Res<VisibleEntityRanges>>,
 ) {
-    let visible_entity_ranges = visible_entity_ranges.as_deref();
-
-    for (view, mut visible_entities, frustum, maybe_view_mask, camera, no_cpu_culling) in
-        &mut view_query
-    {
+    for (mut visible_entities, frustum, maybe_view_mask, camera) in &mut view_query {
         if !camera.is_active {
             continue;
         }
@@ -631,7 +587,6 @@ pub fn check_visibility(
                     maybe_model_aabb,
                     transform,
                     no_frustum_culling,
-                    has_visibility_range,
                 ) = query_item;
 
                 // Skip computing visibility for entities that are configured to be hidden.
@@ -645,20 +600,8 @@ pub fn check_visibility(
                     return;
                 }
 
-                // If outside of the visibility range, cull.
-                if has_visibility_range
-                    && visible_entity_ranges.is_some_and(|visible_entity_ranges| {
-                        !visible_entity_ranges.entity_is_in_range_of_view(entity, view)
-                    })
-                {
-                    return;
-                }
-
                 // If we have an aabb, do frustum culling
-                if !no_frustum_culling
-                    && !no_cpu_culling
-                    && let Some(model_aabb) = maybe_model_aabb
-                {
+                if !no_frustum_culling && let Some(model_aabb) = maybe_model_aabb {
                     let world_from_local = transform.affine();
                     let model_sphere = Sphere {
                         center: world_from_local.transform_point3a(model_aabb.center),

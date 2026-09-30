@@ -12,8 +12,6 @@ extern crate std;
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-#[cfg(feature = "bevy-support")]
-pub mod commands;
 /// The basic components of the transform crate
 pub mod components;
 
@@ -43,7 +41,6 @@ pub mod prelude {
     #[cfg(feature = "bevy-support")]
     #[doc(hidden)]
     pub use crate::{
-        commands::BuildChildrenTransformExt,
         helper::TransformHelper,
         plugins::{TransformPlugin, TransformSystems},
         systems::StaticTransformOptimizations,

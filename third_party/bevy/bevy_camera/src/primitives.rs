@@ -124,30 +124,6 @@ impl Aabb {
     pub fn max(&self) -> Vec3A {
         self.center + self.half_extents
     }
-
-    /// Check if the AABB is at the front side of the bisecting plane.
-    /// Referenced from: [AABB Plane intersection](https://gdbooks.gitbooks.io/3dcollisions/content/Chapter2/static_aabb_plane.html)
-    #[inline]
-    pub fn is_in_half_space(&self, half_space: &HalfSpace, world_from_local: &Affine3A) -> bool {
-        // transform the half-extents into world space.
-        let half_extents_world = world_from_local.matrix3.abs() * self.half_extents.abs();
-        // collapse the half-extents onto the plane normal.
-        let p_normal = half_space.normal();
-        let r = half_extents_world.dot(p_normal.abs());
-        let aabb_center_world = world_from_local.transform_point3a(self.center);
-        let signed_distance = p_normal.dot(aabb_center_world) + half_space.d();
-        signed_distance > r
-    }
-
-    /// Optimized version of [`Self::is_in_half_space`] when the AABB is already in world space.
-    /// Use this when `world_from_local` would be the identity transform.
-    #[inline]
-    pub fn is_in_half_space_identity(&self, half_space: &HalfSpace) -> bool {
-        let p_normal = half_space.normal();
-        let r = self.half_extents.abs().dot(p_normal.abs());
-        let signed_distance = p_normal.dot(self.center) + half_space.d();
-        signed_distance > r
-    }
 }
 
 impl From<Aabb3d> for Aabb {
@@ -383,45 +359,6 @@ impl Frustum {
         }
         true
     }
-
-    /// Optimized version of [`Frustum::intersects_obb`]
-    /// where the transform is [`Affine3A::IDENTITY`] and both `intersect_near` and `intersect_far` are `true`.
-    #[inline]
-    pub fn intersects_obb_identity(&self, aabb: &Aabb) -> bool {
-        let aabb_center_world = aabb.center.extend(1.0);
-        for half_space in self.half_spaces.iter() {
-            let p_normal = half_space.normal();
-            let relative_radius = aabb.half_extents.abs().dot(p_normal.abs());
-            if half_space.normal_d().dot(aabb_center_world) + relative_radius <= 0.0 {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Check if the frustum contains the entire Axis-Aligned Bounding Box (AABB).
-    /// Referenced from: [Frustum Culling](https://learnopengl.com/Guest-Articles/2021/Scene/Frustum-Culling)
-    #[inline]
-    pub fn contains_aabb(&self, aabb: &Aabb, world_from_local: &Affine3A) -> bool {
-        for half_space in &self.half_spaces {
-            if !aabb.is_in_half_space(half_space, world_from_local) {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Optimized version of [`Self::contains_aabb`] when the AABB is already in world space.
-    /// Use this when `world_from_local` would be [`Affine3A::IDENTITY`].
-    #[inline]
-    pub fn contains_aabb_identity(&self, aabb: &Aabb) -> bool {
-        for half_space in &self.half_spaces {
-            if !aabb.is_in_half_space_identity(half_space) {
-                return false;
-            }
-        }
-        true
-    }
 }
 
 pub struct CubeMapFace {
@@ -468,18 +405,6 @@ pub const CUBE_MAP_FACES: [CubeMapFace; 6] = [
         up: Vec3::Y,
     },
 ];
-
-pub fn face_index_to_name(face_index: usize) -> &'static str {
-    match face_index {
-        0 => "+x",
-        1 => "-x",
-        2 => "+y",
-        3 => "-y",
-        4 => "+z",
-        5 => "-z",
-        _ => "invalid",
-    }
-}
 
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component, Default, Debug, Clone)]
@@ -542,13 +467,6 @@ pub struct CascadesFrusta {
 
 #[cfg(test)]
 mod tests {
-    use core::f32::consts::PI;
-
-    use bevy_math::{ops, Quat};
-    use bevy_transform::components::GlobalTransform;
-
-    use crate::{CameraProjection, PerspectiveProjection};
-
     use super::*;
 
     // A big, offset frustum
@@ -725,153 +643,5 @@ mod tests {
             .unwrap(),
             Aabb::from_min_max(Vec3::new(-1.0, -5.0, 0.0), Vec3::new(2.0, 0.0, 1.0))
         );
-    }
-
-    // A frustum with an offset for testing the [`Frustum::contains_aabb`] algorithm.
-    fn contains_aabb_test_frustum() -> Frustum {
-        let proj = PerspectiveProjection {
-            fov: 90.0_f32.to_radians(),
-            aspect_ratio: 1.0,
-            near: 1.0,
-            far: 100.0,
-            ..PerspectiveProjection::default()
-        };
-        proj.compute_frustum(&GlobalTransform::from_translation(Vec3::new(2.0, 2.0, 0.0)))
-    }
-
-    fn contains_aabb_test_frustum_with_rotation() -> Frustum {
-        let half_extent_world = (((49.5 * 49.5) * 0.5) as f32).sqrt() + 0.5f32.sqrt();
-        let near = 50.5 - half_extent_world;
-        let far = near + 2.0 * half_extent_world;
-        let fov = 2.0 * ops::atan(half_extent_world / near);
-        let proj = PerspectiveProjection {
-            aspect_ratio: 1.0,
-            near,
-            far,
-            fov,
-            ..PerspectiveProjection::default()
-        };
-        proj.compute_frustum(&GlobalTransform::IDENTITY)
-    }
-
-    #[test]
-    fn aabb_inside_frustum() {
-        let frustum = contains_aabb_test_frustum();
-        let aabb = Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::new(0.99, 0.99, 49.49),
-        };
-        let model = Affine3A::from_translation(Vec3::new(2.0, 2.0, -50.5));
-        assert!(frustum.contains_aabb(&aabb, &model));
-    }
-
-    #[test]
-    fn aabb_intersect_frustum() {
-        let frustum = contains_aabb_test_frustum();
-        let aabb = Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::new(0.99, 0.99, 49.6),
-        };
-        let model = Affine3A::from_translation(Vec3::new(2.0, 2.0, -50.5));
-        assert!(!frustum.contains_aabb(&aabb, &model));
-    }
-
-    #[test]
-    fn aabb_outside_frustum() {
-        let frustum = contains_aabb_test_frustum();
-        let aabb = Aabb {
-            center: Vec3A::ZERO,
-            half_extents: Vec3A::new(0.99, 0.99, 0.99),
-        };
-        let model = Affine3A::from_translation(Vec3::new(0.0, 0.0, 49.6));
-        assert!(!frustum.contains_aabb(&aabb, &model));
-    }
-
-    #[test]
-    fn aabb_inside_frustum_rotation() {
-        let frustum = contains_aabb_test_frustum_with_rotation();
-        let aabb = Aabb {
-            center: Vec3A::new(0.0, 0.0, 0.0),
-            half_extents: Vec3A::new(0.99, 0.99, 49.49),
-        };
-
-        let model = Affine3A::from_rotation_translation(
-            Quat::from_rotation_x(PI / 4.0),
-            Vec3::new(0.0, 0.0, -50.5),
-        );
-        assert!(frustum.contains_aabb(&aabb, &model));
-    }
-
-    #[test]
-    fn aabb_intersect_frustum_rotation() {
-        let frustum = contains_aabb_test_frustum_with_rotation();
-        let aabb = Aabb {
-            center: Vec3A::new(0.0, 0.0, 0.0),
-            half_extents: Vec3A::new(0.99, 0.99, 49.6),
-        };
-
-        let model = Affine3A::from_rotation_translation(
-            Quat::from_rotation_x(PI / 4.0),
-            Vec3::new(0.0, 0.0, -50.5),
-        );
-        assert!(!frustum.contains_aabb(&aabb, &model));
-    }
-
-    #[test]
-    fn test_identity_optimized_equivalence() {
-        let cases = vec![
-            (
-                Aabb {
-                    center: Vec3A::ZERO,
-                    half_extents: Vec3A::splat(1.0),
-                },
-                HalfSpace::new(Vec4::new(1.0, 0.0, 0.0, -0.5)),
-            ),
-            (
-                Aabb {
-                    center: Vec3A::new(2.0, -1.0, 0.5),
-                    half_extents: Vec3A::new(1.0, 2.0, 0.5),
-                },
-                HalfSpace::new(Vec4::new(1.0, 1.0, 1.0, -1.0).normalize()),
-            ),
-            (
-                Aabb {
-                    center: Vec3A::new(1.0, 1.0, 1.0),
-                    half_extents: Vec3A::ZERO,
-                },
-                HalfSpace::new(Vec4::new(0.0, 0.0, 1.0, -2.0)),
-            ),
-        ];
-        for (aabb, half_space) in cases {
-            let general = aabb.is_in_half_space(&half_space, &Affine3A::IDENTITY);
-            let identity = aabb.is_in_half_space_identity(&half_space);
-            assert_eq!(general, identity,);
-        }
-    }
-
-    #[test]
-    fn intersects_obb_identity_matches_standard_true_true() {
-        let frusta = [frustum(), long_frustum(), big_frustum()];
-        let aabbs = [
-            Aabb {
-                center: Vec3A::ZERO,
-                half_extents: Vec3A::new(0.5, 0.5, 0.5),
-            },
-            Aabb {
-                center: Vec3A::new(1.0, 0.0, 0.5),
-                half_extents: Vec3A::new(0.9, 0.9, 0.9),
-            },
-            Aabb {
-                center: Vec3A::new(100.0, 100.0, 100.0),
-                half_extents: Vec3A::new(1.0, 1.0, 1.0),
-            },
-        ];
-        for fr in &frusta {
-            for aabb in &aabbs {
-                let standard = fr.intersects_obb(aabb, &Affine3A::IDENTITY, true, true);
-                let optimized = fr.intersects_obb_identity(aabb);
-                assert_eq!(standard, optimized);
-            }
-        }
     }
 }

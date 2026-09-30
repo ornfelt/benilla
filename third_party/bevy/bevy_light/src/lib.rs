@@ -5,8 +5,7 @@ use bevy_camera::{
     primitives::{Aabb, CascadesFrusta, CubemapFrusta, Frustum, Sphere},
     visibility::{
         CascadesVisibleEntities, CubemapVisibleEntities, InheritedVisibility, NoFrustumCulling,
-        RenderLayers, ViewVisibility, VisibilityRange, VisibilitySystems, VisibleEntityRanges,
-        VisibleMeshEntities,
+        RenderLayers, ViewVisibility, VisibilitySystems, VisibleMeshEntities,
     },
     CameraUpdateSystems,
 };
@@ -318,7 +317,6 @@ pub fn check_dir_light_mesh_visibility(
             Option<&RenderLayers>,
             Option<&Aabb>,
             Option<&GlobalTransform>,
-            Has<VisibilityRange>,
             Has<NoFrustumCulling>,
         ),
         (
@@ -327,12 +325,9 @@ pub fn check_dir_light_mesh_visibility(
             With<Mesh3d>,
         ),
     >,
-    visible_entity_ranges: Option<Res<VisibleEntityRanges>>,
     mut defer_visible_entities_queue: Local<Parallel<Vec<Entity>>>,
     mut view_visible_entities_queue: Local<Parallel<Vec<Vec<Entity>>>>,
 ) {
-    let visible_entity_ranges = visible_entity_ranges.as_deref();
-
     for (directional_light, frusta, mut visible_entities, maybe_view_mask, light_view_visibility) in
         &mut directional_lights
     {
@@ -378,7 +373,6 @@ pub fn check_dir_light_mesh_visibility(
                     maybe_entity_mask,
                     maybe_aabb,
                     maybe_transform,
-                    has_visibility_range,
                     has_no_frustum_culling,
                 )| {
                     if !inherited_visibility.get() {
@@ -387,15 +381,6 @@ pub fn check_dir_light_mesh_visibility(
 
                     let entity_mask = maybe_entity_mask.unwrap_or_default();
                     if !view_mask.intersects(entity_mask) {
-                        return;
-                    }
-
-                    // Check visibility ranges.
-                    if has_visibility_range
-                        && visible_entity_ranges.is_some_and(|visible_entity_ranges| {
-                            !visible_entity_ranges.entity_is_in_range_of_view(entity, *view)
-                        })
-                    {
                         return;
                     }
 
@@ -487,7 +472,6 @@ pub fn check_point_light_mesh_visibility(
             Option<&RenderLayers>,
             Option<&Aabb>,
             Option<&GlobalTransform>,
-            Has<VisibilityRange>,
             Has<NoFrustumCulling>,
         ),
         (
@@ -496,14 +480,12 @@ pub fn check_point_light_mesh_visibility(
             With<Mesh3d>,
         ),
     >,
-    visible_entity_ranges: Option<Res<VisibleEntityRanges>>,
     mut cubemap_visible_entities_queue: Local<Parallel<[Vec<Entity>; 6]>>,
     mut spot_visible_entities_queue: Local<Parallel<Vec<Entity>>>,
     mut checked_lights: Local<EntityHashSet>,
 ) {
     checked_lights.clear();
 
-    let visible_entity_ranges = visible_entity_ranges.as_deref();
     for visible_lights in &visible_point_lights {
         for light_entity in visible_lights.entities.iter().copied() {
             if !checked_lights.insert(light_entity) {
@@ -544,7 +526,6 @@ pub fn check_point_light_mesh_visibility(
                         maybe_entity_mask,
                         maybe_aabb,
                         maybe_transform,
-                        has_visibility_range,
                         has_no_frustum_culling,
                     )| {
                         if !inherited_visibility.get() {
@@ -554,14 +535,6 @@ pub fn check_point_light_mesh_visibility(
                         if !view_mask.intersects(entity_mask) {
                             return;
                         }
-                        if has_visibility_range
-                            && visible_entity_ranges.is_some_and(|visible_entity_ranges| {
-                                !visible_entity_ranges.entity_is_in_range_of_any_view(entity)
-                            })
-                        {
-                            return;
-                        }
-
                         // If we have an aabb and transform, do frustum culling
                         if let (Some(aabb), Some(transform)) = (maybe_aabb, maybe_transform) {
                             let model_to_world = transform.affine();
@@ -633,7 +606,6 @@ pub fn check_point_light_mesh_visibility(
                         maybe_entity_mask,
                         maybe_aabb,
                         maybe_transform,
-                        has_visibility_range,
                         has_no_frustum_culling,
                     )| {
                         if !inherited_visibility.get() {
@@ -644,15 +616,6 @@ pub fn check_point_light_mesh_visibility(
                         if !view_mask.intersects(entity_mask) {
                             return;
                         }
-                        // Check visibility ranges.
-                        if has_visibility_range
-                            && visible_entity_ranges.is_some_and(|visible_entity_ranges| {
-                                !visible_entity_ranges.entity_is_in_range_of_any_view(entity)
-                            })
-                        {
-                            return;
-                        }
-
                         if let (Some(aabb), Some(transform)) = (maybe_aabb, maybe_transform) {
                             let model_to_world = transform.affine();
                             // Do a cheap sphere vs obb test to prune out most meshes outside the sphere of the light

@@ -5,7 +5,6 @@ use super::{
     ClearColorConfig, MsaaWriteback,
 };
 use bevy_asset::Handle;
-use bevy_derive::Deref;
 use bevy_ecs::{component::Component, entity::Entity, reflect::ReflectComponent};
 use bevy_image::Image;
 use bevy_math::{ops, Dir3, FloatOrd, Mat4, Ray3d, Rect, URect, UVec2, Vec2, Vec3, Vec3A};
@@ -79,34 +78,7 @@ impl Viewport {
             }
         }
     }
-
-    pub fn from_viewport_and_override(
-        viewport: Option<&Self>,
-        main_pass_resolution_override: Option<&MainPassResolutionOverride>,
-    ) -> Option<Self> {
-        if let Some(override_size) = main_pass_resolution_override {
-            let mut vp = viewport.map_or_else(Self::default, Self::clone);
-            vp.physical_size = **override_size;
-            Some(vp)
-        } else {
-            viewport.cloned()
-        }
-    }
 }
-
-/// Override the resolution a 3d camera's main pass is rendered at.
-///
-/// Does not affect post processing.
-///
-/// ## Usage
-///
-/// * Insert this component on a 3d camera entity in the render world.
-/// * The resolution override must be smaller than the camera's viewport size.
-/// * The resolution override is specified in physical pixels.
-/// * In shaders, use `View::main_pass_viewport` instead of `View::viewport`.
-#[derive(Component, Reflect, Deref, Debug)]
-#[reflect(Component)]
-pub struct MainPassResolutionOverride(pub UVec2);
 
 /// Settings to define a camera sub view.
 ///
@@ -200,12 +172,6 @@ pub struct Exposure {
 }
 
 impl Exposure {
-    pub const SUNLIGHT: Self = Self {
-        ev100: Self::EV100_SUNLIGHT,
-    };
-    pub const OVERCAST: Self = Self {
-        ev100: Self::EV100_OVERCAST,
-    };
     pub const INDOOR: Self = Self {
         ev100: Self::EV100_INDOOR,
     };
@@ -217,8 +183,6 @@ impl Exposure {
         ev100: Self::EV100_BLENDER,
     };
 
-    pub const EV100_SUNLIGHT: f32 = 15.0;
-    pub const EV100_OVERCAST: f32 = 12.0;
     pub const EV100_INDOOR: f32 = 7.0;
 
     /// This value was calibrated to match Blender's implicit/default exposure as closely as possible.
@@ -226,12 +190,6 @@ impl Exposure {
     ///
     /// See <https://github.com/bevyengine/bevy/issues/11577> for details.
     pub const EV100_BLENDER: f32 = 9.7;
-
-    pub fn from_physical_camera(physical_camera_parameters: PhysicalCameraParameters) -> Self {
-        Self {
-            ev100: physical_camera_parameters.ev100(),
-        }
-    }
 
     /// Converts EV100 values to exposure values.
     /// <https://google.github.io/filament/Filament.md.html#imagingpipeline/physicallybasedcamera/exposure>
@@ -244,48 +202,6 @@ impl Exposure {
 impl Default for Exposure {
     fn default() -> Self {
         Self::BLENDER
-    }
-}
-
-/// Parameters based on physical camera characteristics for calculating EV100
-/// values for use with [`Exposure`]. This is also used for depth of field.
-#[derive(Clone, Copy)]
-pub struct PhysicalCameraParameters {
-    /// <https://en.wikipedia.org/wiki/F-number>
-    pub aperture_f_stops: f32,
-    /// <https://en.wikipedia.org/wiki/Shutter_speed>
-    pub shutter_speed_s: f32,
-    /// <https://en.wikipedia.org/wiki/Film_speed>
-    pub sensitivity_iso: f32,
-    /// The height of the [image sensor format] in meters.
-    ///
-    /// Focal length is derived from the FOV and this value. The default is
-    /// 18.66mm, matching the [Super 35] format, which is popular in cinema.
-    ///
-    /// [image sensor format]: https://en.wikipedia.org/wiki/Image_sensor_format
-    ///
-    /// [Super 35]: https://en.wikipedia.org/wiki/Super_35
-    pub sensor_height: f32,
-}
-
-impl PhysicalCameraParameters {
-    /// Calculate the [EV100](https://en.wikipedia.org/wiki/Exposure_value).
-    pub fn ev100(&self) -> f32 {
-        ops::log2(
-            self.aperture_f_stops * self.aperture_f_stops * 100.0
-                / (self.shutter_speed_s * self.sensitivity_iso),
-        )
-    }
-}
-
-impl Default for PhysicalCameraParameters {
-    fn default() -> Self {
-        Self {
-            aperture_f_stops: 1.0,
-            shutter_speed_s: 1.0 / 125.0,
-            sensitivity_iso: 100.0,
-            sensor_height: 0.01866,
-        }
     }
 }
 
@@ -316,7 +232,7 @@ pub enum ViewportConversionError {
     PastFarPlane,
     /// The Normalized Device Coordinates could not be computed because the `camera_transform`, the
     /// `world_position`, or the projection matrix defined by [`Projection`](super::projection::Projection)
-    /// contained `NAN` (see [`world_to_ndc`][Camera::world_to_ndc] and [`ndc_to_world`][Camera::ndc_to_world]).
+    /// contained `NAN` (see [`world_to_ndc`][Camera::world_to_ndc]).
     #[error("found NaN while computing NDC")]
     InvalidData,
 }
@@ -498,9 +414,6 @@ impl Camera {
 
     /// Core conversion logic to compute viewport coordinates
     ///
-    /// This function is shared by `world_to_viewport` and `world_to_viewport_with_depth`
-    /// to avoid code duplication.
-    ///
     /// Returns a tuple `(viewport_position, depth)`.
     fn world_to_viewport_core(
         &self,
@@ -552,35 +465,11 @@ impl Camera {
             .0)
     }
 
-    /// Given a position in world space, use the camera to compute the viewport-space coordinates and depth.
-    ///
-    /// To get the coordinates in Normalized Device Coordinates, you should use
-    /// [`world_to_ndc`](Self::world_to_ndc).
-    ///
-    /// # Panics
-    ///
-    /// Will panic if `glam_assert` is enabled and the `camera_transform` contains `NAN`
-    /// (see [`world_to_ndc`][Self::world_to_ndc]).
-    #[doc(alias = "world_to_screen_with_depth")]
-    pub fn world_to_viewport_with_depth(
-        &self,
-        camera_transform: &GlobalTransform,
-        world_position: Vec3,
-    ) -> Result<Vec3, ViewportConversionError> {
-        let result = self.world_to_viewport_core(camera_transform, world_position)?;
-        // Stretching ndc depth to value via near plane and negating result to be in positive room again.
-        let depth = -self.depth_ndc_to_view_z(result.1);
-        Ok(result.0.extend(depth))
-    }
-
     /// Returns a ray originating from the camera, that passes through everything beyond `viewport_position`.
     ///
     /// The resulting ray starts on the near plane of the camera.
     ///
     /// If the camera's projection is orthographic the direction of the ray is always equal to `camera_transform.forward()`.
-    ///
-    /// To get the world space coordinates with Normalized Device Coordinates, you should use
-    /// [`ndc_to_world`](Self::ndc_to_world).
     ///
     /// # Example
     /// ```no_run
@@ -609,7 +498,7 @@ impl Camera {
     /// # Panics
     ///
     /// Will panic if the camera's projection matrix is invalid (has a determinant of 0) and
-    /// `glam_assert` is enabled (see [`ndc_to_world`](Self::ndc_to_world).
+    /// `glam_assert` is enabled.
     pub fn viewport_to_world(
         &self,
         camera_transform: &GlobalTransform,
@@ -637,55 +526,6 @@ impl Camera {
             .map(|direction| Ray3d { origin, direction })
     }
 
-    /// Returns a 2D world position computed from a position on this [`Camera`]'s viewport.
-    ///
-    /// Useful for 2D cameras and other cameras with an orthographic projection pointing along the Z axis.
-    ///
-    /// To get the world space coordinates with Normalized Device Coordinates, you should use
-    /// [`ndc_to_world`](Self::ndc_to_world).
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use bevy_window::Window;
-    /// # use bevy_ecs::prelude::*;
-    /// # use bevy_transform::prelude::{GlobalTransform, TransformSystems};
-    /// # use bevy_camera::Camera;
-    /// # use bevy_app::{App, PostUpdate};
-    /// #
-    /// fn system(camera_query: Single<(&Camera, &GlobalTransform)>, window: Single<&Window>) {
-    ///     let (camera, camera_transform) = *camera_query;
-    ///
-    ///     if let Some(cursor_position) = window.cursor_position()
-    ///         // Calculate a world position based on the cursor's position.
-    ///         && let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_position)
-    ///     {
-    ///         println!("World position: {world_pos:.2}");
-    ///     }
-    /// }
-    ///
-    /// # let mut app = App::new();
-    /// // Run the system after transform propagation so the camera's global transform is up-to-date.
-    /// app.add_systems(PostUpdate, system.after(TransformSystems::Propagate));
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the camera's projection matrix is invalid (has a determinant of 0) and
-    /// `glam_assert` is enabled (see [`ndc_to_world`](Self::ndc_to_world).
-    pub fn viewport_to_world_2d(
-        &self,
-        camera_transform: &GlobalTransform,
-        viewport_position: Vec2,
-    ) -> Result<Vec2, ViewportConversionError> {
-        let ndc = self.viewport_to_ndc(viewport_position)?;
-
-        let world_near_plane = self
-            .ndc_to_world(camera_transform, ndc.extend(1.))
-            .ok_or(ViewportConversionError::InvalidData)?;
-
-        Ok(world_near_plane.truncate())
-    }
-
     /// Given a point in world space, use the camera's viewport to compute the Normalized Device Coordinates of the point.
     ///
     /// When the point is within the viewport the values returned will be between -1.0 (bottom left) and 1.0 (top right)
@@ -709,56 +549,6 @@ impl Camera {
         let ndc_point = self.computed.clip_from_view.project_point3a(view_point);
 
         (!ndc_point.is_nan()).then_some(ndc_point.into())
-    }
-
-    /// Given a position in Normalized Device Coordinates,
-    /// use the camera's viewport to compute the world space position.
-    ///
-    /// The input is expected to be in NDC: `x` and `y` in the range `[-1.0, 1.0]`, and `z` in `[0.0, 1.0]`
-    /// (with `z = 0.0` at the far plane and `z = 1.0` at the near plane).
-    /// The returned value is a position in world space (your game's world units) and is not limited to `[-1.0, 1.0]`.
-    /// To convert from a viewport position to world space, you should use
-    /// [`viewport_to_world`](Self::viewport_to_world).
-    ///
-    /// Returns `None` if the `camera_transform`, the `ndc_point`, or the projection matrix defined by
-    /// [`Projection`](super::projection::Projection) contain `NAN`.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the projection matrix is invalid (has a determinant of 0) and `glam_assert` is enabled.
-    pub fn ndc_to_world<V: Into<Vec3A> + From<Vec3A>>(
-        &self,
-        camera_transform: &GlobalTransform,
-        ndc_point: V,
-    ) -> Option<V> {
-        // We multiply the point by `view_from_clip` and then `world_from_view` in sequence to avoid the precision loss
-        // (and performance penalty) incurred by pre-composing an affine transform with a projective transform.
-        let view_point = self
-            .computed
-            .clip_from_view
-            .inverse()
-            .project_point3a(ndc_point.into());
-        let world_point = camera_transform.affine().transform_point3a(view_point);
-
-        (!world_point.is_nan()).then_some(world_point.into())
-    }
-
-    /// Converts the depth in Normalized Device Coordinates
-    /// to linear view z for perspective projections.
-    ///
-    /// Note: Depth values in front of the camera will be negative as -z is forward
-    pub fn depth_ndc_to_view_z(&self, ndc_depth: f32) -> f32 {
-        let near = self.clip_from_view().w_axis.z; // [3][2]
-        -near / ndc_depth
-    }
-
-    /// Converts the depth in Normalized Device Coordinates
-    /// to linear view z for orthographic projections.
-    ///
-    /// Note: Depth values in front of the camera will be negative as -z is forward
-    pub fn depth_ndc_to_view_z_2d(&self, ndc_depth: f32) -> f32 {
-        -(self.clip_from_view().w_axis.z - ndc_depth) / self.clip_from_view().z_axis.z
-        //                       [3][2]                                         [2][2]
     }
 
     /// Converts a position in viewport coordinates to NDC.

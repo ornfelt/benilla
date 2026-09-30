@@ -131,6 +131,24 @@ the same repository's.
   `Fixed::from_seconds`/`discard_overstep`, `Time::advance_to`, `Timer::almost_finish`/
   `remaining_secs`, `Virtual::from_max_delta`/`set_relative_speed`/`effective_speed_f64`
   (`crossbeam-channel` left the manifest).
+- **`bevy_transform` and `bevy_camera`, to what benilla and the kept crates call.**
+  `bevy_transform`: `BuildChildrenTransformExt` (`commands.rs`), the no-std serial propagation
+  (`std` is always on; the parallel one stays), `StaticTransformOptimizations::from_threshold`/
+  `disabled` (benilla inserts `enabled()`; the threshold logic stays for the default), and
+  `Transform`'s `from_matrix`, `from_isometry`, `to_isometry`, `looking_to`, `aligned_by`,
+  `align`, `rotate_axis`, `rotate_x`, `rotate_z`, `rotate_local*`, `translate_around`,
+  `rotate_around` with `GlobalTransform`'s `from_isometry`/`to_isometry`. `bevy_camera`:
+  `VisibilityRange` and `VisibleEntityRanges` (no entity carries a range, so the range test in
+  `check_visibility` and `bevy_light`'s two shadow-caster checks never culled; their reads go),
+  `check_visibility_ranges` kept as an empty stand-in in `PostUpdate` with its plugin, set and
+  order; `NoCpuCulling` (nothing inserts it), `MainPassResolutionOverride`,
+  `Viewport::from_viewport_and_override`, `PhysicalCameraParameters` with
+  `Exposure::from_physical_camera`, `SUNLIGHT`/`OVERCAST` and their EV100 constants, `Camera`'s
+  `world_to_viewport_with_depth`, `viewport_to_world_2d`, `ndc_to_world`,
+  `depth_ndc_to_view_z(_2d)`, `Projection::is_perspective`, `Visibility`'s three `toggle_*`,
+  and `Aabb::is_in_half_space(_identity)`, `Frustum::contains_aabb(_identity)`/
+  `intersects_obb_identity` and `face_index_to_name` with the tests of those. The frame is
+  unchanged: the stand-in keeps `PostUpdate`'s section identical.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
