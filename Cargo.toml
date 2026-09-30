@@ -60,7 +60,6 @@ kira = { path = "third_party/kira" }
 # Bevy 0.18.1 and the Bevy plugins benilla builds, vendored to be trimmed to what benilla uses
 # (`third_party/bevy/BENILLA.md`).
 bevy = { path = "third_party/bevy/bevy" }
-bevy_a11y = { path = "third_party/bevy/bevy_a11y" }
 bevy_animation = { path = "third_party/bevy/bevy_animation" }
 bevy_animation_macros = { path = "third_party/bevy/bevy_animation_macros" }
 bevy_app = { path = "third_party/bevy/bevy_app" }

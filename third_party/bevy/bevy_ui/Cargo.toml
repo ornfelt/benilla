@@ -48,12 +48,6 @@ serialize = [
 name = "bevy_ui"
 path = "src/lib.rs"
 
-[dependencies.accesskit]
-version = "0.21"
-
-[dependencies.bevy_a11y]
-version = "0.18.0"
-
 [dependencies.bevy_app]
 version = "0.18.0"
 

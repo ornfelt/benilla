@@ -68,8 +68,15 @@ the same repository's.
   takes it as an `Option`). The features `custom_cursor` (now only `bevy_window/custom_cursor`),
   `x11`, `wayland` and the default stay, and bevy_egui's `accesskit` feature (off, and its two
   systems reached into the AccessKit adapters) is gone with its `bevy_a11y` dependency.
-  `bevy_a11y` and `bevy_ui`'s accessibility plugin stay: its four systems are in the recorded
-  `PostUpdate`, and removing them reorders the systems that stay.
+- **`bevy_a11y` and `accesskit`**: with no AccessKit adapter (no `WinitPlugin`) nothing reads an
+  `AccessibilityNode`. The crate is deleted with its `DefaultPlugins` slot (its plugin only
+  initialized two resources nobody reads), its `bevy::a11y` re-export and patch line. `bevy_ui`'s
+  accessibility systems (`label_changed`, `image_changed`, `button_changed`, `calc_bounds`) run in
+  `PostUpdate`, which benilla runs single-threaded, where deleting a system reorders the ones that
+  stay; so they are **empty stand-ins** with the same paths, added at the same point with the same
+  ordering, and the recorded frame is byte-identical. `interaction_states`' six observers, which
+  mirrored `InteractionDisabled`/`Checked` into the `AccessibilityNode`, are empty stand-ins too
+  (still registered, so the observer entities are spawned as before).
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

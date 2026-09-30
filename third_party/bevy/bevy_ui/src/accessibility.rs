@@ -1,145 +1,23 @@
-use crate::{
-    experimental::UiChildren,
-    prelude::{Button, Label},
-    ui_transform::UiGlobalTransform,
-    widget::{ImageNode, TextUiReader},
-    ComputedNode,
-};
-use bevy_a11y::AccessibilityNode;
-use bevy_app::{App, Plugin, PostUpdate};
-use bevy_ecs::{
-    prelude::{DetectChanges, Entity},
-    query::{Changed, Without},
-    schedule::IntoScheduleConfigs,
-    system::{Commands, Query},
-    world::Ref,
-};
+//! `bevy_ui`'s `AccessKit` integration, cut to stand-ins: no AccessKit adapter exists (no
+//! `WinitPlugin`), so nothing reads the `AccessibilityNode`s these systems built. Each keeps its
+//! path, place and ordering, so `PostUpdate` (single-threaded) runs in the order it did.
 
-use accesskit::{Node, Rect, Role};
+use bevy_app::{App, Plugin, PostUpdate};
+use bevy_ecs::schedule::IntoScheduleConfigs;
+
 use bevy_camera::CameraUpdateSystems;
 
-fn calc_label(
-    text_reader: &mut TextUiReader,
-    children: impl Iterator<Item = Entity>,
-) -> Option<Box<str>> {
-    let mut name = None;
-    for child in children {
-        let values = text_reader
-            .iter(child)
-            .map(|(_, _, text, _, _, _)| text.into())
-            .collect::<Vec<String>>();
-        if !values.is_empty() {
-            name = Some(values.join(" "));
-        }
-    }
-    name.map(String::into_boxed_str)
-}
+/// Stand-in for `calc_bounds`, which set each `AccessibilityNode`'s bounds from its layout.
+fn calc_bounds() {}
 
-fn calc_bounds(
-    mut nodes: Query<(
-        &mut AccessibilityNode,
-        Ref<ComputedNode>,
-        Ref<UiGlobalTransform>,
-    )>,
-) {
-    for (mut accessible, node, transform) in &mut nodes {
-        if node.is_changed() || transform.is_changed() {
-            let center = transform.translation;
-            let half_size = 0.5 * node.size;
-            let min = center - half_size;
-            let max = center + half_size;
-            let bounds = Rect::new(min.x as f64, min.y as f64, max.x as f64, max.y as f64);
-            accessible.set_bounds(bounds);
-        }
-    }
-}
+/// Stand-in for `button_changed`, which gave a changed `Button` its `AccessibilityNode`.
+fn button_changed() {}
 
-fn button_changed(
-    mut commands: Commands,
-    mut query: Query<(Entity, Option<&mut AccessibilityNode>), Changed<Button>>,
-    ui_children: UiChildren,
-    mut text_reader: TextUiReader,
-) {
-    for (entity, accessible) in &mut query {
-        let label = calc_label(&mut text_reader, ui_children.iter_ui_children(entity));
-        if let Some(mut accessible) = accessible {
-            accessible.set_role(Role::Button);
-            if let Some(name) = label {
-                accessible.set_label(name);
-            } else {
-                accessible.clear_label();
-            }
-        } else {
-            let mut node = Node::new(Role::Button);
-            if let Some(label) = label {
-                node.set_label(label);
-            }
-            commands
-                .entity(entity)
-                .try_insert(AccessibilityNode::from(node));
-        }
-    }
-}
+/// Stand-in for `image_changed`, which gave a changed `ImageNode` its `AccessibilityNode`.
+fn image_changed() {}
 
-fn image_changed(
-    mut commands: Commands,
-    mut query: Query<
-        (Entity, Option<&mut AccessibilityNode>),
-        (Changed<ImageNode>, Without<Button>),
-    >,
-    ui_children: UiChildren,
-    mut text_reader: TextUiReader,
-) {
-    for (entity, accessible) in &mut query {
-        let label = calc_label(&mut text_reader, ui_children.iter_ui_children(entity));
-        if let Some(mut accessible) = accessible {
-            accessible.set_role(Role::Image);
-            if let Some(label) = label {
-                accessible.set_label(label);
-            } else {
-                accessible.clear_label();
-            }
-        } else {
-            let mut node = Node::new(Role::Image);
-            if let Some(label) = label {
-                node.set_label(label);
-            }
-            commands
-                .entity(entity)
-                .try_insert(AccessibilityNode::from(node));
-        }
-    }
-}
-
-fn label_changed(
-    mut commands: Commands,
-    mut query: Query<(Entity, Option<&mut AccessibilityNode>), Changed<Label>>,
-    mut text_reader: TextUiReader,
-) {
-    for (entity, accessible) in &mut query {
-        let values = text_reader
-            .iter(entity)
-            .map(|(_, _, text, _, _, _)| text.into())
-            .collect::<Vec<String>>();
-        let label = Some(values.join(" ").into_boxed_str());
-        if let Some(mut accessible) = accessible {
-            accessible.set_role(Role::Label);
-            if let Some(label) = label {
-                accessible.set_value(label);
-            } else {
-                accessible.clear_value();
-            }
-        } else {
-            let mut node = Node::new(Role::Label);
-            if let Some(label) = label {
-                node.set_value(label);
-            }
-            commands
-                .entity(entity)
-                .try_insert(AccessibilityNode::from(node));
-        }
-    }
-}
+/// Stand-in for `label_changed`, which gave a changed `Label` its `AccessibilityNode`.
+fn label_changed() {}
 
 /// `AccessKit` integration for `bevy_ui`.
 pub(crate) struct AccessibilityPlugin;

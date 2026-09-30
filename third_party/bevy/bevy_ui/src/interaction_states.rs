@@ -1,10 +1,11 @@
 /// This module contains components that are used to track the interaction state of UI widgets.
-use bevy_a11y::AccessibilityNode;
+///
+/// Their observers mirrored the state into the entity's `AccessibilityNode`; no AccessKit adapter
+/// exists, so they are stand-ins that keep the same observers registered.
 use bevy_ecs::{
     component::Component,
     lifecycle::{Add, Remove},
     observer::On,
-    world::DeferredWorld,
 };
 
 /// A component indicating that a widget is disabled and should be "grayed out".
@@ -18,22 +19,11 @@ use bevy_ecs::{
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct InteractionDisabled;
 
-pub(crate) fn on_add_disabled(add: On<Add, InteractionDisabled>, mut world: DeferredWorld) {
-    let mut entity = world.entity_mut(add.entity);
-    if let Some(mut accessibility) = entity.get_mut::<AccessibilityNode>() {
-        accessibility.set_disabled();
-    }
-}
+/// Stand-in for the observer that marked the `AccessibilityNode` disabled.
+pub(crate) fn on_add_disabled(_add: On<Add, InteractionDisabled>) {}
 
-pub(crate) fn on_remove_disabled(
-    remove: On<Remove, InteractionDisabled>,
-    mut world: DeferredWorld,
-) {
-    let mut entity = world.entity_mut(remove.entity);
-    if let Some(mut accessibility) = entity.get_mut::<AccessibilityNode>() {
-        accessibility.clear_disabled();
-    }
-}
+/// Stand-in for the observer that cleared the `AccessibilityNode`'s disabled flag.
+pub(crate) fn on_remove_disabled(_remove: On<Remove, InteractionDisabled>) {}
 
 /// Component that indicates whether a button or widget is currently in a pressed or "held down"
 /// state.
@@ -48,35 +38,15 @@ pub struct Checkable;
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct Checked;
 
-pub(crate) fn on_add_checkable(add: On<Add, Checked>, mut world: DeferredWorld) {
-    let mut entity = world.entity_mut(add.entity);
-    let checked = entity.get::<Checked>().is_some();
-    if let Some(mut accessibility) = entity.get_mut::<AccessibilityNode>() {
-        accessibility.set_toggled(match checked {
-            true => accesskit::Toggled::True,
-            false => accesskit::Toggled::False,
-        });
-    }
-}
+/// Stand-in for the observer that set the `AccessibilityNode`'s toggled state.
+pub(crate) fn on_add_checkable(_add: On<Add, Checked>) {}
 
-pub(crate) fn on_remove_checkable(add: On<Add, Checked>, mut world: DeferredWorld) {
-    // Remove the 'toggled' attribute entirely.
-    let mut entity = world.entity_mut(add.entity);
-    if let Some(mut accessibility) = entity.get_mut::<AccessibilityNode>() {
-        accessibility.clear_toggled();
-    }
-}
+/// Stand-in for the observer that cleared the `AccessibilityNode`'s toggled state (Bevy 0.18.1
+/// registers it on `Add<Checked>`, kept).
+pub(crate) fn on_remove_checkable(_add: On<Add, Checked>) {}
 
-pub(crate) fn on_add_checked(add: On<Add, Checked>, mut world: DeferredWorld) {
-    let mut entity = world.entity_mut(add.entity);
-    if let Some(mut accessibility) = entity.get_mut::<AccessibilityNode>() {
-        accessibility.set_toggled(accesskit::Toggled::True);
-    }
-}
+/// Stand-in for the observer that set the `AccessibilityNode` toggled on.
+pub(crate) fn on_add_checked(_add: On<Add, Checked>) {}
 
-pub(crate) fn on_remove_checked(remove: On<Remove, Checked>, mut world: DeferredWorld) {
-    let mut entity = world.entity_mut(remove.entity);
-    if let Some(mut accessibility) = entity.get_mut::<AccessibilityNode>() {
-        accessibility.set_toggled(accesskit::Toggled::False);
-    }
-}
+/// Stand-in for the observer that set the `AccessibilityNode` toggled off.
+pub(crate) fn on_remove_checked(_remove: On<Remove, Checked>) {}

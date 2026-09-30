@@ -141,11 +141,9 @@ bevy_ui_render = [
 ]
 bevy_window = [
     "dep:bevy_window",
-    "dep:bevy_a11y",
     "bevy_image",
 ]
 critical-section = [
-    "bevy_a11y?/critical-section",
     "bevy_app/critical-section",
     "bevy_diagnostic/critical-section",
     "bevy_ecs/critical-section",
@@ -196,7 +194,6 @@ reflect_auto_register = [
     "bevy_ecs/reflect_auto_register",
 ]
 serialize = [
-    "bevy_a11y?/serialize",
     "bevy_color?/serialize",
     "bevy_ecs/serialize",
     "bevy_image?/serialize",
@@ -216,7 +213,6 @@ smaa_luts = [
 ]
 sprite_picking = ["bevy_picking"]
 std = [
-    "bevy_a11y?/std",
     "bevy_app/std",
     "bevy_color?/std",
     "bevy_diagnostic/std",
@@ -262,11 +258,6 @@ zstd_rust = ["bevy_image/zstd_rust"]
 [lib]
 name = "bevy_internal"
 path = "src/lib.rs"
-
-[dependencies.bevy_a11y]
-version = "0.18.0"
-features = ["bevy_reflect"]
-optional = true
 
 [dependencies.bevy_animation]
 version = "0.18.0"
