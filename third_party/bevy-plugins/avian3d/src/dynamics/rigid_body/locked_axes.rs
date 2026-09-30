@@ -27,13 +27,6 @@ use crate::prelude::*;
 pub struct LockedAxes(u8);
 
 impl LockedAxes {
-    /// All translational axes are locked, but all rotational axes are unlocked.
-    pub const TRANSLATION_LOCKED: Self = Self(0b111_000);
-    /// All rotational axes are locked, but all translational axes are unlocked.
-    pub const ROTATION_LOCKED: Self = Self(0b000_111);
-    /// All translational and rotational axes are locked.
-    pub const ALL_LOCKED: Self = Self(0b111_111);
-
     /// Creates a new [`LockedAxes`] configuration using bits.
     ///
     /// The first three bits correspond to translational axes, while the last three bits correspond to rotational
@@ -98,31 +91,6 @@ impl LockedAxes {
             vector.z = 0.0;
         }
         vector
-    }
-
-    /// Sets axes of the given angular inertia to zero based on the [`LockedAxes`] configuration.
-    pub(crate) fn apply_to_angular_inertia(
-        &self,
-        angular_inertia: impl Into<ComputedAngularInertia>,
-    ) -> ComputedAngularInertia {
-        let mut angular_inertia = angular_inertia.into();
-        let angular_inertia_mut = angular_inertia.inverse_mut();
-        if self.is_rotation_x_locked() {
-            angular_inertia_mut.m00 = 0.0;
-            angular_inertia_mut.m01 = 0.0;
-            angular_inertia_mut.m02 = 0.0;
-        }
-        if self.is_rotation_y_locked() {
-            angular_inertia_mut.m11 = 0.0;
-            angular_inertia_mut.m01 = 0.0;
-            angular_inertia_mut.m12 = 0.0;
-        }
-        if self.is_rotation_z_locked() {
-            angular_inertia_mut.m22 = 0.0;
-            angular_inertia_mut.m02 = 0.0;
-            angular_inertia_mut.m12 = 0.0;
-        }
-        angular_inertia
     }
 
     /// Sets axes of the given angular velocity to zero based on the [`LockedAxes`] configuration.

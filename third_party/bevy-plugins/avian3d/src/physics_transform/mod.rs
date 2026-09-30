@@ -7,9 +7,6 @@ pub use transform::{Position, PreSolveDeltaPosition, PreSolveDeltaRotation, Rota
 #[allow(unused_imports)]
 pub(crate) use transform::{RotationValue, init_physics_transform};
 
-mod helper;
-pub use helper::PhysicsTransformHelper;
-
 #[cfg(test)]
 mod tests;
 
@@ -174,10 +171,6 @@ pub enum PhysicsTransformSystems {
     /// Updates [`Transform`] based on [`Position`] and [`Rotation`] changes after physics simulation.
     PositionToTransform,
 }
-
-/// A deprecated alias for [`PhysicsTransformSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `PhysicsTransformSystems`")]
-pub type PhysicsTransformSet = PhysicsTransformSystems;
 
 /// Copies [`GlobalTransform`] changes to [`Position`] and [`Rotation`].
 /// This allows users to use transforms for moving and positioning bodies and colliders.

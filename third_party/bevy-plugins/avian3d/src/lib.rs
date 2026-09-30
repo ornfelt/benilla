@@ -429,17 +429,16 @@ pub(crate) mod ancestor_marker;
 /// Re-exports common components, bundles, resources, plugins and types.
 pub mod prelude {
     pub(crate) use crate::physics_transform::RotationValue;
-    #[expect(deprecated)]
     pub use crate::{
         PhysicsPlugins,
         collider_tree::{ColliderTreeOptimization, ColliderTreePlugin, TreeOptimizationMode},
         collision::prelude::*,
         dynamics::{self, ccd::SpeculativeMargin, prelude::*},
         interpolation::*,
-        physics_transform::{PhysicsTransformHelper, PhysicsTransformPlugin, Position, Rotation},
+        physics_transform::{PhysicsTransformPlugin, Position, Rotation},
         schedule::{
-            Physics, PhysicsSchedule, PhysicsSchedulePlugin, PhysicsSet, PhysicsStepSet,
-            PhysicsStepSystems, PhysicsSystems, PhysicsTime, Substeps,
+            Physics, PhysicsSchedule, PhysicsSchedulePlugin, PhysicsStepSystems, PhysicsSystems,
+            PhysicsTime, Substeps,
         },
         spatial_query::{self, *},
     };
@@ -461,7 +460,7 @@ mod tests;
 
 use bevy::{
     app::PluginGroupBuilder,
-    ecs::{intern::Interned, schedule::ScheduleLabel, system::SystemParamItem},
+    ecs::{intern::Interned, schedule::ScheduleLabel},
     prelude::*,
 };
 #[allow(unused_imports)]
@@ -602,42 +601,5 @@ impl PluginGroup for PhysicsPlugins {
             .add(SpatialQueryPlugin)
             .add(PhysicsTransformPlugin::new(self.schedule))
             .add(PhysicsInterpolationPlugin::default())
-    }
-}
-
-// This type is separate from `PhysicsPlugins` to avoid requiring users to use generics
-// like `PhysicsPlugins::<()>::default()` unless they actually want to use collision hooks.
-/// A [`PhysicsPlugins`] plugin group with [`CollisionHooks`] specified.
-pub struct PhysicsPluginsWithHooks<H: CollisionHooks> {
-    plugins: PhysicsPlugins,
-    _phantom: core::marker::PhantomData<H>,
-}
-
-impl<H: CollisionHooks> Default for PhysicsPluginsWithHooks<H> {
-    fn default() -> Self {
-        Self {
-            plugins: PhysicsPlugins::default(),
-            _phantom: core::marker::PhantomData,
-        }
-    }
-}
-
-impl<H: CollisionHooks + 'static> PluginGroup for PhysicsPluginsWithHooks<H>
-where
-    for<'w, 's> SystemParamItem<'w, 's, H>: CollisionHooks,
-{
-    fn build(self) -> PluginGroupBuilder {
-        // Replace the default collision hooks with the user-defined ones.
-        let builder = self
-            .plugins
-            .build()
-            .disable::<BvhBroadPhasePlugin>()
-            .add(BvhBroadPhasePlugin::<H>::default());
-
-        let builder = builder
-            .disable::<NarrowPhasePlugin<Collider>>()
-            .add(NarrowPhasePlugin::<Collider, H>::default());
-
-        builder
     }
 }

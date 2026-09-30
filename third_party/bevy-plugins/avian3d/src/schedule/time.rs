@@ -13,43 +13,7 @@ use bevy::prelude::*;
 ///
 /// # Usage
 ///
-/// ## Physics Speed
-///
-/// The relative speed of [`Time<Physics>`](Physics) can be configured at startup
-/// using [`with_relative_speed`], or when the app is running using [`set_relative_speed`]:
-///
-/// ```no_run
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// fn main() {
-///     App::new()
-///         .add_plugins((DefaultPlugins, PhysicsPlugins::default()))
-///         // Run physics at 0.5 speed
-///         .insert_resource(Time::<Physics>::default().with_relative_speed(0.5))
-///         .run();
-/// }
-/// ```
-///
-/// [`with_relative_speed`]: PhysicsTime::with_relative_speed
-/// [`set_relative_speed`]: PhysicsTime::set_relative_speed
-///
-/// ## Pausing, Resuming, and Stepping Physics
-///
-/// [`Time<Physics>`](Physics) can be used to pause and resume the simulation:
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// fn pause(mut time: ResMut<Time<Physics>>) {
-///     time.pause();
-/// }
-///
-/// fn unpause(mut time: ResMut<Time<Physics>>) {
-///     time.unpause();
-/// }
-/// ```
+/// ## Stepping Physics
 ///
 /// To advance the simulation by a certain amount of time instantly, you can advance the
 /// [`Time<Physics>`](Physics) clock and manually run the [`PhysicsSchedule`] in an exclusive system:
@@ -131,14 +95,6 @@ impl Default for Physics {
 
 /// An extension trait for [`Time<Physics>`](Physics).
 pub trait PhysicsTime {
-    /// Returns the speed of physics relative to your system clock as an `f32`.
-    /// This is also known as "time scaling" or "time dilation" in other engines.
-    ///
-    /// The speed impacts the accuracy of the simulation, and large values may
-    /// cause jittering or missed collisions. You can improve simulation consistency
-    /// by adjusting your timestep at the cost of performance.
-    fn relative_speed(&self) -> f32;
-
     /// Returns the speed of physics relative to your system clock as an `f64`.
     /// This is also known as "time scaling" or "time dilation" in other engines.
     ///
@@ -147,109 +103,13 @@ pub trait PhysicsTime {
     /// by adjusting your timestep at the cost of performance.
     fn relative_speed_f64(&self) -> f64;
 
-    /// Sets the speed of physics relative to your system clock, given as an `f32`.
-    ///
-    /// For example, setting this to `2.0` will make the physics clock advance twice
-    /// as fast as your system clock.
-    ///
-    /// The speed impacts the accuracy of the simulation, and large values may
-    /// cause jittering or missed collisions. You can improve simulation consistency
-    /// by adjusting your timestep at the cost of performance.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `ratio` is negative or not finite.
-    fn with_relative_speed(self, ratio: f32) -> Self;
-
-    /// Sets the speed of physics relative to your system clock, given as an `f64`.
-    ///
-    /// For example, setting this to `2.0` will make the physics clock advance twice
-    /// as fast as your system clock.
-    ///
-    /// The speed impacts the accuracy of the simulation, and large values may
-    /// cause jittering or missed collisions. You can improve simulation consistency
-    /// by adjusting your timestep at the cost of performance.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `ratio` is negative or not finite.
-    fn with_relative_speed_f64(self, ratio: f64) -> Self;
-
-    /// Sets the speed of physics relative to your system clock, given as an `f32`.
-    ///
-    /// For example, setting this to `2.0` will make the physics clock advance twice
-    /// as fast as your system clock.
-    ///
-    /// The speed impacts the accuracy of the simulation, and large values may
-    /// cause jittering or missed collisions. You can improve simulation consistency
-    /// by adjusting your timestep at the cost of performance.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `ratio` is negative or not finite.
-    fn set_relative_speed(&mut self, ratio: f32);
-
-    /// Sets the speed of physics relative to your system clock, given as an `f64`.
-    ///
-    /// For example, setting this to `2.0` will make the physics clock advance twice
-    /// as fast as your system clock.
-    ///
-    /// The speed impacts the accuracy of the simulation, and large values may
-    /// cause jittering or missed collisions. You can improve simulation consistency
-    /// by adjusting your timestep at the cost of performance.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `ratio` is negative or not finite.
-    fn set_relative_speed_f64(&mut self, ratio: f64);
-
     /// Returns `true` if the physics clock is currently paused.
     fn is_paused(&self) -> bool;
-
-    /// Stops the clock, preventing the physics simulation from advancing until resumed.
-    fn pause(&mut self);
-
-    /// Resumes the clock if paused.
-    #[doc(alias = "resume")]
-    fn unpause(&mut self);
 }
 
 impl PhysicsTime for Time<Physics> {
-    fn with_relative_speed(self, ratio: f32) -> Self {
-        self.with_relative_speed_f64(ratio as f64)
-    }
-
-    fn with_relative_speed_f64(mut self, ratio: f64) -> Self {
-        assert!(ratio.is_finite(), "tried to go infinitely fast");
-        assert!(ratio >= 0.0, "tried to go back in time");
-        self.context_mut().relative_speed = ratio;
-        self
-    }
-
-    fn relative_speed(&self) -> f32 {
-        self.relative_speed_f64() as f32
-    }
-
     fn relative_speed_f64(&self) -> f64 {
         self.context().relative_speed
-    }
-
-    fn set_relative_speed(&mut self, ratio: f32) {
-        self.set_relative_speed_f64(ratio as f64);
-    }
-
-    fn set_relative_speed_f64(&mut self, ratio: f64) {
-        assert!(ratio.is_finite(), "tried to go infinitely fast");
-        assert!(ratio >= 0.0, "tried to go back in time");
-        self.context_mut().relative_speed = ratio;
-    }
-
-    fn pause(&mut self) {
-        self.context_mut().paused = true;
-    }
-
-    fn unpause(&mut self) {
-        self.context_mut().paused = false;
     }
 
     fn is_paused(&self) -> bool {

@@ -179,27 +179,3 @@ pub enum ClosestPoints {
     /// exceeds the user-defined maximum distance.
     OutsideMargin,
 }
-
-/// The way a time of impact computation was terminated.
-pub type TimeOfImpactStatus = parry::query::details::ShapeCastStatus;
-
-/// The result of a time of impact computation between two moving [`Collider`]s.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct TimeOfImpact {
-    /// The time at which the colliders come into contact.
-    pub time_of_impact: Scalar,
-    /// The closest point on the first collider, at the time of impact,
-    /// expressed in local space.
-    pub point1: Vector,
-    /// The closest point on the second collider, at the time of impact,
-    /// expressed in local space.
-    pub point2: Vector,
-    /// The outward normal on the first collider, at the time of impact,
-    /// expressed in local space.
-    pub normal1: Vector,
-    /// The outward normal on the second collider, at the time of impact,
-    /// expressed in local space.
-    pub normal2: Vector,
-    /// The way the time of impact computation was terminated.
-    pub status: TimeOfImpactStatus,
-}

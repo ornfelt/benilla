@@ -365,9 +365,6 @@ impl From<(Scalar, Scalar)> for AngleLimit {
 }
 
 impl AngleLimit {
-    /// An `AngleLimit` with `alpha` and `beta` set to zero.
-    pub const ZERO: Self = Self { min: 0.0, max: 0.0 };
-
     /// Creates a new `AngleLimit`.
     pub const fn new(min: Scalar, max: Scalar) -> Self {
         Self { min, max }

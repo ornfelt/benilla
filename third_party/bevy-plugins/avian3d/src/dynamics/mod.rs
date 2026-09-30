@@ -71,7 +71,6 @@ pub mod solver;
 pub mod prelude {
     pub(crate) use super::rigid_body::mass_properties::{ComputeMassProperties, MassProperties};
     pub use super::solver::xpbd::XpbdSolverPlugin;
-    #[expect(deprecated)]
     pub use super::{
         ccd::{CcdPlugin, SpeculativeMargin, SweepMode, SweptCcd},
         integrator::{
@@ -86,7 +85,7 @@ pub mod prelude {
             forces::{
                 ConstantAngularAcceleration, ConstantForce, ConstantLinearAcceleration,
                 ConstantLocalForce, ConstantLocalLinearAcceleration, ConstantTorque, ForcePlugin,
-                ForceSystems, Forces, ReadRigidBodyForces, RigidBodyForces, WriteRigidBodyForces,
+                ForceSystems,
             },
             mass_properties::{
                 MassPropertiesExt, MassPropertyHelper, MassPropertyPlugin,
@@ -100,10 +99,7 @@ pub mod prelude {
                     MassPropertiesBundle, NoAutoAngularInertia, NoAutoCenterOfMass, NoAutoMass,
                 },
             },
-            sleeping::{
-                DeactivationTime, SleepThreshold, SleepTimer, Sleeping, SleepingDisabled,
-                SleepingThreshold, TimeSleeping, TimeToSleep,
-            },
+            sleeping::{SleepThreshold, SleepTimer, Sleeping, SleepingDisabled, TimeToSleep},
             *,
         },
         solver::{
@@ -111,9 +107,7 @@ pub mod prelude {
             islands::{
                 IslandPlugin, IslandSleepingPlugin, SleepBody, SleepIslands, WakeBody, WakeIslands,
             },
-            schedule::{
-                SolverSchedulePlugin, SolverSet, SolverSystems, SubstepCount, SubstepSchedule,
-            },
+            schedule::{SolverSchedulePlugin, SolverSystems, SubstepCount, SubstepSchedule},
             solver_body::SolverBodyPlugin,
         },
     };

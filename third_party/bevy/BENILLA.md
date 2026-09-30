@@ -375,6 +375,29 @@ the same repository's.
   `LayerMask::has_all`, `StableVec`/`IdPool::clear`, `project_velocity_bruteforce`); the tests of
   `TrimeshBuilder` and `ColliderConstructorHierarchy` (which import the cut `bevy::winit` and
   `bevy::gltf`) went. No system or type benilla's frame registers changed.
+- **avian3d's unused types.** The same method over `pub struct`/`enum`/`trait`/`type`/`const`
+  (every item made `pub(crate)`, an explicit `pub use` of one split into a `pub(crate) use`
+  while the analysis ran, and put back where benilla's crates, all targets, needed it by name, by
+  a trait method or by type privacy) named what nothing uses; gone: the `Forces` query data with
+  `ForcesItem`/`NonWakingForcesItem`, the `RigidBodyForces` traits and their tests (a user API
+  for one-time forces; the constant-force components and `ForcePlugin` stay),
+  `PhysicsTransformHelper`, `PhysicsPluginsWithHooks`, `trimesh_builder.rs` (`TrimeshBuilder`,
+  `Trimesh`, its error), `TimeOfImpact`/`TimeOfImpactStatus`, `SingleContact`, `UnGraph`'s
+  iterators and edge references with `next_edge`, `StableUnGraph`'s `EdgeMut`, the deprecated
+  aliases (`PhysicsSet`, `PhysicsStepSet`, `SolverSet`, `SubstepSolverSet`, `NarrowPhaseSet`,
+  `SweptCcdSet`, `IntegrationSet`, `PhysicsTransformSet`, `OnCollisionStart`/`End`,
+  `SleepingThreshold`, `TimeSleeping`, `DeactivationTime`), `Matrix2`, `FRAC_PI_2`,
+  `FRAC_1_SQRT_2`, the preset constants nothing reads (`ZERO`, `MAX`, `LINEAR`, the locked-axes
+  and restitution presets, `CollisionLayers::NONE`/`ALL_*`, `ProxyId::PLACEHOLDER`,
+  `DEFAULT_TWIST_AXIS`), the diagnostic paths (`path_macro.rs`, `timer_paths`/`counter_paths`,
+  `PhysicsDiagnosticsSystems::WriteDiagnostics`: only the cut `bevy_diagnostic` writer read
+  them), and the methods of now-private types nothing calls (`PhysicsTime`'s speed setters and
+  `pause`/`unpause`, four `Bvh2Ext` traversals, `distance_to_point_squared`, `scale_by`, the
+  XPBD constraints' `apply_angular_correction`/`compute_torque`/`compute_force`,
+  `VelocityIntegrationData::apply_*_acceleration`, `LockedAxes::apply_to_angular_inertia`,
+  `ComputedAngularInertia::inverse_mut`/`inverse_tensor_mut`). Kept for avian3d's own tests:
+  `Gravity::ZERO`, `MassPropertiesBundle` with `MassPropertiesExt` and the error enums of the kept
+  `try_new`s. No system, set or plugin benilla's frame names changed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

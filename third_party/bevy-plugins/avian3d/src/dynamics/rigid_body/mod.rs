@@ -373,11 +373,6 @@ pub struct RigidBodyDisabled;
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct LinearVelocity(pub Vector);
 
-impl LinearVelocity {
-    /// Zero linear velocity.
-    pub const ZERO: LinearVelocity = LinearVelocity(Vector::ZERO);
-}
-
 /// The maximum linear speed of a [rigid body](RigidBody), clamping the [`LinearVelocity`],
 /// typically in meters per second.
 ///
@@ -461,11 +456,6 @@ impl Default for MaxAngularSpeed {
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct AngularVelocity(pub Vector);
-
-impl AngularVelocity {
-    /// Zero angular velocity.
-    pub const ZERO: AngularVelocity = AngularVelocity(Vector::ZERO);
-}
 
 /// Controls how [gravity](Gravity) affects a specific [rigid body](RigidBody).
 ///

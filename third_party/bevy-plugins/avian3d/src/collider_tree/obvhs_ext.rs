@@ -90,33 +90,6 @@ pub trait Bvh2Ext {
         intersection_fn: F,
     ) -> bool;
 
-    /// Traverse the BVH by sweeping an AABB along a velocity vector. Returns true if the sweep missed all primitives.
-    ///
-    /// # Arguments
-    /// * `sweep` - The sweep to be tested for intersection.
-    /// * `intersection_fn` - should take the given sweep and primitive index and return the distance to the intersection, if any.
-    ///
-    /// Note the primitive index should index first into `Bvh2::primitive_indices` then that will be index of original primitive.
-    /// Various parts of the BVH building process might reorder the primitives. To avoid this indirection, reorder your
-    /// original primitives per `primitive_indices`.
-    fn sweep_traverse_miss<F: FnMut(&Sweep, usize) -> f32>(
-        &self,
-        sweep: Sweep,
-        intersection_fn: F,
-    ) -> bool;
-
-    /// Traverse the BVH by sweeping an AABB along a velocity vector. Intersects all primitives along the sweep
-    /// and calls `intersection_fn` for each hit. The sweep is not updated, to allow for evaluating at every hit.
-    ///
-    /// # Arguments
-    /// * `sweep` - The sweep to be tested for intersection.
-    /// * `intersection_fn` - should take the given sweep and primitive index.
-    ///
-    /// Note the primitive index should index first into `Bvh2::primitive_indices` then that will be index of original primitive.
-    /// Various parts of the BVH building process might reorder the primitives. To avoid this indirection, reorder your
-    /// original primitives per `primitive_indices`.
-    fn sweep_traverse_anyhit<F: FnMut(&Sweep, usize)>(&self, sweep: Sweep, intersection_fn: F);
-
     /// Traverse the BVH by sweeping an AABB along a velocity vector.
     ///
     /// Terminates when no hits are found or when `intersection_fn` returns false for a hit.
@@ -140,54 +113,6 @@ pub trait Bvh2Ext {
         sweep: Sweep,
         hit: &mut SweepHit,
         intersection_fn: F,
-    );
-
-    /// Traverse the BVH to find the closest leaf node to a point.
-    /// Returns the primitive index and squared distance of the closest leaf, or `None` if no leaf is within `max_dist_sq`.
-    ///
-    /// # Arguments
-    /// * `stack` - Stack for traversal state.
-    /// * `point` - The query point.
-    /// * `max_dist_sq` - Maximum squared distance to search (use `f32::INFINITY` for unlimited).
-    /// * `closest_leaf` - Will be updated with the closest leaf node and distance found.
-    /// * `visit_fn` - Called for each leaf node within range. Should take the given ray and primitive index and return the squared distance
-    ///   to the primitive, if any.
-    ///
-    /// Note the primitive index should index first into `Bvh2::primitive_indices` then that will be index of original primitive.
-    /// Various parts of the BVH building process might reorder the primitives. To avoid this indirection, reorder your
-    /// original primitives per `primitive_indices`.
-    fn squared_distance_traverse<F: FnMut(Vec3A, usize) -> f32>(
-        &self,
-        point: Vec3A,
-        max_dist_sq: f32,
-        visit_fn: F,
-    ) -> Option<(u32, f32)>;
-
-    /// Traverse the BVH with a point, calling `visit_fn` for each leaf node within `max_dist_sq` of the point.
-    ///
-    /// Terminates when all nodes within `max_dist_sq` have been visited or when `visit_fn` returns false for a node.
-    ///
-    /// # Arguments
-    /// * `stack` - Stack for traversal state.
-    /// * `point` - The query point.
-    /// * `max_dist_sq` - Maximum squared distance to search (use `f32::INFINITY` for unlimited).
-    /// * `closest_leaf` - Will be updated with the closest leaf node and distance found.
-    /// * `visit_fn` - Called for each leaf node within range. Should update `max_dist_sq` and `closest_leaf`.
-    ///   Return false to halt traversal early.
-    ///
-    /// Note the primitive index should index first into `Bvh2::primitive_indices` then that will be index of original primitive.
-    /// Various parts of the BVH building process might reorder the primitives. To avoid this indirection, reorder your
-    /// original primitives per `primitive_indices`.
-    fn squared_distance_traverse_dynamic<
-        F: FnMut(&Bvh2Node, &mut f32, &mut Option<(u32, f32)>) -> bool,
-        Stack: FastStack<u32>,
-    >(
-        &self,
-        stack: &mut Stack,
-        point: Vec3A,
-        max_dist_sq: f32,
-        closest_leaf: &mut Option<(u32, f32)>,
-        visit_fn: F,
     );
 }
 
@@ -216,52 +141,6 @@ impl Bvh2Ext for Bvh2 {
         });
 
         hit.t < sweep.tmax // Note this is valid since traverse_with_stack does not mutate the sweep
-    }
-
-    #[inline(always)]
-    fn sweep_traverse_miss<F: FnMut(&Sweep, usize) -> f32>(
-        &self,
-        sweep: Sweep,
-        mut intersection_fn: F,
-    ) -> bool {
-        let mut miss = true;
-        let mut intersect_prims = |node: &Bvh2Node, sweep: &mut Sweep, _hit: &mut SweepHit| {
-            for primitive_id in node.first_index..node.first_index + node.prim_count {
-                let t = intersection_fn(sweep, primitive_id as usize);
-                if t < sweep.tmax {
-                    miss = false;
-                    return false;
-                }
-            }
-            true
-        };
-
-        fast_stack!(u32, (96, 192), self.max_depth, stack, {
-            Bvh2::sweep_traverse_dynamic(
-                self,
-                &mut stack,
-                sweep,
-                &mut SweepHit::none(),
-                &mut intersect_prims,
-            )
-        });
-
-        miss
-    }
-
-    #[inline(always)]
-    fn sweep_traverse_anyhit<F: FnMut(&Sweep, usize)>(&self, sweep: Sweep, mut intersection_fn: F) {
-        let mut intersect_prims = |node: &Bvh2Node, sweep: &mut Sweep, _hit: &mut SweepHit| {
-            for primitive_id in node.first_index..node.first_index + node.prim_count {
-                intersection_fn(sweep, primitive_id as usize);
-            }
-            true
-        };
-
-        let mut hit = SweepHit::none();
-        fast_stack!(u32, (96, 192), self.max_depth, stack, {
-            self.sweep_traverse_dynamic(&mut stack, sweep, &mut hit, &mut intersect_prims)
-        });
     }
 
     #[inline(always)]
@@ -344,130 +223,9 @@ impl Bvh2Ext for Bvh2 {
             }
         }
     }
-
-    #[inline(always)]
-    fn squared_distance_traverse<F: FnMut(Vec3A, usize) -> f32>(
-        &self,
-        point: Vec3A,
-        max_dist_sq: f32,
-        mut visit_fn: F,
-    ) -> Option<(u32, f32)> {
-        let mut closest_leaf = None;
-
-        let mut visit_prims =
-            |node: &Bvh2Node, max_dist_sq: &mut f32, closest_leaf: &mut Option<(u32, f32)>| {
-                (node.first_index..node.first_index + node.prim_count).for_each(|primitive_id| {
-                    let distance_sq = visit_fn(point, primitive_id as usize);
-                    if distance_sq < *max_dist_sq {
-                        *closest_leaf = Some((primitive_id, distance_sq));
-                        *max_dist_sq = distance_sq;
-                    }
-                });
-                true
-            };
-
-        fast_stack!(u32, (96, 192), self.max_depth, stack, {
-            Bvh2::squared_distance_traverse_dynamic(
-                self,
-                &mut stack,
-                point,
-                max_dist_sq,
-                &mut closest_leaf,
-                &mut visit_prims,
-            )
-        });
-
-        closest_leaf
-    }
-
-    #[inline(always)]
-    fn squared_distance_traverse_dynamic<
-        F: FnMut(&Bvh2Node, &mut f32, &mut Option<(u32, f32)>) -> bool,
-        Stack: FastStack<u32>,
-    >(
-        &self,
-        stack: &mut Stack,
-        point: Vec3A,
-        mut max_dist_sq: f32,
-        closest_leaf: &mut Option<(u32, f32)>,
-        mut visit_fn: F,
-    ) {
-        if self.nodes.is_empty() {
-            return;
-        }
-
-        let root_node = &self.nodes[0];
-        let root_dist_sq = root_node.aabb().distance_to_point_squared(point);
-
-        if root_dist_sq > max_dist_sq {
-            return;
-        } else if root_node.is_leaf() {
-            visit_fn(root_node, &mut max_dist_sq, closest_leaf);
-            return;
-        }
-
-        let mut current_node_index = root_node.first_index;
-
-        loop {
-            let right_index = current_node_index as usize + 1;
-            assert!(right_index < self.nodes.len());
-            let mut left_node = unsafe { self.nodes.get_unchecked(current_node_index as usize) };
-            let mut right_node = unsafe { self.nodes.get_unchecked(right_index) };
-
-            // TODO perf: could it be faster to compute these at the same time with avx?
-            let mut left_dist_sq = left_node.aabb().distance_to_point_squared(point);
-            let mut right_dist_sq = right_node.aabb().distance_to_point_squared(point);
-
-            // Sort by distance (closer first)
-            if left_dist_sq > right_dist_sq {
-                core::mem::swap(&mut left_dist_sq, &mut right_dist_sq);
-                core::mem::swap(&mut left_node, &mut right_node);
-            }
-
-            let within_left = left_dist_sq <= max_dist_sq;
-
-            let go_left = if within_left && left_node.is_leaf() {
-                if !visit_fn(left_node, &mut max_dist_sq, closest_leaf) {
-                    return;
-                }
-                false
-            } else {
-                within_left
-            };
-
-            let within_right = right_dist_sq <= max_dist_sq;
-
-            let go_right = if within_right && right_node.is_leaf() {
-                if !visit_fn(right_node, &mut max_dist_sq, closest_leaf) {
-                    return;
-                }
-                false
-            } else {
-                within_right
-            };
-
-            match (go_left, go_right) {
-                (true, true) => {
-                    current_node_index = left_node.first_index;
-                    stack.push(right_node.first_index);
-                }
-                (true, false) => current_node_index = left_node.first_index,
-                (false, true) => current_node_index = right_node.first_index,
-                (false, false) => {
-                    let Some(next) = stack.pop() else {
-                        return;
-                    };
-                    current_node_index = next;
-                }
-            }
-        }
-    }
 }
 
 pub trait ObvhsAabbExt {
-    /// Computes the squared distance from a point to this AABB.
-    fn distance_to_point_squared(&self, point: Vec3A) -> f32;
-
     /// Checks if this AABB intersects with a sweep and returns the fraction
     /// along the sweep at which the intersection occurs.
     ///
@@ -476,19 +234,6 @@ pub trait ObvhsAabbExt {
 }
 
 impl ObvhsAabbExt for Aabb {
-    #[inline(always)]
-    fn distance_to_point_squared(&self, point: Vec3A) -> f32 {
-        // OBVHS may be using a different version of Glam,
-        // so we convert to our Vec3A type.
-        let min: Vec3A = self.min.to_array().into();
-        let max: Vec3A = self.max.to_array().into();
-        let point_min = min - point;
-        let point_max = max - point;
-        let dist_min = point_min.max(Vec3A::ZERO);
-        let dist_max = point_max.min(Vec3A::ZERO);
-        dist_min.length_squared().min(dist_max.length_squared())
-    }
-
     #[inline(always)]
     fn intersect_sweep(&self, sweep: &Sweep) -> f32 {
         let minkowski_sum_shift = -sweep.aabb.center();

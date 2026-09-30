@@ -19,7 +19,6 @@ mod cache;
 pub use cache::ColliderCachePlugin;
 pub mod collider_hierarchy;
 pub mod collider_transform;
-pub mod trimesh_builder;
 
 mod layers;
 pub use layers::*;
@@ -303,14 +302,6 @@ pub trait ScalableCollider: AnyCollider {
     /// If the scaling factor is not uniform and the resulting scaled shape
     /// can not be represented exactly, the given `detail` is used for an approximation.
     fn set_scale(&mut self, scale: Vector, detail: u32);
-
-    /// Scales the collider by the given scaling factor.
-    ///
-    /// If the scaling factor is not uniform and the resulting scaled shape
-    /// can not be represented exactly, the given `detail` is used for an approximation.
-    fn scale_by(&mut self, factor: Vector, detail: u32) {
-        self.set_scale(factor * self.scale(), detail)
-    }
 }
 
 /// A marker component that indicates that a [collider](Collider) is disabled

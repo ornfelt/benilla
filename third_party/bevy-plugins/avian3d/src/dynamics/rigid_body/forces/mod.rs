@@ -58,67 +58,6 @@
 //! The forces are only constant in the sense that they persist across time steps.
 //! They can still be modified in systems like normal.
 //!
-//! ## One-Time Forces and Impulses
-//!
-//! It is common to apply many individual forces and impulses to dynamic rigid bodies,
-//! and to clear them afterwards. This can be done using the [`Forces`] helper [`QueryData`](bevy::ecs::query::QueryData).
-//!
-//! To use [`Forces`], add it to a [`Query`] (without `&` or `&mut`), and use the associated methods
-//! to apply forces, impulses, and accelerations to the rigid bodies.
-//!
-//! ```
-//! # use avian3d::prelude::*;
-//! # use bevy::prelude::*;
-//! #
-//! # #[cfg(feature = "f32")]
-//! fn apply_forces(mut query: Query<Forces>) {
-//!     for mut forces in &mut query {
-//!         // Apply a force of 10 N in the positive Y direction to the entity.
-//!         forces.apply_force(Vec3::new(0.0, 10.0, 0.0));
-//!     }
-//! }
-//! ```
-//!
-//! The force is applied continuously during the physics step, and cleared automatically after the step is complete.
-//!
-//! By default, applying forces to [sleeping](Sleeping) bodies will wake them up.
-//!
-//! [`Forces`] can also apply forces and impulses at a specific point in the world. If the point is not aligned
-//! with the [center of mass](CenterOfMass), it will apply a torque to the body.
-//!
-//! ```
-//! # use avian3d::{math::Vector, prelude::*};
-//! # use bevy::prelude::*;
-//! #
-//! # fn apply_impulses(mut query: Query<Forces>) {
-//! #     for mut forces in &mut query {
-//! #         let force = Vector::default();
-//! #         let point = Vector::default();
-//! // Apply an impulse at a specific point in the world.
-//! // Unlike forces, impulses are applied immediately to the velocity.
-//! forces.apply_linear_impulse_at_point(force, point);
-//! #     }
-//! # }
-//! ```
-//!
-//! As an example, you could implement radial gravity that pulls rigid bodies towards the world origin
-//! with a system like the following:
-//!
-//! ```
-//! # use avian3d::prelude::*;
-//! # use bevy::prelude::*;
-//! #
-//! # #[cfg(feature = "f32")]
-//! fn radial_gravity(mut query: Query<(Forces, &GlobalTransform)>) {
-//!     for (mut forces, global_transform) in &mut query {
-//!         // Compute the direction towards the center of the world.
-//!         let direction = -global_transform.translation().normalize_or_zero();
-//!         // Apply a linear acceleration of 9.81 m/s² towards the center of the world.
-//!         forces.apply_linear_acceleration(direction * 9.81);
-//!     }
-//! }
-//! ```
-//!
 //! # Applying Forces vs. Modifying Velocity
 //!
 //! It is possible to achieve similar effects by directly modifying the [`LinearVelocity`]
@@ -154,15 +93,8 @@
 //! for most cases where you want to apply forces, impulses, or acceleration to dynamic rigid bodies.
 
 mod plugin;
-mod query_data;
-#[cfg(test)]
-mod tests;
 
 pub use plugin::{ForcePlugin, ForceSystems};
-pub use query_data::{
-    Forces, ForcesItem, NonWakingForcesItem, ReadRigidBodyForces, RigidBodyForces,
-    WriteRigidBodyForces,
-};
 
 use crate::prelude::*;
 use bevy::prelude::*;
@@ -194,7 +126,6 @@ use bevy::prelude::*;
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantLocalForce`]: Applies a constant force in local space.
 /// - [`ConstantTorque`]: Applies a constant torque in world space.
 /// - [`ConstantLinearAcceleration`]: Applies a constant linear acceleration in world space.
@@ -230,7 +161,6 @@ pub struct ConstantForce(pub Vector);
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantLocalTorque`]: Applies a constant torque in local space.
 /// - [`ConstantForce`]: Applies a constant force in world space.
 /// - [`ConstantLinearAcceleration`]: Applies a constant linear acceleration in world space.
@@ -266,7 +196,6 @@ pub struct ConstantTorque(pub AngularVector);
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantForce`]: Applies a constant force in world space.
 /// - [`ConstantLocalTorque`]: Applies a constant torque in local space.
 /// - [`ConstantLocalLinearAcceleration`]: Applies a constant linear acceleration in local space.
@@ -302,7 +231,6 @@ pub struct ConstantLocalForce(pub Vector);
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantTorque`]: Applies a constant torque in world space.
 /// - [`ConstantLocalForce`]: Applies a constant force in local space.
 /// - [`ConstantLocalLinearAcceleration`]: Applies a constant linear acceleration in local space.
@@ -338,7 +266,6 @@ pub struct ConstantLocalTorque(pub AngularVector);
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantLocalLinearAcceleration`]: Applies a constant linear acceleration in local space.
 /// - [`ConstantForce`]: Applies a constant force in world space.
 /// - [`ConstantTorque`]: Applies a constant torque in world space.
@@ -374,7 +301,6 @@ pub struct ConstantLinearAcceleration(pub Vector);
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantLocalAngularAcceleration`]: Applies a constant angular acceleration in local space.
 /// - [`ConstantForce`]: Applies a constant force in world space.
 /// - [`ConstantTorque`]: Applies a constant torque in world space.
@@ -410,7 +336,6 @@ pub struct ConstantAngularAcceleration(pub AngularVector);
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantLinearAcceleration`]: Applies a constant linear acceleration in world space.
 /// - [`ConstantLocalForce`]: Applies a constant force in local space.
 /// - [`ConstantLocalTorque`]: Applies a constant torque in local space.
@@ -446,7 +371,6 @@ pub struct ConstantLocalLinearAcceleration(pub Vector);
 ///
 /// # Related Types
 ///
-/// - [`Forces`]: A helper [`QueryData`](bevy::ecs::query::QueryData) for applying forces, impulses, and acceleration to entities.
 /// - [`ConstantAngularAcceleration`]: Applies a constant angular acceleration in world space.
 /// - [`ConstantLocalForce`]: Applies a constant force in local space.
 /// - [`ConstantLocalTorque`]: Applies a constant torque in local space.

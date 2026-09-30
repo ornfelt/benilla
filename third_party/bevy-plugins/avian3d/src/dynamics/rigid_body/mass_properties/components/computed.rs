@@ -345,14 +345,6 @@ impl ComputedAngularInertia {
         self.inverse_tensor()
     }
 
-    /// Returns a mutable reference to the inverse of the angular inertia tensor.
-    ///
-    /// Note that this is a no-op because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
-    #[inline]
-    pub(crate) fn inverse_mut(&mut self) -> &mut SymmetricMatrix {
-        self.inverse_tensor_mut()
-    }
-
     /// Returns the angular inertia tensor.
     ///
     /// Note that this involves an invertion because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
@@ -371,15 +363,6 @@ impl ComputedAngularInertia {
     #[doc(alias = "as_inverse_mat3")]
     pub fn inverse_tensor(self) -> SymmetricMatrix {
         self.inverse
-    }
-
-    /// Returns a mutable reference to the inverse of the angular inertia tensor.
-    ///
-    /// Note that this is a no-op because [`ComputedAngularInertia`] internally stores the inverse angular inertia.
-    #[inline]
-    #[doc(alias = "as_inverse_mat3_mut")]
-    pub fn inverse_tensor_mut(&mut self) -> &mut SymmetricMatrix {
-        &mut self.inverse
     }
 
     /// Computes the angular inertia tensor with the given rotation.
@@ -464,11 +447,6 @@ impl core::ops::Mul<Vector> for ComputedAngularInertia {
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct ComputedCenterOfMass(pub Vector);
-
-impl ComputedCenterOfMass {
-    /// A center of mass set at the local origin.
-    pub const ZERO: Self = Self(Vector::ZERO);
-}
 
 impl From<CenterOfMass> for ComputedCenterOfMass {
     fn from(center_of_mass: CenterOfMass) -> Self {

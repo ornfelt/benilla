@@ -110,10 +110,6 @@ pub enum IntegrationSystems {
     ClearVelocityIncrements,
 }
 
-/// A deprecated alias for [`IntegrationSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `IntegrationSystems`")]
-pub type IntegrationSet = IntegrationSystems;
-
 /// A resource for the global gravitational acceleration.
 ///
 /// The default is an acceleration of 9.81 m/s^2 pointing down, which is approximate to the gravitational
@@ -164,7 +160,6 @@ impl Gravity {
 /// Exceptions include:
 ///
 /// - Contact impulses and joint impulses for dynamic bodies
-/// - Impulses applied via [`Forces`]
 #[derive(Component, Debug, Default, Reflect)]
 #[reflect(Component, Debug, Default)]
 pub struct CustomVelocityIntegration;
@@ -186,7 +181,6 @@ pub struct CustomPositionIntegration;
 ///
 /// - Velocity increments for [`Gravity`].
 /// - Velocity increments for [`ConstantForce`], [`ConstantTorque`], [`ConstantLinearAcceleration`], and [`ConstantAngularAcceleration`].
-/// - Velocity increments for forces, torques, and accelerations applied using [`Forces`].
 /// - Cached operands for applying linear and angular velocity damping.
 ///
 /// The values are computed once per time step, and applied to the body at each substep
@@ -217,16 +211,6 @@ pub struct VelocityIntegrationData {
 }
 
 impl VelocityIntegrationData {
-    /// Applies a given linear acceleration to the body.
-    pub fn apply_linear_acceleration(&mut self, acceleration: Vector) {
-        self.linear_increment += acceleration;
-    }
-
-    /// Applies a given angular acceleration to the body.
-    pub fn apply_angular_acceleration(&mut self, acceleration: AngularVector) {
-        self.angular_increment += acceleration;
-    }
-
     /// Updates the cached right-hand side of the linear damping equation,
     /// `1 / (1 + dt * c)`, where `c` is the damping coefficient.
     pub fn update_linear_damping_rhs(&mut self, damping_coefficient: Scalar, delta_secs: Scalar) {

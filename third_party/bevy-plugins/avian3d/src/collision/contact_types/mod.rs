@@ -526,21 +526,3 @@ impl ContactPoint {
         self
     }
 }
-
-/// Data related to a single contact between two bodies.
-///
-/// If you want a contact that belongs to a [contact manifold](ContactManifold) and has more data,
-/// see [`ContactPoint`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SingleContact {
-    /// The contact point on the first shape in local space.
-    pub local_point1: Vector,
-    /// The contact point on the second shape in local space.
-    pub local_point2: Vector,
-    /// The contact normal expressed in the local space of the first shape.
-    pub local_normal1: Vector,
-    /// The contact normal expressed in the local space of the second shape.
-    pub local_normal2: Vector,
-    /// Penetration depth.
-    pub penetration: Scalar,
-}

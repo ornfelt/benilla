@@ -53,38 +53,18 @@
 //! [`SolverDiagnostics`]: crate::dynamics::solver::SolverDiagnostics
 //! [`SpatialQueryDiagnostics`]: crate::spatial_query::SpatialQueryDiagnostics
 
-mod path_macro;
-
-pub(crate) use path_macro::impl_diagnostic_paths;
-
 use crate::{PhysicsStepSystems, schedule::PhysicsSchedule};
-use bevy::{
-    diagnostic::DiagnosticPath,
-    prelude::{App, IntoScheduleConfigs, ResMut, Resource, SystemSet},
-};
-use core::time::Duration;
+use bevy::prelude::{App, IntoScheduleConfigs, ResMut, Resource, SystemSet};
 
 /// A system set for [physics diagnostics](crate::diagnostics).
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PhysicsDiagnosticsSystems {
     /// Resets diagnostics to their default values.
     Reset,
-    /// Writes physics diagnostics to other resources, commonly `DiagnosticsStore`.
-    WriteDiagnostics,
 }
 
 /// A trait for resources storing timers and counters for [physics diagnostics](crate::diagnostics).
 pub trait PhysicsDiagnostics: Default + Resource {
-    /// Maps diagnostic paths to their respective duration fields.
-    fn timer_paths(&self) -> Vec<(&'static DiagnosticPath, Duration)> {
-        Vec::new()
-    }
-
-    /// Maps diagnostic paths to their respective counter fields.
-    fn counter_paths(&self) -> Vec<(&'static DiagnosticPath, u32)> {
-        Vec::new()
-    }
-
     /// A system that resets the diagnostics to their default values.
     fn reset(mut physics_diagnostics: ResMut<Self>) {
         *physics_diagnostics = Self::default();

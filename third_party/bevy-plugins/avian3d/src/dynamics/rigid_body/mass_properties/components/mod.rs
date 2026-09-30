@@ -137,11 +137,6 @@ pub enum MassError {
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct Mass(pub f32);
 
-impl Mass {
-    /// A mass of `0.0`.
-    pub const ZERO: Self = Self(0.0);
-}
-
 // TODO: Add errors for asymmetric and non-positive definite matrices in 3D.
 /// An error returned for an invalid angular inertia.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -333,12 +328,6 @@ pub struct AngularInertia {
 }
 
 impl AngularInertia {
-    /// An angular inertia of `0.0` for all axes, with an identity local frame.
-    pub const ZERO: Self = Self {
-        principal: Vec3::ZERO,
-        local_frame: Quat::IDENTITY,
-    };
-
     /// Creates a new [`AngularInertia`] from the given principal angular inertia.
     ///
     /// The principal angular inertia represents resistance to angular acceleration
@@ -594,11 +583,6 @@ impl From<AngularInertia> for AngularInertiaTensor {
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct CenterOfMass(pub VectorF32);
-
-impl CenterOfMass {
-    /// A center of mass set at the local origin.
-    pub const ZERO: Self = Self(VectorF32::ZERO);
-}
 
 /// A marker component that prevents descendants or attached colliders
 /// from contributing to the total [`ComputedMass`] of a [rigid body].

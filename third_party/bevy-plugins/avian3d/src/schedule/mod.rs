@@ -176,10 +176,6 @@ pub enum PhysicsSystems {
     Last,
 }
 
-/// A deprecated alias for [`PhysicsSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `PhysicsSystems`")]
-pub type PhysicsSet = PhysicsSystems;
-
 /// System sets for the main steps in the physics simulation loop. These are typically run in the [`PhysicsSchedule`].
 ///
 /// 1. First
@@ -217,10 +213,6 @@ pub enum PhysicsStepSystems {
     /// Runs at the end of the [`PhysicsSchedule`].
     Last,
 }
-
-/// A deprecated alias for [`PhysicsStepSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `PhysicsStepSystems`")]
-pub type PhysicsStepSet = PhysicsStepSystems;
 
 /// A [`Tick`] corresponding to the end of the previous run of the [`PhysicsSchedule`].
 #[derive(Resource, Reflect, Default)]

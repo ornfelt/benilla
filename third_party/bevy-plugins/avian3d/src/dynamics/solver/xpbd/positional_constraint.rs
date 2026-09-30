@@ -57,9 +57,4 @@ pub trait PositionConstraint {
         // Equation 8/9
         Quaternion::from_scaled_axis(inverse_angular_inertia * r.cross(p))
     }
-
-    /// Computes the force acting along the constraint using the equation f = lambda * n / h^2
-    fn compute_force(&self, lagrange: Scalar, direction: Vector, dt: Scalar) -> Vector {
-        lagrange * direction / dt.powi(2)
-    }
 }

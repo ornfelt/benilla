@@ -65,9 +65,6 @@ impl EntityConstraint<2> for SphericalJoint {
 }
 
 impl SphericalJoint {
-    /// The default [`twist_axis`](Self::twist_axis) for a spherical joint.
-    pub const DEFAULT_TWIST_AXIS: Vector = Vector::Y;
-
     /// Returns the local anchor point on the first body.
     ///
     /// If the [`JointAnchor`] is set to [`FromGlobal`](JointAnchor::FromGlobal),

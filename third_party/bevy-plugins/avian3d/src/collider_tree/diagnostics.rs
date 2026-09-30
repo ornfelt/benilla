@@ -1,11 +1,10 @@
 use bevy::{
-    diagnostic::DiagnosticPath,
     prelude::{ReflectResource, Resource},
     reflect::Reflect,
 };
 use core::time::Duration;
 
-use crate::diagnostics::{PhysicsDiagnostics, impl_diagnostic_paths};
+use crate::diagnostics::PhysicsDiagnostics;
 
 /// Diagnostics for [collider trees](crate::collider_tree).
 #[derive(Resource, Debug, Default, Reflect)]
@@ -17,15 +16,4 @@ pub struct ColliderTreeDiagnostics {
     pub update: Duration,
 }
 
-impl PhysicsDiagnostics for ColliderTreeDiagnostics {
-    fn timer_paths(&self) -> Vec<(&'static DiagnosticPath, Duration)> {
-        vec![(Self::OPTIMIZE, self.optimize), (Self::UPDATE, self.update)]
-    }
-}
-
-impl_diagnostic_paths! {
-    impl ColliderTreeDiagnostics {
-        OPTIMIZE: "avian/collider_tree/optimize",
-        UPDATE: "avian/collider_tree/update",
-    }
-}
+impl PhysicsDiagnostics for ColliderTreeDiagnostics {}

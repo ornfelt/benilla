@@ -100,35 +100,6 @@ pub trait AngularConstraint {
         delta_lagrange * axis
     }
 
-    /// Applies angular constraints for interactions between two bodies.
-    ///
-    /// Returns the angular impulse that is applied proportional to the inverse masses of the bodies.
-    fn apply_angular_correction(
-        &self,
-        body1: &mut SolverBody,
-        body2: &mut SolverBody,
-        inv_angular_inertia1: SymmetricTensor,
-        inv_angular_inertia2: SymmetricTensor,
-        delta_lagrange: Scalar,
-        axis: Vector,
-    ) -> Vector {
-        if delta_lagrange.abs() <= Scalar::EPSILON {
-            return Vector::ZERO;
-        }
-
-        // Compute angular impulse
-        let p = -delta_lagrange * axis;
-
-        // Apply rotational updates
-        let delta_quat = Self::get_delta_rot(inv_angular_inertia1, p);
-        body1.delta_rotation.0 = delta_quat * body1.delta_rotation.0;
-
-        let delta_quat = Self::get_delta_rot(inv_angular_inertia2, -p);
-        body2.delta_rotation.0 = delta_quat * body2.delta_rotation.0;
-
-        p
-    }
-
     /// Computes the generalized inverse mass of a body when applying an angular correction
     /// around `axis`.
     ///
@@ -146,11 +117,5 @@ pub trait AngularConstraint {
     fn get_delta_rot(inverse_inertia: SymmetricTensor, p: Vector) -> Quaternion {
         // Equation 8/9
         Quaternion::from_scaled_axis(inverse_inertia * p)
-    }
-
-    /// Computes the torque acting along the constraint using the equation `tau = lambda * n / h^2`
-    fn compute_torque(&self, lagrange: Scalar, axis: Vector, dt: Scalar) -> AngularVector {
-        // Eq (17)
-        lagrange * axis / dt.powi(2)
     }
 }

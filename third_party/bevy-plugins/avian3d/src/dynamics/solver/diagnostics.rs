@@ -1,11 +1,10 @@
 use bevy::{
-    diagnostic::DiagnosticPath,
     prelude::{ReflectResource, Resource},
     reflect::Reflect,
 };
 use core::time::Duration;
 
-use crate::diagnostics::{PhysicsDiagnostics, impl_diagnostic_paths};
+use crate::diagnostics::PhysicsDiagnostics;
 
 /// Diagnostics for the physics solver.
 #[derive(Resource, Debug, Default, Reflect)]
@@ -39,47 +38,4 @@ pub struct SolverDiagnostics {
     pub contact_constraint_count: u32,
 }
 
-impl PhysicsDiagnostics for SolverDiagnostics {
-    fn timer_paths(&self) -> Vec<(&'static DiagnosticPath, Duration)> {
-        vec![
-            (Self::PREPARE_CONSTRAINTS, self.prepare_constraints),
-            (
-                Self::UPDATE_VELOCITY_INCREMENTS,
-                self.update_velocity_increments,
-            ),
-            (Self::INTEGRATE_VELOCITIES, self.integrate_velocities),
-            (Self::WARM_START, self.warm_start),
-            (Self::SOLVE_CONSTRAINTS, self.solve_constraints),
-            (Self::INTEGRATE_POSITIONS, self.integrate_positions),
-            (Self::RELAX_VELOCITIES, self.relax_velocities),
-            (Self::APPLY_RESTITUTION, self.apply_restitution),
-            (Self::FINALIZE, self.finalize),
-            (Self::STORE_IMPULSES, self.store_impulses),
-            (Self::SWEPT_CCD, self.swept_ccd),
-        ]
-    }
-
-    fn counter_paths(&self) -> Vec<(&'static DiagnosticPath, u32)> {
-        vec![(
-            Self::CONTACT_CONSTRAINT_COUNT,
-            self.contact_constraint_count,
-        )]
-    }
-}
-
-impl_diagnostic_paths! {
-    impl SolverDiagnostics {
-        PREPARE_CONSTRAINTS: "avian/solver/prepare_constraints",
-        UPDATE_VELOCITY_INCREMENTS: "avian/solver/update_velocity_increments",
-        INTEGRATE_VELOCITIES: "avian/solver/integrate_velocities",
-        WARM_START: "avian/solver/warm_start",
-        SOLVE_CONSTRAINTS: "avian/solver/solve_constraints",
-        INTEGRATE_POSITIONS: "avian/solver/integrate_positions",
-        RELAX_VELOCITIES: "avian/solver/relax_velocities",
-        APPLY_RESTITUTION: "avian/solver/apply_restitution",
-        FINALIZE: "avian/solver/finalize",
-        STORE_IMPULSES: "avian/solver/store_impulses",
-        SWEPT_CCD: "avian/solver/swept_ccd",
-        CONTACT_CONSTRAINT_COUNT: "avian/solver/contact_constraint_count",
-    }
-}
+impl PhysicsDiagnostics for SolverDiagnostics {}

@@ -52,9 +52,6 @@ impl ColliderTreeProxyKey {
 pub struct ProxyId(u32);
 
 impl ProxyId {
-    /// A placeholder proxy ID used before the proxy is actually created.
-    pub const PLACEHOLDER: Self = ProxyId(u32::MAX >> 2);
-
     /// Creates a new [`ProxyId`] from the given `u32` identifier.
     ///
     /// Only the lower 30 bits should be used for the ID.

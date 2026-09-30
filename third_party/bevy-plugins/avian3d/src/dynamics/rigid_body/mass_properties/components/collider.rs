@@ -35,11 +35,6 @@ impl Default for ColliderDensity {
     }
 }
 
-impl ColliderDensity {
-    /// A density of `0.0`, resulting in a collider with no mass.
-    pub const ZERO: Self = Self(0.0);
-}
-
 /// A read-only component for the mass properties of a [`Collider`].
 /// Computed automatically from the collider's shape and [`ColliderDensity`].
 ///

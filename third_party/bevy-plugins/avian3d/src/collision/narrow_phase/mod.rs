@@ -263,10 +263,6 @@ pub enum NarrowPhaseSystems {
     Last,
 }
 
-/// A deprecated alias for [`NarrowPhaseSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `NarrowPhaseSystems`")]
-pub type NarrowPhaseSet = NarrowPhaseSystems;
-
 fn update_narrow_phase<C: AnyCollider, H: CollisionHooks + 'static>(
     mut narrow_phase: NarrowPhase<C>,
     mut collision_started_writer: MessageWriter<CollisionStart>,

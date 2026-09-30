@@ -87,18 +87,12 @@ pub mod prelude {
         ColliderConstructorHierarchyReady, ColliderConstructorReady, FillMode, TrimeshFlags,
         VhacdParameters,
     };
-    #[expect(deprecated)]
-    pub use super::collision_events::{
-        CollisionEnd, CollisionEventsEnabled, CollisionStart, OnCollisionEnd, OnCollisionStart,
-    };
+    pub use super::collision_events::{CollisionEnd, CollisionEventsEnabled, CollisionStart};
     pub use super::contact_types::{
         ContactEdge, ContactGraph, ContactManifold, ContactPair, ContactPairFlags, ContactPoint,
     };
     pub use super::hooks::{ActiveCollisionHooks, CollisionHooks};
-    #[expect(deprecated)]
-    pub use super::narrow_phase::{
-        NarrowPhaseConfig, NarrowPhasePlugin, NarrowPhaseSet, NarrowPhaseSystems,
-    };
+    pub use super::narrow_phase::{NarrowPhaseConfig, NarrowPhasePlugin, NarrowPhaseSystems};
 }
 
 #[expect(unused_imports)]

@@ -152,13 +152,6 @@ impl Default for Friction {
 }
 
 impl Friction {
-    /// Zero dynamic and static friction and [`CoefficientCombine::Average`].
-    pub const ZERO: Self = Self {
-        dynamic_coefficient: 0.0,
-        static_coefficient: 0.0,
-        combine_rule: CoefficientCombine::Average,
-    };
-
     /// Combines the properties of two [`Friction`] components.
     pub fn combine(&self, other: Self) -> Self {
         // Choose rule with higher priority
@@ -283,30 +276,6 @@ impl Default for Restitution {
 }
 
 impl Restitution {
-    /// A restitution coefficient of `0.0` and a combine rule of [`CoefficientCombine::Average`].
-    ///
-    /// This is equivalent to [`Restitution::PERFECTLY_INELASTIC`].
-    pub const ZERO: Self = Self {
-        coefficient: 0.0,
-        combine_rule: CoefficientCombine::Average,
-    };
-
-    /// A restitution coefficient of `0.0`, which corresponds to a perfectly inelastic collision.
-    ///
-    /// Uses [`CoefficientCombine::Average`].
-    pub const PERFECTLY_INELASTIC: Self = Self {
-        coefficient: 0.0,
-        combine_rule: CoefficientCombine::Average,
-    };
-
-    /// A restitution coefficient of `1.0`, which corresponds to a perfectly elastic collision.
-    ///
-    /// Uses [`CoefficientCombine::Average`].
-    pub const PERFECTLY_ELASTIC: Self = Self {
-        coefficient: 1.0,
-        combine_rule: CoefficientCombine::Average,
-    };
-
     /// Creates a new [`Restitution`] component with the given restitution coefficient.
     pub fn new(coefficient: Scalar) -> Self {
         Self {

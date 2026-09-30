@@ -262,10 +262,6 @@ impl Plugin for CcdPlugin {
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SweptCcdSystems;
 
-/// A deprecated alias for [`SweptCcdSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `SweptCcdSystems`")]
-pub type SweptCcdSet = SweptCcdSystems;
-
 /// The maximum distance at which [speculative contacts](self#speculative-collision)
 /// are generated for this entity. A value greater than zero helps prevent missing
 /// contacts for moderately fast-moving and thin objects.
@@ -298,14 +294,6 @@ pub type SweptCcdSet = SweptCcdSystems;
 #[reflect(Component)]
 #[doc(alias = "SweptCcdPredictionDistance")]
 pub struct SpeculativeMargin(pub Scalar);
-
-impl SpeculativeMargin {
-    /// A zero speculative margin. Disables speculative collision for this entity.
-    pub const ZERO: Self = Self(0.0);
-
-    /// An unbounded speculative margin.
-    pub const MAX: Self = Self(Scalar::MAX);
-}
 
 /// A component that enables sweep-based [Continuous Collision Detection](self) (CCD)
 /// for a [`RigidBody`]. This helps prevent missed collisions for small and fast-moving objects.
@@ -409,12 +397,6 @@ impl Default for SweptCcd {
 }
 
 impl SweptCcd {
-    /// Continuous Collision Detection with [`SweepMode::Linear`].
-    ///
-    /// This only takes into account translational motion, and can lead to tunneling
-    /// against thin, fast-spinning objects.
-    pub const LINEAR: Self = Self::new_with_mode(SweepMode::Linear);
-
     /// Continuous Collision Detection with [`SweepMode::NonLinear`].
     ///
     /// This takes into account both translational and rotational motion.

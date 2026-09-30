@@ -601,19 +601,3 @@ where
         self.index == rhs.index && self.weight == rhs.weight
     }
 }
-
-/// A mutable reference to a graph edge.
-#[derive(Debug)]
-pub struct EdgeMut<'a, E: 'a> {
-    index: EdgeIndex,
-    weight: &'a mut E,
-}
-
-impl<E> PartialEq for EdgeMut<'_, E>
-where
-    E: PartialEq,
-{
-    fn eq(&self, rhs: &Self) -> bool {
-        self.index == rhs.index && self.weight == rhs.weight
-    }
-}

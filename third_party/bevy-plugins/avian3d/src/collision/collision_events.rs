@@ -179,10 +179,6 @@ pub struct CollisionStart {
     // flags: CollisionStartFlags,
 }
 
-/// A deprecated alias for [`CollisionStart`].
-#[deprecated(since = "0.4.0", note = "Renamed to `CollisionStart`")]
-pub type OnCollisionStart = CollisionStart;
-
 /// A [collision event](self) that is triggered when two colliders stop touching.
 ///
 /// The event can be read using a [`MessageReader`] or observed using an [observer](Observer).
@@ -271,10 +267,6 @@ pub struct CollisionEnd {
     // TODO: Flags to expose the reason for the event, among other things.
     // flags: CollisionEndFlags,
 }
-
-/// A deprecated alias for [`CollisionEnd`].
-#[deprecated(since = "0.4.0", note = "Renamed to `CollisionEnd`")]
-pub type OnCollisionEnd = CollisionEnd;
 
 /// A marker component that enables [collision events](self) for an entity.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]

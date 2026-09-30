@@ -4,14 +4,10 @@ use glam_matrix_extras::*;
 
 /// The floating point number type used by Avian.
 pub type Scalar = f32;
-/// The PI/2 constant.
-pub const FRAC_PI_2: Scalar = core::f32::consts::FRAC_PI_2;
 /// The PI constant.
 pub const PI: Scalar = core::f32::consts::PI;
 /// The TAU constant.
 pub const TAU: Scalar = core::f32::consts::TAU;
-/// 1/sqrt(2)
-pub const FRAC_1_SQRT_2: Scalar = core::f32::consts::FRAC_1_SQRT_2;
 
 /// The vector type used by Avian.
 pub type Vector = Vec3;
@@ -22,8 +18,6 @@ pub type Vector3 = Vec3;
 
 /// The dimension-specific matrix type used by Avian.
 pub type Matrix = Mat3;
-/// The 2x2 matrix type used by Avian.
-pub type Matrix2 = Mat2;
 /// The 3x3 matrix type used by Avian.
 pub type Matrix3 = Mat3;
 /// The dimension-specific matrix type used by Avian.

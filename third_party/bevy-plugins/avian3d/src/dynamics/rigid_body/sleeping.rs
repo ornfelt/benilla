@@ -23,7 +23,6 @@ use bevy::prelude::*;
 /// - The [`Transform`], [`LinearVelocity`], or [`AngularVelocity`] of a sleeping body is modified.
 /// - The [`RigidBody`] type of a body is changed.
 /// - A [constant force component](super::forces#constant-forces) of a sleeping body is modified.
-/// - A force, impulse, or acceleration is applied via [`Forces`], without using a [`NonWakingForcesItem`].
 /// - The [`Gravity`] resource or [`GravityScale`] component is modified.
 ///
 /// A body and all bodies connected to it can also be forced to sleep or wake up
@@ -35,8 +34,6 @@ use bevy::prelude::*;
 /// [`RigidBody`]: super::RigidBody
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
-/// [`Forces`]: super::forces::Forces
-/// [`NonWakingForcesItem`]: super::forces::NonWakingForcesItem
 /// [`Gravity`]: super::Gravity
 /// [`GravityScale`]: super::GravityScale
 /// [`SleepBody`]: crate::dynamics::solver::islands::SleepBody
@@ -90,10 +87,6 @@ pub struct SleepThreshold {
     pub angular: f32,
 }
 
-/// Deprecated alias for [`SleepThreshold`].
-#[deprecated(note = "Renamed to `SleepThreshold`")]
-pub type SleepingThreshold = SleepThreshold;
-
 impl Default for SleepThreshold {
     fn default() -> Self {
         Self {
@@ -115,10 +108,6 @@ impl Default for SleepThreshold {
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct SleepTimer(pub f32);
 
-/// Deprecated alias for [`SleepTimer`].
-#[deprecated(note = "Renamed to `SleepTimer`")]
-pub type TimeSleeping = SleepTimer;
-
 /// A resource that specifies the time in seconds that a [`RigidBody`] must rest
 /// with its [`LinearVelocity`] and [`AngularVelocity`] below the [`SleepThreshold`]
 /// before it is allowed to be [`Sleeping`].
@@ -131,10 +120,6 @@ pub type TimeSleeping = SleepTimer;
 #[derive(Resource, Clone, Copy, Debug, PartialEq, PartialOrd, Reflect)]
 #[reflect(Debug, Default, PartialEq)]
 pub struct TimeToSleep(pub f32);
-
-/// Deprecated alias for [`TimeToSleep`].
-#[deprecated(note = "Renamed to `TimeToSleep`")]
-pub type DeactivationTime = TimeToSleep;
 
 impl Default for TimeToSleep {
     fn default() -> Self {

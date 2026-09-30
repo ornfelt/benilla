@@ -116,10 +116,6 @@ pub enum SolverSystems {
     StoreContactImpulses,
 }
 
-/// A deprecated alias for [`SolverSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `SolverSystems`")]
-pub type SolverSet = SolverSystems;
-
 /// System sets for the substepped part of the constraint solver.
 ///
 /// # Steps
@@ -147,10 +143,6 @@ pub enum SubstepSolverSystems {
     /// Applies velocity-based constraint damping, such as [`JointDamping`].
     Damping,
 }
-
-/// A deprecated alias for [`SubstepSolverSystems`].
-#[deprecated(since = "0.4.0", note = "Renamed to `SubstepSolverSystems`")]
-pub type SubstepSolverSet = SubstepSolverSystems;
 
 /// The number of substeps used in the simulation.
 ///

@@ -327,24 +327,6 @@ impl CollisionLayers {
         filters: LayerMask::ALL,
     };
 
-    /// Contains no memberships and no filters.
-    pub const NONE: Self = Self {
-        memberships: LayerMask::NONE,
-        filters: LayerMask::NONE,
-    };
-
-    /// Contains all memberships but no filters.
-    pub const ALL_MEMBERSHIPS: Self = Self {
-        memberships: LayerMask::ALL,
-        filters: LayerMask::NONE,
-    };
-
-    /// Contains all filters but no memberships.
-    pub const ALL_FILTERS: Self = Self {
-        memberships: LayerMask::NONE,
-        filters: LayerMask::ALL,
-    };
-
     /// Creates a new [`CollisionLayers`] configuration with the given collision memberships and filters.
     pub fn new(memberships: impl Into<LayerMask>, filters: impl Into<LayerMask>) -> Self {
         Self {
