@@ -10,20 +10,14 @@
 //!
 //! # Supported input devices
 //!
-//! `bevy` currently supports keyboard, mouse, gamepad, and touch inputs.
+//! `bevy` currently supports keyboard, mouse, and touch inputs.
 
 #[cfg(feature = "std")]
 extern crate std;
 
 extern crate alloc;
 
-mod axis;
 mod button_input;
-/// Common run conditions
-pub mod common_conditions;
-
-#[cfg(feature = "gamepad")]
-pub mod gamepad;
 
 #[cfg(feature = "gestures")]
 pub mod gestures;
@@ -37,7 +31,6 @@ pub mod mouse;
 #[cfg(feature = "touch")]
 pub mod touch;
 
-pub use axis::*;
 pub use button_input::*;
 
 /// The input prelude.
@@ -45,11 +38,7 @@ pub use button_input::*;
 /// This includes the most common types in this crate, re-exported for your convenience.
 pub mod prelude {
     #[doc(hidden)]
-    pub use crate::{Axis, ButtonInput};
-
-    #[doc(hidden)]
-    #[cfg(feature = "gamepad")]
-    pub use crate::gamepad::{Gamepad, GamepadAxis, GamepadButton, GamepadSettings};
+    pub use crate::ButtonInput;
 
     #[doc(hidden)]
     #[cfg(feature = "keyboard")]
@@ -84,14 +73,6 @@ use mouse::{
 
 #[cfg(feature = "touch")]
 use touch::{touch_screen_input_system, TouchInput, Touches};
-
-#[cfg(feature = "gamepad")]
-use gamepad::{
-    gamepad_connection_system, gamepad_event_processing_system, GamepadAxisChangedEvent,
-    GamepadButtonChangedEvent, GamepadButtonStateChangedEvent, GamepadConnectionEvent,
-    GamepadEvent, GamepadRumbleRequest, RawGamepadAxisChangedEvent, RawGamepadButtonChangedEvent,
-    RawGamepadEvent,
-};
 
 #[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
 use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
@@ -137,25 +118,6 @@ impl Plugin for InputPlugin {
             .add_message::<RotationGesture>()
             .add_message::<DoubleTapGesture>()
             .add_message::<PanGesture>();
-
-        #[cfg(feature = "gamepad")]
-        app.add_message::<GamepadEvent>()
-            .add_message::<GamepadConnectionEvent>()
-            .add_message::<GamepadButtonChangedEvent>()
-            .add_message::<GamepadButtonStateChangedEvent>()
-            .add_message::<GamepadAxisChangedEvent>()
-            .add_message::<RawGamepadEvent>()
-            .add_message::<RawGamepadAxisChangedEvent>()
-            .add_message::<RawGamepadButtonChangedEvent>()
-            .add_message::<GamepadRumbleRequest>()
-            .add_systems(
-                PreUpdate,
-                (
-                    gamepad_connection_system,
-                    gamepad_event_processing_system.after(gamepad_connection_system),
-                )
-                    .in_set(InputSystems),
-            );
 
         #[cfg(feature = "touch")]
         app.add_message::<TouchInput>()

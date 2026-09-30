@@ -100,6 +100,22 @@ the same repository's.
   out on Linux, Windows and macOS: no system, plugin or type there changed, and the Linux
   build's resolved features change only in wgpu-types' `web` and
   `fragile-send-sync-non-atomic-wasm`, which gate wasm32 code alone.
+- **`bevy_input` and `bevy_window`, to what benilla and the kept crates call.** `bevy_input`:
+  the gamepad module (no gamepad backend: `bevy_gilrs` is cut), with its two `PreUpdate` systems,
+  nine messages, the `Axis` resource only it used and the `gamepad` feature (`bevy`'s `gamepad`
+  and `bevy_gilrs` stay as names enabling nothing); `common_conditions` (no caller);
+  `ButtonInput`'s `all_pressed`, `all_just_pressed`, `all_just_released`, `any_just_pressed`,
+  `any_just_released`, `clear_just_pressed`, `clear_just_released`; `Touch` keeps its position
+  alone and `Touches` what `bevy_ui`'s `ui_focus_system` reads (`any_just_pressed`,
+  `any_just_released`, `first_pressed_position`), `touch_screen_input_system` still updates it;
+  `derive_more`, `log` and `thiserror` left the manifest. `bevy_window`: `Window`'s
+  maximize/minimize/drag requests with `InternalWindowState`'s four request fields (only
+  `WinitPlugin` read them), `WindowResizeConstraints::check_constraints`,
+  `WindowPosition::new`/`center`, `WindowResolution::set_scale_factor_and_apply_to_physical_size`,
+  and `RawHandleWrapper` down to the display handle benilla reads (its constructor,
+  window-handle accessors and `ThreadLockedRawWindowHandleWrapper` went; nothing under gfx
+  inserts one). `WindowWrapper` stays for `bevy_winit`'s `get_window`. The frame lost the two
+  gamepad systems and `PreUpdate`'s one sync point, which was ordered only between them.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

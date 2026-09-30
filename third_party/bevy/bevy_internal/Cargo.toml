@@ -157,9 +157,7 @@ debug = [
     "bevy_ecs/debug",
 ]
 default_font = ["bevy_text?/default_font"]
-gamepad = [
-    "bevy_input/gamepad",
-]
+gamepad = []
 gltf_animation = ["bevy_animation"]
 hdr = ["bevy_image/hdr"]
 ktx2 = ["bevy_image/ktx2"]

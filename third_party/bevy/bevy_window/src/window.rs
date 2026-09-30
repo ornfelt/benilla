@@ -7,9 +7,8 @@ use bevy_ecs::{
     entity::{ContainsEntity, Entity},
     prelude::Component,
 };
-use bevy_math::{CompassOctant, DVec2, IVec2, UVec2, Vec2};
+use bevy_math::{DVec2, IVec2, UVec2, Vec2};
 use bevy_platform::sync::LazyLock;
-use log::warn;
 
 #[cfg(feature = "bevy_reflect")]
 use {
@@ -512,36 +511,6 @@ impl Default for Window {
 }
 
 impl Window {
-    /// Setting to true will attempt to maximize the window.
-    ///
-    /// Setting to false will attempt to un-maximize the window.
-    pub fn set_maximized(&mut self, maximized: bool) {
-        self.internal.maximize_request = Some(maximized);
-    }
-
-    /// Setting to true will attempt to minimize the window.
-    ///
-    /// Setting to false will attempt to un-minimize the window.
-    pub fn set_minimized(&mut self, minimized: bool) {
-        self.internal.minimize_request = Some(minimized);
-    }
-
-    /// Calling this will attempt to start a drag-move of the window.
-    ///
-    /// There is no guarantee that this will work unless the left mouse button was
-    /// pressed immediately before this function was called.
-    pub fn start_drag_move(&mut self) {
-        self.internal.drag_move_request = true;
-    }
-
-    /// Calling this will attempt to start a drag-resize of the window.
-    ///
-    /// There is no guarantee that this will work unless the left mouse button was
-    /// pressed immediately before this function was called.
-    pub fn start_drag_resize(&mut self, direction: CompassOctant) {
-        self.internal.drag_resize_request = Some(direction);
-    }
-
     /// The window's client area width in logical pixels.
     ///
     /// See [`WindowResolution`] for an explanation about logical/physical sizes.
@@ -689,41 +658,6 @@ impl Default for WindowResizeConstraints {
     }
 }
 
-impl WindowResizeConstraints {
-    /// Checks if the constraints are valid.
-    ///
-    /// Will output warnings if it isn't.
-    #[must_use]
-    pub fn check_constraints(&self) -> Self {
-        let &WindowResizeConstraints {
-            mut min_width,
-            mut min_height,
-            mut max_width,
-            mut max_height,
-        } = self;
-        min_width = min_width.max(1.);
-        min_height = min_height.max(1.);
-        if max_width < min_width {
-            warn!(
-                "The given maximum width {max_width} is smaller than the minimum width {min_width}"
-            );
-            max_width = min_width;
-        }
-        if max_height < min_height {
-            warn!(
-                "The given maximum height {max_height} is smaller than the minimum height {min_height}",
-            );
-            max_height = min_height;
-        }
-        WindowResizeConstraints {
-            min_width,
-            min_height,
-            max_width,
-            max_height,
-        }
-    }
-}
-
 /// Cursor data for a [`Window`].
 #[derive(Component, Debug, Clone)]
 #[cfg_attr(
@@ -808,19 +742,9 @@ pub enum WindowPosition {
 }
 
 impl WindowPosition {
-    /// Creates a new [`WindowPosition`] at a position.
-    pub fn new(position: IVec2) -> Self {
-        Self::At(position)
-    }
-
     /// Set the position to a specific point.
     pub fn set(&mut self, position: IVec2) {
         *self = WindowPosition::At(position);
-    }
-
-    /// Set the window to a specific monitor.
-    pub fn center(&mut self, monitor: MonitorSelection) {
-        *self = WindowPosition::Centered(monitor);
     }
 }
 
@@ -1008,18 +932,6 @@ impl WindowResolution {
         self.scale_factor = scale_factor;
     }
 
-    /// Set the window's scale factor, and apply it to the currently known physical size.
-    /// This may get overridden by the backend. This is mostly useful on window creation,
-    /// so that the window is created with the expected size instead of waiting for a resize
-    /// event after its creation.
-    #[inline]
-    #[doc(hidden)]
-    pub fn set_scale_factor_and_apply_to_physical_size(&mut self, scale_factor: f32) {
-        self.scale_factor = scale_factor;
-        self.physical_width = (self.physical_width as f32 * scale_factor) as u32;
-        self.physical_height = (self.physical_height as f32 * scale_factor) as u32;
-    }
-
     /// Set the window's scale factor, this will be used over what the backend decides.
     ///
     /// This can change the logical and physical sizes if the resulting physical
@@ -1091,38 +1003,8 @@ pub enum CursorGrabMode {
     reflect(Serialize, Deserialize)
 )]
 pub struct InternalWindowState {
-    /// If this is true then next frame we will ask to minimize the window.
-    minimize_request: Option<bool>,
-    /// If this is true then next frame we will ask to maximize/un-maximize the window depending on `maximized`.
-    maximize_request: Option<bool>,
-    /// If this is true then next frame we will ask to drag-move the window.
-    drag_move_request: bool,
-    /// If this is `Some` then the next frame we will ask to drag-resize the window.
-    drag_resize_request: Option<CompassOctant>,
     /// Unscaled cursor position.
     physical_cursor_position: Option<DVec2>,
-}
-
-impl InternalWindowState {
-    /// Consumes the current maximize request, if it exists. This should only be called by window backends.
-    pub fn take_maximize_request(&mut self) -> Option<bool> {
-        self.maximize_request.take()
-    }
-
-    /// Consumes the current minimize request, if it exists. This should only be called by window backends.
-    pub fn take_minimize_request(&mut self) -> Option<bool> {
-        self.minimize_request.take()
-    }
-
-    /// Consumes the current move request, if it exists. This should only be called by window backends.
-    pub fn take_move_request(&mut self) -> bool {
-        core::mem::take(&mut self.drag_move_request)
-    }
-
-    /// Consumes the current resize request, if it exists. This should only be called by window backends.
-    pub fn take_resize_request(&mut self) -> Option<CompassOctant> {
-        self.drag_resize_request.take()
-    }
 }
 
 /// References a screen monitor.

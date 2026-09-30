@@ -24,9 +24,8 @@ use {
 ///
 /// In case multiple systems are checking for [`ButtonInput::just_pressed`] or [`ButtonInput::just_released`]
 /// but only one should react, for example when modifying a
-/// [`Resource`], you should consider clearing the input state, either by:
+/// [`Resource`], you should consider clearing the input state:
 ///
-/// * Using [`ButtonInput::clear_just_pressed`] or [`ButtonInput::clear_just_released`] instead.
 /// * Calling [`ButtonInput::clear`] or [`ButtonInput::reset`] immediately after the state change.
 ///
 /// ## Performance
@@ -41,8 +40,6 @@ use {
 ///
 /// | **[`ButtonInput`] operations**          | **Computational complexity** |
 /// |-----------------------------------|------------------------------------|
-/// | [`ButtonInput::any_just_pressed`]       | *O*(m)~                      |
-/// | [`ButtonInput::any_just_released`]      | *O*(m)~                      |
 /// | [`ButtonInput::any_pressed`]            | *O*(m)~                      |
 /// | [`ButtonInput::get_just_pressed`]       | *O*(n)                       |
 /// | [`ButtonInput::get_just_released`]      | *O*(n)                       |
@@ -53,8 +50,6 @@ use {
 /// | [`ButtonInput::press`]                  | *O*(1)~*                     |
 /// | [`ButtonInput::release`]                | *O*(1)~*                     |
 /// | [`ButtonInput::release_all`]            | *O*(n)~*                     |
-/// | [`ButtonInput::clear_just_pressed`]     | *O*(1)~                      |
-/// | [`ButtonInput::clear_just_released`]    | *O*(1)~                      |
 /// | [`ButtonInput::reset_all`]              | *O*(n)                       |
 /// | [`ButtonInput::clear`]                  | *O*(n)                       |
 ///
@@ -63,8 +58,6 @@ use {
 /// `ButtonInput<KeyCode>` is tied to window focus. For example, if the user holds a button
 /// while the window loses focus, [`ButtonInput::just_released`] will be triggered. Similarly if the window
 /// regains focus, [`ButtonInput::just_pressed`] will be triggered.
-///
-/// `ButtonInput<GamepadButton>` is independent of window focus.
 ///
 /// ## Examples
 ///
@@ -163,11 +156,6 @@ where
         inputs.into_iter().any(|it| self.pressed(it))
     }
 
-    /// Returns `true` if all items in `inputs` have been pressed.
-    pub fn all_pressed(&self, inputs: impl IntoIterator<Item = T>) -> bool {
-        inputs.into_iter().all(|it| self.pressed(it))
-    }
-
     /// Registers a release for the given `input`.
     pub fn release(&mut self, input: T) {
         // Returns `true` if the `input` was pressed.
@@ -189,45 +177,11 @@ where
         self.just_pressed.contains(&input)
     }
 
-    /// Returns `true` if any item in `inputs` has been pressed during the current frame.
-    pub fn any_just_pressed(&self, inputs: impl IntoIterator<Item = T>) -> bool {
-        inputs.into_iter().any(|it| self.just_pressed(it))
-    }
-
-    /// Clears the `just_pressed` state of the `input` and returns `true` if the `input` has just been pressed.
-    ///
-    /// Future calls to [`ButtonInput::just_pressed`] for the given input will return false until a new press event occurs.
-    pub fn clear_just_pressed(&mut self, input: T) -> bool {
-        self.just_pressed.remove(&input)
-    }
-
     /// Returns `true` if the `input` has been released during the current frame.
     ///
     /// Note: This function does not imply information regarding the current state of [`ButtonInput::pressed`] or [`ButtonInput::just_pressed`].
     pub fn just_released(&self, input: T) -> bool {
         self.just_released.contains(&input)
-    }
-
-    /// Returns `true` if any item in `inputs` has just been released.
-    pub fn any_just_released(&self, inputs: impl IntoIterator<Item = T>) -> bool {
-        inputs.into_iter().any(|input| self.just_released(input))
-    }
-
-    /// Returns `true` if all items in `inputs` have just been released.
-    pub fn all_just_released(&self, inputs: impl IntoIterator<Item = T>) -> bool {
-        inputs.into_iter().all(|input| self.just_released(input))
-    }
-
-    /// Returns `true` if all items in `inputs` have been just pressed.
-    pub fn all_just_pressed(&self, inputs: impl IntoIterator<Item = T>) -> bool {
-        inputs.into_iter().all(|input| self.just_pressed(input))
-    }
-
-    /// Clears the `just_released` state of the `input` and returns `true` if the `input` has just been released.
-    ///
-    /// Future calls to [`ButtonInput::just_released`] for the given input will return false until a new release event occurs.
-    pub fn clear_just_released(&mut self, input: T) -> bool {
-        self.just_released.remove(&input)
     }
 
     /// Clears the `pressed`, `just_pressed` and `just_released` data of the `input`.
@@ -316,19 +270,6 @@ mod test {
     }
 
     #[test]
-    fn test_all_pressed() {
-        let mut input = ButtonInput::default();
-        assert!(!input.all_pressed([DummyInput::Input1]));
-        assert!(!input.all_pressed([DummyInput::Input2]));
-        assert!(!input.all_pressed([DummyInput::Input1, DummyInput::Input2]));
-        input.press(DummyInput::Input1);
-        assert!(input.all_pressed([DummyInput::Input1]));
-        assert!(!input.all_pressed([DummyInput::Input1, DummyInput::Input2]));
-        input.press(DummyInput::Input2);
-        assert!(input.all_pressed([DummyInput::Input1, DummyInput::Input2]));
-    }
-
-    #[test]
     fn test_release() {
         let mut input = ButtonInput::default();
         input.press(DummyInput::Input1);
@@ -359,56 +300,12 @@ mod test {
     }
 
     #[test]
-    fn test_any_just_pressed() {
-        let mut input = ButtonInput::default();
-        assert!(!input.any_just_pressed([DummyInput::Input1]));
-        assert!(!input.any_just_pressed([DummyInput::Input2]));
-        assert!(!input.any_just_pressed([DummyInput::Input1, DummyInput::Input2]));
-        input.press(DummyInput::Input1);
-        assert!(input.any_just_pressed([DummyInput::Input1]));
-        assert!(!input.any_just_pressed([DummyInput::Input2]));
-        assert!(input.any_just_pressed([DummyInput::Input1, DummyInput::Input2]));
-    }
-
-    #[test]
-    fn test_clear_just_pressed() {
-        let mut input = ButtonInput::default();
-        input.press(DummyInput::Input1);
-        assert!(input.just_pressed(DummyInput::Input1));
-        input.clear_just_pressed(DummyInput::Input1);
-        assert!(!input.just_pressed(DummyInput::Input1));
-    }
-
-    #[test]
     fn test_just_released() {
         let mut input = ButtonInput::default();
         input.press(DummyInput::Input1);
         assert!(!input.just_released(DummyInput::Input1));
         input.release(DummyInput::Input1);
         assert!(input.just_released(DummyInput::Input1));
-    }
-
-    #[test]
-    fn test_any_just_released() {
-        let mut input = ButtonInput::default();
-        input.press(DummyInput::Input1);
-        assert!(!input.any_just_released([DummyInput::Input1]));
-        assert!(!input.any_just_released([DummyInput::Input2]));
-        assert!(!input.any_just_released([DummyInput::Input1, DummyInput::Input2]));
-        input.release(DummyInput::Input1);
-        assert!(input.any_just_released([DummyInput::Input1]));
-        assert!(!input.any_just_released([DummyInput::Input2]));
-        assert!(input.any_just_released([DummyInput::Input1, DummyInput::Input2]));
-    }
-
-    #[test]
-    fn test_clear_just_released() {
-        let mut input = ButtonInput::default();
-        input.press(DummyInput::Input1);
-        input.release(DummyInput::Input1);
-        assert!(input.just_released(DummyInput::Input1));
-        input.clear_just_released(DummyInput::Input1);
-        assert!(!input.just_released(DummyInput::Input1));
     }
 
     #[test]
