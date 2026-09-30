@@ -1,15 +1,10 @@
 use crate::{
     render_resource::*,
     renderer::{RenderAdapter, RenderDevice, WgpuWrapper},
-    Extract,
 };
 use alloc::{borrow::Cow, sync::Arc};
-use bevy_asset::{AssetEvent, AssetId, Assets, Handle};
-use bevy_ecs::{
-    message::MessageReader,
-    resource::Resource,
-    system::{Res, ResMut},
-};
+use bevy_asset::{AssetId, Handle};
+use bevy_ecs::resource::Resource;
 use bevy_platform::collections::{HashMap, HashSet};
 use bevy_shader::{
     CachedPipelineId, PipelineCacheError, Shader, ShaderCache, ShaderCacheSource, ShaderDefVal,
@@ -249,7 +244,6 @@ pub struct PipelineCache {
     pipelines: Vec<CachedPipeline>,
     waiting_pipelines: HashSet<CachedPipelineId>,
     new_pipelines: Mutex<Vec<CachedPipeline>>,
-    global_shader_defs: Vec<ShaderDefVal>,
     /// If `true`, disables asynchronous pipeline compilation.
     /// This has no effect on macOS, wasm, or without the `multi_threaded` feature.
     synchronous_pipeline_compilation: bool,
@@ -272,23 +266,6 @@ impl PipelineCache {
         render_adapter: RenderAdapter,
         synchronous_pipeline_compilation: bool,
     ) -> Self {
-        let mut global_shader_defs = Vec::new();
-        #[cfg(all(feature = "webgl", target_arch = "wasm32", not(feature = "webgpu")))]
-        {
-            global_shader_defs.push("NO_ARRAY_TEXTURES_SUPPORT".into());
-            global_shader_defs.push("NO_CUBE_ARRAY_TEXTURES_SUPPORT".into());
-            global_shader_defs.push("SIXTEEN_BYTE_ALIGNMENT".into());
-        }
-
-        if cfg!(target_abi = "sim") {
-            global_shader_defs.push("NO_CUBE_ARRAY_TEXTURES_SUPPORT".into());
-        }
-
-        global_shader_defs.push(ShaderDefVal::UInt(
-            String::from("AVAILABLE_STORAGE_BUFFER_BINDINGS"),
-            device.limits().max_storage_buffers_per_shader_stage,
-        ));
-
         Self {
             shader_cache: Arc::new(Mutex::new(ShaderCache::new(
                 device.features(),
@@ -301,7 +278,6 @@ impl PipelineCache {
             waiting_pipelines: default(),
             new_pipelines: default(),
             pipelines: default(),
-            global_shader_defs,
             synchronous_pipeline_compilation,
         }
     }
@@ -769,39 +745,6 @@ impl PipelineCache {
 
         // Retry
         self.waiting_pipelines.insert(id);
-    }
-
-    pub(crate) fn process_pipeline_queue_system(mut cache: ResMut<Self>) {
-        cache.process_queue();
-    }
-
-    pub(crate) fn extract_shaders(
-        mut cache: ResMut<Self>,
-        shaders: Extract<Res<Assets<Shader>>>,
-        mut events: Extract<MessageReader<AssetEvent<Shader>>>,
-    ) {
-        for event in events.read() {
-            #[expect(
-                clippy::match_same_arms,
-                reason = "LoadedWithDependencies is marked as a TODO, so it's likely this will no longer lint soon."
-            )]
-            match event {
-                // PERF: Instead of blocking waiting for the shader cache lock, try again next frame if the lock is currently held
-                AssetEvent::Added { id } | AssetEvent::Modified { id } => {
-                    if let Some(shader) = shaders.get(*id) {
-                        let mut shader = shader.clone();
-                        shader.shader_defs.extend(cache.global_shader_defs.clone());
-
-                        cache.set_shader(*id, shader);
-                    }
-                }
-                AssetEvent::Removed { id } => cache.remove_shader(*id),
-                AssetEvent::Unused { .. } => {}
-                AssetEvent::LoadedWithDependencies { .. } => {
-                    // TODO: handle this
-                }
-            }
-        }
     }
 }
 

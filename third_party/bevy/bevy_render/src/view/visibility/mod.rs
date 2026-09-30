@@ -7,7 +7,6 @@ use bevy_utils::TypeIdMap;
 use crate::sync_world::MainEntity;
 
 mod range;
-use bevy_camera::visibility::*;
 pub use range::*;
 
 /// Collection of entities visible from the current view.

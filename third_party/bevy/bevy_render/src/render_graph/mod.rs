@@ -1,5 +1,4 @@
 mod app;
-mod camera_driver_node;
 mod context;
 mod edge;
 mod graph;
@@ -7,7 +6,6 @@ mod node;
 mod node_slot;
 
 pub use app::*;
-pub use camera_driver_node::*;
 pub use context::*;
 pub use edge::*;
 pub use graph::*;

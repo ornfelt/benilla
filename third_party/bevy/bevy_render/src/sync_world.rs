@@ -5,11 +5,9 @@ use bevy_ecs::{
     entity::{ContainsEntity, Entity, EntityEquivalent, EntityHash},
     lifecycle::{Add, Remove},
     observer::On,
-    query::With,
     reflect::ReflectComponent,
     resource::Resource,
-    system::{Local, Query, ResMut, SystemState},
-    world::{Mut, World},
+    system::{Query, ResMut},
 };
 use bevy_platform::collections::{HashMap, HashSet};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
@@ -193,6 +191,10 @@ pub struct TemporaryRenderEntity;
 
 /// A record enum to what entities with [`SyncToRenderWorld`] have been added or removed.
 #[derive(Debug)]
+#[expect(
+    dead_code,
+    reason = "read only by the render world's entity sync, which is cut"
+)]
 pub(crate) enum EntityRecord {
     /// When an entity is spawned on the main world, notify the render world so that it can spawn a corresponding
     /// entity. This contains the main world entity.
@@ -209,64 +211,6 @@ pub(crate) enum EntityRecord {
 #[derive(Resource, Default, Deref, DerefMut)]
 pub(crate) struct PendingSyncEntity {
     records: Vec<EntityRecord>,
-}
-
-pub(crate) fn entity_sync_system(main_world: &mut World, render_world: &mut World) {
-    main_world.resource_scope(|world, mut pending: Mut<PendingSyncEntity>| {
-        // TODO : batching record
-        for record in pending.drain(..) {
-            match record {
-                EntityRecord::Added(e) => {
-                    if let Ok(mut main_entity) = world.get_entity_mut(e) {
-                        match main_entity.entry::<RenderEntity>() {
-                            bevy_ecs::world::ComponentEntry::Occupied(_) => {
-                                panic!("Attempting to synchronize an entity that has already been synchronized!");
-                            }
-                            bevy_ecs::world::ComponentEntry::Vacant(entry) => {
-                                let id = render_world.spawn(MainEntity(e)).id();
-
-                                entry.insert(RenderEntity(id));
-                            }
-                        };
-                    }
-                }
-                EntityRecord::Removed(render_entity) => {
-                    if let Ok(ec) = render_world.get_entity_mut(render_entity.id()) {
-                        ec.despawn();
-                    };
-                }
-                EntityRecord::ComponentRemoved(main_entity) => {
-                    let Some(mut render_entity) = world.get_mut::<RenderEntity>(main_entity) else {
-                        continue;
-                    };
-                    if let Ok(render_world_entity) = render_world.get_entity_mut(render_entity.id()) {
-                        // In order to handle components that extract to derived components, we clear the entity
-                        // and let the extraction system re-add the components.
-                        render_world_entity.despawn();
-
-                        let id = render_world.spawn(MainEntity(main_entity)).id();
-                        render_entity.0 = id;
-                    }
-                },
-            }
-        }
-    });
-}
-
-pub(crate) fn despawn_temporary_render_entities(
-    world: &mut World,
-    state: &mut SystemState<Query<Entity, With<TemporaryRenderEntity>>>,
-    mut local: Local<Vec<Entity>>,
-) {
-    let query = state.get(world);
-
-    local.extend(query.iter());
-
-    // Ensure next frame allocation keeps order
-    local.sort_unstable_by_key(|e| e.index());
-    for e in local.drain(..).rev() {
-        world.despawn(e);
-    }
 }
 
 /// This module exists to keep the complex unsafe code out of the main module.
@@ -517,86 +461,5 @@ mod render_entities_world_query_impls {
         fn release_state<'w>(item: Self::Item<'w, '_>) -> Self::Item<'w, 'static> {
             item
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use bevy_ecs::{
-        component::Component,
-        entity::Entity,
-        lifecycle::{Add, Remove},
-        observer::On,
-        query::With,
-        system::{Query, ResMut},
-        world::World,
-    };
-
-    use super::{
-        entity_sync_system, EntityRecord, MainEntity, PendingSyncEntity, RenderEntity,
-        SyncToRenderWorld,
-    };
-
-    #[derive(Component)]
-    struct RenderDataComponent;
-
-    #[test]
-    fn sync_world() {
-        let mut main_world = World::new();
-        let mut render_world = World::new();
-        main_world.init_resource::<PendingSyncEntity>();
-
-        main_world.add_observer(
-            |add: On<Add, SyncToRenderWorld>, mut pending: ResMut<PendingSyncEntity>| {
-                pending.push(EntityRecord::Added(add.entity));
-            },
-        );
-        main_world.add_observer(
-            |remove: On<Remove, SyncToRenderWorld>,
-             mut pending: ResMut<PendingSyncEntity>,
-             query: Query<&RenderEntity>| {
-                if let Ok(e) = query.get(remove.entity) {
-                    pending.push(EntityRecord::Removed(*e));
-                };
-            },
-        );
-
-        // spawn some empty entities for test
-        for _ in 0..99 {
-            main_world.spawn_empty();
-        }
-
-        // spawn
-        let main_entity = main_world
-            .spawn(RenderDataComponent)
-            // indicates that its entity needs to be synchronized to the render world
-            .insert(SyncToRenderWorld)
-            .id();
-
-        entity_sync_system(&mut main_world, &mut render_world);
-
-        let mut q = render_world.query_filtered::<Entity, With<MainEntity>>();
-
-        // Only one synchronized entity
-        assert!(q.iter(&render_world).count() == 1);
-
-        let render_entity = q.single(&render_world).unwrap();
-        let render_entity_component = main_world.get::<RenderEntity>(main_entity).unwrap();
-
-        assert!(render_entity_component.id() == render_entity);
-
-        let main_entity_component = render_world
-            .get::<MainEntity>(render_entity_component.id())
-            .unwrap();
-
-        assert!(main_entity_component.id() == main_entity);
-
-        // despawn
-        main_world.despawn(main_entity);
-
-        entity_sync_system(&mut main_world, &mut render_world);
-
-        // Only one synchronized entity
-        assert!(q.iter(&render_world).count() == 0);
     }
 }

@@ -2,10 +2,7 @@
 //!
 //! For more info, see [`RenderDiagnosticsPlugin`].
 
-mod erased_render_asset_diagnostic_plugin;
 pub(crate) mod internal;
-mod mesh_allocator_diagnostic_plugin;
-mod render_asset_diagnostic_plugin;
 #[cfg(feature = "tracing-tracy")]
 mod tracy_gpu;
 
@@ -14,18 +11,7 @@ use core::marker::PhantomData;
 
 use bevy_app::{App, Plugin, PreUpdate};
 
-use crate::{renderer::RenderAdapterInfo, RenderApp};
-
-use self::internal::{
-    sync_diagnostics, DiagnosticsRecorder, Pass, RenderDiagnosticsMutex, WriteTimestamp,
-};
-pub use self::{
-    erased_render_asset_diagnostic_plugin::ErasedRenderAssetDiagnosticPlugin,
-    mesh_allocator_diagnostic_plugin::MeshAllocatorDiagnosticPlugin,
-    render_asset_diagnostic_plugin::RenderAssetDiagnosticPlugin,
-};
-
-use crate::renderer::{RenderDevice, RenderQueue};
+use self::internal::{sync_diagnostics, Pass, RenderDiagnosticsMutex, WriteTimestamp};
 
 /// Enables collecting render diagnostics, such as CPU/GPU elapsed time per render pass,
 /// as well as pipeline statistics (number of primitives, number of shader invocations, etc).
@@ -58,24 +44,9 @@ pub struct RenderDiagnosticsPlugin;
 
 impl Plugin for RenderDiagnosticsPlugin {
     fn build(&self, app: &mut App) {
-        let render_diagnostics_mutex = RenderDiagnosticsMutex::default();
-        app.insert_resource(render_diagnostics_mutex.clone())
+        // The mutex's other half and the `DiagnosticsRecorder` only reached the RenderApp.
+        app.insert_resource(RenderDiagnosticsMutex::default())
             .add_systems(PreUpdate, sync_diagnostics);
-
-        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.insert_resource(render_diagnostics_mutex);
-        }
-    }
-
-    fn finish(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        let adapter_info = render_app.world().resource::<RenderAdapterInfo>();
-        let device = render_app.world().resource::<RenderDevice>();
-        let queue = render_app.world().resource::<RenderQueue>();
-        render_app.insert_resource(DiagnosticsRecorder::new(adapter_info, device, queue));
     }
 }
 

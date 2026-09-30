@@ -8,12 +8,10 @@ use core::{
 };
 use nonmax::NonMaxU32;
 
-use bevy_app::{App, Plugin};
 use bevy_asset::AssetId;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     resource::Resource,
-    schedule::IntoScheduleConfigs as _,
     system::{Res, ResMut},
     world::{FromWorld, World},
 };
@@ -28,14 +26,10 @@ use wgpu::{
 
 use crate::{
     mesh::{Mesh, MeshVertexBufferLayouts, RenderMesh},
-    render_asset::{prepare_assets, ExtractedAssets},
+    render_asset::ExtractedAssets,
     render_resource::Buffer,
     renderer::{RenderAdapter, RenderDevice, RenderQueue},
-    Render, RenderApp, RenderSystems,
 };
-
-/// A plugin that manages GPU memory for mesh data.
-pub struct MeshAllocatorPlugin;
 
 /// Manages the assignment of mesh data to GPU buffers.
 ///
@@ -314,33 +308,6 @@ struct SlabToReallocate {
 impl Display for SlabId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
-    }
-}
-
-impl Plugin for MeshAllocatorPlugin {
-    fn build(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
-            .init_resource::<MeshAllocatorSettings>()
-            .add_systems(
-                Render,
-                allocate_and_free_meshes
-                    .in_set(RenderSystems::PrepareAssets)
-                    .before(prepare_assets::<RenderMesh>),
-            );
-    }
-
-    fn finish(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        // The `RenderAdapter` isn't available until now, so we can't do this in
-        // [`Plugin::build`].
-        render_app.init_resource::<MeshAllocator>();
     }
 }
 

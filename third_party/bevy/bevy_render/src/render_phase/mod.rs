@@ -28,7 +28,6 @@ mod draw;
 mod draw_state;
 mod rangefinder;
 
-use bevy_app::{App, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::Tick;
 use bevy_ecs::entity::EntityHash;
@@ -43,24 +42,11 @@ use nonmax::NonMaxU32;
 pub use rangefinder::*;
 use wgpu::Features;
 
-use crate::batching::gpu_preprocessing::{
-    GpuPreprocessingMode, GpuPreprocessingSupport, PhaseBatchedInstanceBuffers,
-    PhaseIndirectParametersBuffers,
-};
+use crate::batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport};
+use crate::render_resource::{CachedRenderPipelineId, GpuArrayBufferIndex, PipelineCache};
 use crate::renderer::RenderDevice;
 use crate::sync_world::{MainEntity, MainEntityHashMap};
 use crate::view::RetainedViewEntity;
-use crate::RenderDebugFlags;
-use crate::{
-    batching::{
-        self,
-        gpu_preprocessing::{self, BatchedInstanceBuffers},
-        no_gpu_preprocessing::{self, BatchedInstanceBuffer},
-        GetFullBatchData,
-    },
-    render_resource::{CachedRenderPipelineId, GpuArrayBufferIndex, PipelineCache},
-    Render, RenderApp, RenderSystems,
-};
 use bevy_ecs::intern::Interned;
 use bevy_ecs::{
     define_label,
@@ -69,7 +55,7 @@ use bevy_ecs::{
 };
 use bevy_render::renderer::RenderAdapterInfo;
 pub use bevy_render_macros::ShaderLabel;
-use core::{fmt::Debug, hash::Hash, iter, marker::PhantomData, ops::Range, slice::SliceIndex};
+use core::{fmt::Debug, hash::Hash, iter, ops::Range, slice::SliceIndex};
 use smallvec::SmallVec;
 use tracing::warn;
 
@@ -1117,79 +1103,6 @@ impl UnbatchableBinnedEntityIndexSet {
     }
 }
 
-/// A convenient abstraction for adding all the systems necessary for a binned
-/// render phase to the render app.
-///
-/// This is the version used when the pipeline supports GPU preprocessing: e.g.
-/// 3D PBR meshes.
-pub struct BinnedRenderPhasePlugin<BPI, GFBD>
-where
-    BPI: BinnedPhaseItem,
-    GFBD: GetFullBatchData,
-{
-    /// Debugging flags that can optionally be set when constructing the renderer.
-    pub debug_flags: RenderDebugFlags,
-    phantom: PhantomData<(BPI, GFBD)>,
-}
-
-impl<BPI, GFBD> BinnedRenderPhasePlugin<BPI, GFBD>
-where
-    BPI: BinnedPhaseItem,
-    GFBD: GetFullBatchData,
-{
-    pub fn new(debug_flags: RenderDebugFlags) -> Self {
-        Self {
-            debug_flags,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<BPI, GFBD> Plugin for BinnedRenderPhasePlugin<BPI, GFBD>
-where
-    BPI: BinnedPhaseItem,
-    GFBD: GetFullBatchData + Sync + Send + 'static,
-{
-    fn build(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
-            .init_resource::<ViewBinnedRenderPhases<BPI>>()
-            .init_resource::<PhaseBatchedInstanceBuffers<BPI, GFBD::BufferData>>()
-            .insert_resource(PhaseIndirectParametersBuffers::<BPI>::new(
-                self.debug_flags
-                    .contains(RenderDebugFlags::ALLOW_COPIES_FROM_INDIRECT_PARAMETERS),
-            ))
-            .add_systems(
-                Render,
-                (
-                    batching::sort_binned_render_phase::<BPI>.in_set(RenderSystems::PhaseSort),
-                    (
-                        no_gpu_preprocessing::batch_and_prepare_binned_render_phase::<BPI, GFBD>
-                            .run_if(resource_exists::<BatchedInstanceBuffer<GFBD::BufferData>>),
-                        gpu_preprocessing::batch_and_prepare_binned_render_phase::<BPI, GFBD>
-                            .run_if(
-                                resource_exists::<
-                                    BatchedInstanceBuffers<GFBD::BufferData, GFBD::BufferInputData>,
-                                >,
-                            ),
-                    )
-                        .in_set(RenderSystems::PrepareResources),
-                    sweep_old_entities::<BPI>.in_set(RenderSystems::QueueSweep),
-                    gpu_preprocessing::collect_buffers_for_phase::<BPI, GFBD>
-                        .run_if(
-                            resource_exists::<
-                                BatchedInstanceBuffers<GFBD::BufferData, GFBD::BufferInputData>,
-                            >,
-                        )
-                        .in_set(RenderSystems::PrepareResourcesCollectPhaseBuffers),
-                ),
-            );
-    }
-}
-
 /// Stores the rendering instructions for a single phase that sorts items in all
 /// views.
 ///
@@ -1220,77 +1133,6 @@ where
                 entry.insert(default());
             }
         }
-    }
-}
-
-/// A convenient abstraction for adding all the systems necessary for a sorted
-/// render phase to the render app.
-///
-/// This is the version used when the pipeline supports GPU preprocessing: e.g.
-/// 3D PBR meshes.
-pub struct SortedRenderPhasePlugin<SPI, GFBD>
-where
-    SPI: SortedPhaseItem,
-    GFBD: GetFullBatchData,
-{
-    /// Debugging flags that can optionally be set when constructing the renderer.
-    pub debug_flags: RenderDebugFlags,
-    phantom: PhantomData<(SPI, GFBD)>,
-}
-
-impl<SPI, GFBD> SortedRenderPhasePlugin<SPI, GFBD>
-where
-    SPI: SortedPhaseItem,
-    GFBD: GetFullBatchData,
-{
-    pub fn new(debug_flags: RenderDebugFlags) -> Self {
-        Self {
-            debug_flags,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<SPI, GFBD> Plugin for SortedRenderPhasePlugin<SPI, GFBD>
-where
-    SPI: SortedPhaseItem + CachedRenderPipelinePhaseItem,
-    GFBD: GetFullBatchData + Sync + Send + 'static,
-{
-    fn build(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
-            .init_resource::<ViewSortedRenderPhases<SPI>>()
-            .init_resource::<PhaseBatchedInstanceBuffers<SPI, GFBD::BufferData>>()
-            .insert_resource(PhaseIndirectParametersBuffers::<SPI>::new(
-                self.debug_flags
-                    .contains(RenderDebugFlags::ALLOW_COPIES_FROM_INDIRECT_PARAMETERS),
-            ))
-            .add_systems(
-                Render,
-                (
-                    (
-                        no_gpu_preprocessing::batch_and_prepare_sorted_render_phase::<SPI, GFBD>
-                            .run_if(resource_exists::<BatchedInstanceBuffer<GFBD::BufferData>>),
-                        gpu_preprocessing::batch_and_prepare_sorted_render_phase::<SPI, GFBD>
-                            .run_if(
-                                resource_exists::<
-                                    BatchedInstanceBuffers<GFBD::BufferData, GFBD::BufferInputData>,
-                                >,
-                            ),
-                    )
-                        .in_set(RenderSystems::PrepareResources),
-                    gpu_preprocessing::collect_buffers_for_phase::<SPI, GFBD>
-                        .run_if(
-                            resource_exists::<
-                                BatchedInstanceBuffers<GFBD::BufferData, GFBD::BufferInputData>,
-                            >,
-                        )
-                        .in_set(RenderSystems::PrepareResourcesCollectPhaseBuffers),
-                ),
-            );
     }
 }
 

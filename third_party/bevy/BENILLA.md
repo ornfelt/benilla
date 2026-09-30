@@ -108,6 +108,27 @@ the same repository's.
     MSAA checks and the OIT depth-usage system, `Tonemapping`, `DebandDither`, `TonemappingLuts`
     with the three LUT images added to `Assets<Image>`, `Skybox`, the OIT settings, the prepass
     markers and `PreviousViewData`.
+  - `bevy_render`, its plugins (the first piece; the render-resource, phase, graph and batching
+    types stay for now): `RenderPlugin` keeps what it built with no device (the `Shader` asset
+    and loader, its plugin set, `RenderAssetBytesPerFrame`), the same set benilla-gfx's
+    `RenderMainWorldPlugin` adds, and loses the rendering sub-app, the wgpu renderer
+    initialization, the extract loop and entity sync, `render_system` and the graph runner, the
+    camera driver node and the WGSL shader libraries it loaded; `PipelinedRenderingPlugin` (it
+    did nothing without a `RenderApp`) is empty but for `RenderExtractApp`. The camera, view,
+    window, screenshot, globals, texture, mesh, storage, readback, batching, visibility-range,
+    occlusion-culling and diagnostics plugins lose their render-app blocks and the render-world
+    systems and resources only those added (camera extraction and sorting, window surfaces, view
+    targets and uniforms, the screenshot pipeline, the globals buffer, the texture cache, the
+    mesh allocator, the readback buffers, the indirect-parameter buffers, the visibility-range
+    buffer, the pipeline cache's queue and shader extraction) and all WGSL; every
+    `RenderAssetPlugin` went, as in `bevy_sprite_render`. Plugins nothing adds are gone
+    (`UniformComponentPlugin`, `GpuComponentArrayBufferPlugin`, `ExtractInstancesPlugin`, the
+    binned and sorted render-phase plugins, the three render-asset and mesh-allocator
+    diagnostic plugins). Kept in order: `camera_system` in `PostStartup`/`PostUpdate`, the
+    cameras' required components and render-graph warning hook, `clear_screenshots` and
+    `trigger_screenshots`, `inherit_weights`, `ShaderStorageBuffer`, `SyncWorldPlugin`'s
+    observers, `RenderDiagnosticsPlugin`'s `sync_diagnostics`, and every `ExtractComponentPlugin`
+    (its `SyncComponentPlugin`) and `ExtractResourcePlugin` (its once-logged error).
 
   The manifests drop the dependencies no kept code uses; no crate's resolved features change.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a

@@ -1,40 +1,25 @@
 pub mod visibility;
 pub mod window;
 
-use bevy_camera::{
-    primitives::Frustum, CameraMainTextureUsages, ClearColor, ClearColorConfig, Exposure,
-    MainPassResolutionOverride, NormalizedRenderTarget,
-};
-use bevy_diagnostic::FrameCount;
 pub use visibility::*;
 pub use window::*;
 
 use crate::{
-    camera::{ExtractedCamera, MipBias, NormalizedRenderTargetExt as _, TemporalJitter},
     experimental::occlusion_culling::OcclusionCulling,
     extract_component::ExtractComponentPlugin,
-    render_asset::RenderAssets,
     render_phase::ViewRangefinder3d,
     render_resource::{DynamicUniformBuffer, ShaderType, Texture, TextureView},
-    renderer::{RenderDevice, RenderQueue},
+    renderer::RenderDevice,
     sync_world::MainEntity,
-    texture::{
-        CachedTexture, ColorAttachment, DepthAttachment, GpuImage, ManualTextureViews,
-        OutputColorAttachment, TextureCache,
-    },
-    Render, RenderApp, RenderSystems,
+    texture::{CachedTexture, ColorAttachment, DepthAttachment, OutputColorAttachment},
 };
 use alloc::sync::Arc;
 use bevy_app::{App, Plugin};
 use bevy_color::LinearRgba;
-use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
-use bevy_image::{BevyDefault as _, ToExtents};
-use bevy_math::{mat3, vec2, vec3, Mat3, Mat4, UVec4, Vec2, Vec3, Vec4, Vec4Swizzles};
-use bevy_platform::collections::{hash_map::Entry, HashMap};
+use bevy_math::{mat3, vec2, vec3, Mat3, Mat4, UVec4, Vec2, Vec3, Vec4};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render_macros::ExtractComponent;
-use bevy_shader::load_shader_library;
 use bevy_transform::components::GlobalTransform;
 use core::{
     ops::Range,
@@ -42,7 +27,7 @@ use core::{
 };
 use wgpu::{
     BufferUsages, RenderPassColorAttachment, RenderPassDepthStencilAttachment, StoreOp,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+    TextureFormat,
 };
 
 /// The matrix that converts from the RGB to the LMS color space.
@@ -98,8 +83,6 @@ pub struct ViewPlugin;
 
 impl Plugin for ViewPlugin {
     fn build(&self, app: &mut App) {
-        load_shader_library!(app, "view.wgsl");
-
         app
             // NOTE: windows.is_changed() handles cases where a window was resized
             .add_plugins((
@@ -108,39 +91,6 @@ impl Plugin for ViewPlugin {
                 ExtractComponentPlugin::<OcclusionCulling>::default(),
                 RenderVisibilityRangePlugin,
             ));
-
-        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.add_systems(
-                Render,
-                (
-                    // `TextureView`s need to be dropped before reconfiguring window surfaces.
-                    clear_view_attachments
-                        .in_set(RenderSystems::ManageViews)
-                        .before(create_surfaces),
-                    cleanup_view_targets_for_resize
-                        .in_set(RenderSystems::ManageViews)
-                        .before(create_surfaces),
-                    prepare_view_attachments
-                        .in_set(RenderSystems::ManageViews)
-                        .before(prepare_view_targets)
-                        .after(prepare_windows),
-                    prepare_view_targets
-                        .in_set(RenderSystems::ManageViews)
-                        .after(prepare_windows)
-                        .after(crate::render_asset::prepare_assets::<GpuImage>)
-                        .ambiguous_with(crate::camera::sort_cameras), // doesn't use `sorted_camera_index_for_target`
-                    prepare_view_uniforms.in_set(RenderSystems::PrepareResources),
-                ),
-            );
-        }
-    }
-
-    fn finish(&self, app: &mut App) {
-        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app
-                .init_resource::<ViewUniforms>()
-                .init_resource::<ViewTargetAttachments>();
-        }
     }
 }
 
@@ -624,13 +574,6 @@ pub struct ViewTarget {
     out_texture: OutputColorAttachment,
 }
 
-/// Contains [`OutputColorAttachment`] used for each target present on any view in the current
-/// frame, after being prepared by [`prepare_view_attachments`]. Users that want to override
-/// the default output color attachment for a specific target can do so by adding a
-/// [`OutputColorAttachment`] to this resource before [`prepare_view_targets`] is called.
-#[derive(Resource, Default, Deref, DerefMut)]
-pub struct ViewTargetAttachments(HashMap<NormalizedRenderTarget, OutputColorAttachment>);
-
 pub struct PostProcessWrite<'a> {
     pub source: &'a TextureView,
     pub source_texture: &'a Texture,
@@ -907,266 +850,15 @@ impl ViewDepthTexture {
     }
 }
 
-pub fn prepare_view_uniforms(
-    mut commands: Commands,
-    render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
-    mut view_uniforms: ResMut<ViewUniforms>,
-    views: Query<(
-        Entity,
-        Option<&ExtractedCamera>,
-        &ExtractedView,
-        Option<&Frustum>,
-        Option<&TemporalJitter>,
-        Option<&MipBias>,
-        Option<&MainPassResolutionOverride>,
-    )>,
-    frame_count: Res<FrameCount>,
-) {
-    let view_iter = views.iter();
-    let view_count = view_iter.len();
-    let Some(mut writer) =
-        view_uniforms
-            .uniforms
-            .get_writer(view_count, &render_device, &render_queue)
-    else {
-        return;
-    };
-    for (
-        entity,
-        extracted_camera,
-        extracted_view,
-        frustum,
-        temporal_jitter,
-        mip_bias,
-        resolution_override,
-    ) in &views
-    {
-        let viewport = extracted_view.viewport.as_vec4();
-        let mut main_pass_viewport = viewport;
-        if let Some(resolution_override) = resolution_override {
-            main_pass_viewport.z = resolution_override.0.x as f32;
-            main_pass_viewport.w = resolution_override.0.y as f32;
-        }
-
-        let unjittered_projection = extracted_view.clip_from_view;
-        let mut clip_from_view = unjittered_projection;
-
-        if let Some(temporal_jitter) = temporal_jitter {
-            temporal_jitter.jitter_projection(&mut clip_from_view, main_pass_viewport.zw());
-        }
-
-        let view_from_clip = clip_from_view.inverse();
-        let world_from_view = extracted_view.world_from_view.to_matrix();
-        let view_from_world = world_from_view.inverse();
-
-        let clip_from_world = if temporal_jitter.is_some() {
-            clip_from_view * view_from_world
-        } else {
-            extracted_view
-                .clip_from_world
-                .unwrap_or_else(|| clip_from_view * view_from_world)
-        };
-
-        // Map Frustum type to shader array<vec4<f32>, 6>
-        let frustum = frustum
-            .map(|frustum| frustum.half_spaces.map(|h| h.normal_d()))
-            .unwrap_or([Vec4::ZERO; 6]);
-
-        let view_uniforms = ViewUniformOffset {
-            offset: writer.write(&ViewUniform {
-                clip_from_world,
-                unjittered_clip_from_world: unjittered_projection * view_from_world,
-                world_from_clip: world_from_view * view_from_clip,
-                world_from_view,
-                view_from_world,
-                clip_from_view,
-                view_from_clip,
-                world_position: extracted_view.world_from_view.translation(),
-                exposure: extracted_camera
-                    .map(|c| c.exposure)
-                    .unwrap_or_else(|| Exposure::default().exposure()),
-                viewport,
-                main_pass_viewport,
-                frustum,
-                color_grading: extracted_view.color_grading.clone().into(),
-                mip_bias: mip_bias.unwrap_or(&MipBias(0.0)).0,
-                frame_count: frame_count.0,
-            }),
-        };
-
-        commands.entity(entity).insert(view_uniforms);
-    }
-}
-
 #[derive(Clone)]
 struct MainTargetTextures {
     a: ColorAttachment,
     b: ColorAttachment,
     /// 0 represents `main_textures.a`, 1 represents `main_textures.b`
     /// This is shared across view targets with the same render target
+    #[expect(
+        dead_code,
+        reason = "read only by the render world's view-target preparation, which is cut"
+    )]
     main_texture: Arc<AtomicUsize>,
-}
-
-/// Prepares the view target [`OutputColorAttachment`] for each view in the current frame.
-pub fn prepare_view_attachments(
-    windows: Res<ExtractedWindows>,
-    images: Res<RenderAssets<GpuImage>>,
-    manual_texture_views: Res<ManualTextureViews>,
-    cameras: Query<&ExtractedCamera>,
-    mut view_target_attachments: ResMut<ViewTargetAttachments>,
-) {
-    for camera in cameras.iter() {
-        let Some(target) = &camera.target else {
-            continue;
-        };
-
-        match view_target_attachments.entry(target.clone()) {
-            Entry::Occupied(_) => {}
-            Entry::Vacant(entry) => {
-                let Some(attachment) = target
-                    .get_texture_view(&windows, &images, &manual_texture_views)
-                    .cloned()
-                    .zip(target.get_texture_view_format(&windows, &images, &manual_texture_views))
-                    .map(|(view, format)| OutputColorAttachment::new(view.clone(), format))
-                else {
-                    continue;
-                };
-                entry.insert(attachment);
-            }
-        };
-    }
-}
-
-/// Clears the view target [`OutputColorAttachment`]s.
-pub fn clear_view_attachments(mut view_target_attachments: ResMut<ViewTargetAttachments>) {
-    view_target_attachments.clear();
-}
-
-pub fn cleanup_view_targets_for_resize(
-    mut commands: Commands,
-    windows: Res<ExtractedWindows>,
-    cameras: Query<(Entity, &ExtractedCamera), With<ViewTarget>>,
-) {
-    for (entity, camera) in &cameras {
-        if let Some(NormalizedRenderTarget::Window(window_ref)) = &camera.target
-            && let Some(window) = windows.get(&window_ref.entity())
-            && (window.size_changed || window.present_mode_changed)
-        {
-            commands.entity(entity).remove::<ViewTarget>();
-        }
-    }
-}
-
-pub fn prepare_view_targets(
-    mut commands: Commands,
-    clear_color_global: Res<ClearColor>,
-    render_device: Res<RenderDevice>,
-    mut texture_cache: ResMut<TextureCache>,
-    cameras: Query<(
-        Entity,
-        &ExtractedCamera,
-        &ExtractedView,
-        &CameraMainTextureUsages,
-        &Msaa,
-    )>,
-    view_target_attachments: Res<ViewTargetAttachments>,
-) {
-    let mut textures = <HashMap<_, _>>::default();
-    for (entity, camera, view, texture_usage, msaa) in cameras.iter() {
-        let (Some(target_size), Some(out_attachment)) = (
-            camera.physical_target_size,
-            camera
-                .target
-                .as_ref()
-                .and_then(|target| view_target_attachments.get(target)),
-        ) else {
-            // If we can't find an output attachment we need to remove the ViewTarget
-            // component to make sure the camera doesn't try rendering to an invalid
-            // output attachment.
-            commands.entity(entity).try_remove::<ViewTarget>();
-
-            continue;
-        };
-
-        let main_texture_format = if view.hdr {
-            ViewTarget::TEXTURE_FORMAT_HDR
-        } else {
-            TextureFormat::bevy_default()
-        };
-
-        let clear_color = match camera.clear_color {
-            ClearColorConfig::Custom(color) => Some(color),
-            ClearColorConfig::None => None,
-            _ => Some(clear_color_global.0),
-        };
-
-        let (a, b, sampled, main_texture) = textures
-            .entry((camera.target.clone(), texture_usage.0, view.hdr, msaa))
-            .or_insert_with(|| {
-                let descriptor = TextureDescriptor {
-                    label: None,
-                    size: target_size.to_extents(),
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: TextureDimension::D2,
-                    format: main_texture_format,
-                    usage: texture_usage.0,
-                    view_formats: match main_texture_format {
-                        TextureFormat::Bgra8Unorm => &[TextureFormat::Bgra8UnormSrgb],
-                        TextureFormat::Rgba8Unorm => &[TextureFormat::Rgba8UnormSrgb],
-                        _ => &[],
-                    },
-                };
-                let a = texture_cache.get(
-                    &render_device,
-                    TextureDescriptor {
-                        label: Some("main_texture_a"),
-                        ..descriptor
-                    },
-                );
-                let b = texture_cache.get(
-                    &render_device,
-                    TextureDescriptor {
-                        label: Some("main_texture_b"),
-                        ..descriptor
-                    },
-                );
-                let sampled = if msaa.samples() > 1 {
-                    let sampled = texture_cache.get(
-                        &render_device,
-                        TextureDescriptor {
-                            label: Some("main_texture_sampled"),
-                            size: target_size.to_extents(),
-                            mip_level_count: 1,
-                            sample_count: msaa.samples(),
-                            dimension: TextureDimension::D2,
-                            format: main_texture_format,
-                            usage: TextureUsages::RENDER_ATTACHMENT,
-                            view_formats: descriptor.view_formats,
-                        },
-                    );
-                    Some(sampled)
-                } else {
-                    None
-                };
-                let main_texture = Arc::new(AtomicUsize::new(0));
-                (a, b, sampled, main_texture)
-            });
-
-        let converted_clear_color = clear_color.map(Into::into);
-
-        let main_textures = MainTargetTextures {
-            a: ColorAttachment::new(a.clone(), sampled.clone(), None, converted_clear_color),
-            b: ColorAttachment::new(b.clone(), sampled.clone(), None, converted_clear_color),
-            main_texture: main_texture.clone(),
-        };
-
-        commands.entity(entity).insert(ViewTarget {
-            main_texture: main_textures.main_texture.clone(),
-            main_textures,
-            main_texture_format,
-            out_texture: out_attachment.clone(),
-        });
-    }
 }

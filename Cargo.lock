@@ -1291,7 +1291,6 @@ dependencies = [
 name = "bevy_render"
 version = "0.18.1"
 dependencies = [
- "async-channel",
  "bevy_app",
  "bevy_asset",
  "bevy_camera",
@@ -1308,7 +1307,6 @@ dependencies = [
  "bevy_render_macros",
  "bevy_shader",
  "bevy_tasks",
- "bevy_time",
  "bevy_transform",
  "bevy_utils",
  "bevy_window",

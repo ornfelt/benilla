@@ -1,5 +1,5 @@
 use crate::{
-    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset, RenderAssetPlugin},
+    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset},
     render_resource::{Buffer, BufferUsages},
     renderer::RenderDevice,
 };
@@ -17,8 +17,8 @@ pub struct StoragePlugin;
 
 impl Plugin for StoragePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(RenderAssetPlugin::<GpuShaderStorageBuffer>::default())
-            .init_asset::<ShaderStorageBuffer>()
+        // `RenderAssetPlugin::<GpuShaderStorageBuffer>` only reached the RenderApp.
+        app.init_asset::<ShaderStorageBuffer>()
             .register_asset_reflect::<ShaderStorageBuffer>();
     }
 }

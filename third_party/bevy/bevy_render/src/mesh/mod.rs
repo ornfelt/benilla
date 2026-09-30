@@ -1,12 +1,8 @@
 pub mod allocator;
 use crate::{
-    render_asset::{
-        AssetExtractionError, PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets,
-    },
+    render_asset::{AssetExtractionError, PrepareAssetError, RenderAsset, RenderAssets},
     texture::GpuImage,
-    RenderApp,
 };
-use allocator::MeshAllocatorPlugin;
 use bevy_app::{App, Plugin};
 use bevy_asset::{AssetId, RenderAssetUsages};
 use bevy_ecs::{
@@ -26,17 +22,9 @@ use wgpu::IndexFormat;
 pub struct MeshRenderAssetPlugin;
 
 impl Plugin for MeshRenderAssetPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            // 'Mesh' must be prepared after 'Image' as meshes rely on the morph target image being ready
-            .add_plugins(RenderAssetPlugin::<RenderMesh, GpuImage>::default())
-            .add_plugins(MeshAllocatorPlugin);
-
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app.init_resource::<MeshVertexBufferLayouts>();
+    fn build(&self, _app: &mut App) {
+        // `RenderAssetPlugin::<RenderMesh, GpuImage>`, the mesh allocator and the vertex buffer
+        // layouts only reached the RenderApp.
     }
 }
 

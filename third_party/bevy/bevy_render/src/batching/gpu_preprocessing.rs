@@ -8,7 +8,6 @@ use bevy_ecs::{
     prelude::Entity,
     query::{Has, With},
     resource::Resource,
-    schedule::IntoScheduleConfigs as _,
     system::{Query, Res, ResMut, StaticSystemParam},
     world::{FromWorld, World},
 };
@@ -37,7 +36,7 @@ use crate::{
     renderer::{RenderAdapter, RenderAdapterInfo, RenderDevice, RenderQueue, WgpuWrapper},
     sync_world::MainEntity,
     view::{ExtractedView, NoIndirectDrawing, RetainedViewEntity},
-    Render, RenderApp, RenderDebugFlags, RenderSystems,
+    RenderDebugFlags,
 };
 
 use super::{BatchMeta, GetBatchData, GetFullBatchData};
@@ -49,32 +48,8 @@ pub struct BatchingPlugin {
 }
 
 impl Plugin for BatchingPlugin {
-    fn build(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
-            .insert_resource(IndirectParametersBuffers::new(
-                self.debug_flags
-                    .contains(RenderDebugFlags::ALLOW_COPIES_FROM_INDIRECT_PARAMETERS),
-            ))
-            .add_systems(
-                Render,
-                write_indirect_parameters_buffers.in_set(RenderSystems::PrepareResourcesFlush),
-            )
-            .add_systems(
-                Render,
-                clear_indirect_parameters_buffers.in_set(RenderSystems::ManageViews),
-            );
-    }
-
-    fn finish(&self, app: &mut App) {
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app.init_resource::<GpuPreprocessingSupport>();
+    fn build(&self, _app: &mut App) {
+        // The indirect-parameter buffers and GPU preprocessing support only reached the RenderApp.
     }
 }
 
@@ -2084,86 +2059,6 @@ pub fn write_batched_instance_buffers<GFBD>(
                     }
                 });
             }
-        }
-    });
-}
-
-pub fn clear_indirect_parameters_buffers(
-    mut indirect_parameters_buffers: ResMut<IndirectParametersBuffers>,
-) {
-    for phase_indirect_parameters_buffers in indirect_parameters_buffers.values_mut() {
-        phase_indirect_parameters_buffers.clear();
-    }
-}
-
-pub fn write_indirect_parameters_buffers(
-    render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
-    mut indirect_parameters_buffers: ResMut<IndirectParametersBuffers>,
-) {
-    let render_device = &*render_device;
-    let render_queue = &*render_queue;
-    ComputeTaskPool::get().scope(|scope| {
-        for phase_indirect_parameters_buffers in indirect_parameters_buffers.values_mut() {
-            scope.spawn(async {
-                let _span = tracing::info_span!("indexed_data").entered();
-                phase_indirect_parameters_buffers
-                    .indexed
-                    .data
-                    .write_buffer(render_device);
-            });
-            scope.spawn(async {
-                let _span = tracing::info_span!("non_indexed_data").entered();
-                phase_indirect_parameters_buffers
-                    .non_indexed
-                    .data
-                    .write_buffer(render_device);
-            });
-
-            scope.spawn(async {
-                let _span = tracing::info_span!("indexed_cpu_metadata").entered();
-                phase_indirect_parameters_buffers
-                    .indexed
-                    .cpu_metadata
-                    .write_buffer(render_device, render_queue);
-            });
-            scope.spawn(async {
-                let _span = tracing::info_span!("non_indexed_cpu_metadata").entered();
-                phase_indirect_parameters_buffers
-                    .non_indexed
-                    .cpu_metadata
-                    .write_buffer(render_device, render_queue);
-            });
-
-            scope.spawn(async {
-                let _span = tracing::info_span!("non_indexed_gpu_metadata").entered();
-                phase_indirect_parameters_buffers
-                    .non_indexed
-                    .gpu_metadata
-                    .write_buffer(render_device);
-            });
-            scope.spawn(async {
-                let _span = tracing::info_span!("indexed_gpu_metadata").entered();
-                phase_indirect_parameters_buffers
-                    .indexed
-                    .gpu_metadata
-                    .write_buffer(render_device);
-            });
-
-            scope.spawn(async {
-                let _span = tracing::info_span!("indexed_batch_sets").entered();
-                phase_indirect_parameters_buffers
-                    .indexed
-                    .batch_sets
-                    .write_buffer(render_device, render_queue);
-            });
-            scope.spawn(async {
-                let _span = tracing::info_span!("non_indexed_batch_sets").entered();
-                phase_indirect_parameters_buffers
-                    .non_indexed
-                    .batch_sets
-                    .write_buffer(render_device, render_queue);
-            });
         }
     });
 }

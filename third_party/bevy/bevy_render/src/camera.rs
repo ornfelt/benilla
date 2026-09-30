@@ -1,24 +1,18 @@
 use crate::{
-    batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport},
     extract_component::{ExtractComponent, ExtractComponentPlugin},
     extract_resource::{ExtractResource, ExtractResourcePlugin},
     render_asset::RenderAssets,
-    render_graph::{CameraDriverNode, InternedRenderSubGraph, RenderGraph, RenderSubGraph},
+    render_graph::{InternedRenderSubGraph, RenderSubGraph},
     render_resource::TextureView,
-    sync_world::{RenderEntity, SyncToRenderWorld},
+    sync_world::SyncToRenderWorld,
     texture::{GpuImage, ManualTextureViews},
-    view::{
-        ColorGrading, ExtractedView, ExtractedWindows, Hdr, Msaa, NoIndirectDrawing,
-        RenderVisibleEntities, RetainedViewEntity, ViewUniformOffset,
-    },
-    Extract, ExtractSchedule, Render, RenderApp, RenderSystems,
+    view::{ColorGrading, ExtractedWindows, Msaa},
 };
 
 use bevy_app::{App, Plugin, PostStartup, PostUpdate};
 use bevy_asset::{AssetEvent, AssetEventSystems, AssetId, Assets};
 use bevy_camera::{
-    primitives::Frustum,
-    visibility::{self, RenderLayers, VisibleEntities},
+    visibility::{self},
     Camera, Camera2d, Camera3d, CameraMainTextureUsages, CameraOutputMode, CameraUpdateSystems,
     ClearColor, ClearColorConfig, Exposure, ManualTextureViewHandle, MsaaWriteback,
     NormalizedRenderTarget, Projection, RenderTarget, RenderTargetInfo, Viewport,
@@ -32,18 +26,16 @@ use bevy_ecs::{
     lifecycle::HookContext,
     message::MessageReader,
     prelude::With,
-    query::{Has, QueryItem},
+    query::QueryItem,
     reflect::ReflectComponent,
-    resource::Resource,
     schedule::IntoScheduleConfigs,
-    system::{Commands, Query, Res, ResMut},
+    system::{Query, Res},
     world::DeferredWorld,
 };
 use bevy_image::Image;
-use bevy_math::{uvec2, vec2, Mat4, URect, UVec2, UVec4, Vec2};
-use bevy_platform::collections::{HashMap, HashSet};
+use bevy_math::{uvec2, vec2, Mat4, UVec2, Vec2};
+use bevy_platform::collections::HashSet;
 use bevy_reflect::prelude::*;
-use bevy_transform::components::GlobalTransform;
 use bevy_window::{PrimaryWindow, Window, WindowCreated, WindowResized, WindowScaleFactorChanged};
 use tracing::warn;
 use wgpu::TextureFormat;
@@ -72,16 +64,6 @@ impl Plugin for CameraPlugin {
         app.world_mut()
             .register_component_hooks::<Camera>()
             .on_add(warn_on_no_render_graph);
-
-        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app
-                .init_resource::<SortedCameras>()
-                .add_systems(ExtractSchedule, extract_cameras)
-                .add_systems(Render, sort_cameras.in_set(RenderSystems::ManageViews));
-            let camera_driver_node = CameraDriverNode::new(render_app.world_mut());
-            let mut render_graph = render_app.world_mut().resource_mut::<RenderGraph>();
-            render_graph.add_node(crate::graph::CameraDriverLabel, camera_driver_node);
-        }
     }
 }
 
@@ -414,253 +396,6 @@ pub struct ExtractedCamera {
     pub sorted_camera_index_for_target: usize,
     pub exposure: f32,
     pub hdr: bool,
-}
-
-pub fn extract_cameras(
-    mut commands: Commands,
-    query: Extract<
-        Query<(
-            Entity,
-            RenderEntity,
-            &Camera,
-            &RenderTarget,
-            &CameraRenderGraph,
-            &GlobalTransform,
-            &VisibleEntities,
-            &Frustum,
-            (
-                Has<Hdr>,
-                Option<&ColorGrading>,
-                Option<&Exposure>,
-                Option<&TemporalJitter>,
-                Option<&MipBias>,
-                Option<&RenderLayers>,
-                Option<&Projection>,
-                Has<NoIndirectDrawing>,
-            ),
-        )>,
-    >,
-    primary_window: Extract<Query<Entity, With<PrimaryWindow>>>,
-    gpu_preprocessing_support: Res<GpuPreprocessingSupport>,
-    mapper: Extract<Query<&RenderEntity>>,
-) {
-    let primary_window = primary_window.iter().next();
-    type ExtractedCameraComponents = (
-        ExtractedCamera,
-        ExtractedView,
-        RenderVisibleEntities,
-        TemporalJitter,
-        MipBias,
-        RenderLayers,
-        Projection,
-        NoIndirectDrawing,
-        ViewUniformOffset,
-    );
-    for (
-        main_entity,
-        render_entity,
-        camera,
-        render_target,
-        camera_render_graph,
-        transform,
-        visible_entities,
-        frustum,
-        (
-            hdr,
-            color_grading,
-            exposure,
-            temporal_jitter,
-            mip_bias,
-            render_layers,
-            projection,
-            no_indirect_drawing,
-        ),
-    ) in query.iter()
-    {
-        if !camera.is_active {
-            commands
-                .entity(render_entity)
-                .remove::<ExtractedCameraComponents>();
-            continue;
-        }
-
-        let color_grading = color_grading.unwrap_or(&ColorGrading::default()).clone();
-
-        if let (
-            Some(URect {
-                min: viewport_origin,
-                ..
-            }),
-            Some(viewport_size),
-            Some(target_size),
-        ) = (
-            camera.physical_viewport_rect(),
-            camera.physical_viewport_size(),
-            camera.physical_target_size(),
-        ) {
-            if target_size.x == 0 || target_size.y == 0 {
-                commands
-                    .entity(render_entity)
-                    .remove::<ExtractedCameraComponents>();
-                continue;
-            }
-
-            let render_visible_entities = RenderVisibleEntities {
-                entities: visible_entities
-                    .entities
-                    .iter()
-                    .map(|(type_id, entities)| {
-                        let entities = entities
-                            .iter()
-                            .map(|entity| {
-                                let render_entity = mapper
-                                    .get(*entity)
-                                    .cloned()
-                                    .map(|entity| entity.id())
-                                    .unwrap_or(Entity::PLACEHOLDER);
-                                (render_entity, (*entity).into())
-                            })
-                            .collect();
-                        (*type_id, entities)
-                    })
-                    .collect(),
-            };
-
-            let mut commands = commands.entity(render_entity);
-            commands.insert((
-                ExtractedCamera {
-                    target: render_target.normalize(primary_window),
-                    viewport: camera.viewport.clone(),
-                    physical_viewport_size: Some(viewport_size),
-                    physical_target_size: Some(target_size),
-                    render_graph: camera_render_graph.0,
-                    order: camera.order,
-                    output_mode: camera.output_mode,
-                    msaa_writeback: camera.msaa_writeback,
-                    clear_color: camera.clear_color,
-                    // this will be set in sort_cameras
-                    sorted_camera_index_for_target: 0,
-                    exposure: exposure
-                        .map(Exposure::exposure)
-                        .unwrap_or_else(|| Exposure::default().exposure()),
-                    hdr,
-                },
-                ExtractedView {
-                    retained_view_entity: RetainedViewEntity::new(main_entity.into(), None, 0),
-                    clip_from_view: camera.clip_from_view(),
-                    world_from_view: *transform,
-                    clip_from_world: None,
-                    hdr,
-                    viewport: UVec4::new(
-                        viewport_origin.x,
-                        viewport_origin.y,
-                        viewport_size.x,
-                        viewport_size.y,
-                    ),
-                    color_grading,
-                    invert_culling: camera.invert_culling,
-                },
-                render_visible_entities,
-                *frustum,
-            ));
-
-            if let Some(temporal_jitter) = temporal_jitter {
-                commands.insert(temporal_jitter.clone());
-            } else {
-                commands.remove::<TemporalJitter>();
-            }
-
-            if let Some(mip_bias) = mip_bias {
-                commands.insert(mip_bias.clone());
-            } else {
-                commands.remove::<MipBias>();
-            }
-
-            if let Some(render_layers) = render_layers {
-                commands.insert(render_layers.clone());
-            } else {
-                commands.remove::<RenderLayers>();
-            }
-
-            if let Some(projection) = projection {
-                commands.insert(projection.clone());
-            } else {
-                commands.remove::<Projection>();
-            }
-
-            if no_indirect_drawing
-                || !matches!(
-                    gpu_preprocessing_support.max_supported_mode,
-                    GpuPreprocessingMode::Culling
-                )
-            {
-                commands.insert(NoIndirectDrawing);
-            } else {
-                commands.remove::<NoIndirectDrawing>();
-            }
-        };
-    }
-}
-
-/// Cameras sorted by their order field. This is updated in the [`sort_cameras`] system.
-#[derive(Resource, Default)]
-pub struct SortedCameras(pub Vec<SortedCamera>);
-
-pub struct SortedCamera {
-    pub entity: Entity,
-    pub order: isize,
-    pub target: Option<NormalizedRenderTarget>,
-    pub hdr: bool,
-}
-
-pub fn sort_cameras(
-    mut sorted_cameras: ResMut<SortedCameras>,
-    mut cameras: Query<(Entity, &mut ExtractedCamera)>,
-) {
-    sorted_cameras.0.clear();
-    for (entity, camera) in cameras.iter() {
-        sorted_cameras.0.push(SortedCamera {
-            entity,
-            order: camera.order,
-            target: camera.target.clone(),
-            hdr: camera.hdr,
-        });
-    }
-    // sort by order and ensure within an order, RenderTargets of the same type are packed together
-    sorted_cameras
-        .0
-        .sort_by(|c1, c2| (c1.order, &c1.target).cmp(&(c2.order, &c2.target)));
-    let mut previous_order_target = None;
-    let mut ambiguities = <HashSet<_>>::default();
-    let mut target_counts = <HashMap<_, _>>::default();
-    for sorted_camera in &mut sorted_cameras.0 {
-        let new_order_target = (sorted_camera.order, sorted_camera.target.clone());
-        if let Some(previous_order_target) = previous_order_target
-            && previous_order_target == new_order_target
-        {
-            ambiguities.insert(new_order_target.clone());
-        }
-        if let Some(target) = &sorted_camera.target {
-            let count = target_counts
-                .entry((target.clone(), sorted_camera.hdr))
-                .or_insert(0usize);
-            let (_, mut camera) = cameras.get_mut(sorted_camera.entity).unwrap();
-            camera.sorted_camera_index_for_target = *count;
-            *count += 1;
-        }
-        previous_order_target = Some(new_order_target);
-    }
-
-    if !ambiguities.is_empty() {
-        warn!(
-            "Camera order ambiguities detected for active cameras with the following priorities: {:?}. \
-            To fix this, ensure there is exactly one Camera entity spawned with a given order for a given RenderTarget. \
-            Ambiguities should be resolved because either (1) multiple active cameras were spawned accidentally, which will \
-            result in rendering multiple instances of the scene or (2) for cases where multiple active cameras is intentional, \
-            ambiguities could result in unpredictable render results.",
-            ambiguities
-        );
-    }
 }
 
 /// A subpixel offset to jitter a perspective camera's frustum by.

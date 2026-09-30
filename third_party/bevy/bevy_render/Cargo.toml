@@ -59,9 +59,6 @@ webgpu = ["wgpu/webgpu"]
 name = "bevy_render"
 path = "src/lib.rs"
 
-[dependencies.async-channel]
-version = "2.3.0"
-
 [dependencies.bevy_app]
 version = "0.18.0"
 
@@ -117,9 +114,6 @@ version = "0.18.0"
 version = "0.18.0"
 
 [dependencies.bevy_tasks]
-version = "0.18.0"
-
-[dependencies.bevy_time]
 version = "0.18.0"
 
 [dependencies.bevy_transform]
