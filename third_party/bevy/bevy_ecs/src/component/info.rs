@@ -1,8 +1,6 @@
 use alloc::{borrow::Cow, vec::Vec};
 use bevy_platform::{hash::FixedHasher, sync::PoisonError};
 use bevy_ptr::OwningPtr;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
 use bevy_utils::{prelude::DebugName, TypeIdMap};
 use core::{
     alloc::Layout,
@@ -171,11 +169,6 @@ impl ComponentInfo {
 /// from a `World` using [`World::component_id()`](crate::world::World::component_id) or via [`Components::component_id()`].
 /// Access to the `ComponentId` for a [`Resource`] is available via [`Components::resource_id()`].
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, Hash, PartialEq, Clone)
-)]
 pub struct ComponentId(pub(super) usize);
 
 impl ComponentId {

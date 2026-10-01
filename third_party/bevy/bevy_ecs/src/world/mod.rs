@@ -9,8 +9,6 @@ mod identifier;
 mod spawn_batch;
 
 pub mod error;
-#[cfg(feature = "bevy_reflect")]
-pub mod reflect;
 pub mod unsafe_world_cell;
 
 pub use crate::{

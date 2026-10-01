@@ -25,9 +25,6 @@ use crate::{
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-#[cfg(feature = "bevy_reflect")]
-use crate::prelude::ReflectComponent;
-
 /// An [`Observer`] system. Add this [`Component`] to an [`Entity`] to turn it into an "observer".
 ///
 /// Observers watch for a "trigger" of a specific [`Event`]. An event can be triggered on the [`World`]
@@ -396,8 +393,6 @@ fn hook_on_add<E: Event, B: Bundle, S: ObserverSystem<E, B>>(
 
 /// Tracks a list of entity observers for the [`Entity`] [`ObservedBy`] is added to.
 #[derive(Default, Debug)]
-#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
-#[cfg_attr(feature = "bevy_reflect", reflect(Component, Debug))]
 pub struct ObservedBy(pub(crate) Vec<Entity>);
 
 impl Component for ObservedBy {

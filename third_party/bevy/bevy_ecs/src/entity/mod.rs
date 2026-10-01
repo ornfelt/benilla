@@ -142,9 +142,6 @@ use serde::{Deserialize, Serialize};
 /// but improper use can cause this to identify a different entity than intended.
 /// Use with caution.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
-#[cfg_attr(feature = "bevy_reflect", reflect(opaque))]
-#[cfg_attr(feature = "bevy_reflect", reflect(Hash, PartialEq, Debug, Clone))]
 #[repr(transparent)]
 pub struct EntityIndex(NonMaxU32);
 
@@ -243,9 +240,6 @@ impl SparseSetIndex for EntityIndex {
 /// This can cause some unintended side effects.
 /// See [`Entity`] docs for practical concerns and how to minimize any risks.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Display)]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
-#[cfg_attr(feature = "bevy_reflect", reflect(opaque))]
-#[cfg_attr(feature = "bevy_reflect", reflect(Hash, PartialEq, Debug, Clone))]
 #[repr(transparent)]
 pub struct EntityGeneration(u32);
 

@@ -540,7 +540,8 @@ the same repository's.
   (`bevy_animation` asked), `smol_str` (`bevy_text`), `uuid` (`bevy_asset`), which turns off
   `petgraph`'s `serde-1` and `smol_str`'s `serde` for the build (serde impls nothing names).
   `smallvec` and `indexmap` leave `bevy_reflect`'s defaults and `bevy_internal`'s request but stay
-  on: `bevy_ecs`'s own derives (`DefaultQueryFilters`, `EntityIndexSet`) still need them.
+  on: `bevy_ecs`'s own derives (`DefaultQueryFilters`, `EntityIndexSet`) still need them. (Those two derives went with
+  bevy_ecs's reflection, below.)
 - **`bevy_reflect`'s serializers and path access**, which nothing outside the crate calls
   (`bevy_scene`'s RON format, their one user, went earlier): the reflection (de)serializers
   (`serde::ser` and `serde::de` with `ReflectSerializer`, `TypedReflectSerializer`,
@@ -715,6 +716,30 @@ the same repository's.
   terms), `ComponentRelationshipAccessor`'s unread fields (the `Component` derive writes them),
   `DynSystemParam`'s downcasts (a test calls them) and the reflect type data's unread function
   pointers (bevy_ecs's reflection goes in its own step).
+- **`bevy_ecs`'s reflection**, as far as `bevy_scene` and the kept tests allow (nothing outside
+  them reads it: benilla names only `TypePath`, and no registry is filled since automatic
+  registration went). Gone: `ReflectCommandExt` with `EntityWorldMut`'s `insert_reflect`/
+  `remove_reflect` family, `ReflectBundle`, `ReflectEvent`, `World::get_reflect(_mut)` with
+  `GetComponentReflectError` (their modules whole, with their tests); the entity cloner's reflect
+  path (`ComponentCloneBehavior::reflect`, `component_clone_via_reflect`, `SourceComponent::
+  read_reflect`, `ComponentCloneCtx`'s registry with `type_registry` and
+  `write_target_component_reflect`, and the cloner's registry lookup), so the default clone
+  handler is stock Bevy's without the feature, `component_clone_ignore` (only tests clone
+  entities; the move tests replace the handler, and every other cloned test component is
+  `Clone`); the relationship clone specializations' two `Reflect` impls (their traits stay, empty,
+  because the `Component` derive names them; `ChildOf` takes the `Clone` impl and `Children` the
+  hierarchy one, as before); `ReflectComponentFns` down to `apply_or_insert_mapped`, `reflect` and
+  `register_component` and `ReflectResourceFns` to `apply_or_insert` and `copy` (what
+  `bevy_scene` calls), with their wrapper methods; the `Reflect` derives (and `reflect(..)` type
+  data) of `Name`, `Disabled`, `DefaultQueryFilters`, `Children`, `EntityIndex`,
+  `EntityGeneration`, `EntityHash`, the entity maps and sets, `ComponentId`, `Tick`,
+  `ComponentTicks`, `MaybeLocation`, `MessageId`, `MessageInstance`, `Messages`,
+  `MessageSequence`, the five lifecycle events, `RemovedComponentEntity` and `ObservedBy`;
+  bevy_ecs's `filtered_resource_reflect` test and the `EntityHashMap: Reflect` assertion. Kept:
+  `AppTypeRegistry`, `ReflectComponent`, `ReflectResource`, `ReflectMapEntities`,
+  `ReflectFromWorld` and `from_reflect_with_fallback` (`bevy_scene`'s spawn path), and the
+  `Reflect` derives of `Entity` and `ChildOf` (`bevy_scene`'s kept tests reflect them). Types
+  only: no plugin's build changed (only tests call `register_type`).
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

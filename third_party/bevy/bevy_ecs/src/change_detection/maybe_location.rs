@@ -1,5 +1,3 @@
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
 use core::{marker::PhantomData, ops::DerefMut, panic::Location};
 
 /// A value that contains a `T` if the `track_location` feature is enabled,
@@ -13,10 +11,8 @@ use core::{marker::PhantomData, ops::DerefMut, panic::Location};
 ///
 /// This allows code to be written that will be checked by the compiler even when the feature is disabled,
 /// but that will be entirely removed during compilation.
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MaybeLocation<T: ?Sized = &'static Location<'static>> {
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     marker: PhantomData<T>,
 }
 

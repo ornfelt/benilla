@@ -8,13 +8,10 @@ use core::{
 };
 
 use bevy_platform::collections::hash_map::{self, HashMap};
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
 
 use super::{Entity, EntityEquivalent, EntityHash};
 
 /// A [`HashMap`] pre-configured to use [`EntityHash`] hashing.
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 #[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityHashMap<V>(pub(crate) HashMap<Entity, V, EntityHash>);
@@ -126,12 +123,8 @@ impl<V> IntoIterator for EntityHashMap<V> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_reflect::Reflect;
     use static_assertions::assert_impl_all;
 
     // Check that the HashMaps are Clone if the key/values are Clone
     assert_impl_all!(EntityHashMap::<usize>: Clone);
-    // EntityHashMap should implement Reflect
-    #[cfg(feature = "bevy_reflect")]
-    assert_impl_all!(EntityHashMap::<i32>: Reflect);
 }
