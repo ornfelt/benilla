@@ -148,13 +148,6 @@ impl TransformInterpolationPlugin {
 
 impl Plugin for TransformInterpolationPlugin {
     fn build(&self, app: &mut App) {
-        // Register components.
-        app.register_type::<(
-            TranslationInterpolation,
-            RotationInterpolation,
-            ScaleInterpolation,
-        )>();
-
         app.add_systems(
             FixedFirst,
             (

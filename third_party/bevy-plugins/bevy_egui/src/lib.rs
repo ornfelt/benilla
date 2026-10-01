@@ -871,8 +871,6 @@ pub enum EguiPostUpdateSet {
 
 impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<EguiGlobalSettings>();
-        app.register_type::<EguiContextSettings>();
         app.init_resource::<EguiGlobalSettings>();
         app.init_resource::<ModifierKeysState>();
         app.init_resource::<EguiWantsInput>();

@@ -36,16 +36,6 @@ rustdoc-args = [
 all-features = true
 
 [features]
-auto_register = []
-auto_register_inventory = [
-    "auto_register",
-    "bevy_reflect_derive/auto_register_inventory",
-    "dep:inventory",
-]
-auto_register_static = [
-    "auto_register",
-    "bevy_reflect_derive/auto_register_static",
-]
 critical-section = ["bevy_platform/critical-section"]
 debug = ["debug_stack"]
 debug_stack = ["std"]
@@ -54,7 +44,6 @@ default = [
     "smallvec",
     "indexmap",
     "debug",
-    "auto_register_inventory",
 ]
 functions = ["bevy_reflect_derive/functions"]
 glam = ["dep:glam"]
@@ -146,10 +135,6 @@ default-features = false
 version = "2.5.0"
 optional = true
 default-features = false
-
-[dependencies.inventory]
-version = "0.3"
-optional = true
 
 [dependencies.petgraph]
 version = "0.8"

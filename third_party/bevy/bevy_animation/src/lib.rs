@@ -852,8 +852,6 @@ impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<AnimationClip>()
             .init_asset::<AnimationGraph>()
-            .register_asset_reflect::<AnimationClip>()
-            .register_asset_reflect::<AnimationGraph>()
             .init_resource::<ThreadedAnimationGraphs>()
             .add_systems(
                 PostUpdate,

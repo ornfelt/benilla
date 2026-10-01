@@ -185,11 +185,7 @@ multi_threaded = [
     "bevy_tasks/multi_threaded",
 ]
 png = ["bevy_image/png"]
-reflect_auto_register = [
-    "bevy_reflect/auto_register_inventory",
-    "bevy_app/reflect_auto_register",
-    "bevy_ecs/reflect_auto_register",
-]
+reflect_auto_register = []
 serialize = [
     "bevy_color?/serialize",
     "bevy_ecs/serialize",

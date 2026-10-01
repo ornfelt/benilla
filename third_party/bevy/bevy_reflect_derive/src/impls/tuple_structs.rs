@@ -46,11 +46,6 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> proc_macro2::
         .generics()
         .split_for_impl();
 
-    #[cfg(not(feature = "auto_register"))]
-    let auto_register = None::<proc_macro2::TokenStream>;
-    #[cfg(feature = "auto_register")]
-    let auto_register = crate::impls::reflect_auto_registration(reflect_struct.meta());
-
     let where_reflect_clause = where_clause_options.extend_where_clause(where_clause);
 
     quote! {
@@ -64,7 +59,6 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> proc_macro2::
 
         #function_impls
 
-        #auto_register
 
         impl #impl_generics #bevy_reflect_path::TupleStruct for #struct_path #ty_generics #where_reflect_clause {
             fn field(&self, index: usize) -> #FQOption<&dyn #bevy_reflect_path::PartialReflect> {

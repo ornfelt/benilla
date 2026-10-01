@@ -283,13 +283,6 @@ impl<LinVel: VelocitySource, AngVel: VelocitySource> Plugin
     for TransformExtrapolationPlugin<LinVel, AngVel>
 {
     fn build(&self, app: &mut App) {
-        //Register components.
-        app.register_type::<(
-            TransformExtrapolation,
-            TranslationExtrapolation,
-            RotationExtrapolation,
-        )>();
-
         // Reset the transform to the start of the extrapolation at the beginning of the fixed timestep
         // to match the true position from the end of the previous fixed tick.
         app.add_systems(

@@ -61,14 +61,6 @@ impl Plugin for TimePlugin {
             .init_resource::<Time<Fixed>>()
             .init_resource::<TimeUpdateStrategy>();
 
-        #[cfg(feature = "bevy_reflect")]
-        {
-            app.register_type::<Time>()
-                .register_type::<Time<Real>>()
-                .register_type::<Time<Virtual>>()
-                .register_type::<Time<Fixed>>();
-        }
-
         app.add_systems(
             First,
             time_system

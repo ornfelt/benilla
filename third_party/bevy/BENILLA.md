@@ -466,6 +466,21 @@ the same repository's.
   the `Neighbors`, `Edges`, `EdgesBetween` and `EdgeReference` iterators, `Edge::source`/`target`;
   `Friction`'s and `Restitution`'s `From<Scalar>`; the unused `ClosestPoints` and
   `PointProjection`.
+- **Filling the type registry.** Nothing on benilla's path reads `AppTypeRegistry` (its readers
+  are scene spawning, entity cloning, `World`'s and `EntityCommands`' reflect accessors and
+  `ReflectAsset`/`ReflectHandle`, none of which runs), so what only filled it goes: automatic
+  registration (`bevy_reflect`'s `auto_register`, `auto_register_inventory` and
+  `auto_register_static` features with the `inventory` dependency, the derive's per-type
+  `inventory::submit!` and static export with its `uuid` dependency, `#[reflect(no_auto_register)]`,
+  `load_type_registrations!`, `TypeRegistry::register_derived_types`,
+  `AppTypeRegistry::new_with_derived_types` and the hot-patch system that re-ran it; `bevy_app`'s
+  and `bevy_ecs`'s `reflect_auto_register` features; `bevy`'s and `bevy_internal`'s
+  `reflect_auto_register` stay as empty names, since the workspace manifest names it), and every
+  plugin's `register_type`, `register_type_data` and `register_asset_reflect` call (`bevy_time`,
+  `bevy_asset`'s `init_asset`, `bevy_mesh`, `bevy_animation`, `bevy_pbr`, `bevy_render`'s storage,
+  `bevy_sprite_render`, `bevy_ui_render`, avian3d, bevy_egui, `bevy_transform_interpolation`).
+  `App::default` inserts the registry as stock does without the feature: the primitive types and `String`. The
+  registration API stays; the derives stay for now.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
@@ -622,5 +637,5 @@ prints only the files left out above. `git log -- third_party/bevy/<crate>` is w
 since, and why. The first change: the four lint warnings rustc raises on Bevy's own code, which
 cargo capped while the crates came from the registry (a path crate's lints are not capped), are
 fixed without a change in meaning: `bevy_reflect`'s `pub use ::inventory` names the crate its
-glob import also reached, and `bevy_ui`'s three float literals passed to taffy's
+glob import also reached (gone since, with automatic registration), and `bevy_ui`'s three float literals passed to taffy's
 `length`/`percent` spell out the `f32` the compiler already fell back to.

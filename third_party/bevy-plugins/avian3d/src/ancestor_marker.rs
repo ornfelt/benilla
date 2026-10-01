@@ -19,9 +19,6 @@ impl<C: Component + TypePath> Default for AncestorMarkerPlugin<C> {
 
 impl<C: Component + TypePath> Plugin for AncestorMarkerPlugin<C> {
     fn build(&self, app: &mut App) {
-        // Register types with generics.
-        app.register_type::<AncestorMarker<C>>();
-
         // Add `AncestorMarker<C>` for the ancestors of colliders that are inserted as children,
         // until an ancestor that has other `AncestorMarker<C>` entities as children is encountered.
         app.add_observer(

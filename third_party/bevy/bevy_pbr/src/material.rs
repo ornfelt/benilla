@@ -231,7 +231,6 @@ where
         // `ErasedRenderAssetPlugin::<MeshMaterial3d<M>>` and the extraction systems only
         // reached the RenderApp.
         app.init_asset::<M>()
-            .register_type::<MeshMaterial3d<M>>()
             .init_resource::<EntitiesNeedingSpecialization<M>>()
             .add_systems(
                 PostUpdate,

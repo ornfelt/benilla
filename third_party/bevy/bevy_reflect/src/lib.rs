@@ -512,24 +512,6 @@
 //! which enables capturing the type stack when serializing or deserializing a type
 //! and displaying it in error messages.
 //!
-//! ## `auto_register_inventory`/`auto_register_static`
-//!
-//! | Default | Dependencies                      |
-//! | :-----: | :-------------------------------: |
-//! | ✅      | `bevy_reflect_derive/auto_register_inventory` |
-//! | ❌      | `bevy_reflect_derive/auto_register_static` |
-//!
-//! These features enable automatic registration of types that derive [`Reflect`].
-//!
-//! - `auto_register_inventory` uses `inventory` to collect types on supported platforms (Linux, macOS, iOS, FreeBSD, Android, Windows, WebAssembly).
-//! - `auto_register_static` uses platform-independent way to collect types, but requires additional setup and might
-//!   slow down compilation, so it should only be used on platforms not supported by `inventory`.
-//!   See documentation for [`load_type_registrations`] macro for more info
-//!
-//! When this feature is enabled `bevy_reflect` will automatically collects all types that derive [`Reflect`] on app startup,
-//! and [`TypeRegistry::register_derived_types`] can be used to register these types at any point in the program.
-//! However, this does not apply to types with generics: their desired monomorphized representations must be registered manually.
-//!
 //! [Reflection]: https://en.wikipedia.org/wiki/Reflective_programming
 //! [Bevy]: https://bevy.org/
 //! [limitations]: #limitations
@@ -739,68 +721,6 @@ pub mod __macro_exports {
     impl RegisterForReflection for DynamicArray {}
 
     impl RegisterForReflection for DynamicTuple {}
-
-    /// Automatic reflect registration implementation
-    #[cfg(feature = "auto_register")]
-    pub mod auto_register {
-        pub use super::*;
-
-        #[cfg(all(
-            not(feature = "auto_register_inventory"),
-            not(feature = "auto_register_static")
-        ))]
-        compile_error!(
-            "Choosing a backend is required for automatic reflect registration. Please enable either the \"auto_register_inventory\" or the \"auto_register_static\" feature."
-        );
-
-        /// inventory impl
-        #[cfg(all(
-            not(feature = "auto_register_static"),
-            feature = "auto_register_inventory"
-        ))]
-        mod __automatic_type_registration_impl {
-            use super::*;
-
-            pub use ::inventory;
-
-            /// Stores type registration functions
-            pub struct AutomaticReflectRegistrations(pub fn(&mut TypeRegistry));
-
-            /// Registers all collected types.
-            pub fn register_types(registry: &mut TypeRegistry) {
-                for registration_fn in inventory::iter::<AutomaticReflectRegistrations> {
-                    registration_fn.0(registry);
-                }
-            }
-
-            inventory::collect!(AutomaticReflectRegistrations);
-        }
-
-        /// static impl
-        #[cfg(feature = "auto_register_static")]
-        mod __automatic_type_registration_impl {
-            use super::*;
-            use alloc::vec::Vec;
-            use bevy_platform::sync::Mutex;
-
-            static REGISTRATION_FNS: Mutex<Vec<fn(&mut TypeRegistry)>> = Mutex::new(Vec::new());
-
-            /// Adds a new registration function for [`TypeRegistry`]
-            pub fn push_registration_fn(registration_fn: fn(&mut TypeRegistry)) {
-                REGISTRATION_FNS.lock().unwrap().push(registration_fn);
-            }
-
-            /// Registers all collected types.
-            pub fn register_types(registry: &mut TypeRegistry) {
-                for func in REGISTRATION_FNS.lock().unwrap().iter() {
-                    (func)(registry);
-                }
-            }
-        }
-
-        #[cfg(any(feature = "auto_register_static", feature = "auto_register_inventory"))]
-        pub use __automatic_type_registration_impl::*;
-    }
 }
 
 #[cfg(test)]
@@ -3532,106 +3452,6 @@ bevy_reflect::tests::Test {
         let deserialized = reflect_deserializer.deserialize(&mut deserializer).unwrap();
         let point = <Point as FromReflect>::from_reflect(&*deserialized).unwrap();
         assert_eq!(point, Point(external_crate::Vector2([1, 2])));
-    }
-
-    #[cfg(feature = "auto_register")]
-    mod auto_register_reflect {
-        use super::*;
-
-        #[test]
-        fn should_ignore_auto_reflect_registration() {
-            #[derive(Reflect)]
-            #[reflect(no_auto_register)]
-            struct NoAutomaticStruct {
-                a: usize,
-            }
-
-            let mut registry = TypeRegistry::default();
-            registry.register_derived_types();
-
-            assert!(!registry.contains(TypeId::of::<NoAutomaticStruct>()));
-        }
-
-        #[test]
-        fn should_auto_register_reflect_for_all_supported_types() {
-            // Struct
-            #[derive(Reflect)]
-            struct StructReflect {
-                a: usize,
-            }
-
-            // ZST struct
-            #[derive(Reflect)]
-            struct ZSTStructReflect;
-
-            // Tuple struct
-            #[derive(Reflect)]
-            struct TupleStructReflect(pub u32);
-
-            // Enum
-            #[derive(Reflect)]
-            enum EnumReflect {
-                A,
-                B,
-            }
-
-            // ZST enum
-            #[derive(Reflect)]
-            enum ZSTEnumReflect {}
-
-            // Opaque struct
-            #[derive(Reflect, Clone)]
-            #[reflect(opaque)]
-            struct OpaqueStructReflect {
-                _a: usize,
-            }
-
-            // ZST opaque struct
-            #[derive(Reflect, Clone)]
-            #[reflect(opaque)]
-            struct ZSTOpaqueStructReflect;
-
-            let mut registry = TypeRegistry::default();
-            registry.register_derived_types();
-
-            assert!(registry.contains(TypeId::of::<StructReflect>()));
-            assert!(registry.contains(TypeId::of::<ZSTStructReflect>()));
-            assert!(registry.contains(TypeId::of::<TupleStructReflect>()));
-            assert!(registry.contains(TypeId::of::<EnumReflect>()));
-            assert!(registry.contains(TypeId::of::<ZSTEnumReflect>()));
-            assert!(registry.contains(TypeId::of::<OpaqueStructReflect>()));
-            assert!(registry.contains(TypeId::of::<ZSTOpaqueStructReflect>()));
-        }
-
-        #[test]
-        fn type_data_dependency() {
-            #[derive(Reflect)]
-            #[reflect(A)]
-            struct X;
-
-            #[derive(Clone)]
-            struct ReflectA;
-
-            impl<T> FromType<T> for ReflectA {
-                fn from_type() -> Self {
-                    ReflectA
-                }
-
-                fn insert_dependencies(type_registration: &mut TypeRegistration) {
-                    type_registration.insert(ReflectB);
-                }
-            }
-
-            #[derive(Clone)]
-            struct ReflectB;
-
-            let mut registry = TypeRegistry::new();
-            registry.register::<X>();
-
-            let registration = registry.get(TypeId::of::<X>()).unwrap();
-            assert!(registration.data::<ReflectA>().is_some());
-            assert!(registration.data::<ReflectB>().is_some());
-        }
     }
 
     #[cfg(feature = "glam")]

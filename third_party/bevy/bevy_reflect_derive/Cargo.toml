@@ -35,12 +35,6 @@ rustdoc-args = [
 all-features = true
 
 [features]
-auto_register = []
-auto_register_inventory = ["auto_register"]
-auto_register_static = [
-    "auto_register",
-    "dep:uuid",
-]
 default = []
 functions = []
 reflect_documentation = []
@@ -68,17 +62,6 @@ features = [
     "full",
     "extra-traits",
 ]
-
-[dependencies.uuid]
-version = "1.13.1"
-features = ["v4"]
-optional = true
-default-features = false
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.uuid]
-version = "1.13.1"
-features = ["js"]
-default-features = false
 
 [lints.clippy]
 alloc_instead_of_core = "warn"

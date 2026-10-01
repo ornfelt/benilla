@@ -577,7 +577,6 @@ impl AssetApp for App {
             .allow_ambiguous_resource::<Assets<A>>()
             .add_message::<AssetEvent<A>>()
             .add_message::<AssetLoadFailedEvent<A>>()
-            .register_type::<Handle<A>>()
             .add_systems(
                 PostUpdate,
                 Assets::<A>::asset_events

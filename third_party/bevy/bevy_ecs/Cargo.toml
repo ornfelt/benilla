@@ -42,7 +42,6 @@ rustdoc-args = [
     "--generate-link-to-definition",
 ]
 all-features = true
-features = ["bevy_reflect/auto_register_static"]
 
 [features]
 async_executor = [
@@ -71,10 +70,6 @@ hotpatching = ["dep:subsecond"]
 multi_threaded = [
     "bevy_tasks/multi_threaded",
     "dep:arrayvec",
-]
-reflect_auto_register = [
-    "bevy_reflect",
-    "bevy_reflect/auto_register",
 ]
 reflect_functions = [
     "bevy_reflect",

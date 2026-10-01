@@ -110,13 +110,7 @@ impl Default for App {
         app.sub_apps.main.update_schedule = Some(Main.intern());
 
         #[cfg(feature = "bevy_reflect")]
-        {
-            #[cfg(not(feature = "reflect_auto_register"))]
-            app.init_resource::<AppTypeRegistry>();
-
-            #[cfg(feature = "reflect_auto_register")]
-            app.insert_resource(AppTypeRegistry::new_with_derived_types());
-        }
+        app.init_resource::<AppTypeRegistry>();
 
         #[cfg(feature = "reflect_functions")]
         app.init_resource::<AppFunctionRegistry>();

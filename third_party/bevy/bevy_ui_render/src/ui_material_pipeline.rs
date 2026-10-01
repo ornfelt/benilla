@@ -1,4 +1,4 @@
-use crate::ui_material::{MaterialNode, UiMaterial};
+use crate::ui_material::UiMaterial;
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;
 use core::{hash::Hash, marker::PhantomData};
@@ -18,6 +18,6 @@ where
     M::Data: PartialEq + Eq + Hash + Clone,
 {
     fn build(&self, app: &mut App) {
-        app.init_asset::<M>().register_type::<MaterialNode<M>>();
+        app.init_asset::<M>();
     }
 }

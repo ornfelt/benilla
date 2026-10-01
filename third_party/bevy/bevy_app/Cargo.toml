@@ -33,7 +33,6 @@ rustdoc-args = [
     "--generate-link-to-definition",
 ]
 all-features = true
-features = ["bevy_reflect/auto_register_static"]
 
 [features]
 bevy_debug_stepping = []
@@ -57,11 +56,6 @@ hotpatching = [
     "bevy_ecs/hotpatching",
     "dep:dioxus-devtools",
     "dep:crossbeam-channel",
-]
-reflect_auto_register = [
-    "bevy_reflect",
-    "bevy_reflect/auto_register",
-    "bevy_ecs/reflect_auto_register",
 ]
 reflect_functions = [
     "bevy_reflect",

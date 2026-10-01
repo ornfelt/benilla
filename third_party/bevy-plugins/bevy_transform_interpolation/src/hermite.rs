@@ -220,13 +220,6 @@ impl<LinVel: VelocitySource, AngVel: VelocitySource> Plugin
     for TransformHermiteEasingPlugin<LinVel, AngVel>
 {
     fn build(&self, app: &mut App) {
-        // Register components.
-        app.register_type::<(
-            TransformHermiteEasing,
-            TranslationHermiteEasing,
-            RotationHermiteEasing,
-        )>();
-
         // Mark entities with Hermite interpolation as having nonlinear easing to disable linear easing.
         let _ = app
             .try_register_required_components::<TranslationHermiteEasing, NonlinearTranslationEasing>();

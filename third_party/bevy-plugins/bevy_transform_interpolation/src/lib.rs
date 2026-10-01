@@ -177,16 +177,6 @@ pub struct TransformEasingPlugin;
 
 impl Plugin for TransformEasingPlugin {
     fn build(&self, app: &mut App) {
-        // Register easing components.
-        app.register_type::<(
-            TranslationEasingState,
-            RotationEasingState,
-            ScaleEasingState,
-            NoTranslationEasing,
-            NoRotationEasing,
-            NoScaleEasing,
-        )>();
-
         app.init_resource::<LastEasingTick>();
 
         // Reset easing states and update start values at the start of the fixed timestep.

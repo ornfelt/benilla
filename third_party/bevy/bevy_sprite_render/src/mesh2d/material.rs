@@ -237,7 +237,6 @@ where
     fn build(&self, app: &mut App) {
         app.init_asset::<M>()
             .init_resource::<EntitiesNeedingSpecialization<M>>()
-            .register_type::<MeshMaterial2d<M>>()
             .add_systems(
                 PostUpdate,
                 check_entities_needing_specialization::<M>.after(AssetEventSystems),

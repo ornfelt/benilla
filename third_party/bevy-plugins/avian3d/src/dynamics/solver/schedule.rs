@@ -16,9 +16,6 @@ pub struct SolverSchedulePlugin;
 
 impl Plugin for SolverSchedulePlugin {
     fn build(&self, app: &mut App) {
-        // Register types with generics.
-        app.register_type::<Time<Substeps>>();
-
         // Initialize resources.
         app.insert_resource(Time::new_with(Substeps))
             .init_resource::<SubstepCount>();

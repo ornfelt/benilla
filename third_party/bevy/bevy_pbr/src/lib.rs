@@ -117,8 +117,7 @@ impl Plugin for PbrPlugin {
         // The shader libraries, the mesh, light probe, lightmap and GPU preprocessing plugins,
         // the render-world systems, observers and shadow passes, and `finish` only reached the
         // RenderApp, which gfx does not have.
-        app.register_asset_reflect::<StandardMaterial>()
-            .init_resource::<DefaultOpaqueRendererMethod>()
+        app.init_resource::<DefaultOpaqueRendererMethod>()
             .add_plugins((
                 MaterialsPlugin {
                     debug_flags: self.debug_flags,
