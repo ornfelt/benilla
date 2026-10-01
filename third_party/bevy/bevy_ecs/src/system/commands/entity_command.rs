@@ -4,26 +4,18 @@
 //! It also contains functions that return closures for use with
 //! [`EntityCommands`](crate::system::EntityCommands).
 
-use alloc::{string::ToString, vec::Vec};
-#[cfg(not(feature = "trace"))]
-use log::info;
-#[cfg(feature = "trace")]
-use tracing::info;
-
 use crate::{
     bundle::{Bundle, InsertMode},
     change_detection::MaybeLocation,
     component::{Component, ComponentId},
-    entity::{Entity, EntityClonerBuilder, OptIn, OptOut},
     event::EntityEvent,
-    name::Name,
     relationship::RelationshipHookMode,
     system::IntoObserverSystem,
     world::{error::EntityMutableFetchError, EntityWorldMut, FromWorld},
 };
-use bevy_ptr::{move_as_ptr, OwningPtr};
+use bevy_ptr::move_as_ptr;
 
-/// A command which gets executed for a given [`Entity`].
+/// A command which gets executed for a given [`Entity`](crate::entity::Entity).
 ///
 /// Should be used with [`EntityCommands::queue`](crate::system::EntityCommands::queue).
 ///
@@ -83,7 +75,7 @@ use bevy_ptr::{move_as_ptr, OwningPtr};
 /// }
 /// ```
 pub trait EntityCommand<Out = ()>: Send + 'static {
-    /// Executes this command for the given [`Entity`].
+    /// Executes this command for the given [`Entity`](crate::entity::Entity).
     fn apply(self, entity: EntityWorldMut) -> Out;
 }
 
@@ -114,35 +106,6 @@ pub fn insert(bundle: impl Bundle, mode: InsertMode) -> impl EntityCommand {
     move |mut entity: EntityWorldMut| {
         move_as_ptr!(bundle);
         entity.insert_with_caller(bundle, mode, caller, RelationshipHookMode::Run);
-    }
-}
-
-/// An [`EntityCommand`] that adds a dynamic component to an entity.
-///
-/// # Safety
-///
-/// - [`ComponentId`] must be from the same world as the target entity.
-/// - `T` must have the same layout as the one passed during `component_id` creation.
-#[track_caller]
-pub unsafe fn insert_by_id<T: Send + 'static>(
-    component_id: ComponentId,
-    value: T,
-    mode: InsertMode,
-) -> impl EntityCommand {
-    let caller = MaybeLocation::caller();
-    move |mut entity: EntityWorldMut| {
-        // SAFETY:
-        // - `component_id` safety is ensured by the caller
-        // - `ptr` is valid within the `make` block
-        OwningPtr::make(value, |ptr| unsafe {
-            entity.insert_by_id_with_caller(
-                component_id,
-                ptr,
-                mode,
-                caller,
-                RelationshipHookMode::Run,
-            );
-        });
     }
 }
 
@@ -222,16 +185,6 @@ pub fn clear() -> impl EntityCommand {
     }
 }
 
-/// An [`EntityCommand`] that removes all components from an entity,
-/// except for those in the given [`Bundle`].
-#[track_caller]
-pub fn retain<T: Bundle>() -> impl EntityCommand {
-    let caller = MaybeLocation::caller();
-    move |mut entity: EntityWorldMut| {
-        entity.retain_with_caller::<T>(caller);
-    }
-}
-
 /// An [`EntityCommand`] that despawns an entity.
 ///
 /// # Note
@@ -258,122 +211,5 @@ pub fn observe<E: EntityEvent, B: Bundle, M>(
     let caller = MaybeLocation::caller();
     move |mut entity: EntityWorldMut| {
         entity.observe_with_caller(observer, caller);
-    }
-}
-
-/// An [`EntityCommand`] that clones parts of an entity onto another entity,
-/// configured through [`EntityClonerBuilder`].
-///
-/// This builder tries to clone every component from the source entity except
-/// for components that were explicitly denied, for example by using the
-/// [`deny`](EntityClonerBuilder<OptOut>::deny) method.
-///
-/// Required components are not considered by denied components and must be
-/// explicitly denied as well if desired.
-pub fn clone_with_opt_out(
-    target: Entity,
-    config: impl FnOnce(&mut EntityClonerBuilder<OptOut>) + Send + Sync + 'static,
-) -> impl EntityCommand {
-    move |mut entity: EntityWorldMut| {
-        entity.clone_with_opt_out(target, config);
-    }
-}
-
-/// An [`EntityCommand`] that clones parts of an entity onto another entity,
-/// configured through [`EntityClonerBuilder`].
-///
-/// This builder tries to clone every component that was explicitly allowed
-/// from the source entity, for example by using the
-/// [`allow`](EntityClonerBuilder<OptIn>::allow) method.
-///
-/// Required components are also cloned when the target entity does not contain them.
-pub fn clone_with_opt_in(
-    target: Entity,
-    config: impl FnOnce(&mut EntityClonerBuilder<OptIn>) + Send + Sync + 'static,
-) -> impl EntityCommand {
-    move |mut entity: EntityWorldMut| {
-        entity.clone_with_opt_in(target, config);
-    }
-}
-
-/// An [`EntityCommand`] that clones the specified components of an entity
-/// and inserts them into another entity.
-pub fn clone_components<B: Bundle>(target: Entity) -> impl EntityCommand {
-    move |mut entity: EntityWorldMut| {
-        entity.clone_components::<B>(target);
-    }
-}
-
-/// An [`EntityCommand`] moves the specified components of this entity into another entity.
-///
-/// Components with [`Ignore`] clone behavior will not be moved, while components that
-/// have a [`Custom`] clone behavior will be cloned using it and then removed from the source entity.
-/// All other components will be moved without any other special handling.
-///
-/// Note that this will trigger `on_remove` hooks/observers on this entity and `on_insert`/`on_add` hooks/observers on the target entity.
-///
-/// # Panics
-///
-/// The command will panic when applied if the target entity does not exist.
-///
-/// [`Ignore`]: crate::component::ComponentCloneBehavior::Ignore
-/// [`Custom`]: crate::component::ComponentCloneBehavior::Custom
-pub fn move_components<B: Bundle>(target: Entity) -> impl EntityCommand {
-    move |mut entity: EntityWorldMut| {
-        entity.move_components::<B>(target);
-    }
-}
-
-/// An [`EntityCommand`] that logs the components of an entity.
-pub fn log_components() -> impl EntityCommand {
-    move |entity: EntityWorldMut| {
-        let name = entity.get::<Name>().map(ToString::to_string);
-        let id = entity.id();
-        let mut components: Vec<_> = entity
-            .world()
-            .inspect_entity(id)
-            .expect("Entity existence is verified before an EntityCommand is executed")
-            .map(|info| info.name().to_string())
-            .collect();
-        components.sort();
-
-        #[cfg(not(feature = "debug"))]
-        {
-            let component_count = components.len();
-            #[cfg(feature = "trace")]
-            {
-                if let Some(name) = name {
-                    info!(id=?id, name=?name, ?component_count, "log_components. Enable the `debug` feature to log component names.");
-                } else {
-                    info!(id=?id, ?component_count, "log_components. Enable the `debug` feature to log component names.");
-                }
-            }
-            #[cfg(not(feature = "trace"))]
-            {
-                let name = name
-                    .map(|name| alloc::format!(" ({name})"))
-                    .unwrap_or_default();
-                info!("Entity {id}{name}: {component_count} components. Enable the `debug` feature to log component names.");
-            }
-        }
-
-        #[cfg(feature = "debug")]
-        {
-            #[cfg(feature = "trace")]
-            {
-                if let Some(name) = name {
-                    info!(id=?id, name=?name, ?components, "log_components");
-                } else {
-                    info!(id=?id, ?components, "log_components");
-                }
-            }
-            #[cfg(not(feature = "trace"))]
-            {
-                let name = name
-                    .map(|name| alloc::format!(" ({name})"))
-                    .unwrap_or_default();
-                info!("Entity {id}{name}: {components:?}");
-            }
-        }
     }
 }

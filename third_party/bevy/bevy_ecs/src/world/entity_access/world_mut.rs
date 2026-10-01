@@ -1327,8 +1327,6 @@ impl<'w> EntityWorldMut<'w> {
 
     /// Removes any components except those in the [`Bundle`] (and its Required Components) from the entity.
     ///
-    /// See [`EntityCommands::retain`](crate::system::EntityCommands::retain) for more details.
-    ///
     /// # Panics
     ///
     /// If the entity has been despawned while this `EntityWorldMut` is still alive.
@@ -2190,9 +2188,6 @@ impl<'w> EntityWorldMut<'w> {
     }
 
     /// Passes the current entity into the given function, and triggers the [`EntityEvent`] returned by that function.
-    /// See [`EntityCommands::trigger`] for usage examples
-    ///
-    /// [`EntityCommands::trigger`]: crate::system::EntityCommands::trigger
     #[track_caller]
     pub fn trigger<'t, E: EntityEvent<Trigger<'t>: Default>>(
         &mut self,

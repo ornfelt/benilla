@@ -2,8 +2,6 @@
 //!
 //! Entities which are disabled in this way are not removed from the [`World`],
 //! and their relationships remain intact.
-//! In many cases, you may want to disable entire trees of entities at once,
-//! using [`EntityCommands::insert_recursive`](crate::prelude::EntityCommands::insert_recursive).
 //!
 //! While Bevy ships with a built-in [`Disabled`] component, you can also create your own
 //! disabling components, which will operate in the same way but can have distinct semantics.
@@ -117,7 +115,6 @@ use {
 ///
 /// Like all disabling components, this only disables the entity itself,
 /// not its children or other entities that reference it.
-/// To disable an entire tree of entities, use [`EntityCommands::insert_recursive`](crate::prelude::EntityCommands::insert_recursive).
 ///
 /// Every [`World`] has a default query filter that excludes entities with this component,
 /// registered in the [`DefaultQueryFilters`] resource.

@@ -603,6 +603,31 @@ the same repository's.
   `backtrace`, `debug`, `serialize` and `bevy_reflect`. Resolving the `cfg`s leaves both crates
   expanding to the same tokens, with and without `trace`; the stepping module, its parameter and
   accessor went after that proof.
+- **`bevy_ecs`'s uncalled functions, first part: the entity collections, the commands and the
+  hierarchy.** Found with every `pub fn` of `bevy_ecs` and `bevy_app` made crate-private and put
+  back where the workspace (with and without `trace`) or the tests of `bevy_ecs`, `bevy_app` and
+  every other vendored crate whose tests compile still reach it; a function goes only when
+  rustc's dead-code lint names it in every one of those builds. Gone: the slice- and `Vec`-like
+  API of `UniqueEntityEquivalentSlice`, `UniqueEntityEquivalentVec` and
+  `UniqueEntityEquivalentArray` that nothing calls (the splitting, chunking, sorting, raw-pointer,
+  `Arc`/`Rc`/`Box` and capacity methods, `get`/`get_mut`, `push`/`pop`/`insert`/`remove`,
+  `drain`/`splice` and the iterators' `as_slice`s), `EntityIndexMap`'s and `EntityIndexSet`'s
+  constructors, range and slice accessors and their slices' and iterators' unwrapping methods;
+  `Commands`' batch spawns and inserts, `register_system`/`unregister_system`, `run_schedule`,
+  `trigger_with`, `add_observer`, `get_spawned_entity`, and `EntityCommands`' by-id inserts,
+  `try_insert_if`, `remove_if`, `retain`, `log_components`, the cloning and moving commands,
+  `trigger` and `commands_mut`, with the free command functions only they built; the hierarchy
+  and relationship commands nothing issues (`insert_children`, `replace_children`, the `detach_*`
+  and Bevy's deprecated `clear_children`/`remove_child(ren)`, `insert_related`,
+  `replace_related`, `despawn_children`, `insert_recursive`/`remove_recursive`), `Children`'s
+  sorts and `swap`, the spawners' accessors, and the relationship queries (`related`,
+  `root_ancestor`, `iter_leaves`, `iter_siblings`, `iter_descendants_depth_first`). Kept:
+  `UniqueEntityEquivalentVec::len`, `UniqueEntityEquivalentSlice::chunks_exact` and what it
+  builds, which only the parallel query iterators call (a later part). On HEAD's copy every
+  removed function marked `#[deprecated]` is used only from other removed functions, so no call
+  falls through to another method of the same name. Doc sentences that pointed at a removed
+  function went with it (the six that named `Commands::register_system` now name
+  `World::register_system`), and the iterator types whose constructors went stay, unconstructed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

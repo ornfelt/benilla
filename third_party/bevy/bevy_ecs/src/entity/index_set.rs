@@ -50,19 +50,6 @@ impl EntityIndexSet {
         Self(IndexSet::with_capacity_and_hasher(n, EntityHash))
     }
 
-    /// Returns the inner [`IndexSet`].
-    pub fn into_inner(self) -> IndexSet<Entity, EntityHash> {
-        self.0
-    }
-
-    /// Returns a slice of all the values in the set.
-    ///
-    /// Equivalent to [`IndexSet::as_slice`].
-    pub fn as_slice(&self) -> &Slice {
-        // SAFETY: Slice is a transparent wrapper around indexmap::set::Slice.
-        unsafe { Slice::from_slice_unchecked(self.0.as_slice()) }
-    }
-
     /// Clears the `IndexSet` in the given index range, returning those values
     /// as a drain iterator.
     ///
@@ -71,28 +58,11 @@ impl EntityIndexSet {
         Drain(self.0.drain(range), PhantomData)
     }
 
-    /// Returns a slice of values in the given range of indices.
-    ///
-    /// Equivalent to [`IndexSet::get_range`].
-    pub fn get_range<R: RangeBounds<usize>>(&self, range: R) -> Option<&Slice> {
-        self.0.get_range(range).map(|slice|
-            // SAFETY: The source IndexSet uses EntityHash.
-            unsafe { Slice::from_slice_unchecked(slice) })
-    }
-
     /// Return an iterator over the values of the set, in their order.
     ///
     /// Equivalent to [`IndexSet::iter`].
     pub fn iter(&self) -> Iter<'_> {
         Iter(self.0.iter(), PhantomData)
-    }
-
-    /// Converts into a boxed slice of all the values in the set.
-    ///
-    /// Equivalent to [`IndexSet::into_boxed_slice`].
-    pub fn into_boxed_slice(self) -> Box<Slice> {
-        // SAFETY: Slice is a transparent wrapper around indexmap::set::Slice.
-        unsafe { Slice::from_boxed_slice_unchecked(self.0.into_boxed_slice()) }
     }
 }
 
@@ -274,14 +244,6 @@ impl Index<usize> for EntityIndexSet {
 pub struct Slice<S = EntityHash>(PhantomData<S>, set::Slice<Entity>);
 
 impl Slice {
-    /// Returns an empty slice.
-    ///
-    /// Equivalent to [`set::Slice::new`].
-    pub const fn new<'a>() -> &'a Self {
-        // SAFETY: The source slice is empty.
-        unsafe { Self::from_slice_unchecked(set::Slice::new()) }
-    }
-
     /// Constructs a [`entity::index_set::Slice`] from a [`indexmap::set::Slice`] unsafely.
     ///
     /// # Safety
@@ -292,23 +254,6 @@ impl Slice {
     pub const unsafe fn from_slice_unchecked(slice: &set::Slice<Entity>) -> &Self {
         // SAFETY: Slice is a transparent wrapper around indexmap::set::Slice.
         unsafe { &*(ptr::from_ref(slice) as *const Self) }
-    }
-
-    /// Constructs a [`entity::index_set::Slice`] from a [`indexmap::set::Slice`] unsafely.
-    ///
-    /// # Safety
-    ///
-    /// `slice` must stem from an [`IndexSet`] using [`EntityHash`].
-    ///
-    /// [`entity::index_set::Slice`]: `crate::entity::index_set::Slice`
-    pub const unsafe fn from_slice_unchecked_mut(slice: &mut set::Slice<Entity>) -> &mut Self {
-        // SAFETY: Slice is a transparent wrapper around indexmap::set::Slice.
-        unsafe { &mut *(ptr::from_mut(slice) as *mut Self) }
-    }
-
-    /// Casts `self` to the inner slice.
-    pub const fn as_inner(&self) -> &set::Slice<Entity> {
-        &self.1
     }
 
     /// Constructs a boxed [`entity::index_set::Slice`] from a boxed [`indexmap::set::Slice`] unsafely.
@@ -337,57 +282,6 @@ impl Slice {
     pub fn into_boxed_inner(self: Box<Self>) -> Box<set::Slice<Entity>> {
         // SAFETY: Slice is a transparent wrapper around indexmap::set::Slice.
         unsafe { Box::from_raw(Box::into_raw(self) as *mut set::Slice<Entity>) }
-    }
-
-    /// Returns a slice of values in the given range of indices.
-    ///
-    /// Equivalent to [`set::Slice::get_range`].
-    pub fn get_range<R: RangeBounds<usize>>(&self, range: R) -> Option<&Self> {
-        self.1.get_range(range).map(|slice|
-            // SAFETY: This a subslice of a valid slice.
-            unsafe { Self::from_slice_unchecked(slice) })
-    }
-
-    /// Divides one slice into two at an index.
-    ///
-    /// Equivalent to [`set::Slice::split_at`].
-    pub fn split_at(&self, index: usize) -> (&Self, &Self) {
-        let (slice_1, slice_2) = self.1.split_at(index);
-        // SAFETY: These are subslices of a valid slice.
-        unsafe {
-            (
-                Self::from_slice_unchecked(slice_1),
-                Self::from_slice_unchecked(slice_2),
-            )
-        }
-    }
-
-    /// Returns the first value and the rest of the slice,
-    /// or `None` if it is empty.
-    ///
-    /// Equivalent to [`set::Slice::split_first`].
-    pub fn split_first(&self) -> Option<(&Entity, &Self)> {
-        self.1.split_first().map(|(first, rest)| {
-            (
-                first,
-                // SAFETY: This a subslice of a valid slice.
-                unsafe { Self::from_slice_unchecked(rest) },
-            )
-        })
-    }
-
-    /// Returns the last value and the rest of the slice,
-    /// or `None` if it is empty.
-    ///
-    /// Equivalent to [`set::Slice::split_last`].
-    pub fn split_last(&self) -> Option<(&Entity, &Self)> {
-        self.1.split_last().map(|(last, rest)| {
-            (
-                last,
-                // SAFETY: This a subslice of a valid slice.
-                unsafe { Self::from_slice_unchecked(rest) },
-            )
-        })
     }
 
     /// Return an iterator over the values of the set slice.
@@ -557,21 +451,6 @@ impl Index<usize> for Slice {
 /// [`iter`]: EntityIndexSet::iter
 pub struct Iter<'a, S = EntityHash>(set::Iter<'a, Entity>, PhantomData<S>);
 
-impl<'a> Iter<'a> {
-    /// Returns the inner [`Iter`](set::Iter).
-    pub fn into_inner(self) -> set::Iter<'a, Entity> {
-        self.0
-    }
-
-    /// Returns a slice of the remaining entries in the iterator.
-    ///
-    /// Equivalent to [`set::Iter::as_slice`].
-    pub fn as_slice(&self) -> &Slice {
-        // SAFETY: The source IndexSet uses EntityHash.
-        unsafe { Slice::from_slice_unchecked(self.0.as_slice()) }
-    }
-}
-
 impl<'a> Deref for Iter<'a> {
     type Target = set::Iter<'a, Entity>;
 
@@ -629,21 +508,6 @@ unsafe impl EntitySetIterator for Iter<'_> {}
 ///
 /// [`into_iter`]: EntityIndexSet::into_iter
 pub struct IntoIter<S = EntityHash>(set::IntoIter<Entity>, PhantomData<S>);
-
-impl IntoIter {
-    /// Returns the inner [`IntoIter`](set::IntoIter).
-    pub fn into_inner(self) -> set::IntoIter<Entity> {
-        self.0
-    }
-
-    /// Returns a slice of the remaining entries in the iterator.
-    ///
-    /// Equivalent to [`set::IntoIter::as_slice`].
-    pub fn as_slice(&self) -> &Slice {
-        // SAFETY: The source IndexSet uses EntityHash.
-        unsafe { Slice::from_slice_unchecked(self.0.as_slice()) }
-    }
-}
 
 impl Deref for IntoIter {
     type Target = set::IntoIter<Entity>;
@@ -705,21 +569,6 @@ unsafe impl EntitySetIterator for IntoIter {}
 ///
 /// [`drain`]: EntityIndexSet::drain
 pub struct Drain<'a, S = EntityHash>(set::Drain<'a, Entity>, PhantomData<S>);
-
-impl<'a> Drain<'a> {
-    /// Returns the inner [`Drain`](set::Drain).
-    pub fn into_inner(self) -> set::Drain<'a, Entity> {
-        self.0
-    }
-
-    /// Returns a slice of the remaining entries in the iterator.$
-    ///
-    /// Equivalent to [`set::Drain::as_slice`].
-    pub fn as_slice(&self) -> &Slice {
-        // SAFETY: The source IndexSet uses EntityHash.
-        unsafe { Slice::from_slice_unchecked(self.0.as_slice()) }
-    }
-}
 
 impl<'a> Deref for Drain<'a> {
     type Target = set::Drain<'a, Entity>;

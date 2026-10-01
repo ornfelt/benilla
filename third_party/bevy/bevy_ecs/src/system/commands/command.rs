@@ -5,16 +5,13 @@
 //! [`Commands`](crate::system::Commands).
 
 use crate::{
-    bundle::{Bundle, InsertMode, NoBundleEffect},
     change_detection::MaybeLocation,
-    entity::Entity,
     error::Result,
     event::Event,
     message::{Message, Messages},
     resource::Resource,
-    schedule::ScheduleLabel,
     system::{IntoSystem, SystemId, SystemInput},
-    world::{FromWorld, SpawnBatchIter, World},
+    world::{FromWorld, World},
 };
 
 /// A [`World`] mutation.
@@ -60,40 +57,6 @@ where
 {
     fn apply(self, world: &mut World) -> Out {
         self(world)
-    }
-}
-
-/// A [`Command`] that consumes an iterator of [`Bundles`](Bundle) to spawn a series of entities.
-///
-/// This is more efficient than spawning the entities individually.
-#[track_caller]
-pub fn spawn_batch<I>(bundles_iter: I) -> impl Command
-where
-    I: IntoIterator + Send + Sync + 'static,
-    I::Item: Bundle<Effect: NoBundleEffect>,
-{
-    let caller = MaybeLocation::caller();
-    move |world: &mut World| {
-        SpawnBatchIter::new(world, bundles_iter.into_iter(), caller);
-    }
-}
-
-/// A [`Command`] that consumes an iterator to add a series of [`Bundles`](Bundle) to a set of entities.
-///
-/// If any entities do not exist in the world, this command will return a
-/// [`TryInsertBatchError`](crate::world::error::TryInsertBatchError).
-///
-/// This is more efficient than inserting the bundles individually.
-#[track_caller]
-pub fn insert_batch<I, B>(batch: I, insert_mode: InsertMode) -> impl Command<Result>
-where
-    I: IntoIterator<Item = (Entity, B)> + Send + Sync + 'static,
-    B: Bundle<Effect: NoBundleEffect>,
-{
-    let caller = MaybeLocation::caller();
-    move |world: &mut World| -> Result {
-        world.try_insert_batch_with_caller(batch, insert_mode, caller)?;
-        Ok(())
     }
 }
 
@@ -169,20 +132,6 @@ where
     }
 }
 
-/// A [`Command`] that removes a system previously registered with
-/// [`Commands::register_system`](crate::system::Commands::register_system) or
-/// [`World::register_system`].
-pub fn unregister_system<I, O>(system_id: SystemId<I, O>) -> impl Command<Result>
-where
-    I: SystemInput + Send + 'static,
-    O: Send + 'static,
-{
-    move |world: &mut World| -> Result {
-        world.unregister_system(system_id)?;
-        Ok(())
-    }
-}
-
 /// A [`Command`] that removes a system previously registered with one of the following:
 /// - [`Commands::run_system_cached`](crate::system::Commands::run_system_cached)
 /// - [`World::run_system_cached`]
@@ -200,14 +149,6 @@ where
     }
 }
 
-/// A [`Command`] that runs the schedule corresponding to the given [`ScheduleLabel`].
-pub fn run_schedule(label: impl ScheduleLabel) -> impl Command<Result> {
-    move |world: &mut World| -> Result {
-        world.try_run_schedule(label)?;
-        Ok(())
-    }
-}
-
 /// Triggers the given [`Event`], which will run any [`Observer`]s watching for it.
 ///
 /// [`Observer`]: crate::observer::Observer
@@ -220,21 +161,6 @@ pub fn trigger<'a, E: Event<Trigger<'a>: Default>>(mut event: E) -> impl Command
             &mut <E::Trigger<'_> as Default>::default(),
             caller,
         );
-    }
-}
-
-/// Triggers the given [`Event`] using the given [`Trigger`], which will run any [`Observer`]s watching for it.
-///
-/// [`Trigger`]: crate::event::Trigger
-/// [`Observer`]: crate::observer::Observer
-#[track_caller]
-pub fn trigger_with<E: Event<Trigger<'static>: Send + Sync>>(
-    mut event: E,
-    mut trigger: E::Trigger<'static>,
-) -> impl Command {
-    let caller = MaybeLocation::caller();
-    move |world: &mut World| {
-        world.trigger_ref_with_caller(&mut event, &mut trigger, caller);
     }
 }
 

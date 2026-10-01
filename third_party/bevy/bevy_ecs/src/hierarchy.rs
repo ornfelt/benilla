@@ -154,96 +154,6 @@ impl FromWorld for ChildOf {
 #[doc(alias = "IsParent")]
 pub struct Children(Vec<Entity>);
 
-impl Children {
-    /// Swaps the child at `a_index` with the child at `b_index`.
-    #[inline]
-    pub fn swap(&mut self, a_index: usize, b_index: usize) {
-        self.0.swap(a_index, b_index);
-    }
-
-    /// Sorts children [stably](https://en.wikipedia.org/wiki/Sorting_algorithm#Stability)
-    /// in place using the provided comparator function.
-    ///
-    /// For the underlying implementation, see [`slice::sort_by`].
-    ///
-    /// For the unstable version, see [`sort_unstable_by`](Children::sort_unstable_by).
-    ///
-    /// See also [`sort_by_key`](Children::sort_by_key), [`sort_by_cached_key`](Children::sort_by_cached_key).
-    #[inline]
-    pub fn sort_by<F>(&mut self, compare: F)
-    where
-        F: FnMut(&Entity, &Entity) -> core::cmp::Ordering,
-    {
-        self.0.sort_by(compare);
-    }
-
-    /// Sorts children [stably](https://en.wikipedia.org/wiki/Sorting_algorithm#Stability)
-    /// in place using the provided key extraction function.
-    ///
-    /// For the underlying implementation, see [`slice::sort_by_key`].
-    ///
-    /// For the unstable version, see [`sort_unstable_by_key`](Children::sort_unstable_by_key).
-    ///
-    /// See also [`sort_by`](Children::sort_by), [`sort_by_cached_key`](Children::sort_by_cached_key).
-    #[inline]
-    pub fn sort_by_key<K, F>(&mut self, compare: F)
-    where
-        F: FnMut(&Entity) -> K,
-        K: Ord,
-    {
-        self.0.sort_by_key(compare);
-    }
-
-    /// Sorts children [stably](https://en.wikipedia.org/wiki/Sorting_algorithm#Stability)
-    /// in place using the provided key extraction function. Only evaluates each key at most
-    /// once per sort, caching the intermediate results in memory.
-    ///
-    /// For the underlying implementation, see [`slice::sort_by_cached_key`].
-    ///
-    /// See also [`sort_by`](Children::sort_by), [`sort_by_key`](Children::sort_by_key).
-    #[inline]
-    pub fn sort_by_cached_key<K, F>(&mut self, compare: F)
-    where
-        F: FnMut(&Entity) -> K,
-        K: Ord,
-    {
-        self.0.sort_by_cached_key(compare);
-    }
-
-    /// Sorts children [unstably](https://en.wikipedia.org/wiki/Sorting_algorithm#Stability)
-    /// in place using the provided comparator function.
-    ///
-    /// For the underlying implementation, see [`slice::sort_unstable_by`].
-    ///
-    /// For the stable version, see [`sort_by`](Children::sort_by).
-    ///
-    /// See also [`sort_unstable_by_key`](Children::sort_unstable_by_key).
-    #[inline]
-    pub fn sort_unstable_by<F>(&mut self, compare: F)
-    where
-        F: FnMut(&Entity, &Entity) -> core::cmp::Ordering,
-    {
-        self.0.sort_unstable_by(compare);
-    }
-
-    /// Sorts children [unstably](https://en.wikipedia.org/wiki/Sorting_algorithm#Stability)
-    /// in place using the provided key extraction function.
-    ///
-    /// For the underlying implementation, see [`slice::sort_unstable_by_key`].
-    ///
-    /// For the stable version, see [`sort_by_key`](Children::sort_by_key).
-    ///
-    /// See also [`sort_unstable_by`](Children::sort_unstable_by).
-    #[inline]
-    pub fn sort_unstable_by_key<K, F>(&mut self, compare: F)
-    where
-        F: FnMut(&Entity) -> K,
-        K: Ord,
-    {
-        self.0.sort_unstable_by_key(compare);
-    }
-}
-
 impl<'a> IntoIterator for &'a Children {
     type Item = <Self::IntoIter as Iterator>::Item;
 
@@ -283,20 +193,6 @@ impl<'w> EntityWorldMut<'w> {
         self.add_related::<ChildOf>(children)
     }
 
-    /// Removes all the children from this entity.
-    /// See also [`detach_all_related`](Self::detach_all_related)
-    #[deprecated = "Use detach_all_children() instead"]
-    pub fn clear_children(&mut self) -> &mut Self {
-        self.detach_all_children()
-    }
-
-    /// Removes all the parent-child relationships from this entity.
-    /// To despawn the child entities, instead use [`EntityWorldMut::despawn_children`](EntityWorldMut::despawn_children).
-    /// See also [`detach_all_related`](Self::detach_all_related)
-    pub fn detach_all_children(&mut self) -> &mut Self {
-        self.detach_all_related::<ChildOf>()
-    }
-
     /// Insert children at specific index.
     /// See also [`insert_related`](Self::insert_related).
     pub fn insert_children(&mut self, index: usize, children: &[Entity]) -> &mut Self {
@@ -315,22 +211,10 @@ impl<'w> EntityWorldMut<'w> {
         self.add_related::<ChildOf>(&[child])
     }
 
-    /// Removes the relationship between this entity and the given entities.
-    #[deprecated = "Use detach_children() instead"]
-    pub fn remove_children(&mut self, children: &[Entity]) -> &mut Self {
-        self.detach_children(children)
-    }
-
     /// Removes the parent-child relationship between this entity and the given entities.
     /// Does not despawn the children.
     pub fn detach_children(&mut self, children: &[Entity]) -> &mut Self {
         self.remove_related::<ChildOf>(children)
-    }
-
-    /// Removes the relationship between this entity and the given entity.
-    #[deprecated = "Use detach_child() instead"]
-    pub fn remove_child(&mut self, child: Entity) -> &mut Self {
-        self.detach_child(child)
     }
 
     /// Removes the parent-child relationship between this entity and the given entity.
@@ -396,87 +280,9 @@ impl<'a> EntityCommands<'a> {
         self.add_related::<ChildOf>(children)
     }
 
-    /// Removes all the children from this entity.
-    /// See also [`detach_all_related`](Self::detach_all_related)
-    #[deprecated = "Use detach_all_children() instead"]
-    pub fn clear_children(&mut self) -> &mut Self {
-        self.detach_all_children()
-    }
-
-    /// Removes all the parent-child relationships from this entity.
-    /// To despawn the child entities, instead use [`EntityWorldMut::despawn_children`](EntityWorldMut::despawn_children).
-    /// See also [`detach_all_related`](Self::detach_all_related)
-    pub fn detach_all_children(&mut self) -> &mut Self {
-        self.detach_all_related::<ChildOf>()
-    }
-
-    /// Insert children at specific index.
-    /// See also [`insert_related`](Self::insert_related).
-    pub fn insert_children(&mut self, index: usize, children: &[Entity]) -> &mut Self {
-        self.insert_related::<ChildOf>(index, children)
-    }
-
-    /// Insert children at specific index.
-    /// See also [`insert_related`](Self::insert_related).
-    pub fn insert_child(&mut self, index: usize, child: Entity) -> &mut Self {
-        self.insert_related::<ChildOf>(index, &[child])
-    }
-
     /// Adds the given child to this entity.
     pub fn add_child(&mut self, child: Entity) -> &mut Self {
         self.add_related::<ChildOf>(&[child])
-    }
-
-    /// Removes the relationship between this entity and the given entities.
-    #[deprecated = "Use detach_children() instead"]
-    pub fn remove_children(&mut self, children: &[Entity]) -> &mut Self {
-        self.detach_children(children)
-    }
-
-    /// Removes the parent-child relationship between this entity and the given entities.
-    /// Does not despawn the children.
-    pub fn detach_children(&mut self, children: &[Entity]) -> &mut Self {
-        self.remove_related::<ChildOf>(children)
-    }
-
-    /// Removes the relationship between this entity and the given entity.
-    #[deprecated = "Use detach_child() instead"]
-    pub fn remove_child(&mut self, child: Entity) -> &mut Self {
-        self.detach_child(child)
-    }
-
-    /// Removes the parent-child relationship between this entity and the given entity.
-    /// Does not despawn the child.
-    pub fn detach_child(&mut self, child: Entity) -> &mut Self {
-        self.remove_related::<ChildOf>(&[child])
-    }
-
-    /// Replaces the children on this entity with a new list of children.
-    pub fn replace_children(&mut self, children: &[Entity]) -> &mut Self {
-        self.replace_related::<ChildOf>(children)
-    }
-
-    /// Replaces all the related entities with a new set of entities.
-    ///
-    /// # Warning
-    ///
-    /// Failing to maintain the functions invariants may lead to erratic engine behavior including random crashes.
-    /// Refer to [`EntityWorldMut::replace_related_with_difference`] for a list of these invariants.
-    ///
-    /// # Panics
-    ///
-    /// Panics when debug assertions are enabled if an invariant is broken and the command is executed.
-    pub fn replace_children_with_difference(
-        &mut self,
-        entities_to_unrelate: &[Entity],
-        entities_to_relate: &[Entity],
-        newly_related_entities: &[Entity],
-    ) -> &mut Self {
-        self.replace_related_with_difference::<ChildOf>(
-            entities_to_unrelate,
-            entities_to_relate,
-            newly_related_entities,
-        )
     }
 
     /// Spawns the passed bundle and adds it to this entity as a child.

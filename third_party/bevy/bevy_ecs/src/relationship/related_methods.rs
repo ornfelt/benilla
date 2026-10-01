@@ -1,7 +1,6 @@
 use crate::{
     bundle::Bundle,
     entity::{hash_set::EntityHashSet, Entity},
-    prelude::Children,
     relationship::{
         Relationship, RelationshipHookMode, RelationshipSourceCollection, RelationshipTarget,
     },
@@ -314,15 +313,6 @@ impl<'w> EntityWorldMut<'w> {
         self
     }
 
-    /// Despawns the children of this entity.
-    /// This entity will not be despawned.
-    ///
-    /// This is a specialization of [`despawn_related`](EntityWorldMut::despawn_related), a more general method for despawning via relationships.
-    pub fn despawn_children(&mut self) -> &mut Self {
-        self.despawn_related::<Children>();
-        self
-    }
-
     /// Inserts a component or bundle of components into the entity and all related entities,
     /// traversing the relationship tracked in `S` in a breadth-first manner.
     ///
@@ -426,8 +416,6 @@ impl<'a> EntityCommands<'a> {
     }
 
     /// Relates the given entities to this entity with the relation `R`.
-    ///
-    /// See [`add_one_related`](Self::add_one_related) if you want relate only one entity.
     pub fn add_related<R: Relationship>(&mut self, related: &[Entity]) -> &mut Self {
         let related: Box<[Entity]> = related.into();
 
@@ -436,126 +424,11 @@ impl<'a> EntityCommands<'a> {
         })
     }
 
-    /// Removes the relation `R` between this entity and all its related entities.
-    pub fn detach_all_related<R: Relationship>(&mut self) -> &mut Self {
-        self.queue(|mut entity: EntityWorldMut| {
-            entity.detach_all_related::<R>();
-        })
-    }
-
-    /// Relates the given entities to this entity with the relation `R`, starting at this particular index.
-    ///
-    /// If the `related` has duplicates, a related entity will take the index of its last occurrence in `related`.
-    /// If the indices go out of bounds, they will be clamped into bounds.
-    /// This will not re-order existing related entities unless they are in `related`.
-    pub fn insert_related<R: Relationship>(&mut self, index: usize, related: &[Entity]) -> &mut Self
-    where
-        <R::RelationshipTarget as RelationshipTarget>::Collection:
-            OrderedRelationshipSourceCollection,
-    {
-        let related: Box<[Entity]> = related.into();
-
-        self.queue(move |mut entity: EntityWorldMut| {
-            entity.insert_related::<R>(index, &related);
-        })
-    }
-
-    /// Relates the given entity to this with the relation `R`.
-    ///
-    /// See [`add_related`](Self::add_related) if you want to relate more than one entity.
-    pub fn add_one_related<R: Relationship>(&mut self, entity: Entity) -> &mut Self {
-        self.add_related::<R>(&[entity])
-    }
-
-    /// Removes the relation `R` between this entity and the given entities.
-    pub fn remove_related<R: Relationship>(&mut self, related: &[Entity]) -> &mut Self {
-        let related: Box<[Entity]> = related.into();
-
-        self.queue(move |mut entity: EntityWorldMut| {
-            entity.remove_related::<R>(&related);
-        })
-    }
-
-    /// Replaces all the related entities with the given set of new related entities.
-    pub fn replace_related<R: Relationship>(&mut self, related: &[Entity]) -> &mut Self {
-        let related: Box<[Entity]> = related.into();
-
-        self.queue(move |mut entity: EntityWorldMut| {
-            entity.replace_related::<R>(&related);
-        })
-    }
-
-    /// Replaces all the related entities with a new set of entities.
-    ///
-    /// # Warning
-    ///
-    /// Failing to maintain the functions invariants may lead to erratic engine behavior including random crashes.
-    /// Refer to [`EntityWorldMut::replace_related_with_difference`] for a list of these invariants.
-    ///
-    /// # Panics
-    ///
-    /// Panics when debug assertions are enable, an invariant is are broken and the command is executed.
-    pub fn replace_related_with_difference<R: Relationship>(
-        &mut self,
-        entities_to_unrelate: &[Entity],
-        entities_to_relate: &[Entity],
-        newly_related_entities: &[Entity],
-    ) -> &mut Self {
-        let entities_to_unrelate: Box<[Entity]> = entities_to_unrelate.into();
-        let entities_to_relate: Box<[Entity]> = entities_to_relate.into();
-        let newly_related_entities: Box<[Entity]> = newly_related_entities.into();
-
-        self.queue(move |mut entity: EntityWorldMut| {
-            entity.replace_related_with_difference::<R>(
-                &entities_to_unrelate,
-                &entities_to_relate,
-                &newly_related_entities,
-            );
-        })
-    }
-
     /// Despawns entities that relate to this one via the given [`RelationshipTarget`].
     /// This entity will not be despawned.
     pub fn despawn_related<S: RelationshipTarget>(&mut self) -> &mut Self {
         self.queue(move |mut entity: EntityWorldMut| {
             entity.despawn_related::<S>();
-        })
-    }
-
-    /// Despawns the children of this entity.
-    /// This entity will not be despawned.
-    ///
-    /// This is a specialization of [`despawn_related`](EntityCommands::despawn_related), a more general method for despawning via relationships.
-    pub fn despawn_children(&mut self) -> &mut Self {
-        self.despawn_related::<Children>()
-    }
-
-    /// Inserts a component or bundle of components into the entity and all related entities,
-    /// traversing the relationship tracked in `S` in a breadth-first manner.
-    ///
-    /// # Warning
-    ///
-    /// This method should only be called on relationships that form a tree-like structure.
-    /// Any cycles will cause this method to loop infinitely.
-    pub fn insert_recursive<S: RelationshipTarget>(
-        &mut self,
-        bundle: impl Bundle + Clone,
-    ) -> &mut Self {
-        self.queue(move |mut entity: EntityWorldMut| {
-            entity.insert_recursive::<S>(bundle);
-        })
-    }
-
-    /// Removes a component or bundle of components of type `B` from the entity and all related entities,
-    /// traversing the relationship tracked in `S` in a breadth-first manner.
-    ///
-    /// # Warning
-    ///
-    /// This method should only be called on relationships that form a tree-like structure.
-    /// Any cycles will cause this method to loop infinitely.
-    pub fn remove_recursive<S: RelationshipTarget, B: Bundle>(&mut self) -> &mut Self {
-        self.queue(move |mut entity: EntityWorldMut| {
-            entity.remove_recursive::<S, B>();
         })
     }
 }
@@ -589,21 +462,6 @@ impl<'w, R: Relationship> RelatedSpawner<'w, R> {
     pub fn spawn_empty(&mut self) -> EntityWorldMut<'_> {
         self.world.spawn(R::from(self.target))
     }
-
-    /// Returns the "target entity" used when spawning entities with an `R` [`Relationship`].
-    pub fn target_entity(&self) -> Entity {
-        self.target
-    }
-
-    /// Returns a reference to the underlying [`World`].
-    pub fn world(&self) -> &World {
-        self.world
-    }
-
-    /// Returns a mutable reference to the underlying [`World`].
-    pub fn world_mut(&mut self) -> &mut World {
-        self.world
-    }
 }
 
 /// Uses commands to spawn related "source" entities with the given [`Relationship`], targeting
@@ -636,19 +494,9 @@ impl<'w, R: Relationship> RelatedSpawnerCommands<'w, R> {
         self.commands.spawn(R::from(self.target))
     }
 
-    /// Returns the "target entity" used when spawning entities with an `R` [`Relationship`].
-    pub fn target_entity(&self) -> Entity {
-        self.target
-    }
-
     /// Returns the underlying [`Commands`].
     pub fn commands(&mut self) -> Commands<'_, '_> {
         self.commands.reborrow()
-    }
-
-    /// Returns a mutable reference to the underlying [`Commands`].
-    pub fn commands_mut(&mut self) -> &mut Commands<'w, 'w> {
-        &mut self.commands
     }
 }
 
