@@ -1,4 +1,3 @@
-#[cfg(feature = "multi_threaded")]
 use crate::message::MessageParIter;
 use crate::{
     message::{Message, MessageCursor, MessageIterator, MessageIteratorWithId, Messages},
@@ -68,7 +67,6 @@ impl<'w, 's, E: Message> MessageReader<'w, 's, E> {
     /// // all messages were processed
     /// assert_eq!(counter.into_inner(), 4950);
     /// ```
-    #[cfg(feature = "multi_threaded")]
     pub fn par_read(&mut self) -> MessageParIter<'_, E> {
         self.reader.par_read(&self.messages)
     }

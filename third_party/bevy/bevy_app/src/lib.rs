@@ -15,7 +15,6 @@
 
 //! This crate is about everything concerning the highest-level, application layer of a Bevy app.
 
-#[cfg(feature = "std")]
 extern crate std;
 
 extern crate alloc;
@@ -32,11 +31,8 @@ mod propagate;
 mod schedule_runner;
 mod sub_app;
 mod task_pool_plugin;
-#[cfg(all(any(all(unix, not(target_os = "horizon")), windows), feature = "std"))]
+#[cfg(any(all(unix, not(target_os = "horizon")), windows))]
 mod terminal_ctrl_c_handler;
-
-#[cfg(feature = "hotpatching")]
-pub mod hotpatch;
 
 pub use app::*;
 pub use main_schedule::*;
@@ -47,7 +43,7 @@ pub use propagate::*;
 pub use schedule_runner::*;
 pub use sub_app::*;
 pub use task_pool_plugin::*;
-#[cfg(all(any(all(unix, not(target_os = "horizon")), windows), feature = "std"))]
+#[cfg(any(all(unix, not(target_os = "horizon")), windows))]
 pub use terminal_ctrl_c_handler::*;
 
 /// The app prelude.

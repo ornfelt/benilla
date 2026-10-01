@@ -765,7 +765,6 @@ mod tests {
         assert!(!events.get_cursor().is_empty(&events));
     }
 
-    #[cfg(feature = "multi_threaded")]
     #[test]
     fn test_event_cursor_par_read() {
         use crate::prelude::*;
@@ -807,7 +806,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "multi_threaded")]
     #[test]
     fn test_event_cursor_par_read_mut() {
         use crate::prelude::*;

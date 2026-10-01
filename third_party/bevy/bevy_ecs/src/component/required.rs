@@ -36,15 +36,6 @@ impl RequiredComponentConstructor {
     /// - `component_id` must be a valid component for type `C`.
     pub unsafe fn new<C: Component>(component_id: ComponentId, constructor: fn() -> C) -> Self {
         RequiredComponentConstructor({
-            // `portable-atomic-util` `Arc` is not able to coerce an unsized
-            // type like `std::sync::Arc` can. Creating a `Box` first does the
-            // coercion.
-            //
-            // This would be resolved by https://github.com/rust-lang/rust/issues/123430
-
-            #[cfg(not(target_has_atomic = "ptr"))]
-            use alloc::boxed::Box;
-
             type Constructor = dyn for<'a, 'b> Fn(
                 &'a mut Table,
                 &'b mut SparseSets,
@@ -54,10 +45,6 @@ impl RequiredComponentConstructor {
                 MaybeLocation,
             );
 
-            #[cfg(not(target_has_atomic = "ptr"))]
-            type Intermediate<T> = Box<T>;
-
-            #[cfg(target_has_atomic = "ptr")]
             type Intermediate<T> = Arc<T>;
 
             let boxed: Intermediate<Constructor> = Intermediate::new(

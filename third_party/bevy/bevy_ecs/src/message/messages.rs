@@ -132,8 +132,6 @@ impl<M: Message> Messages<M> {
             caller,
             _marker: PhantomData,
         };
-        #[cfg(feature = "detailed_trace")]
-        tracing::trace!("Messages::write() -> id: {}", message_id);
 
         let message_instance = MessageInstance {
             message_id,
@@ -313,14 +311,7 @@ impl<E: Message> Extend<E> for Messages<E> {
 
         self.messages_b.extend(messages);
 
-        if old_count != message_count {
-            #[cfg(feature = "detailed_trace")]
-            tracing::trace!(
-                "Messages::extend() -> ids: ({}..{})",
-                self.message_count,
-                message_count
-            );
-        }
+        if old_count != message_count {}
 
         self.message_count = message_count;
     }

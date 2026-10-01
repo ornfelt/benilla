@@ -85,12 +85,6 @@ impl System for SystemWithAccess {
         unsafe { self.system.run_unsafe(input, world) }
     }
 
-    #[cfg(feature = "hotpatching")]
-    #[inline]
-    fn refresh_hotpatch(&mut self) {
-        self.system.refresh_hotpatch();
-    }
-
     #[inline]
     fn apply_deferred(&mut self, world: &mut World) {
         self.system.apply_deferred(world);
@@ -183,12 +177,6 @@ impl System for ConditionWithAccess {
     ) -> Result<Self::Out, RunSystemError> {
         // SAFETY: Caller ensures the same safety requirements.
         unsafe { self.condition.run_unsafe(input, world) }
-    }
-
-    #[cfg(feature = "hotpatching")]
-    #[inline]
-    fn refresh_hotpatch(&mut self) {
-        self.condition.refresh_hotpatch();
     }
 
     #[inline]

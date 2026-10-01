@@ -2,7 +2,6 @@ use crate::message::{
     Message, MessageIterator, MessageIteratorWithId, MessageMutIterator, MessageMutIteratorWithId,
     Messages,
 };
-#[cfg(feature = "multi_threaded")]
 use crate::message::{MessageMutParIter, MessageParIter};
 use core::marker::PhantomData;
 
@@ -102,13 +101,11 @@ impl<E: Message> MessageCursor<E> {
     }
 
     /// See [`MessageReader::par_read`](super::MessageReader::par_read)
-    #[cfg(feature = "multi_threaded")]
     pub fn par_read<'a>(&'a mut self, messages: &'a Messages<E>) -> MessageParIter<'a, E> {
         MessageParIter::new(self, messages)
     }
 
     /// See [`MessageMutator::par_read`](super::MessageMutator::par_read)
-    #[cfg(feature = "multi_threaded")]
     pub fn par_read_mut<'a>(
         &'a mut self,
         messages: &'a mut Messages<E>,

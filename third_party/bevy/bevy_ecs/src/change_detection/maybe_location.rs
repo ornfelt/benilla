@@ -22,16 +22,10 @@ use core::{
 pub struct MaybeLocation<T: ?Sized = &'static Location<'static>> {
     #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     marker: PhantomData<T>,
-    #[cfg(feature = "track_location")]
-    value: T,
 }
 
 impl<T: core::fmt::Display> core::fmt::Display for MaybeLocation<T> {
     fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        #[cfg(feature = "track_location")]
-        {
-            self.value.fmt(_f)?;
-        }
         Ok(())
     }
 }
@@ -53,8 +47,6 @@ impl<T> MaybeLocation<T> {
         T: Copy,
     {
         Self {
-            #[cfg(feature = "track_location")]
-            value: _value,
             marker: PhantomData,
         }
     }
@@ -67,8 +59,6 @@ impl<T> MaybeLocation<T> {
     #[inline]
     pub fn new_with(_f: impl FnOnce() -> T) -> Self {
         Self {
-            #[cfg(feature = "track_location")]
-            value: _f(),
             marker: PhantomData,
         }
     }
@@ -77,8 +67,6 @@ impl<T> MaybeLocation<T> {
     #[inline]
     pub fn map<U>(self, _f: impl FnOnce(T) -> U) -> MaybeLocation<U> {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: _f(self.value),
             marker: PhantomData,
         }
     }
@@ -87,8 +75,6 @@ impl<T> MaybeLocation<T> {
     #[inline]
     pub fn zip<U>(self, _other: MaybeLocation<U>) -> MaybeLocation<(T, U)> {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: (self.value, _other.value),
             marker: PhantomData,
         }
     }
@@ -109,14 +95,7 @@ impl<T> MaybeLocation<T> {
     /// If it is disabled, this always returns `None`.
     #[inline]
     pub fn into_option(self) -> Option<T> {
-        #[cfg(feature = "track_location")]
-        {
-            Some(self.value)
-        }
-        #[cfg(not(feature = "track_location"))]
-        {
-            None
-        }
+        None
     }
 }
 
@@ -130,8 +109,6 @@ impl<T> MaybeLocation<Option<T>> {
     #[inline]
     pub fn new_with_flattened(_f: impl FnOnce() -> Option<MaybeLocation<T>>) -> Self {
         Self {
-            #[cfg(feature = "track_location")]
-            value: _f().map(|value| value.value),
             marker: PhantomData,
         }
     }
@@ -171,19 +148,9 @@ impl<T> MaybeLocation<Option<T>> {
     ///   but will return `None` when the `track_location` feature is disabled.
     #[inline]
     pub fn transpose(self) -> Option<MaybeLocation<T>> {
-        #[cfg(feature = "track_location")]
-        {
-            self.value.map(|value| MaybeLocation {
-                value,
-                marker: PhantomData,
-            })
-        }
-        #[cfg(not(feature = "track_location"))]
-        {
-            Some(MaybeLocation {
-                marker: PhantomData,
-            })
-        }
+        Some(MaybeLocation {
+            marker: PhantomData,
+        })
     }
 }
 
@@ -195,8 +162,6 @@ impl<T> MaybeLocation<&T> {
         T: Copy,
     {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: *self.value,
             marker: PhantomData,
         }
     }
@@ -210,20 +175,13 @@ impl<T> MaybeLocation<&mut T> {
         T: Copy,
     {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: *self.value,
             marker: PhantomData,
         }
     }
 
     /// Assigns the contents of an `MaybeLocation<T>` to an `MaybeLocation<&mut T>`.
     #[inline]
-    pub fn assign(&mut self, _value: MaybeLocation<T>) {
-        #[cfg(feature = "track_location")]
-        {
-            *self.value = _value.value;
-        }
-    }
+    pub fn assign(&mut self, _value: MaybeLocation<T>) {}
 }
 
 impl<T: ?Sized> MaybeLocation<T> {
@@ -231,8 +189,6 @@ impl<T: ?Sized> MaybeLocation<T> {
     #[inline]
     pub const fn as_ref(&self) -> MaybeLocation<&T> {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: &self.value,
             marker: PhantomData,
         }
     }
@@ -241,8 +197,6 @@ impl<T: ?Sized> MaybeLocation<T> {
     #[inline]
     pub const fn as_mut(&mut self) -> MaybeLocation<&mut T> {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: &mut self.value,
             marker: PhantomData,
         }
     }
@@ -254,8 +208,6 @@ impl<T: ?Sized> MaybeLocation<T> {
         T: Deref,
     {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: &*self.value,
             marker: PhantomData,
         }
     }
@@ -267,8 +219,6 @@ impl<T: ?Sized> MaybeLocation<T> {
         T: DerefMut,
     {
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: &mut *self.value,
             marker: PhantomData,
         }
     }
@@ -283,8 +233,6 @@ impl MaybeLocation {
     pub const fn caller() -> Self {
         // Note that this cannot use `new_with`, since `FnOnce` invocations cannot be annotated with `#[track_caller]`.
         MaybeLocation {
-            #[cfg(feature = "track_location")]
-            value: Location::caller(),
             marker: PhantomData,
         }
     }

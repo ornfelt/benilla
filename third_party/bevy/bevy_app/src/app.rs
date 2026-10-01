@@ -28,7 +28,6 @@ use log::debug;
 #[cfg(feature = "trace")]
 use tracing::info_span;
 
-#[cfg(feature = "std")]
 use std::{
     panic::{catch_unwind, resume_unwind},
     process::{ExitCode, Termination},
@@ -521,18 +520,13 @@ impl App {
 
         let f = AssertUnwindSafe(|| plugin.build(self));
 
-        #[cfg(feature = "std")]
         let result = catch_unwind(f);
-
-        #[cfg(not(feature = "std"))]
-        f();
 
         self.main_mut()
             .plugin_names
             .insert(plugin.name().to_string());
         self.main_mut().plugin_build_depth -= 1;
 
-        #[cfg(feature = "std")]
         if let Err(payload) = result {
             resume_unwind(payload);
         }
@@ -1363,7 +1357,6 @@ impl From<u8> for AppExit {
     }
 }
 
-#[cfg(feature = "std")]
 impl Termination for AppExit {
     fn report(self) -> ExitCode {
         match self {

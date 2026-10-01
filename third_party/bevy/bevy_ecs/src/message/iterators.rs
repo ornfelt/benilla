@@ -1,4 +1,3 @@
-#[cfg(feature = "multi_threaded")]
 use crate::batching::BatchingStrategy;
 use crate::message::{Message, MessageCursor, MessageId, MessageInstance, Messages};
 use core::{iter::Chain, slice::Iter};
@@ -90,8 +89,6 @@ impl<'a, M: Message> Iterator for MessageIteratorWithId<'a, M> {
             .map(|instance| (&instance.message, instance.message_id))
         {
             Some(item) => {
-                #[cfg(feature = "detailed_trace")]
-                tracing::trace!("MessageReader::iter() -> {}", item.1);
                 self.reader.last_message_count += 1;
                 self.unread -= 1;
                 Some(item)
@@ -145,17 +142,14 @@ impl<'a, M: Message> ExactSizeIterator for MessageIteratorWithId<'a, M> {
 }
 
 /// A parallel iterator over `Message`s.
-#[cfg(feature = "multi_threaded")]
 #[derive(Debug)]
 pub struct MessageParIter<'a, M: Message> {
     reader: &'a mut MessageCursor<M>,
     slices: [&'a [MessageInstance<M>]; 2],
     batching_strategy: BatchingStrategy,
-    #[cfg(not(target_arch = "wasm32"))]
     unread: usize,
 }
 
-#[cfg(feature = "multi_threaded")]
 impl<'a, M: Message> MessageParIter<'a, M> {
     /// Creates a new parallel iterator over `messages` that have not yet been seen by `reader`.
     pub fn new(reader: &'a mut MessageCursor<M>, messages: &'a Messages<M>) -> Self {
@@ -177,7 +171,6 @@ impl<'a, M: Message> MessageParIter<'a, M> {
             reader,
             slices: [a, b],
             batching_strategy: BatchingStrategy::default(),
-            #[cfg(not(target_arch = "wasm32"))]
             unread: unread_count,
         }
     }
@@ -214,45 +207,33 @@ impl<'a, M: Message> MessageParIter<'a, M> {
     /// initialized and run from the ECS scheduler, this should never panic.
     ///
     /// [`ComputeTaskPool`]: bevy_tasks::ComputeTaskPool
-    #[cfg_attr(
-        target_arch = "wasm32",
-        expect(unused_mut, reason = "not mutated on this target")
-    )]
     pub fn for_each_with_id<FN: Fn(&'a M, MessageId<M>) + Send + Sync + Clone>(mut self, func: FN) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            self.into_iter().for_each(|(e, i)| func(e, i));
+        let pool = bevy_tasks::ComputeTaskPool::get();
+        let thread_count = pool.thread_num();
+        if thread_count <= 1 {
+            return self.into_iter().for_each(|(e, i)| func(e, i));
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let pool = bevy_tasks::ComputeTaskPool::get();
-            let thread_count = pool.thread_num();
-            if thread_count <= 1 {
-                return self.into_iter().for_each(|(e, i)| func(e, i));
+        let batch_size = self
+            .batching_strategy
+            .calc_batch_size(|| self.len(), thread_count);
+        let chunks = self.slices.map(|s| s.chunks_exact(batch_size));
+        let remainders = chunks.each_ref().map(core::slice::ChunksExact::remainder);
+
+        pool.scope(|scope| {
+            for batch in chunks.into_iter().flatten().chain(remainders) {
+                let func = func.clone();
+                scope.spawn(async move {
+                    for message_instance in batch {
+                        func(&message_instance.message, message_instance.message_id);
+                    }
+                });
             }
+        });
 
-            let batch_size = self
-                .batching_strategy
-                .calc_batch_size(|| self.len(), thread_count);
-            let chunks = self.slices.map(|s| s.chunks_exact(batch_size));
-            let remainders = chunks.each_ref().map(core::slice::ChunksExact::remainder);
-
-            pool.scope(|scope| {
-                for batch in chunks.into_iter().flatten().chain(remainders) {
-                    let func = func.clone();
-                    scope.spawn(async move {
-                        for message_instance in batch {
-                            func(&message_instance.message, message_instance.message_id);
-                        }
-                    });
-                }
-            });
-
-            // Messages are guaranteed to be read at this point.
-            self.reader.last_message_count += self.unread;
-            self.unread = 0;
-        }
+        // Messages are guaranteed to be read at this point.
+        self.reader.last_message_count += self.unread;
+        self.unread = 0;
     }
 
     /// Returns the number of [`Message`]s to be iterated.
@@ -266,7 +247,6 @@ impl<'a, M: Message> MessageParIter<'a, M> {
     }
 }
 
-#[cfg(feature = "multi_threaded")]
 impl<'a, M: Message> IntoIterator for MessageParIter<'a, M> {
     type IntoIter = MessageIteratorWithId<'a, M>;
     type Item = <Self::IntoIter as Iterator>::Item;

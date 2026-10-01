@@ -37,7 +37,6 @@ use crate::{
     world::World,
 };
 
-pub use stepping::Stepping;
 use Direction::{Incoming, Outgoing};
 
 /// Resource that stores [`Schedule`]s mapped to [`ScheduleLabel`]s excluding the current running [`Schedule`].
@@ -238,7 +237,6 @@ impl Schedules {
 fn make_executor(kind: ExecutorKind) -> Box<dyn SystemExecutor> {
     match kind {
         ExecutorKind::SingleThreaded => Box::new(SingleThreadedExecutor::new()),
-        #[cfg(feature = "std")]
         ExecutorKind::MultiThreaded => Box::new(MultiThreadedExecutor::new()),
     }
 }
@@ -542,24 +540,8 @@ impl Schedule {
 
         let error_handler = world.default_error_handler();
 
-        #[cfg(not(feature = "bevy_debug_stepping"))]
         self.executor
-            .run(&mut self.executable, world, None, error_handler);
-
-        #[cfg(feature = "bevy_debug_stepping")]
-        {
-            let skip_systems = match world.get_resource_mut::<Stepping>() {
-                None => None,
-                Some(mut stepping) => stepping.skipped_systems(self),
-            };
-
-            self.executor.run(
-                &mut self.executable,
-                world,
-                skip_systems.as_ref(),
-                error_handler,
-            );
-        }
+            .run(&mut self.executable, world, error_handler);
     }
 
     /// Initializes any newly-added systems and conditions, rebuilds the executable schedule,
@@ -599,11 +581,6 @@ impl Schedule {
     /// Returns a mutable reference to the [`ScheduleGraph`].
     pub fn graph_mut(&mut self) -> &mut ScheduleGraph {
         &mut self.graph
-    }
-
-    /// Returns the [`SystemSchedule`].
-    pub(crate) fn executable(&self) -> &SystemSchedule {
-        &self.executable
     }
 
     /// Iterates the change ticks of all systems in the schedule and clamps any older than

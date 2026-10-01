@@ -5,7 +5,6 @@ use bevy_tasks::{ComputeTaskPool, Scope, TaskPool, ThreadExecutor};
 use concurrent_queue::ConcurrentQueue;
 use core::{any::Any, panic::AssertUnwindSafe};
 use fixedbitset::FixedBitSet;
-#[cfg(feature = "std")]
 use std::eprintln;
 use std::sync::{Mutex, MutexGuard};
 
@@ -22,8 +21,6 @@ use crate::{
     system::{RunSystemError, ScheduleSystem},
     world::{unsafe_world_cell::UnsafeWorldCell, World},
 };
-#[cfg(feature = "hotpatching")]
-use crate::{prelude::DetectChanges, HotPatchChanges};
 
 use super::__rust_begin_short_backtrace;
 
@@ -239,7 +236,6 @@ impl SystemExecutor for MultiThreadedExecutor {
         &mut self,
         schedule: &mut SystemSchedule,
         world: &mut World,
-        _skip_systems: Option<&FixedBitSet>,
         error_handler: ErrorHandler,
     ) {
         let state = self.state.get_mut().unwrap();
@@ -252,22 +248,6 @@ impl SystemExecutor for MultiThreadedExecutor {
             .num_dependencies_remaining
             .clone_from(&schedule.system_dependencies);
         state.ready_systems.clone_from(&self.starting_systems);
-
-        // If stepping is enabled, make sure we skip those systems that should
-        // not be run.
-        #[cfg(feature = "bevy_debug_stepping")]
-        if let Some(skipped_systems) = _skip_systems {
-            debug_assert_eq!(skipped_systems.len(), state.completed_systems.len());
-            // mark skipped systems as completed
-            state.completed_systems |= skipped_systems;
-
-            // signal the dependencies for each of the skipped systems, as
-            // though they had run
-            for system_index in skipped_systems.ones() {
-                state.signal_dependents(system_index);
-                state.ready_systems.remove(system_index);
-            }
-        }
 
         let thread_executor = world
             .get_resource::<MainThreadExecutor>()
@@ -339,7 +319,6 @@ impl<'scope, 'env: 'scope, 'sys> Context<'scope, 'env, 'sys> {
             .push(SystemResult { system_index })
             .unwrap_or_else(|error| unreachable!("{}", error));
         if let Err(payload) = res {
-            #[cfg(feature = "std")]
             #[expect(clippy::print_stderr, reason = "Allowed behind `std` feature gate.")]
             {
                 eprintln!("Encountered a panic in system `{}`!", system.name());
@@ -447,14 +426,6 @@ impl ExecutorState {
             return;
         }
 
-        #[cfg(feature = "hotpatching")]
-        let hotpatch_tick = context
-            .environment
-            .world_cell
-            .get_resource_ref::<HotPatchChanges>()
-            .map(|r| r.last_changed())
-            .unwrap_or_default();
-
         // can't borrow since loop mutably borrows `self`
         let mut ready_systems = core::mem::take(&mut self.ready_systems_copy);
 
@@ -472,14 +443,6 @@ impl ExecutorState {
                 // Therefore, no other reference to this system exists and there is no aliasing.
                 let system =
                     &mut unsafe { &mut *context.environment.systems[system_index].get() }.system;
-
-                #[cfg(feature = "hotpatching")]
-                if hotpatch_tick.is_newer_than(
-                    system.get_last_run(),
-                    context.environment.world_cell.change_tick(),
-                ) {
-                    system.refresh_hotpatch();
-                }
 
                 if !self.can_run(system_index, conditions) {
                     // NOTE: exclusive systems with ambiguities are susceptible to
@@ -809,7 +772,6 @@ fn apply_deferred(
             system.apply_deferred(world);
         }));
         if let Err(payload) = res {
-            #[cfg(feature = "std")]
             #[expect(clippy::print_stderr, reason = "Allowed behind `std` feature gate.")]
             {
                 eprintln!(

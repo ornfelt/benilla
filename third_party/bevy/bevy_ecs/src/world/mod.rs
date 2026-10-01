@@ -2756,7 +2756,6 @@ impl World {
                     #[cfg(debug_assertions)]
                     {
                         // if we're already panicking, log an error instead of panicking, as double-panics result in an abort
-                        #[cfg(feature = "std")]
                         if std::thread::panicking() {
                             log::error!("Resource `{}` was inserted during a call to World::resource_scope, which may result in unexpected behavior.\n\
                                    In release builds, the value inserted will be overwritten at the end of the scope.",

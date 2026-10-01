@@ -83,7 +83,7 @@ the same repository's.
   under `manage_clipboard` alone and `ModifierKeysState` reads macOS from the target; the manifest
   lost its wasm-only dependencies, its example list and its dev-dependencies. No system benilla's
   targets add went.
-- **The web, Android and iOS code of the rest** (bevy_ecs's waits for its own trim): `bevy_log`'s
+- **The web, Android and iOS code of the rest** (bevy_ecs's went with its off features, below): `bevy_log`'s
   Android, wasm and iOS layers (`android_tracing.rs`), `bevy_asset`'s wasm HTTP reader
   (`io/wasm.rs`) with every `wasm32` branch of its sources, server, processor log and web
   reader, `bevy_app`'s browser runner loop and panic hook, `bevy_tasks`' web task (a `Task` is an
@@ -585,6 +585,24 @@ the same repository's.
   fields, `StructVariantInfo::new`, the `set_represented_type`s it calls),
   `ReflectSerialize`/`ReflectDeserialize` whole, the methods the info macros generate, and what
   bevy_reflect's own tests call. Every kept derive expands to the same tokens.
+- **`bevy_ecs`'s and `bevy_app`'s off features and platform code.** The features nothing in the
+  build can enable go with their code: `bevy_debug_stepping` (the `Stepping` resource and module,
+  `bevy_app`'s `Stepping::begin_frame` system, the executors' skip list, so
+  `SystemExecutor::run` loses its always-`None` `skip_systems` parameter, and `Schedule::executable`,
+  which only stepping read), `hotpatching` (`HotPatched`, `HotPatchChanges`,
+  `System::refresh_hotpatch` and every override, the function systems' jump-table pointer,
+  `bevy_app`'s `hotpatch.rs` with `dioxus-devtools`, `subsecond` and the optional
+  `crossbeam-channel`), `track_location` (`MaybeLocation` is always the empty form: its methods
+  return `None` and drop their closures uncalled, as they did) and `detailed_trace` (three
+  message trace lines). The features the workspace always enables are resolved: `std`,
+  `multi_threaded` and `async_executor` (the `no_std` fallbacks, the single-threaded `par_iter`
+  folds and message iteration, `ExecutorKind::SingleThreaded` as a default; `MultiThreaded` stays
+  the default), and so are the `wasm32` branches and the no-atomics `Box` and `concurrent-queue`
+  target dependency. The features stay as names (`std`, `multi_threaded`, `async_executor` enable
+  what they did); `trace` stays gated (benilla's `tracy` and `trace_chrome` reach it), as do
+  `backtrace`, `debug`, `serialize` and `bevy_reflect`. Resolving the `cfg`s leaves both crates
+  expanding to the same tokens, with and without `trace`; the stepping module, its parameter and
+  accessor went after that proof.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

@@ -496,8 +496,6 @@ where
     F: SystemParamFunction<Marker>,
 {
     func: F,
-    #[cfg(feature = "hotpatching")]
-    current_ptr: subsecond::HotFnPtr,
     state: Option<FunctionSystemState<F::Param>>,
     system_meta: SystemMeta,
     // NOTE: PhantomData<fn()-> T> gives this safe Send/Sync impls
@@ -524,9 +522,6 @@ where
     fn new(func: F, system_meta: SystemMeta, state: Option<FunctionSystemState<F::Param>>) -> Self {
         Self {
             func,
-            #[cfg(feature = "hotpatching")]
-            current_ptr: subsecond::HotFn::current(<F as SystemParamFunction<Marker>>::run)
-                .ptr_address(),
             state,
             system_meta,
             marker: PhantomData,
@@ -550,9 +545,6 @@ where
     fn clone(&self) -> Self {
         Self {
             func: self.func.clone(),
-            #[cfg(feature = "hotpatching")]
-            current_ptr: subsecond::HotFn::current(<F as SystemParamFunction<Marker>>::run)
-                .ptr_address(),
             state: None,
             system_meta: SystemMeta::new::<F>(),
             marker: PhantomData,
@@ -671,32 +663,10 @@ where
         let params =
             unsafe { F::Param::get_param(&mut state.param, &self.system_meta, world, change_tick) };
 
-        #[cfg(feature = "hotpatching")]
-        let out = {
-            let mut hot_fn = subsecond::HotFn::current(<F as SystemParamFunction<Marker>>::run);
-            // SAFETY:
-            // - pointer used to call is from the current jump table
-            unsafe {
-                hot_fn
-                    .try_call_with_ptr(self.current_ptr, (&mut self.func, input, params))
-                    .expect("Error calling hotpatched system. Run a full rebuild")
-            }
-        };
-        #[cfg(not(feature = "hotpatching"))]
         let out = self.func.run(input, params);
 
         self.system_meta.last_run = change_tick;
         IntoResult::into_result(out)
-    }
-
-    #[cfg(feature = "hotpatching")]
-    #[inline]
-    fn refresh_hotpatch(&mut self) {
-        let new = subsecond::HotFn::current(<F as SystemParamFunction<Marker>>::run).ptr_address();
-        if new != self.current_ptr {
-            log::debug!("system {} hotpatched", self.name());
-        }
-        self.current_ptr = new;
     }
 
     #[inline]

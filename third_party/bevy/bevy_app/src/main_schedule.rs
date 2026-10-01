@@ -325,12 +325,6 @@ impl Plugin for MainSchedulePlugin {
                 )
                     .chain(),
             );
-
-        #[cfg(feature = "bevy_debug_stepping")]
-        {
-            use bevy_ecs::schedule::{IntoScheduleConfigs, Stepping};
-            app.add_systems(Main, Stepping::begin_frame.before(Main::run_main));
-        }
     }
 }
 

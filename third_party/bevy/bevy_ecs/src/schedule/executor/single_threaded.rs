@@ -6,7 +6,6 @@ use alloc::string::ToString as _;
 #[cfg(feature = "trace")]
 use tracing::info_span;
 
-#[cfg(feature = "std")]
 use std::eprintln;
 
 use crate::{
@@ -17,9 +16,6 @@ use crate::{
     system::{RunSystemError, ScheduleSystem},
     world::World,
 };
-
-#[cfg(feature = "hotpatching")]
-use crate::{change_detection::DetectChanges, HotPatchChanges};
 
 use super::__rust_begin_short_backtrace;
 
@@ -57,23 +53,8 @@ impl SystemExecutor for SingleThreadedExecutor {
         &mut self,
         schedule: &mut SystemSchedule,
         world: &mut World,
-        _skip_systems: Option<&FixedBitSet>,
         error_handler: ErrorHandler,
     ) {
-        // If stepping is enabled, make sure we skip those systems that should
-        // not be run.
-        #[cfg(feature = "bevy_debug_stepping")]
-        if let Some(skipped_systems) = _skip_systems {
-            // mark skipped systems as completed
-            self.completed_systems |= skipped_systems;
-        }
-
-        #[cfg(feature = "hotpatching")]
-        let hotpatch_tick = world
-            .get_resource_ref::<HotPatchChanges>()
-            .map(|r| r.last_changed())
-            .unwrap_or_default();
-
         for system_index in 0..schedule.systems.len() {
             let system = &mut schedule.systems[system_index].system;
 
@@ -120,11 +101,6 @@ impl SystemExecutor for SingleThreadedExecutor {
             #[cfg(feature = "trace")]
             should_run_span.exit();
 
-            #[cfg(feature = "hotpatching")]
-            if hotpatch_tick.is_newer_than(system.get_last_run(), world.change_tick()) {
-                system.refresh_hotpatch();
-            }
-
             // system has either been skipped or will run
             self.completed_systems.insert(system_index);
 
@@ -151,18 +127,12 @@ impl SystemExecutor for SingleThreadedExecutor {
                 }
             });
 
-            #[cfg(feature = "std")]
             #[expect(clippy::print_stderr, reason = "Allowed behind `std` feature gate.")]
             {
                 if let Err(payload) = std::panic::catch_unwind(f) {
                     eprintln!("Encountered a panic in system `{}`!", system.name());
                     std::panic::resume_unwind(payload);
                 }
-            }
-
-            #[cfg(not(feature = "std"))]
-            {
-                (f)();
             }
 
             self.unapplied_systems.insert(system_index);
@@ -210,12 +180,6 @@ fn evaluate_and_fold_conditions(
     for_system: &ScheduleSystem,
     on_set: bool,
 ) -> bool {
-    #[cfg(feature = "hotpatching")]
-    let hotpatch_tick = world
-        .get_resource_ref::<HotPatchChanges>()
-        .map(|r| r.last_changed())
-        .unwrap_or_default();
-
     #[expect(
         clippy::unnecessary_fold,
         reason = "Short-circuiting here would prevent conditions from mutating their own state as needed."
@@ -223,10 +187,6 @@ fn evaluate_and_fold_conditions(
     conditions
         .iter_mut()
         .map(|ConditionWithAccess { condition, .. }| {
-            #[cfg(feature = "hotpatching")]
-            if hotpatch_tick.is_newer_than(condition.get_last_run(), world.change_tick()) {
-                condition.refresh_hotpatch();
-            }
             __rust_begin_short_backtrace::readonly_run(&mut **condition, world).unwrap_or_else(
                 |err| {
                     if let RunSystemError::Failed(err) = err {

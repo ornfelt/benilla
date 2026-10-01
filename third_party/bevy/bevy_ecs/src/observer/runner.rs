@@ -85,18 +85,6 @@ pub(super) unsafe fn observer_system_runner<E: Event, B: Bundle, S: ObserverSyst
     //   and is never exclusive
     // - system is the same type erased system from above
     unsafe {
-        #[cfg(feature = "hotpatching")]
-        if world
-            .get_resource_ref::<crate::HotPatchChanges>()
-            .map(|r| {
-                r.last_changed()
-                    .is_newer_than((*system).get_last_run(), world.change_tick())
-            })
-            .unwrap_or(true)
-        {
-            (*system).refresh_hotpatch();
-        };
-
         if let Err(RunSystemError::Failed(err)) = (*system)
             .validate_param_unsafe(world)
             .map_err(From::from)

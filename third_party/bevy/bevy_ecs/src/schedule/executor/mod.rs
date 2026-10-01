@@ -1,4 +1,3 @@
-#[cfg(feature = "std")]
 mod multi_threaded;
 mod single_threaded;
 
@@ -8,7 +7,6 @@ use core::any::TypeId;
 
 pub use self::single_threaded::SingleThreadedExecutor;
 
-#[cfg(feature = "std")]
 pub use self::multi_threaded::{MainThreadExecutor, MultiThreadedExecutor};
 
 use fixedbitset::FixedBitSet;
@@ -34,7 +32,6 @@ pub(super) trait SystemExecutor: Send + Sync {
         &mut self,
         schedule: &mut SystemSchedule,
         world: &mut World,
-        skip_systems: Option<&FixedBitSet>,
         error_handler: fn(BevyError, ErrorContext),
     );
     fn set_apply_final_deferred(&mut self, value: bool);
@@ -51,18 +48,9 @@ pub enum ExecutorKind {
     ///
     /// Useful if you're dealing with a single-threaded environment, saving your threads for
     /// other things, or just trying minimize overhead.
-    #[cfg_attr(
-        any(
-            target_arch = "wasm32",
-            not(feature = "std"),
-            not(feature = "multi_threaded")
-        ),
-        default
-    )]
     SingleThreaded,
     /// Runs the schedule using a thread pool. Non-conflicting systems can run in parallel.
-    #[cfg(feature = "std")]
-    #[cfg_attr(all(not(target_arch = "wasm32"), feature = "multi_threaded"), default)]
+    #[default]
     MultiThreaded,
 }
 
@@ -81,17 +69,9 @@ pub struct SystemSchedule {
     pub(super) system_conditions: Vec<Vec<ConditionWithAccess>>,
     /// Indexed by system node id.
     /// Number of systems that the system immediately depends on.
-    #[cfg_attr(
-        not(feature = "std"),
-        expect(dead_code, reason = "currently only used with the std feature")
-    )]
     pub(super) system_dependencies: Vec<usize>,
     /// Indexed by system node id.
     /// List of systems that immediately depend on the system.
-    #[cfg_attr(
-        not(feature = "std"),
-        expect(dead_code, reason = "currently only used with the std feature")
-    )]
     pub(super) system_dependents: Vec<Vec<usize>>,
     /// Indexed by system node id.
     /// List of sets containing the system that have conditions
@@ -179,10 +159,6 @@ impl System for ApplyDeferred {
         Ok(())
     }
 
-    #[cfg(feature = "hotpatching")]
-    #[inline]
-    fn refresh_hotpatch(&mut self) {}
-
     fn run(
         &mut self,
         _input: SystemIn<'_, Self>,
@@ -243,7 +219,6 @@ impl IntoSystemSet<()> for ApplyDeferred {
 mod __rust_begin_short_backtrace {
     use core::hint::black_box;
 
-    #[cfg(feature = "std")]
     use crate::world::unsafe_world_cell::UnsafeWorldCell;
     use crate::{
         error::Result,
@@ -253,8 +228,7 @@ mod __rust_begin_short_backtrace {
 
     /// # Safety
     /// See `System::run_unsafe`.
-    // This is only used by `MultiThreadedExecutor`, and would be dead code without `std`.
-    #[cfg(feature = "std")]
+    // This is only used by `MultiThreadedExecutor`.
     #[inline(never)]
     pub(super) unsafe fn run_unsafe(
         system: &mut ScheduleSystem,
@@ -269,8 +243,7 @@ mod __rust_begin_short_backtrace {
 
     /// # Safety
     /// See `ReadOnlySystem::run_unsafe`.
-    // This is only used by `MultiThreadedExecutor`, and would be dead code without `std`.
-    #[cfg(feature = "std")]
+    // This is only used by `MultiThreadedExecutor`.
     #[inline(never)]
     pub(super) unsafe fn readonly_run_unsafe<O: 'static>(
         system: &mut dyn ReadOnlySystem<In = (), Out = O>,
@@ -281,7 +254,6 @@ mod __rust_begin_short_backtrace {
         black_box(unsafe { system.run_unsafe((), world) })
     }
 
-    #[cfg(feature = "std")]
     #[inline(never)]
     pub(super) fn run(
         system: &mut ScheduleSystem,

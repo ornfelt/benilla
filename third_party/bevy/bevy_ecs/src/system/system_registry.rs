@@ -1,5 +1,3 @@
-#[cfg(feature = "hotpatching")]
-use crate::{change_detection::DetectChanges, HotPatchChanges};
 use crate::{
     change_detection::Mut,
     entity::Entity,
@@ -399,17 +397,6 @@ impl World {
         // Initialize the system
         if !registered_system.initialized {
             system.initialize(self);
-        }
-
-        // refresh hotpatches for stored systems
-        #[cfg(feature = "hotpatching")]
-        if self
-            .get_resource_ref::<HotPatchChanges>()
-            .map(|r| r.last_changed())
-            .unwrap_or_default()
-            .is_newer_than(system.get_last_run(), self.change_tick())
-        {
-            system.refresh_hotpatch();
         }
 
         // Wait to run the commands until the system is available again.

@@ -275,39 +275,33 @@ impl RawCommandQueue {
                 unsafe { (meta.consume_command_and_get_size)(cmd, world, &mut local_cursor) };
             });
 
-            #[cfg(feature = "std")]
-            {
-                let result = std::panic::catch_unwind(f);
+            let result = std::panic::catch_unwind(f);
 
-                if let Err(payload) = result {
-                    // local_cursor now points to the location _after_ the panicked command.
-                    // Add the remaining commands that _would have_ been applied to the
-                    // panic_recovery queue.
-                    //
-                    // This uses `current_stop` instead of `stop` to account for any commands
-                    // that were queued _during_ this panic.
-                    //
-                    // This is implemented in such a way that if apply_or_drop_queued() are nested recursively in,
-                    // an applied Command, the correct command order will be retained.
-                    let panic_recovery = self.panic_recovery.as_mut();
-                    let bytes = self.bytes.as_mut();
-                    let current_stop = bytes.len();
-                    panic_recovery.extend_from_slice(&bytes[local_cursor..current_stop]);
-                    bytes.set_len(start);
-                    *self.cursor.as_mut() = start;
+            if let Err(payload) = result {
+                // local_cursor now points to the location _after_ the panicked command.
+                // Add the remaining commands that _would have_ been applied to the
+                // panic_recovery queue.
+                //
+                // This uses `current_stop` instead of `stop` to account for any commands
+                // that were queued _during_ this panic.
+                //
+                // This is implemented in such a way that if apply_or_drop_queued() are nested recursively in,
+                // an applied Command, the correct command order will be retained.
+                let panic_recovery = self.panic_recovery.as_mut();
+                let bytes = self.bytes.as_mut();
+                let current_stop = bytes.len();
+                panic_recovery.extend_from_slice(&bytes[local_cursor..current_stop]);
+                bytes.set_len(start);
+                *self.cursor.as_mut() = start;
 
-                    // This was the "top of the apply stack". If we are _not_ at the top of the apply stack,
-                    // when we call`resume_unwind" the caller "closer to the top" will catch the unwind and do this check,
-                    // until we reach the top.
-                    if start == 0 {
-                        bytes.append(panic_recovery);
-                    }
-                    std::panic::resume_unwind(payload);
+                // This was the "top of the apply stack". If we are _not_ at the top of the apply stack,
+                // when we call`resume_unwind" the caller "closer to the top" will catch the unwind and do this check,
+                // until we reach the top.
+                if start == 0 {
+                    bytes.append(panic_recovery);
                 }
+                std::panic::resume_unwind(payload);
             }
-
-            #[cfg(not(feature = "std"))]
-            (f)();
         }
 
         // Reset the buffer: all commands past the original `start` cursor have been applied.

@@ -39,20 +39,17 @@ pub struct PanicHandlerPlugin;
 
 impl Plugin for PanicHandlerPlugin {
     fn build(&self, _app: &mut App) {
-        #[cfg(feature = "std")]
-        {
-            static SET_HOOK: std::sync::Once = std::sync::Once::new();
-            SET_HOOK.call_once(|| {
-                cfg_if::cfg_if! {
-                    if #[cfg(feature = "error_panic_hook")] {
-                        let current_hook = std::panic::take_hook();
-                        std::panic::set_hook(alloc::boxed::Box::new(
-                            bevy_ecs::error::bevy_error_panic_hook(current_hook),
-                        ));
-                    }
-                    // Otherwise use the default target panic hook - Do nothing.
+        static SET_HOOK: std::sync::Once = std::sync::Once::new();
+        SET_HOOK.call_once(|| {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "error_panic_hook")] {
+                    let current_hook = std::panic::take_hook();
+                    std::panic::set_hook(alloc::boxed::Box::new(
+                        bevy_ecs::error::bevy_error_panic_hook(current_hook),
+                    ));
                 }
-            });
-        }
+                // Otherwise use the default target panic hook - Do nothing.
+            }
+        });
     }
 }
