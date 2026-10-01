@@ -77,7 +77,7 @@ pub mod prelude {
         message::{Message, MessageMutator, MessageReader, MessageWriter, Messages},
         name::{Name, NameOrEntity},
         observer::{Observer, On},
-        query::{Added, Allow, AnyOf, Changed, Has, Or, QueryBuilder, QueryState, With, Without},
+        query::{Added, Allow, AnyOf, Changed, Has, Or, QueryState, With, Without},
         related,
         relationship::RelationshipTarget,
         resource::Resource,
@@ -89,13 +89,9 @@ pub mod prelude {
         system::{
             Command, Commands, Deferred, EntityCommand, EntityCommands, If, In, InMut, InRef,
             IntoSystem, Local, NonSend, NonSendMut, ParamSet, Populated, Query, ReadOnlySystem,
-            Res, ResMut, Single, System, SystemIn, SystemInput, SystemParamBuilder,
-            SystemParamFunction,
+            Res, ResMut, Single, System, SystemIn, SystemInput, SystemParamFunction,
         },
-        world::{
-            EntityMut, EntityRef, EntityWorldMut, FilteredResources, FilteredResourcesMut,
-            FromWorld, World,
-        },
+        world::{EntityMut, EntityRef, EntityWorldMut, FromWorld, World},
     };
 
     #[doc(hidden)]

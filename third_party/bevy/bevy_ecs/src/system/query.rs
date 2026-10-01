@@ -1781,7 +1781,7 @@ impl<'w, 's, D: QueryData, F: QueryFilter> Query<'w, 's, D, F> {
     /// |`&mut T`, [`Mut<T>`]|Read, write and required access to `T`|
     /// |[`Option<T>`], [`AnyOf<(D, ...)>`]|Read and write access to `T`, but no required access|
     /// |Tuples of query data and<br/>`#[derive(QueryData)]` structs|The union of the access of their subqueries|
-    /// |[`FilteredEntityRef`], [`FilteredEntityMut`]|Determined by the [`QueryBuilder`] used to construct them. Any query can be transmuted to them, and they will receive the access of the source query. When combined with other `QueryData`, they will receive any access of the source query that does not conflict with the other data|
+    /// |[`FilteredEntityRef`], [`FilteredEntityMut`]|Any query can be transmuted to them, and they will receive the access of the source query. When combined with other `QueryData`, they will receive any access of the source query that does not conflict with the other data|
     ///
     /// `transmute_lens` drops filter terms, but [`Self::transmute_lens_filtered`] supports returning a [`QueryLens`] with a new
     /// filter type - the access required by filter parameters are as follows.
@@ -1807,7 +1807,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter> Query<'w, 's, D, F> {
     /// [`Has<T>`]: crate::query::Has
     /// [`Mut<T>`]: crate::world::Mut
     /// [`Or<(T, ...)>`]: crate::query::Or
-    /// [`QueryBuilder`]: crate::query::QueryBuilder
     /// [`Ref<T>`]: crate::world::Ref
     /// [`Spawned`]: crate::query::Spawned
     /// [`With<T>`]: crate::query::With

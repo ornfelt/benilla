@@ -107,20 +107,8 @@
 //! - All tuples between 1 to 16 elements where each element implements [`SystemParam`]
 //! - [`ParamSet`]
 //! - [`()` (unit primitive type)](https://doc.rust-lang.org/stable/std/primitive.unit.html)
-//!
-//! In addition, the following parameters can be used when constructing a dynamic system with [`SystemParamBuilder`],
-//! but will only provide an empty value when used with an ordinary system:
-//!
-//! - [`FilteredResources`](crate::world::FilteredResources)
-//! - [`FilteredResourcesMut`](crate::world::FilteredResourcesMut)
-//! - [`DynSystemParam`]
-//! - [`Vec<P>`] where `P: SystemParam`
-//! - [`ParamSet<Vec<P>>`] where `P: SystemParam`
-//!
-//! [`Vec<P>`]: alloc::vec::Vec
 
 mod adapter_system;
-mod builder;
 mod combinator;
 mod commands;
 mod exclusive_function_system;
@@ -138,7 +126,6 @@ mod system_registry;
 use core::any::TypeId;
 
 pub use adapter_system::*;
-pub use builder::*;
 pub use combinator::*;
 pub use commands::*;
 pub use exclusive_function_system::*;

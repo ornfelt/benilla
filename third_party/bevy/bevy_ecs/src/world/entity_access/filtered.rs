@@ -16,27 +16,8 @@ use thiserror::Error;
 
 /// Provides read-only access to a single entity and some of its components defined by the contained [`Access`].
 ///
-/// To define the access when used as a [`QueryData`](crate::query::QueryData),
-/// use a [`QueryBuilder`](crate::query::QueryBuilder) or [`QueryParamBuilder`](crate::system::QueryParamBuilder).
+/// When used as a [`QueryData`](crate::query::QueryData), the access is that of the query it was transmuted from.
 /// The [`FilteredEntityRef`] must be the entire [`QueryData`](crate::query::QueryData), and not nested inside a tuple with other data.
-///
-/// ```
-/// # use bevy_ecs::{prelude::*, world::FilteredEntityRef};
-/// #
-/// # #[derive(Component)]
-/// # struct A;
-/// #
-/// # let mut world = World::new();
-/// # world.spawn(A);
-/// #
-/// // This gives the `FilteredEntityRef` access to `&A`.
-/// let mut query = QueryBuilder::<FilteredEntityRef>::new(&mut world)
-///     .data::<&A>()
-///     .build();
-///
-/// let filtered_entity: FilteredEntityRef = query.single(&mut world).unwrap();
-/// let component: &A = filtered_entity.get().unwrap();
-/// ```
 #[derive(Clone, Copy)]
 pub struct FilteredEntityRef<'w, 's> {
     entity: UnsafeEntityCell<'w>,
@@ -232,27 +213,8 @@ unsafe impl EntityEquivalent for FilteredEntityRef<'_, '_> {}
 
 /// Provides mutable access to a single entity and some of its components defined by the contained [`Access`].
 ///
-/// To define the access when used as a [`QueryData`](crate::query::QueryData),
-/// use a [`QueryBuilder`](crate::query::QueryBuilder) or [`QueryParamBuilder`](crate::system::QueryParamBuilder).
+/// When used as a [`QueryData`](crate::query::QueryData), the access is that of the query it was transmuted from.
 /// The `FilteredEntityMut` must be the entire `QueryData`, and not nested inside a tuple with other data.
-///
-/// ```
-/// # use bevy_ecs::{prelude::*, world::FilteredEntityMut};
-/// #
-/// # #[derive(Component)]
-/// # struct A;
-/// #
-/// # let mut world = World::new();
-/// # world.spawn(A);
-/// #
-/// // This gives the `FilteredEntityMut` access to `&mut A`.
-/// let mut query = QueryBuilder::<FilteredEntityMut>::new(&mut world)
-///     .data::<&mut A>()
-///     .build();
-///
-/// let mut filtered_entity: FilteredEntityMut = query.single_mut(&mut world).unwrap();
-/// let component: Mut<A> = filtered_entity.get_mut().unwrap();
-/// ```
 pub struct FilteredEntityMut<'w, 's> {
     entity: UnsafeEntityCell<'w>,
     access: &'s Access,
@@ -313,37 +275,6 @@ impl<'w, 's> FilteredEntityMut<'w, 's> {
     /// Gets mutable access to the component of type `T` for the current entity.
     /// Returns `None` if the entity does not have a component of type `T` or if
     /// the access does not include write access to `T`.
-    ///
-    /// This only requires `&self`, and so may be used to get mutable access to multiple components.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::{prelude::*, world::FilteredEntityMut};
-    /// #
-    /// #[derive(Component)]
-    /// struct X(usize);
-    /// #[derive(Component)]
-    /// struct Y(usize);
-    ///
-    /// # let mut world = World::default();
-    /// let mut entity = world.spawn((X(0), Y(0))).into_mutable();
-    ///
-    /// // This gives the `FilteredEntityMut` access to `&mut X` and `&mut Y`.
-    /// let mut query = QueryBuilder::<FilteredEntityMut>::new(&mut world)
-    ///     .data::<(&mut X, &mut Y)>()
-    ///     .build();
-    ///
-    /// let mut filtered_entity: FilteredEntityMut = query.single_mut(&mut world).unwrap();
-    ///
-    /// // Get mutable access to two components at once
-    /// // SAFETY: We don't take any other references to `X` from this entity
-    /// let mut x = unsafe { filtered_entity.get_mut_unchecked::<X>() }.unwrap();
-    /// // SAFETY: We don't take any other references to `Y` from this entity
-    /// let mut y = unsafe { filtered_entity.get_mut_unchecked::<Y>() }.unwrap();
-    /// *x = X(1);
-    /// *y = Y(1);
-    /// ```
     ///
     /// # Safety
     ///

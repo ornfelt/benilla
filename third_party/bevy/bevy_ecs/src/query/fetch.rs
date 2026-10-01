@@ -315,7 +315,7 @@ pub unsafe trait QueryData: WorldQuery {
     /// This is used by [`WorldQuery`] types like [`FilteredEntityRef`]
     /// and [`FilteredEntityMut`] to support dynamic access.
     ///
-    /// Called when constructing a [`QueryLens`](crate::system::QueryLens) or calling [`QueryState::from_builder`](super::QueryState::from_builder)
+    /// Called when constructing a [`QueryLens`](crate::system::QueryLens)
     fn provide_extra_access(
         _state: &mut Self::State,
         _access: &mut Access,
@@ -885,7 +885,7 @@ unsafe impl<'a, 'b> QueryData for FilteredEntityRef<'a, 'b> {
         available_access: &Access,
     ) {
         // Claim any extra access that doesn't conflict with other subqueries
-        // This is used when constructing a `QueryLens` or creating a query from a `QueryBuilder`
+        // This is used when constructing a `QueryLens`
         // Start with the entire available access, since that is the most we can possibly access
         state.clone_from(available_access);
         // Prevent all writes, since `FilteredEntityRef` only performs read access
@@ -1010,7 +1010,7 @@ unsafe impl<'a, 'b> QueryData for FilteredEntityMut<'a, 'b> {
         available_access: &Access,
     ) {
         // Claim any extra access that doesn't conflict with other subqueries
-        // This is used when constructing a `QueryLens` or creating a query from a `QueryBuilder`
+        // This is used when constructing a `QueryLens`
         // Start with the entire available access, since that is the most we can possibly access
         state.clone_from(available_access);
         // Prevent any access that would conflict with other accesses in the current query

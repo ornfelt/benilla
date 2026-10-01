@@ -24,8 +24,7 @@ use tracing::{info_span, Span};
 use alloc::string::ToString as _;
 
 use super::{
-    IntoSystem, ReadOnlySystem, RunSystemError, SystemParamBuilder, SystemParamValidationError,
-    SystemStateFlags,
+    IntoSystem, ReadOnlySystem, RunSystemError, SystemParamValidationError, SystemStateFlags,
 };
 
 /// The metadata of a [`System`].
@@ -192,65 +191,6 @@ pub struct SystemState<Param: SystemParam + 'static> {
     world_id: WorldId,
 }
 
-// Allow closure arguments to be inferred.
-// For a closure to be used as a `SystemParamFunction`, it needs to be generic in any `'w` or `'s` lifetimes.
-// Rust will only infer a closure to be generic over lifetimes if it's passed to a function with a Fn constraint.
-// So, generate a function for each arity with an explicit `FnMut` constraint to enable higher-order lifetimes,
-// along with a regular `SystemParamFunction` constraint to allow the system to be built.
-macro_rules! impl_build_system {
-    ($(#[$meta:meta])* $($param: ident),*) => {
-        $(#[$meta])*
-        impl<$($param: SystemParam),*> SystemState<($($param,)*)> {
-            /// Create a [`FunctionSystem`] from a [`SystemState`].
-            /// This method signature allows type inference of closure parameters for a system with no input.
-            /// You can use [`SystemState::build_system_with_input()`] if you have input, or [`SystemState::build_any_system()`] if you don't need type inference.
-            #[inline]
-            pub fn build_system<
-                InnerOut: IntoResult<Out>,
-                Out,
-                Marker,
-                F: FnMut($(SystemParamItem<$param>),*) -> InnerOut
-                    + SystemParamFunction<Marker, In = (), Out = InnerOut, Param = ($($param,)*)>
-            >
-            (
-                self,
-                func: F,
-            ) -> FunctionSystem<Marker, (), Out, F>
-            {
-                self.build_any_system(func)
-            }
-
-            /// Create a [`FunctionSystem`] from a [`SystemState`].
-            /// This method signature allows type inference of closure parameters for a system with input.
-            /// You can use [`SystemState::build_system()`] if you have no input, or [`SystemState::build_any_system()`] if you don't need type inference.
-            #[inline]
-            pub fn build_system_with_input<
-                InnerIn: SystemInput + FromInput<In>,
-                In: SystemInput,
-                InnerOut: IntoResult<Out>,
-                Out,
-                Marker,
-                F: FnMut(InnerIn, $(SystemParamItem<$param>),*) -> InnerOut
-                    + SystemParamFunction<Marker, In = InnerIn, Out = InnerOut, Param = ($($param,)*)>
-            >
-            (
-                self,
-                func: F,
-            ) -> FunctionSystem<Marker, In, Out, F> {
-                self.build_any_system(func)
-            }
-        }
-    }
-}
-
-all_tuples!(
-    #[doc(fake_variadic)]
-    impl_build_system,
-    0,
-    16,
-    P
-);
-
 impl<Param: SystemParam> SystemState<Param> {
     /// Creates a new [`SystemState`] with default state.
     #[track_caller]
@@ -267,41 +207,6 @@ impl<Param: SystemParam> SystemState<Param> {
             param_state,
             world_id: world.id(),
         }
-    }
-
-    /// Create a [`SystemState`] from a [`SystemParamBuilder`]
-    pub(crate) fn from_builder(world: &mut World, builder: impl SystemParamBuilder<Param>) -> Self {
-        let mut meta = SystemMeta::new::<Param>();
-        meta.last_run = world.change_tick().relative_to(Tick::MAX);
-        let param_state = builder.build(world);
-        let mut component_access_set = FilteredAccessSet::new();
-        // We need to call `init_access` to ensure there are no panics from conflicts within `Param`,
-        // even though we don't use the calculated access.
-        Param::init_access(&param_state, &mut meta, &mut component_access_set, world);
-        Self {
-            meta,
-            param_state,
-            world_id: world.id(),
-        }
-    }
-
-    /// Create a [`FunctionSystem`] from a [`SystemState`].
-    /// This method signature allows any system function, but the compiler will not perform type inference on closure parameters.
-    /// You can use [`SystemState::build_system()`] or [`SystemState::build_system_with_input()`] to get type inference on parameters.
-    #[inline]
-    pub fn build_any_system<Marker, In, Out, F>(self, func: F) -> FunctionSystem<Marker, In, Out, F>
-    where
-        In: SystemInput,
-        F: SystemParamFunction<Marker, In: FromInput<In>, Out: IntoResult<Out>, Param = Param>,
-    {
-        FunctionSystem::new(
-            func,
-            self.meta,
-            Some(FunctionSystemState {
-                param: self.param_state,
-                world_id: self.world_id,
-            }),
-        )
     }
 
     /// Retrieve the [`SystemParam`] values. This can only be called when all parameters are read-only.
@@ -451,10 +356,10 @@ where
     F: SystemParamFunction<Marker>,
 {
     #[inline]
-    fn new(func: F, system_meta: SystemMeta, state: Option<FunctionSystemState<F::Param>>) -> Self {
+    fn new(func: F, system_meta: SystemMeta) -> Self {
         Self {
             func,
-            state,
+            state: None,
             system_meta,
             marker: PhantomData,
         }
@@ -489,7 +394,7 @@ where
 {
     type System = FunctionSystem<Marker, In, Out, F>;
     fn into_system(func: Self) -> Self::System {
-        FunctionSystem::new(func, SystemMeta::new::<F>(), None)
+        FunctionSystem::new(func, SystemMeta::new::<F>())
     }
 }
 

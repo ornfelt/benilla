@@ -20,8 +20,8 @@ use log::warn;
 use tracing::Span;
 
 use super::{
-    NopWorldQuery, QueryBuilder, QueryData, QueryEntityError, QueryFilter, QueryManyIter,
-    QueryManyUniqueIter, QuerySingleError, ROQueryItem, ReadOnlyQueryData,
+    NopWorldQuery, QueryData, QueryEntityError, QueryFilter, QueryManyIter, QueryManyUniqueIter,
+    QuerySingleError, ROQueryItem, ReadOnlyQueryData,
 };
 
 /// An ID for either a table or an archetype. Used for Query iteration.
@@ -207,50 +207,6 @@ impl<D: QueryData, F: QueryFilter> QueryState<D, F> {
                 filter = core::any::type_name::<F>(),
             ),
         }
-    }
-
-    /// Creates a new [`QueryState`] from a given [`QueryBuilder`] and inherits its [`FilteredAccess`].
-    pub fn from_builder(builder: &mut QueryBuilder<D, F>) -> Self {
-        let mut fetch_state = D::init_state(builder.world_mut());
-        let filter_state = F::init_state(builder.world_mut());
-
-        let mut component_access = FilteredAccess::default();
-        D::update_component_access(&fetch_state, &mut component_access);
-        D::provide_extra_access(
-            &mut fetch_state,
-            component_access.access_mut(),
-            builder.access().access(),
-        );
-
-        let mut component_access = builder.access().clone();
-
-        // For dynamic queries the dense-ness is given by the query builder.
-        let mut is_dense = builder.is_dense();
-
-        if let Some(default_filters) = builder.world().get_resource::<DefaultQueryFilters>() {
-            default_filters.modify_access(&mut component_access);
-            is_dense &= default_filters.is_dense(builder.world().components());
-        }
-
-        let mut state = Self {
-            world_id: builder.world().id(),
-            archetype_generation: ArchetypeGeneration::initial(),
-            matched_storage_ids: Vec::new(),
-            is_dense,
-            fetch_state,
-            filter_state,
-            component_access,
-            matched_tables: Default::default(),
-            matched_archetypes: Default::default(),
-            #[cfg(feature = "trace")]
-            par_iter_span: tracing::info_span!(
-                "par_for_each",
-                data = core::any::type_name::<D>(),
-                filter = core::any::type_name::<F>(),
-            ),
-        };
-        state.update_archetypes(builder.world());
-        state
     }
 
     /// Creates a [`Query`] from the given [`QueryState`] and [`World`].
@@ -1254,12 +1210,6 @@ impl<D: QueryData, F: QueryFilter> QueryState<D, F> {
         world: &'w mut World,
     ) -> Result<D::Item<'w, '_>, QuerySingleError> {
         self.query_mut(world).single_inner()
-    }
-}
-
-impl<D: QueryData, F: QueryFilter> From<QueryBuilder<'_, D, F>> for QueryState<D, F> {
-    fn from(mut value: QueryBuilder<D, F>) -> Self {
-        QueryState::from_builder(&mut value)
     }
 }
 

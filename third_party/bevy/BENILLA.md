@@ -760,6 +760,18 @@ the same repository's.
   between `Default` and the `Clone` handler; the relationship specialization stays (a
   non-`Clone` relationship is still `Ignore`; `Clone` relationships and targets and `Children`
   get `Default` where they got their handlers), without the two empty `ViaReflect` traits.
+- **`bevy_ecs`'s dynamic builders.** Nothing outside bevy_ecs's own tests builds a system or a
+  query at run time, so `system/builder.rs` (`SystemParamBuilder`, `ParamBuilder`,
+  `QueryParamBuilder`, `ParamSetBuilder`, `DynParamBuilder`, `LocalBuilder` and the
+  `FilteredResources` builders, with their tests), `query/builder.rs` (`QueryBuilder` with its
+  tests), `world/filtered_resource.rs` (`FilteredResources(Mut)` and their builders) and
+  `DynSystemParam` with its state are deleted, with the `SystemParam` impls of those params and
+  of `Vec<P>` and `ParamSet<Vec<P>>` (empty except when a builder filled them),
+  `SystemState::build_system`/`build_system_with_input`/`build_any_system`/`from_builder`,
+  `QueryState::from_builder` and its `From<QueryBuilder>`, the prelude's three names, and the
+  `SystemParam` derive's `#[system_param(builder)]` option (the derive now rejects every
+  struct-level option, as it did every other one). `FunctionSystem::new` loses its state
+  argument: its one caller left passed `None`. No system, schedule or run-time path changed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
