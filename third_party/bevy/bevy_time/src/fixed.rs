@@ -1,7 +1,5 @@
 use bevy_app::FixedMain;
 use bevy_ecs::world::World;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
 use core::time::Duration;
 
 use crate::{time::Time, virt::Virtual};
@@ -65,7 +63,6 @@ use crate::{time::Time, virt::Virtual};
 /// frame. Any [`overstep()`](Time::overstep) present in the accumulator will be
 /// processed according to the new [`timestep()`](Time::timestep) value.
 #[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect), reflect(Clone))]
 pub struct Fixed {
     timestep: Duration,
     overstep: Duration,

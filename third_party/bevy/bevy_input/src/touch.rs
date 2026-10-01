@@ -8,11 +8,6 @@ use bevy_ecs::{
 };
 use bevy_math::Vec2;
 use bevy_platform::collections::HashMap;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
-
-#[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 
 /// A touch input event.
 ///
@@ -38,16 +33,7 @@ use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 /// This event is the translated version of the `WindowEvent::Touch` from the `winit` crate.
 /// It is available to the end user and can be used for game logic.
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct TouchInput {
     /// The phase of the touch input.
     pub phase: TouchPhase,
@@ -66,16 +52,7 @@ pub struct TouchInput {
 
 /// A force description of a [`Touch`] input.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum ForceTouch {
     /// On iOS, the force is calibrated so that the same number corresponds to
     /// roughly the same amount of pressure on the screen regardless of the
@@ -116,16 +93,7 @@ pub enum ForceTouch {
 /// or that a finger has moved. There is also a canceled phase that indicates that
 /// the system canceled the tracking of the finger.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, Hash, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum TouchPhase {
     /// A finger started to touch the touchscreen.
     Started,

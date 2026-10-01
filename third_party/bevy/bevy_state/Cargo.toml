@@ -33,24 +33,16 @@ all-features = true
 
 [features]
 bevy_app = ["dep:bevy_app"]
-bevy_reflect = [
-    "dep:bevy_reflect",
-    "bevy_ecs/bevy_reflect",
-    "bevy_app?/bevy_reflect",
-]
 critical-section = [
     "bevy_ecs/critical-section",
     "bevy_app?/critical-section",
-    "bevy_reflect?/critical-section",
 ]
 default = [
     "std",
-    "bevy_reflect",
     "bevy_app",
 ]
 std = [
     "bevy_ecs/std",
-    "bevy_reflect?/std",
     "bevy_app?/std",
 ]
 
@@ -65,11 +57,6 @@ default-features = false
 
 [dependencies.bevy_ecs]
 version = "0.18.0"
-default-features = false
-
-[dependencies.bevy_reflect]
-version = "0.18.0"
-optional = true
 default-features = false
 
 [dependencies.bevy_state_macros]

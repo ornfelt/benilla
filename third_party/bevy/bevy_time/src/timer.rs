@@ -1,6 +1,4 @@
 use crate::Stopwatch;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::prelude::*;
 use core::time::Duration;
 
 /// Tracks elapsed time. Enters the finished state once `duration` is reached.
@@ -26,11 +24,6 @@ use core::time::Duration;
 /// For non-repeating timers, this will always be 0 or 1.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Default, Clone, PartialEq)
-)]
 pub struct Timer {
     stopwatch: Stopwatch,
     duration: Duration,
@@ -451,11 +444,6 @@ impl Timer {
 /// Specifies [`Timer`] behavior.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
 #[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Default, Clone, PartialEq, Hash)
-)]
 pub enum TimerMode {
     /// Run once and stop.
     #[default]

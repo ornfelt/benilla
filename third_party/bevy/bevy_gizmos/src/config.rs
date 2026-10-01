@@ -4,9 +4,14 @@ use bevy_camera::visibility::RenderLayers;
 pub use bevy_gizmos_macros::GizmoConfigGroup;
 
 use bevy_ecs::resource::Resource;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect, TypePath};
+use bevy_reflect::TypePath;
 use bevy_utils::TypeIdMap;
-use core::{any::TypeId, hash::Hash, ops::Deref, panic};
+use core::{
+    any::{Any, TypeId},
+    hash::Hash,
+    ops::Deref,
+    panic,
+};
 
 /// An enum configuring how line joints will be drawn.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
@@ -68,18 +73,16 @@ impl Hash for GizmoLineStyle {
 ///
 /// Here you can store additional configuration for you gizmo group not covered by [`GizmoConfig`]
 ///
-/// Make sure to derive [`Default`] + [`Reflect`] and register in the app using `app.init_gizmo_group::<T>()`
-pub trait GizmoConfigGroup: Reflect + TypePath + Default {}
+/// Make sure to derive [`Default`] + [`TypePath`] and register in the app using `app.init_gizmo_group::<T>()`
+pub trait GizmoConfigGroup: TypePath + Default + Send + Sync {}
 
 /// The default gizmo config group.
-#[derive(Default, Reflect, GizmoConfigGroup)]
-#[reflect(Default)]
+#[derive(Default, TypePath, GizmoConfigGroup)]
 pub struct DefaultGizmoConfigGroup;
 
 /// Used when the gizmo config group needs to be type-erased.
 /// Also used for retained gizmos, which can't have a gizmo config group.
-#[derive(Default, Reflect, GizmoConfigGroup, Debug, Clone)]
-#[reflect(Default, Clone)]
+#[derive(Default, TypePath, GizmoConfigGroup, Debug, Clone)]
 pub struct ErasedGizmoConfigGroup;
 
 /// A [`Resource`] storing [`GizmoConfig`] and [`GizmoConfigGroup`] structs
@@ -88,12 +91,12 @@ pub struct ErasedGizmoConfigGroup;
 #[derive(Resource, Default)]
 pub struct GizmoConfigStore {
     // INVARIANT: must map TypeId::of::<T>() to correct type T
-    store: TypeIdMap<(GizmoConfig, Box<dyn Reflect>)>,
+    store: TypeIdMap<(GizmoConfig, Box<dyn Any + Send + Sync>)>,
 }
 
 impl GizmoConfigStore {
     /// Returns [`GizmoConfig`] and [`GizmoConfigGroup`] associated with [`TypeId`] of a [`GizmoConfigGroup`]
-    pub fn get_config_dyn(&self, config_type_id: &TypeId) -> Option<(&GizmoConfig, &dyn Reflect)> {
+    pub fn get_config_dyn(&self, config_type_id: &TypeId) -> Option<(&GizmoConfig, &dyn Any)> {
         let (config, ext) = self.store.get(config_type_id)?;
         Some((config, ext.deref()))
     }
@@ -103,14 +106,14 @@ impl GizmoConfigStore {
         let Some((config, ext)) = self.get_config_dyn(&TypeId::of::<T>()) else {
             panic!("Requested config {} does not exist in `GizmoConfigStore`! Did you forget to add it using `app.init_gizmo_group<T>()`?", T::type_path());
         };
-        // hash map invariant guarantees that &dyn Reflect is of correct type T
-        let ext = ext.as_any().downcast_ref().unwrap();
+        // hash map invariant guarantees that &dyn Any is of correct type T
+        let ext = ext.downcast_ref().unwrap();
         (config, ext)
     }
 
     /// Inserts [`GizmoConfig`] and [`GizmoConfigGroup`] replacing old values
     pub fn insert<T: GizmoConfigGroup>(&mut self, config: GizmoConfig, ext_config: T) {
-        // INVARIANT: hash map must correctly map TypeId::of::<T>() to &dyn Reflect of type T
+        // INVARIANT: hash map must correctly map TypeId::of::<T>() to &dyn Any of type T
         self.store
             .insert(TypeId::of::<T>(), (config, Box::new(ext_config)));
     }

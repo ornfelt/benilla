@@ -3,8 +3,6 @@ use crate::{
     StandardColor, Xyza,
 };
 use bevy_math::{Vec3, Vec4};
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::prelude::*;
 
 /// Color in Hue-Saturation-Value (HSV) color space with alpha.
 /// Further information on this color model can be found on [Wikipedia](https://en.wikipedia.org/wiki/HSL_and_HSV).
@@ -13,16 +11,7 @@ use bevy_reflect::prelude::*;
 #[doc = include_str!("../docs/diagrams/model_graph.svg")]
 /// </div>
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Clone, PartialEq, Default)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct Hsva {
     /// The hue channel. [0.0, 360.0]
     pub hue: f32,

@@ -44,9 +44,6 @@ version = "0.18.0"
 [dependencies.bevy_asset]
 version = "0.18.0"
 
-[dependencies.bevy_color]
-version = "0.18.0"
-
 [dependencies.bevy_derive]
 version = "0.18.0"
 

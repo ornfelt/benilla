@@ -7,26 +7,12 @@ use core::{
 use itertools::Either;
 use thiserror::Error;
 
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
-#[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
-
 /// A nonempty closed interval, possibly unbounded in either direction.
 ///
 /// In other words, the interval may stretch all the way to positive or negative infinity, but it
 /// will always have some nonempty interior.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct Interval {
     start: f32,
     end: f32,

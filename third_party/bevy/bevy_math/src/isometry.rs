@@ -6,11 +6,6 @@ use core::ops::Mul;
 #[cfg(feature = "approx")]
 use approx::{AbsDiffEq, RelativeEq, UlpsEq};
 
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
-#[cfg(all(feature = "bevy_reflect", feature = "serialize"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
-
 /// An isometry in two dimensions, representing a rotation followed by a translation.
 /// This can often be useful for expressing relative positions and transformations from one position to another.
 ///
@@ -85,15 +80,6 @@ use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 /// ```
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Default, Clone)
-)]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct Isometry2d {
     /// The rotational part of a two-dimensional isometry.
     pub rotation: Rot2,
@@ -363,15 +349,6 @@ impl UlpsEq for Isometry2d {
 /// ```
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Default, Clone)
-)]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct Isometry3d {
     /// The rotational part of a three-dimensional isometry.
     pub rotation: Quat,

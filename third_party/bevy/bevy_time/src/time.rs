@@ -1,10 +1,5 @@
 use bevy_ecs::resource::Resource;
 use core::time::Duration;
-#[cfg(feature = "bevy_reflect")]
-use {
-    bevy_ecs::reflect::ReflectResource,
-    bevy_reflect::{std_traits::ReflectDefault, Reflect},
-};
 
 /// A generic clock resource that tracks how much it has advanced since its
 /// previous update and since its creation.
@@ -188,7 +183,6 @@ use {
 /// }
 /// ```
 #[derive(Resource, Debug, Copy, Clone)]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect), reflect(Resource, Default))]
 pub struct Time<T: Default = ()> {
     context: T,
     wrap_period: Duration,

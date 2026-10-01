@@ -8,7 +8,6 @@ use bevy_math::curve::{
 /// A curve whose samples are defined by a collection of colors.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 pub struct ColorCurve<T> {
     core: EvenCore<T>,
 }

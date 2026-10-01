@@ -3,7 +3,7 @@
 use bevy_app::{Plugin, PostUpdate};
 use bevy_color::Color;
 use bevy_ecs::{schedule::IntoScheduleConfigs, system::Res};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
+use bevy_reflect::TypePath;
 use bevy_transform::TransformSystems;
 
 use crate::{
@@ -31,8 +31,7 @@ impl Plugin for AabbGizmoPlugin {
     }
 }
 /// The [`GizmoConfigGroup`] used for debug visualizations of `Aabb` components on entities
-#[derive(Clone, Default, Reflect, GizmoConfigGroup)]
-#[reflect(Clone, Default)]
+#[derive(Clone, Default, TypePath, GizmoConfigGroup)]
 pub struct AabbGizmoConfigGroup {
     /// Draws all bounding boxes in the scene when set to `true`.
     ///

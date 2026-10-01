@@ -511,6 +511,25 @@ the same repository's.
   `bevy_ui`, `bevy_light`, `bevy_core_pipeline`, `bevy_sprite`, `bevy_ui_render` and
   `bevy_camera` drop their `bevy_reflect` dependency, and `bevy_reflect` loses its `wgpu-types`
   feature, which only `bevy_camera` asked for.
+- **The Bevy crates' `Reflect` derives, second part.** `bevy_input`'s, `bevy_time`'s,
+  `bevy_state`'s and `bevy_color`'s own `bevy_reflect` features go by cfg resolution, with their
+  `bevy_reflect` dependencies and `bevy_internal`'s requests for them; `bevy_winit` drops its one
+  derive and its dependency. The colours' reflection kept two things alive: `bevy_animation`'s
+  `Animatable` impls for `LinearRgba`, `Laba`, `Oklaba`, `Srgba` and `Xyza` (`Animatable: Reflect`;
+  benilla animates only `Vec3` and `Quat`) go, with `bevy_animation`'s `bevy_color` dependency, and
+  the gizmo config groups, which were stored as `Box<dyn Reflect>` only to be downcast through
+  `as_any`: `GizmoConfigStore` now stores `Box<dyn Any + Send + Sync>` and downcasts the same way,
+  `GizmoConfigGroup` (and its derive's bound) asks for `TypePath + Default + Send + Sync`, and the
+  four groups derive `TypePath` in place of `Reflect` (`T::type_path()` still names a missing group
+  in the panic); `LightGizmoColor` loses its derive. `bevy_math`'s, `bevy_app`'s and
+  `bevy_transform`'s features stay (`Transform`'s derive, whose `type_info()` `AnimatedField`
+  reads, needs `Vec3`'s and `Quat`'s reflection, `AnimatableKeyframeCurve`'s needs `UnevenCore`'s,
+  and `bevy_app`'s inserts `AppTypeRegistry`), but every other derive in them goes as the off
+  feature would remove it: `bevy_math`'s primitives, directions, rects, bounding volumes, rays,
+  isometries, splines, easing and curve types, with the curve adaptors' hand-written `TypePath`
+  impls and the tests that only proved they compile, `GlobalTransform`,
+  `StaticTransformOptimizations`, and `bevy_app`'s `Propagate`, `PropagateOver`, `PropagateStop`
+  and `Inherited`.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

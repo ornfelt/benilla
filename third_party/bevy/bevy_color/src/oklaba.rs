@@ -3,8 +3,6 @@ use crate::{
     Gray, Hsla, Hsva, Hwba, Lcha, LinearRgba, Luminance, Mix, Srgba, StandardColor, Xyza,
 };
 use bevy_math::{ops, FloatPow, Vec3, Vec4};
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::prelude::*;
 
 /// Color in Oklab color space, with alpha
 #[doc = include_str!("../docs/conversion.md")]
@@ -12,16 +10,7 @@ use bevy_reflect::prelude::*;
 #[doc = include_str!("../docs/diagrams/model_graph.svg")]
 /// </div>
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Clone, PartialEq, Default)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct Oklaba {
     /// The 'lightness' channel. [0.0, 1.0]
     pub lightness: f32,

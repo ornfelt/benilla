@@ -4,17 +4,8 @@ use super::Transform;
 use bevy_math::{ops, Affine3A, Dir3, Mat4, Quat, Vec3, Vec3A};
 use derive_more::derive::From;
 
-#[cfg(all(feature = "bevy_reflect", feature = "serialize"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
-
 #[cfg(feature = "bevy-support")]
 use bevy_ecs::{component::Component, hierarchy::validate_parent_has_component};
-
-#[cfg(feature = "bevy_reflect")]
-use {
-    bevy_ecs::reflect::ReflectComponent,
-    bevy_reflect::{std_traits::ReflectDefault, Reflect},
-};
 
 /// [`GlobalTransform`] is an affine transformation from entity-local coordinates to worldspace coordinates.
 ///
@@ -51,15 +42,6 @@ use {
     feature = "bevy-support",
     derive(Component),
     component(on_insert = validate_parent_has_component::<GlobalTransform>)
-)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Component, Default, PartialEq, Debug, Clone)
-)]
-#[cfg_attr(
-    all(feature = "bevy_reflect", feature = "serialize"),
-    reflect(Serialize, Deserialize)
 )]
 pub struct GlobalTransform(Affine3A);
 

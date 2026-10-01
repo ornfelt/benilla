@@ -3,11 +3,6 @@
 use bevy_ecs::resource::Resource;
 use bevy_platform::collections::HashSet;
 use core::hash::Hash;
-#[cfg(feature = "bevy_reflect")]
-use {
-    bevy_ecs::reflect::ReflectResource,
-    bevy_reflect::{std_traits::ReflectDefault, Reflect},
-};
 
 /// A "press-able" input of type `T`.
 ///
@@ -114,7 +109,6 @@ use {
 /// [`ResMut`]: bevy_ecs::system::ResMut
 /// [`DetectChangesMut::bypass_change_detection`]: bevy_ecs::change_detection::DetectChangesMut::bypass_change_detection
 #[derive(Debug, Clone, Resource)]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect), reflect(Default, Resource))]
 pub struct ButtonInput<T: Clone + Eq + Hash + Send + Sync + 'static> {
     /// A collection of every button that is currently being pressed.
     pressed: HashSet<T>,

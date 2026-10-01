@@ -3,8 +3,6 @@ use crate::{
     Luminance, Mix, Oklaba, Oklcha, Saturation, Srgba, StandardColor, Xyza,
 };
 use bevy_math::{MismatchedUnitsError, TryStableInterpolate};
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::prelude::*;
 use derive_more::derive::From;
 
 /// An enumerated type that can represent any of the color types in this crate.
@@ -43,16 +41,7 @@ use derive_more::derive::From;
 /// To avoid the cost of repeated conversion, and ensure consistent results where that is desired,
 /// first convert this [`Color`] into your desired color space.
 #[derive(Debug, Clone, Copy, PartialEq, From)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Clone, PartialEq, Default)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum Color {
     /// A color in the sRGB color space with alpha.
     Srgba(Srgba),

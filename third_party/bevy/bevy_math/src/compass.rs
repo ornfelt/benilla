@@ -1,8 +1,4 @@
 use crate::Dir2;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
-#[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 use core::ops::Neg;
 use glam::Vec2;
 
@@ -20,15 +16,6 @@ use glam::Vec2;
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Hash, Clone)
-)]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Deserialize, Serialize)
-)]
 pub enum CompassQuadrant {
     /// Corresponds to [`Dir2::Y`] and [`Dir2::NORTH`]
     North,
@@ -127,15 +114,6 @@ impl CompassQuadrant {
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Hash, Clone)
-)]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Deserialize, Serialize)
-)]
 pub enum CompassOctant {
     /// Corresponds to [`Dir2::Y`] and [`Dir2::NORTH`]
     North,

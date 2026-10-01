@@ -6,7 +6,7 @@ use bevy_color::{
     Color,
 };
 use bevy_ecs::{schedule::IntoScheduleConfigs, system::Res};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
+use bevy_reflect::TypePath;
 use bevy_transform::TransformSystems;
 
 use crate::{
@@ -35,8 +35,7 @@ impl Plugin for LightGizmoPlugin {
 }
 
 /// Configures how a color is attributed to a light gizmo.
-#[derive(Debug, Clone, Copy, Default, Reflect)]
-#[reflect(Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum LightGizmoColor {
     /// User-specified color.
     Manual(Color),
@@ -50,8 +49,7 @@ pub enum LightGizmoColor {
 }
 
 /// The [`GizmoConfigGroup`] used to configure the visualization of lights.
-#[derive(Clone, Reflect, GizmoConfigGroup)]
-#[reflect(Clone, Default)]
+#[derive(Clone, TypePath, GizmoConfigGroup)]
 pub struct LightGizmoConfigGroup {
     /// Draw a gizmo for all lights if true.
     ///

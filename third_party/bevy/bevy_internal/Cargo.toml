@@ -264,10 +264,7 @@ optional = true
 
 [dependencies.bevy_color]
 version = "0.18.0"
-features = [
-    "alloc",
-    "bevy_reflect",
-]
+features = ["alloc"]
 optional = true
 default-features = false
 
@@ -299,7 +296,6 @@ optional = true
 
 [dependencies.bevy_input]
 version = "0.18.0"
-features = ["bevy_reflect"]
 default-features = false
 
 [dependencies.bevy_light]
@@ -362,10 +358,7 @@ optional = true
 
 [dependencies.bevy_state]
 version = "0.18.0"
-features = [
-    "bevy_app",
-    "bevy_reflect",
-]
+features = ["bevy_app"]
 optional = true
 default-features = false
 
@@ -379,7 +372,6 @@ optional = true
 
 [dependencies.bevy_time]
 version = "0.18.0"
-features = ["bevy_reflect"]
 default-features = false
 
 [dependencies.bevy_transform]

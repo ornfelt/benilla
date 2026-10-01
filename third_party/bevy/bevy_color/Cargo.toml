@@ -43,11 +43,9 @@ alloc = [
     "bevy_math/alloc",
     "serde?/alloc",
 ]
-bevy_reflect = ["dep:bevy_reflect"]
-critical-section = ["bevy_reflect?/critical-section"]
+critical-section = []
 default = [
     "std",
-    "bevy_reflect",
     "encase",
 ]
 encase = [
@@ -64,7 +62,6 @@ std = [
     "bevy_math/std",
     "serde?/std",
     "wgpu-types?/std",
-    "bevy_reflect?/std",
 ]
 wgpu-types = ["dep:wgpu-types"]
 
@@ -75,11 +72,6 @@ path = "src/lib.rs"
 [dependencies.bevy_math]
 version = "0.18.0"
 features = ["curve"]
-default-features = false
-
-[dependencies.bevy_reflect]
-version = "0.18.0"
-optional = true
 default-features = false
 
 [dependencies.bytemuck]

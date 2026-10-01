@@ -12,7 +12,6 @@
 //! resource (never inserted).
 
 use bevy_derive::Deref;
-use bevy_reflect::Reflect;
 use core::cell::RefCell;
 use winit::event_loop::EventLoopProxy;
 
@@ -42,8 +41,7 @@ thread_local! {
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug, Clone, Copy, Reflect)]
-#[reflect(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum WinitUserEvent {
     /// Dummy event that just wakes up the winit event loop
     WakeUp,

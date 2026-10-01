@@ -2,11 +2,6 @@
 
 use bevy_ecs::message::Message;
 use bevy_math::Vec2;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
-
-#[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 
 /// Two-finger pinch gesture, often used for magnifications.
 ///
@@ -18,16 +13,7 @@ use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 /// - Only available on **`macOS`** and **`iOS`**.
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct PinchGesture(pub f32);
 
 /// Two-finger rotation gesture.
@@ -40,16 +26,7 @@ pub struct PinchGesture(pub f32);
 /// - Only available on **`macOS`** and **`iOS`**.
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct RotationGesture(pub f32);
 
 /// Double tap gesture.
@@ -59,16 +36,7 @@ pub struct RotationGesture(pub f32);
 /// - Only available on **`macOS`** and **`iOS`**.
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct DoubleTapGesture;
 
 /// Pan gesture.
@@ -77,14 +45,5 @@ pub struct DoubleTapGesture;
 ///
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct PanGesture(pub Vec2);

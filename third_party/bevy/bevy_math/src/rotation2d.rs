@@ -7,11 +7,6 @@ use crate::{
     prelude::{Mat2, Vec2},
 };
 
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
-#[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
-
 /// A 2D rotation.
 ///
 /// # Example
@@ -39,15 +34,6 @@ use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Default, Clone)
-)]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 #[doc(alias = "rotation", alias = "rotation2d", alias = "rotation_2d")]
 pub struct Rot2 {
     /// The cosine of the rotation angle.

@@ -9,18 +9,6 @@ use core::any::type_name;
 use core::fmt::{self, Debug};
 use core::marker::PhantomData;
 
-#[cfg(feature = "bevy_reflect")]
-use {
-    alloc::format,
-    bevy_reflect::{utility::GenericTypePathCell, FromReflect, Reflect, TypePath},
-};
-
-#[cfg(feature = "bevy_reflect")]
-mod paths {
-    pub(super) const THIS_MODULE: &str = "bevy_math::curve::adaptors";
-    pub(super) const THIS_CRATE: &str = "bevy_math";
-}
-
 #[expect(unused, reason = "imported just for doc links")]
 use super::CurveExt;
 
@@ -43,7 +31,6 @@ use super::CurveExt;
 /// This is a curve that holds an inner value and always produces a clone of that value when sampled.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 pub struct ConstantCurve<T> {
     pub(crate) domain: Interval,
     pub(crate) value: T,
@@ -81,18 +68,10 @@ where
 /// output of type `T`. The value of this curve when sampled at time `t` is just `f(t)`.
 #[derive(Clone)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(where T: TypePath),
-    reflect(from_reflect = false, type_path = false),
-)]
 pub struct FunctionCurve<T, F> {
     pub(crate) domain: Interval,
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore))]
     pub(crate) f: F,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -102,50 +81,6 @@ impl<T, F> Debug for FunctionCurve<T, F> {
             .field("domain", &self.domain)
             .field("f", &type_name::<F>())
             .finish()
-    }
-}
-
-/// Note: This is not a fully stable implementation of `TypePath` due to usage of `type_name`
-/// for function members.
-#[cfg(feature = "bevy_reflect")]
-impl<T, F> TypePath for FunctionCurve<T, F>
-where
-    T: TypePath,
-    F: 'static,
-{
-    fn type_path() -> &'static str {
-        static CELL: GenericTypePathCell = GenericTypePathCell::new();
-        CELL.get_or_insert::<Self, _>(|| {
-            format!(
-                "{}::FunctionCurve<{},{}>",
-                paths::THIS_MODULE,
-                T::type_path(),
-                type_name::<F>()
-            )
-        })
-    }
-
-    fn short_type_path() -> &'static str {
-        static CELL: GenericTypePathCell = GenericTypePathCell::new();
-        CELL.get_or_insert::<Self, _>(|| {
-            format!(
-                "FunctionCurve<{},{}>",
-                T::short_type_path(),
-                type_name::<F>()
-            )
-        })
-    }
-
-    fn type_ident() -> Option<&'static str> {
-        Some("FunctionCurve")
-    }
-
-    fn crate_name() -> Option<&'static str> {
-        Some(paths::THIS_CRATE)
-    }
-
-    fn module_path() -> Option<&'static str> {
-        Some(paths::THIS_MODULE)
     }
 }
 
@@ -183,18 +118,10 @@ where
 /// given function. Curves of this type are produced by [`CurveExt::map`].
 #[derive(Clone)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(where S: TypePath, T: TypePath, C: TypePath),
-    reflect(from_reflect = false, type_path = false),
-)]
 pub struct MapCurve<S, T, C, F> {
     pub(crate) preimage: C,
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore))]
     pub(crate) f: F,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<(fn() -> S, fn(S) -> T)>,
 }
 
@@ -207,56 +134,6 @@ where
             .field("preimage", &self.preimage)
             .field("f", &type_name::<F>())
             .finish()
-    }
-}
-
-/// Note: This is not a fully stable implementation of `TypePath` due to usage of `type_name`
-/// for function members.
-#[cfg(feature = "bevy_reflect")]
-impl<S, T, C, F> TypePath for MapCurve<S, T, C, F>
-where
-    S: TypePath,
-    T: TypePath,
-    C: TypePath,
-    F: 'static,
-{
-    fn type_path() -> &'static str {
-        static CELL: GenericTypePathCell = GenericTypePathCell::new();
-        CELL.get_or_insert::<Self, _>(|| {
-            format!(
-                "{}::MapCurve<{},{},{},{}>",
-                paths::THIS_MODULE,
-                S::type_path(),
-                T::type_path(),
-                C::type_path(),
-                type_name::<F>()
-            )
-        })
-    }
-
-    fn short_type_path() -> &'static str {
-        static CELL: GenericTypePathCell = GenericTypePathCell::new();
-        CELL.get_or_insert::<Self, _>(|| {
-            format!(
-                "MapCurve<{},{},{},{}>",
-                S::type_path(),
-                T::type_path(),
-                C::type_path(),
-                type_name::<F>()
-            )
-        })
-    }
-
-    fn type_ident() -> Option<&'static str> {
-        Some("MapCurve")
-    }
-
-    fn crate_name() -> Option<&'static str> {
-        Some(paths::THIS_CRATE)
-    }
-
-    fn module_path() -> Option<&'static str> {
-        Some(paths::THIS_MODULE)
     }
 }
 
@@ -280,19 +157,11 @@ where
 /// Curves of this type are produced by [`CurveExt::reparametrize`].
 #[derive(Clone)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(where T: TypePath, C: TypePath),
-    reflect(from_reflect = false, type_path = false),
-)]
 pub struct ReparamCurve<T, C, F> {
     pub(crate) domain: Interval,
     pub(crate) base: C,
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore))]
     pub(crate) f: F,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -306,53 +175,6 @@ where
             .field("base", &self.base)
             .field("f", &type_name::<F>())
             .finish()
-    }
-}
-
-/// Note: This is not a fully stable implementation of `TypePath` due to usage of `type_name`
-/// for function members.
-#[cfg(feature = "bevy_reflect")]
-impl<T, C, F> TypePath for ReparamCurve<T, C, F>
-where
-    T: TypePath,
-    C: TypePath,
-    F: 'static,
-{
-    fn type_path() -> &'static str {
-        static CELL: GenericTypePathCell = GenericTypePathCell::new();
-        CELL.get_or_insert::<Self, _>(|| {
-            format!(
-                "{}::ReparamCurve<{},{},{}>",
-                paths::THIS_MODULE,
-                T::type_path(),
-                C::type_path(),
-                type_name::<F>()
-            )
-        })
-    }
-
-    fn short_type_path() -> &'static str {
-        static CELL: GenericTypePathCell = GenericTypePathCell::new();
-        CELL.get_or_insert::<Self, _>(|| {
-            format!(
-                "ReparamCurve<{},{},{}>",
-                T::type_path(),
-                C::type_path(),
-                type_name::<F>()
-            )
-        })
-    }
-
-    fn type_ident() -> Option<&'static str> {
-        Some("ReparamCurve")
-    }
-
-    fn crate_name() -> Option<&'static str> {
-        Some(paths::THIS_CRATE)
-    }
-
-    fn module_path() -> Option<&'static str> {
-        Some(paths::THIS_MODULE)
     }
 }
 
@@ -376,18 +198,12 @@ where
 /// Curves of this type are produced by [`CurveExt::reparametrize_linear`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct LinearReparamCurve<T, C> {
     /// Invariants: The domain of this curve must always be bounded.
     pub(crate) base: C,
     /// Invariants: This interval must always be bounded.
     pub(crate) new_domain: Interval,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -412,16 +228,10 @@ where
 /// sample times before sampling. Curves of this type are produced by [`CurveExt::reparametrize_by_curve`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct CurveReparamCurve<T, C, D> {
     pub(crate) base: C,
     pub(crate) reparam_curve: D,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -446,15 +256,9 @@ where
 /// produced by [`CurveExt::graph`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct GraphCurve<T, C> {
     pub(crate) base: C,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -477,17 +281,11 @@ where
 /// of this type are produced by [`CurveExt::zip`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct ZipCurve<S, T, C, D> {
     pub(crate) domain: Interval,
     pub(crate) first: C,
     pub(crate) second: D,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> (S, T)>,
 }
 
@@ -519,16 +317,10 @@ where
 /// Curves of this type are produced by [`CurveExt::chain`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct ChainCurve<T, C, D> {
     pub(crate) first: C,
     pub(crate) second: D,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -570,15 +362,9 @@ where
 /// The original curve's domain must be bounded to get a valid [`ReverseCurve`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct ReverseCurve<T, C> {
     pub(crate) curve: C,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -612,16 +398,10 @@ where
 /// The original curve's domain must be bounded to get a valid [`RepeatCurve`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct RepeatCurve<T, C> {
     pub(crate) domain: Interval,
     pub(crate) curve: C,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -672,15 +452,9 @@ where
 /// The original curve's domain must be bounded to get a valid [`ForeverCurve`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct ForeverCurve<T, C> {
     pub(crate) curve: C,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -727,15 +501,9 @@ where
 /// The original curve's domain must be right-finite to get a valid [`PingPongCurve`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct PingPongCurve<T, C> {
     pub(crate) curve: C,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
@@ -782,18 +550,12 @@ where
 /// valid [`ContinuationCurve`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect, FromReflect),
-    reflect(from_reflect = false)
-)]
 pub struct ContinuationCurve<T, C, D> {
     pub(crate) first: C,
     pub(crate) second: D,
     // cache the offset in the curve directly to prevent triple sampling for every sample we make
     pub(crate) offset: T,
     #[cfg_attr(feature = "serialize", serde(skip))]
-    #[cfg_attr(feature = "bevy_reflect", reflect(ignore, clone))]
     pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 

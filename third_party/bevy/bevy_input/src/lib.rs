@@ -55,8 +55,6 @@ pub mod prelude {
 
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
 
 #[cfg(feature = "gestures")]
 use gestures::*;
@@ -73,9 +71,6 @@ use mouse::{
 
 #[cfg(feature = "touch")]
 use touch::{touch_screen_input_system, TouchInput, Touches};
-
-#[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 
 /// Adds input from various sources to an App
 #[derive(Default)]
@@ -128,16 +123,7 @@ impl Plugin for InputPlugin {
 
 /// The current "press" state of an element
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, Hash, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum ButtonState {
     /// The button is pressed.
     Pressed,

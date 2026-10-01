@@ -58,9 +58,6 @@ version = "0.18.0"
 features = ["std"]
 default-features = false
 
-[dependencies.bevy_reflect]
-version = "0.18.0"
-
 [dependencies.bevy_window]
 version = "0.18.0"
 

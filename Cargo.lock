@@ -609,7 +609,6 @@ version = "0.18.1"
 dependencies = [
  "bevy_app",
  "bevy_asset",
- "bevy_color",
  "bevy_derive",
  "bevy_ecs",
  "bevy_math",
@@ -722,7 +721,6 @@ name = "bevy_color"
 version = "0.18.1"
 dependencies = [
  "bevy_math",
- "bevy_reflect",
  "bytemuck",
  "derive_more",
  "encase",
@@ -910,7 +908,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_platform",
- "bevy_reflect",
  "smol_str",
 ]
 
@@ -1240,7 +1237,6 @@ version = "0.18.1"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
- "bevy_reflect",
  "bevy_state_macros",
  "bevy_utils",
  "log",
@@ -1302,7 +1298,6 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_platform",
- "bevy_reflect",
  "log",
  "serde",
 ]
@@ -1401,7 +1396,6 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_platform",
- "bevy_reflect",
  "bevy_window",
  "winit",
 ]

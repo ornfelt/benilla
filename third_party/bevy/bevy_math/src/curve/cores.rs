@@ -22,7 +22,6 @@ use bevy_reflect::Reflect;
 /// of summary used intermediately by sampling operations.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 pub enum InterpolationDatum<T> {
     /// This value lies exactly on a value in the family.
     Exact(T),
@@ -119,7 +118,6 @@ impl<T> InterpolationDatum<T> {
 #[cfg(feature = "alloc")]
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 pub struct EvenCore<T> {
     /// The domain over which the samples are taken, which corresponds to the domain of the curve
     /// formed by interpolating them.
@@ -464,7 +462,6 @@ impl<T> UnevenCore<T> {
 #[cfg(feature = "alloc")]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 pub struct ChunkedUnevenCore<T> {
     /// The times, one for each sample.
     ///

@@ -15,9 +15,10 @@ pub fn derive_gizmo_config_group(input: TokenStream) -> TokenStream {
         let bevy_gizmos_path: Path = manifest.get_path("bevy_gizmos");
         let bevy_reflect_path: Path = manifest.get_path("bevy_reflect");
 
-        ast.generics.make_where_clause().predicates.push(
-            parse_quote! { Self: #bevy_reflect_path::Reflect + #bevy_reflect_path::TypePath + Default},
-        );
+        ast.generics
+            .make_where_clause()
+            .predicates
+            .push(parse_quote! { Self: #bevy_reflect_path::TypePath + Default + Send + Sync});
 
         let struct_name = &ast.ident;
         let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();

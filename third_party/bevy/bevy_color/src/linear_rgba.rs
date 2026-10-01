@@ -3,8 +3,6 @@ use crate::{
     ColorToPacked, Gray, Luminance, Mix, StandardColor,
 };
 use bevy_math::{ops, Vec3, Vec4};
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::prelude::*;
 use bytemuck::{Pod, Zeroable};
 
 /// Linear RGB color with alpha.
@@ -13,16 +11,7 @@ use bytemuck::{Pod, Zeroable};
 #[doc = include_str!("../docs/diagrams/model_graph.svg")]
 /// </div>
 #[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Clone, PartialEq, Default)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 #[repr(C)]
 pub struct LinearRgba {
     /// The red channel. [0.0, 1.0]

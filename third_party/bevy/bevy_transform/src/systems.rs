@@ -48,7 +48,6 @@ pub fn sync_simple_transforms(
 ///
 /// This resource allows you to configure that threshold at runtime.
 #[derive(Resource, Debug)]
-#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 pub struct StaticTransformOptimizations {
     /// If the percentage of moving objects exceeds this value, skip dirty tree marking.
     threshold: f32,
