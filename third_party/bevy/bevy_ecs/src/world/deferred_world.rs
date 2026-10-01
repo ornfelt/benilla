@@ -9,13 +9,11 @@ use crate::{
     entity::Entity,
     event::{EntityComponentsTrigger, Event, EventKey, Trigger},
     lifecycle::{HookContext, Insert, Replace, INSERT, REPLACE},
-    message::{Message, MessageId, Messages, WriteBatchIds},
     observer::TriggerContext,
-    prelude::{Component, QueryState},
-    query::{QueryData, QueryFilter},
+    prelude::Component,
     relationship::RelationshipHookMode,
     resource::Resource,
-    system::{Commands, Query},
+    system::Commands,
     world::{error::EntityMutableFetchError, EntityFetcher, WorldEntityFetch},
 };
 
@@ -446,20 +444,6 @@ impl<'w> DeferredWorld<'w> {
         (fetcher, commands)
     }
 
-    /// Returns [`Query`] for the given [`QueryState`], which is used to efficiently
-    /// run queries on the [`World`] by storing and reusing the [`QueryState`].
-    ///
-    /// # Panics
-    /// If state is from a different world then self
-    #[inline]
-    pub fn query<'s, D: QueryData, F: QueryFilter>(
-        &mut self,
-        state: &'s mut QueryState<D, F>,
-    ) -> Query<'_, 's, D, F> {
-        // SAFETY: We have mutable access to the entire world
-        unsafe { state.query_unchecked(self.world) }
-    }
-
     /// Gets a mutable reference to the resource of the given type
     ///
     /// # Panics
@@ -486,117 +470,6 @@ impl<'w> DeferredWorld<'w> {
     pub fn get_resource_mut<R: Resource>(&mut self) -> Option<Mut<'_, R>> {
         // SAFETY: &mut self ensure that there are no outstanding accesses to the resource
         unsafe { self.world.get_resource_mut() }
-    }
-
-    /// Gets a mutable reference to the non-send resource of the given type, if it exists.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the resource does not exist.
-    /// Use [`get_non_send_resource_mut`](World::get_non_send_resource_mut) instead if you want to handle this case.
-    ///
-    /// This function will panic if it isn't called from the same thread that the resource was inserted from.
-    #[inline]
-    #[track_caller]
-    pub fn non_send_resource_mut<R: 'static>(&mut self) -> Mut<'_, R> {
-        match self.get_non_send_resource_mut() {
-            Some(x) => x,
-            None => panic!(
-                "Requested non-send resource {} does not exist in the `World`.
-                Did you forget to add it using `app.insert_non_send_resource` / `app.init_non_send_resource`?
-                Non-send resources can also be added by plugins.",
-                DebugName::type_name::<R>()
-            ),
-        }
-    }
-
-    /// Gets a mutable reference to the non-send resource of the given type, if it exists.
-    /// Otherwise returns `None`.
-    ///
-    /// # Panics
-    /// This function will panic if it isn't called from the same thread that the resource was inserted from.
-    #[inline]
-    pub fn get_non_send_resource_mut<R: 'static>(&mut self) -> Option<Mut<'_, R>> {
-        // SAFETY: &mut self ensure that there are no outstanding accesses to the resource
-        unsafe { self.world.get_non_send_resource_mut() }
-    }
-
-    /// Writes a [`Message`].
-    /// This method returns the [`MessageId`] of the written `message`,
-    /// or [`None`] if the `message` could not be written.
-    #[inline]
-    pub fn write_message<M: Message>(&mut self, message: M) -> Option<MessageId<M>> {
-        self.write_message_batch(core::iter::once(message))?.next()
-    }
-
-    /// Writes the default value of the [`Message`] of type `E`.
-    /// This method returns the [`MessageId`] of the written `event`,
-    /// or [`None`] if the `event` could not be written.
-    #[inline]
-    pub fn write_message_default<E: Message + Default>(&mut self) -> Option<MessageId<E>> {
-        self.write_message(E::default())
-    }
-
-    /// Writes a batch of [`Message`]s from an iterator.
-    /// This method returns the [IDs](`MessageId`) of the written `events`,
-    /// or [`None`] if the `event` could not be written.
-    #[inline]
-    pub fn write_message_batch<E: Message>(
-        &mut self,
-        events: impl IntoIterator<Item = E>,
-    ) -> Option<WriteBatchIds<E>> {
-        let Some(mut events_resource) = self.get_resource_mut::<Messages<E>>() else {
-            log::error!(
-                "Unable to send message `{}`\n\tMessages must be added to the app with `add_message()`\n\thttps://docs.rs/bevy/*/bevy/app/struct.App.html#method.add_message ",
-                DebugName::type_name::<E>()
-            );
-            return None;
-        };
-        Some(events_resource.write_batch(events))
-    }
-
-    /// Gets a pointer to the resource with the id [`ComponentId`] if it exists.
-    /// The returned pointer may be used to modify the resource, as long as the mutable borrow
-    /// of the [`World`] is still valid.
-    ///
-    /// **You should prefer to use the typed API [`World::get_resource_mut`] where possible and only
-    /// use this in cases where the actual types are not known at compile time.**
-    #[inline]
-    pub fn get_resource_mut_by_id(&mut self, component_id: ComponentId) -> Option<MutUntyped<'_>> {
-        // SAFETY: &mut self ensure that there are no outstanding accesses to the resource
-        unsafe { self.world.get_resource_mut_by_id(component_id) }
-    }
-
-    /// Gets a `!Send` resource to the resource with the id [`ComponentId`] if it exists.
-    /// The returned pointer may be used to modify the resource, as long as the mutable borrow
-    /// of the [`World`] is still valid.
-    ///
-    /// **You should prefer to use the typed API [`World::get_resource_mut`] where possible and only
-    /// use this in cases where the actual types are not known at compile time.**
-    ///
-    /// # Panics
-    /// This function will panic if it isn't called from the same thread that the resource was inserted from.
-    #[inline]
-    pub fn get_non_send_mut_by_id(&mut self, component_id: ComponentId) -> Option<MutUntyped<'_>> {
-        // SAFETY: &mut self ensure that there are no outstanding accesses to the resource
-        unsafe { self.world.get_non_send_resource_mut_by_id(component_id) }
-    }
-
-    /// Retrieves a mutable untyped reference to the given `entity`'s [`Component`] of the given [`ComponentId`].
-    /// Returns `None` if the `entity` does not have a [`Component`] of the given type.
-    ///
-    /// **You should prefer to use the typed API [`World::get_mut`] where possible and only
-    /// use this in cases where the actual types are not known at compile time.**
-    #[inline]
-    pub fn get_mut_by_id(
-        &mut self,
-        entity: Entity,
-        component_id: ComponentId,
-    ) -> Option<MutUntyped<'_>> {
-        self.get_entity_mut(entity)
-            .ok()?
-            .into_mut_by_id(component_id)
-            .ok()
     }
 
     /// Triggers all `on_add` hooks for [`ComponentId`] in target.

@@ -362,13 +362,6 @@ pub struct UniqueEntityIter<I: Iterator<Item: EntityEquivalent>> {
     iter: I,
 }
 
-impl<I: EntitySetIterator> UniqueEntityIter<I> {
-    /// Constructs a `UniqueEntityIter` from an [`EntitySetIterator`].
-    pub fn from_entity_set_iterator<S>(iter: I) -> Self {
-        Self { iter }
-    }
-}
-
 impl<I: Iterator<Item: EntityEquivalent>> UniqueEntityIter<I> {
     /// Constructs a [`UniqueEntityIter`] from an iterator unsafely.
     ///
@@ -377,26 +370,6 @@ impl<I: Iterator<Item: EntityEquivalent>> UniqueEntityIter<I> {
     /// As in, the resulting iterator must adhere to the safety contract of [`EntitySetIterator`].
     pub unsafe fn from_iterator_unchecked(iter: I) -> Self {
         Self { iter }
-    }
-
-    /// Returns the inner `I`.
-    pub fn into_inner(self) -> I {
-        self.iter
-    }
-
-    /// Returns a reference to the inner `I`.
-    pub fn as_inner(&self) -> &I {
-        &self.iter
-    }
-
-    /// Returns a mutable reference to the inner `I`.
-    ///
-    /// # Safety
-    ///
-    /// `self` must always contain an iterator that yields unique elements,
-    /// even while this reference is live.
-    pub unsafe fn as_mut_inner(&mut self) -> &mut I {
-        &mut self.iter
     }
 }
 

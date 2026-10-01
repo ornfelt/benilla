@@ -6,8 +6,8 @@ use crate::{
     entity::{Entity, EntityEquivalent, EntitySet, UniqueEntityArray},
     query::{
         DebugCheckedUnwrap, NopWorldQuery, QueryCombinationIter, QueryData, QueryEntityError,
-        QueryFilter, QueryIter, QueryManyIter, QueryManyUniqueIter, QueryParIter, QueryParManyIter,
-        QueryParManyUniqueIter, QuerySingleError, QueryState, ROQueryItem, ReadOnlyQueryData,
+        QueryFilter, QueryIter, QueryManyIter, QueryManyUniqueIter, QueryParIter, QuerySingleError,
+        QueryState, ROQueryItem, ReadOnlyQueryData,
     },
     world::unsafe_world_cell::UnsafeWorldCell,
 };
@@ -1260,94 +1260,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter> Query<'w, 's, D, F> {
         QueryParIter {
             world: self.world,
             state: self.state,
-            last_run: self.last_run,
-            this_run: self.this_run,
-            batching_strategy: BatchingStrategy::new(),
-        }
-    }
-
-    /// Returns a parallel iterator over the read-only query items generated from an [`Entity`] list.
-    ///
-    /// Entities that don't match the query are skipped. Iteration order and thread assignment is not guaranteed.
-    ///
-    /// If the `multithreaded` feature is disabled, iterating with this operates identically to [`Iterator::for_each`]
-    /// on [`QueryManyIter`].
-    ///
-    /// This can only be called for read-only queries. To avoid potential aliasing, there is no `par_iter_many_mut` equivalent.
-    /// See [`par_iter_many_unique_mut`] for an alternative using [`EntitySet`].
-    ///
-    /// Note that you must use the `for_each` method to iterate over the
-    /// results, see [`par_iter_mut`] for an example.
-    ///
-    /// [`par_iter_many_unique_mut`]: Self::par_iter_many_unique_mut
-    /// [`par_iter_mut`]: Self::par_iter_mut
-    #[inline]
-    pub fn par_iter_many<EntityList: IntoIterator<Item: EntityEquivalent>>(
-        &self,
-        entities: EntityList,
-    ) -> QueryParManyIter<'_, 's, D::ReadOnly, F, EntityList::Item> {
-        QueryParManyIter {
-            world: self.world,
-            state: self.state.as_readonly(),
-            entity_list: entities.into_iter().collect(),
-            last_run: self.last_run,
-            this_run: self.this_run,
-            batching_strategy: BatchingStrategy::new(),
-        }
-    }
-
-    /// Returns a parallel iterator over the unique read-only query items generated from an [`EntitySet`].
-    ///
-    /// Entities that don't match the query are skipped. Iteration order and thread assignment is not guaranteed.
-    ///
-    /// If the `multithreaded` feature is disabled, iterating with this operates identically to [`Iterator::for_each`]
-    /// on [`QueryManyUniqueIter`].
-    ///
-    /// This can only be called for read-only queries, see [`par_iter_many_unique_mut`] for write-queries.
-    ///
-    /// Note that you must use the `for_each` method to iterate over the
-    /// results, see [`par_iter_mut`] for an example.
-    ///
-    /// [`par_iter_many_unique_mut`]: Self::par_iter_many_unique_mut
-    /// [`par_iter_mut`]: Self::par_iter_mut
-    #[inline]
-    pub fn par_iter_many_unique<EntityList: EntitySet<Item: Sync>>(
-        &self,
-        entities: EntityList,
-    ) -> QueryParManyUniqueIter<'_, 's, D::ReadOnly, F, EntityList::Item> {
-        QueryParManyUniqueIter {
-            world: self.world,
-            state: self.state.as_readonly(),
-            entity_list: entities.into_iter().collect(),
-            last_run: self.last_run,
-            this_run: self.this_run,
-            batching_strategy: BatchingStrategy::new(),
-        }
-    }
-
-    /// Returns a parallel iterator over the unique query items generated from an [`EntitySet`].
-    ///
-    /// Entities that don't match the query are skipped. Iteration order and thread assignment is not guaranteed.
-    ///
-    /// If the `multithreaded` feature is disabled, iterating with this operates identically to [`Iterator::for_each`]
-    /// on [`QueryManyUniqueIter`].
-    ///
-    /// This can only be called for mutable queries, see [`par_iter_many_unique`] for read-only-queries.
-    ///
-    /// Note that you must use the `for_each` method to iterate over the
-    /// results, see [`par_iter_mut`] for an example.
-    ///
-    /// [`par_iter_many_unique`]: Self::par_iter_many_unique
-    /// [`par_iter_mut`]: Self::par_iter_mut
-    #[inline]
-    pub fn par_iter_many_unique_mut<EntityList: EntitySet<Item: Sync>>(
-        &mut self,
-        entities: EntityList,
-    ) -> QueryParManyUniqueIter<'_, 's, D, F, EntityList::Item> {
-        QueryParManyUniqueIter {
-            world: self.world,
-            state: self.state,
-            entity_list: entities.into_iter().collect(),
             last_run: self.last_run,
             this_run: self.this_run,
             batching_strategy: BatchingStrategy::new(),

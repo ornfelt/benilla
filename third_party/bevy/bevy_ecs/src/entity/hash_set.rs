@@ -53,32 +53,12 @@ impl EntityHashSet {
         self.0.is_empty()
     }
 
-    /// Returns the inner [`HashSet`].
-    pub fn into_inner(self) -> HashSet<Entity, EntityHash> {
-        self.0
-    }
-
-    /// Clears the set, returning all elements in an iterator.
-    ///
-    /// Equivalent to [`HashSet::drain`].
-    pub fn drain(&mut self) -> Drain<'_> {
-        Drain(self.0.drain(), PhantomData)
-    }
-
     /// An iterator visiting all elements in arbitrary order.
     /// The iterator element type is `&'a Entity`.
     ///
     /// Equivalent to [`HashSet::iter`].
     pub fn iter(&self) -> Iter<'_> {
         Iter(self.0.iter(), PhantomData)
-    }
-
-    /// Drains elements which are true under the given predicate,
-    /// and returns an iterator over the removed items.
-    ///
-    /// Equivalent to [`HashSet::extract_if`].
-    pub fn extract_if<F: FnMut(&Entity) -> bool>(&mut self, f: F) -> ExtractIf<'_, F> {
-        ExtractIf(self.0.extract_if(f), PhantomData)
     }
 }
 
@@ -217,13 +197,6 @@ impl FromEntitySetIterator<Entity> for EntityHashSet {
 /// [`iter`]: EntityHashSet::iter
 pub struct Iter<'a, S = EntityHash>(hash_set::Iter<'a, Entity>, PhantomData<S>);
 
-impl<'a> Iter<'a> {
-    /// Returns the inner [`Iter`](hash_set::Iter).
-    pub fn into_inner(self) -> hash_set::Iter<'a, Entity> {
-        self.0
-    }
-}
-
 impl<'a> Deref for Iter<'a> {
     type Target = hash_set::Iter<'a, Entity>;
 
@@ -276,13 +249,6 @@ unsafe impl EntitySetIterator for Iter<'_> {}
 /// [`into_iter`]: EntityHashSet::into_iter
 pub struct IntoIter<S = EntityHash>(hash_set::IntoIter<Entity>, PhantomData<S>);
 
-impl IntoIter {
-    /// Returns the inner [`IntoIter`](hash_set::IntoIter).
-    pub fn into_inner(self) -> hash_set::IntoIter<Entity> {
-        self.0
-    }
-}
-
 impl Deref for IntoIter {
     type Target = hash_set::IntoIter<Entity>;
 
@@ -326,18 +292,7 @@ impl Default for IntoIter {
 unsafe impl EntitySetIterator for IntoIter {}
 
 /// A draining iterator over the items of an [`EntityHashSet`].
-///
-/// This struct is created by the [`drain`] method on [`EntityHashSet`]. See its documentation for more.
-///
-/// [`drain`]: EntityHashSet::drain
 pub struct Drain<'a, S = EntityHash>(hash_set::Drain<'a, Entity>, PhantomData<S>);
-
-impl<'a> Drain<'a> {
-    /// Returns the inner [`Drain`](hash_set::Drain).
-    pub fn into_inner(self) -> hash_set::Drain<'a, Entity> {
-        self.0
-    }
-}
 
 impl<'a> Deref for Drain<'a> {
     type Target = hash_set::Drain<'a, Entity>;
@@ -376,21 +331,10 @@ impl Debug for Drain<'_> {
 unsafe impl EntitySetIterator for Drain<'_> {}
 
 /// A draining iterator over entries of a [`EntityHashSet`] which don't satisfy the predicate `f`.
-///
-/// This struct is created by the [`extract_if`] method on [`EntityHashSet`]. See its documentation for more.
-///
-/// [`extract_if`]: EntityHashSet::extract_if
 pub struct ExtractIf<'a, F: FnMut(&Entity) -> bool, S = EntityHash>(
     hash_set::ExtractIf<'a, Entity, F>,
     PhantomData<S>,
 );
-
-impl<'a, F: FnMut(&Entity) -> bool> ExtractIf<'a, F> {
-    /// Returns the inner [`ExtractIf`](hash_set::ExtractIf).
-    pub fn into_inner(self) -> hash_set::ExtractIf<'a, Entity, F> {
-        self.0
-    }
-}
 
 impl<'a, F: FnMut(&Entity) -> bool> Deref for ExtractIf<'a, F> {
     type Target = hash_set::ExtractIf<'a, Entity, F>;

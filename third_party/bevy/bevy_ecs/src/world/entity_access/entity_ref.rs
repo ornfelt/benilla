@@ -1,8 +1,8 @@
 use crate::{
     archetype::Archetype,
-    change_detection::{ComponentTicks, MaybeLocation, Tick},
-    component::{Component, ComponentId},
-    entity::{ContainsEntity, Entity, EntityEquivalent, EntityLocation},
+    change_detection::MaybeLocation,
+    component::Component,
+    entity::{ContainsEntity, Entity, EntityEquivalent},
     query::{Access, QueryAccessError, ReadOnlyQueryData, ReleaseStateQueryData},
     world::{
         error::EntityComponentError, unsafe_world_cell::UnsafeEntityCell, DynamicComponentFetch,
@@ -56,12 +56,6 @@ impl<'w> EntityRef<'w> {
         self.cell.id()
     }
 
-    /// Gets metadata indicating the location where the current entity is stored.
-    #[inline]
-    pub fn location(&self) -> EntityLocation {
-        self.cell.location()
-    }
-
     /// Returns the archetype that the current entity belongs to.
     #[inline]
     pub fn archetype(&self) -> &Archetype {
@@ -74,23 +68,10 @@ impl<'w> EntityRef<'w> {
     /// ## Notes
     ///
     /// If you do not know the concrete type of a component, consider using
-    /// [`Self::contains_id`] or [`Self::contains_type_id`].
+    /// [`Self::contains_type_id`].
     #[inline]
     pub fn contains<T: Component>(&self) -> bool {
         self.contains_type_id(TypeId::of::<T>())
-    }
-
-    /// Returns `true` if the current entity has a component identified by `component_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you know the component's [`TypeId`] but not its [`ComponentId`], consider using
-    ///   [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains_id(&self, component_id: ComponentId) -> bool {
-        self.cell.contains_id(component_id)
     }
 
     /// Returns `true` if the current entity has a component with the type identified by `type_id`.
@@ -99,7 +80,6 @@ impl<'w> EntityRef<'w> {
     /// ## Notes
     ///
     /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you have a [`ComponentId`] instead of a [`TypeId`], consider using [`Self::contains_id`].
     #[inline]
     pub fn contains_type_id(&self, type_id: TypeId) -> bool {
         self.cell.contains_type_id(type_id)
@@ -123,28 +103,8 @@ impl<'w> EntityRef<'w> {
         unsafe { self.cell.get_ref::<T>() }
     }
 
-    /// Retrieves the change ticks for the given component. This can be useful for implementing change
-    /// detection in custom runtimes.
-    #[inline]
-    pub fn get_change_ticks<T: Component>(&self) -> Option<ComponentTicks> {
-        // SAFETY: We have read-only access to all components of this entity.
-        unsafe { self.cell.get_change_ticks::<T>() }
-    }
-
-    /// Retrieves the change ticks for the given [`ComponentId`]. This can be useful for implementing change
-    /// detection in custom runtimes.
-    ///
-    /// **You should prefer to use the typed API [`EntityRef::get_change_ticks`] where possible and only
-    /// use this in cases where the actual component types are not known at
-    /// compile time.**
-    #[inline]
-    pub fn get_change_ticks_by_id(&self, component_id: ComponentId) -> Option<ComponentTicks> {
-        // SAFETY: We have read-only access to all components of this entity.
-        unsafe { self.cell.get_change_ticks_by_id(component_id) }
-    }
-
     /// Returns untyped read-only reference(s) to component(s) for the
-    /// current entity, based on the given [`ComponentId`]s.
+    /// current entity, based on the given [`ComponentId`](crate::component::ComponentId)s.
     ///
     /// **You should prefer to use the typed API [`EntityRef::get`] where
     /// possible and only use this in cases where the actual component types
@@ -161,7 +121,7 @@ impl<'w> EntityRef<'w> {
     ///
     /// # Examples
     ///
-    /// ## Single [`ComponentId`]
+    /// ## Single [`ComponentId`](crate::component::ComponentId)
     ///
     /// ```
     /// # use bevy_ecs::prelude::*;
@@ -179,7 +139,7 @@ impl<'w> EntityRef<'w> {
     /// # assert_eq!(unsafe { ptr.unwrap().deref::<Foo>() }, &Foo(42));
     /// ```
     ///
-    /// ## Array of [`ComponentId`]s
+    /// ## Array of [`ComponentId`](crate::component::ComponentId)s
     ///
     /// ```
     /// # use bevy_ecs::prelude::*;
@@ -203,7 +163,7 @@ impl<'w> EntityRef<'w> {
     /// # assert_eq!((unsafe { x_ptr.deref::<X>() }, unsafe { y_ptr.deref::<Y>() }), (&X(42), &Y(10)));
     /// ```
     ///
-    /// ## Slice of [`ComponentId`]s
+    /// ## Slice of [`ComponentId`](crate::component::ComponentId)s
     ///
     /// ```
     /// # use bevy_ecs::{prelude::*, component::ComponentId};
@@ -225,7 +185,7 @@ impl<'w> EntityRef<'w> {
     /// # assert_eq!((unsafe { ptrs[0].deref::<X>() }, unsafe { ptrs[1].deref::<Y>() }), (&X(42), &Y(10)));
     /// ```
     ///
-    /// ## `HashSet` of [`ComponentId`]s
+    /// ## `HashSet` of [`ComponentId`](crate::component::ComponentId)s
     ///
     /// ```
     /// # use bevy_platform::collections::HashSet;
@@ -280,11 +240,6 @@ impl<'w> EntityRef<'w> {
     /// Returns the source code location from which this entity has been spawned.
     pub fn spawned_by(&self) -> MaybeLocation {
         self.cell.spawned_by()
-    }
-
-    /// Returns the [`Tick`] at which this entity has been spawned.
-    pub fn spawn_tick(&self) -> Tick {
-        self.cell.spawn_tick()
     }
 }
 

@@ -695,7 +695,7 @@ impl SparseSetIndex for Entity {
 }
 
 /// Allocates [`Entity`] ids uniquely.
-/// This is used in [`World::spawn_at`](crate::world::World::spawn_at) and [`World::despawn_no_free`](crate::world::World::despawn_no_free) to track entity ids no longer in use.
+/// This is used in [`World::spawn_at`](crate::world::World::spawn_at) and [`EntityWorldMut::despawn_no_free`](crate::world::EntityWorldMut::despawn_no_free) to track entity ids no longer in use.
 /// Allocating is fully concurrent and can be done from multiple threads.
 ///
 /// Conceptually, this is a collection of [`Entity`] ids who's [`EntityIndex`] is despawned and who's [`EntityGeneration`] is the most recent.
@@ -773,7 +773,7 @@ impl EntityAllocator {
     /// entity_access.despawn();
     /// ```
     ///
-    /// More generally, manually spawning and [`despawn_no_free`](crate::world::World::despawn_no_free)ing entities allows you to skip Bevy's default entity allocator.
+    /// More generally, manually spawning and [`despawn_no_free`](crate::world::EntityWorldMut::despawn_no_free)ing entities allows you to skip Bevy's default entity allocator.
     /// This is useful if you want to enforce properties about the [`EntityIndex`]s of a group of entities, make a custom allocator, etc.
     pub fn alloc(&self) -> Entity {
         let index = self
@@ -921,29 +921,12 @@ impl Entities {
             .unwrap_or(Entity::from_index(index))
     }
 
-    /// Returns whether the entity at this `index` is spawned or not.
-    ///
-    /// See the module [docs](crate::entity) for a full explanation of these ids, entity life cycles, and the meaning of this result.
-    #[inline]
-    pub fn is_index_spawned(&self, index: EntityIndex) -> bool {
-        self.meta
-            .get(index.index() as usize)
-            .is_some_and(|meta| meta.location.is_some())
-    }
-
     /// Returns true if the entity is valid.
     /// This will return true for entities that are valid but have not been spawned.
     ///
     /// See the module [docs](crate::entity) for a full explanation of these ids, entity life cycles, and the meaning of this result.
     pub fn contains(&self, entity: Entity) -> bool {
         self.resolve_from_index(entity.index()).generation() == entity.generation()
-    }
-
-    /// Returns true if the entity is valid and is spawned.
-    ///
-    /// See the module [docs](crate::entity) for a full explanation of these ids, entity life cycles, and the meaning of this result.
-    pub fn contains_spawned(&self, entity: Entity) -> bool {
-        self.get_spawned(entity).is_ok()
     }
 
     /// Provides information regarding if `entity` may be safely spawned.
@@ -1115,13 +1098,6 @@ impl Entities {
         self.meta.len() as u32
     }
 
-    /// Checks if any entity has been declared.
-    /// For information on active entities, see [`Self::any_spawned`].
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     /// Counts the number of entity indices currently spawned.
     /// See the module docs for a more precise explanation of what spawning means.
     /// Be aware that this is O(n) and is intended only to be used as a diagnostic for tests.
@@ -1130,12 +1106,6 @@ impl Entities {
             .iter()
             .filter(|meta| meta.location.is_some())
             .count() as u32
-    }
-
-    /// Returns true if there are any entity indices currently spawned.
-    /// See the module docs for a more precise explanation of what spawning means.
-    pub fn any_spawned(&self) -> bool {
-        self.meta.iter().any(|meta| meta.location.is_some())
     }
 }
 

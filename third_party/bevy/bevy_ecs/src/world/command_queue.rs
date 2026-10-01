@@ -112,12 +112,6 @@ impl CommandQueue {
         self.bytes.append(&mut other.bytes);
     }
 
-    /// Returns false if there are any commands in the queue
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.cursor >= self.bytes.len()
-    }
-
     /// Returns a [`RawCommandQueue`] instance sharing the underlying command queue.
     pub(crate) fn get_raw(&mut self) -> RawCommandQueue {
         // SAFETY: self is always valid memory

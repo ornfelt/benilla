@@ -104,20 +104,6 @@ impl<T: EntityEquivalent> UniqueEntityEquivalentSlice<T> {
         unsafe { UniqueEntityIter::from_iterator_unchecked(self.0.iter()) }
     }
 
-    ///
-    ///
-    /// Equivalent to [`[T]::chunks_exact`].
-    ///
-    /// [`[T]::chunks_exact`]: `slice::chunks_exact`
-    pub fn chunks_exact(&self, chunk_size: usize) -> ChunksExact<'_, T> {
-        // SAFETY: Any subslice of a unique slice is also unique.
-        unsafe {
-            UniqueEntityEquivalentSliceIter::from_slice_iterator_unchecked(
-                self.0.chunks_exact(chunk_size),
-            )
-        }
-    }
-
     /// Copies self into a new `UniqueEntityEquivalentVec`.
     pub fn to_vec(&self) -> UniqueEntityEquivalentVec<T>
     where
@@ -716,19 +702,6 @@ pub struct UniqueEntityEquivalentSliceIter<
     pub(crate) iter: I,
 }
 
-impl<'a, T: EntityEquivalent + 'a, I: Iterator<Item = &'a [T]>>
-    UniqueEntityEquivalentSliceIter<'a, T, I>
-{
-    /// Constructs a [`UniqueEntityEquivalentSliceIter`] from a slice iterator unsafely.
-    ///
-    /// # Safety
-    ///
-    /// All elements in each of the slices must be unique.
-    pub unsafe fn from_slice_iterator_unchecked(iter: I) -> Self {
-        Self { iter }
-    }
-}
-
 impl<'a, T: EntityEquivalent + 'a, I: Iterator<Item = &'a [T]>> Iterator
     for UniqueEntityEquivalentSliceIter<'a, T, I>
 {
@@ -783,21 +756,8 @@ pub type Chunks<'a, T = Entity> = UniqueEntityEquivalentSliceIter<'a, T, slice::
 
 /// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
 /// time), starting at the beginning of the slice.
-///
-/// This struct is created by [`UniqueEntityEquivalentSlice::chunks_exact`].
 pub type ChunksExact<'a, T = Entity> =
     UniqueEntityEquivalentSliceIter<'a, T, slice::ChunksExact<'a, T>>;
-
-impl<'a, T: EntityEquivalent> UniqueEntityEquivalentSliceIter<'a, T, slice::ChunksExact<'a, T>> {
-    /// Returns the remainder of the original slice that is not going to be
-    /// returned by the iterator.
-    ///
-    /// Equivalent to [`slice::ChunksExact::remainder`].
-    pub fn remainder(&self) -> &'a UniqueEntityEquivalentSlice<T> {
-        // SAFETY: All elements in the original iterator are unique slices.
-        unsafe { UniqueEntityEquivalentSlice::from_slice_unchecked(self.iter.remainder()) }
-    }
-}
 
 /// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
 /// time), starting at the end of the slice.

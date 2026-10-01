@@ -628,6 +628,37 @@ the same repository's.
   falls through to another method of the same name. Doc sentences that pointed at a removed
   function went with it (the six that named `Commands::register_system` now name
   `World::register_system`), and the iterator types whose constructors went stay, unconstructed.
+- **`bevy_ecs`'s uncalled functions, second part: the world, the queries and the rest of the
+  entity collections**, found the same way (the analysis re-run on this state). Gone: the
+  `World` methods nothing calls (`clear_all`, `try_despawn`, `despawn_no_free`, `try_query`,
+  `try_query_filtered`, the non-send and by-id resource accessors and checks,
+  `get_resource_change_ticks`, `resource_ref`, `resource_id`, `entity_count`, `entities_mut`,
+  `entities_allocator`, `observers`, `removed_components`, `register_dynamic_bundle`,
+  `register_component_hooks_by_id`, the required-components lookups,
+  `write_message_default`), and `DeferredWorld`'s (`query`, the by-id and non-send accessors, the
+  message writers); the entity accessors' unused API on `EntityWorldMut`, `EntityMut`,
+  `EntityRef`, `FilteredEntityRef`/`FilteredEntityMut`, `EntityRefExcept`/`EntityMutExcept` and
+  `UnsafeEntityCell` (the by-id getters and change ticks, `contains_id`, `get_ref`,
+  `get_components(_mut)(_unchecked)`, the `into_*`/`as_*` conversions, `location`,
+  `spawn_tick`/`spawned_by`, the cloning spawns, `EntityWorldMut`'s resource accessors and
+  `into_world_mut`), `ComponentEntry`'s and `OccupiedComponentEntry`'s accessors,
+  `FilteredResources(Mut)` and their builders' accessors; `QueryState`'s unused iteration,
+  lookup and construction methods (`try_new`, `is_empty`, `contains`, the unchecked and
+  `_manual` variants, the unique-many lookups, `par_iter_mut`, the matched-archetype lists),
+  `QueryBuilder`'s `and`, `optional` and `mut_id`, `Access`'s `clear`, `archetypal` and
+  `remove_component_write`; `Query::par_iter_many(_unique)(_mut)` with the two iterators they
+  built (`QueryParManyIter`, `QueryParManyUniqueIter`), and the parallel helpers part one kept
+  for them (`UniqueEntityEquivalentVec::len`, `UniqueEntityEquivalentSlice::chunks_exact`,
+  `from_slice_iterator_unchecked`, the chunk iterator's `remainder`); `UnsafeFilteredEntityMut`
+  whole (its two functions were its only use); `Entities`' spawn checks and `is_empty`,
+  `CommandQueue::is_empty`, the entity maps' and sets' `keys`, `into_keys`, `drain`,
+  `extract_if` and `into_inner`s, `EntityCloner`'s `linked_cloning`/`spawn_clone`,
+  `EntityClonerBuilder::with_default_clone_fn`, `SceneEntityMapper`'s map getters: 224
+  functions, with 19 inherent impls left empty. Kept: `EntityHashSet::is_empty` (benilla calls it;
+  without it the call would fall through `Deref` to the inner set's), and `SpawnDetails`'
+  `is_spawned` and `spawned_by` (the query type stays for now, and they are its fields' only
+  readers). The deprecation proof is part one's. Doc sentences that pointed at a removed function
+  went with it; links to `ComponentId` and `MutUntyped`, whose imports went, are written as paths.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

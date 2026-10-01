@@ -1,18 +1,12 @@
 use crate::{
     bundle::Bundle,
-    change_detection::{ComponentTicks, MaybeLocation, MutUntyped, Tick},
     component::{Component, ComponentId, Components, Mutable},
     entity::{ContainsEntity, Entity, EntityEquivalent},
     query::Access,
-    world::{
-        unsafe_world_cell::UnsafeEntityCell, DynamicComponentFetch, FilteredEntityMut,
-        FilteredEntityRef, Mut, Ref,
-    },
+    world::{unsafe_world_cell::UnsafeEntityCell, FilteredEntityMut, FilteredEntityRef, Mut, Ref},
 };
 
-use bevy_ptr::Ptr;
 use core::{
-    any::TypeId,
     cmp::Ordering,
     hash::{Hash, Hasher},
     marker::PhantomData,
@@ -87,107 +81,6 @@ where
             // covered by the `contains` check above.
             unsafe { self.entity.get_ref() }
         }
-    }
-
-    /// Returns the source code location from which this entity has been spawned.
-    pub fn spawned_by(&self) -> MaybeLocation {
-        self.entity.spawned_by()
-    }
-
-    /// Returns the [`Tick`] at which this entity has been spawned.
-    pub fn spawn_tick(&self) -> Tick {
-        self.entity.spawn_tick()
-    }
-
-    /// Gets the component of the given [`ComponentId`] from the entity.
-    ///
-    /// **You should prefer to use the typed API [`Self::get`] where possible and only
-    /// use this in cases where the actual component types are not known at
-    /// compile time.**
-    ///
-    /// Unlike [`EntityRefExcept::get`], this returns a raw pointer to the component,
-    /// which is only valid while the [`EntityRefExcept`] is alive.
-    #[inline]
-    pub fn get_by_id(&self, component_id: ComponentId) -> Option<Ptr<'w>> {
-        let components = self.entity.world().components();
-        (!bundle_contains_component::<B>(components, component_id))
-            .then(|| {
-                // SAFETY: We have read access for this component
-                unsafe { self.entity.get_by_id(component_id) }
-            })
-            .flatten()
-    }
-
-    /// Returns `true` if the current entity has a component of type `T`.
-    /// Otherwise, this returns `false`.
-    ///
-    /// ## Notes
-    ///
-    /// If you do not know the concrete type of a component, consider using
-    /// [`Self::contains_id`] or [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains<T: Component>(&self) -> bool {
-        self.contains_type_id(TypeId::of::<T>())
-    }
-
-    /// Returns `true` if the current entity has a component identified by `component_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you know the component's [`TypeId`] but not its [`ComponentId`], consider using
-    ///   [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains_id(&self, component_id: ComponentId) -> bool {
-        self.entity.contains_id(component_id)
-    }
-
-    /// Returns `true` if the current entity has a component with the type identified by `type_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you have a [`ComponentId`] instead of a [`TypeId`], consider using [`Self::contains_id`].
-    #[inline]
-    pub fn contains_type_id(&self, type_id: TypeId) -> bool {
-        self.entity.contains_type_id(type_id)
-    }
-
-    /// Retrieves the change ticks for the given component. This can be useful for implementing change
-    /// detection in custom runtimes.
-    #[inline]
-    pub fn get_change_ticks<T: Component>(&self) -> Option<ComponentTicks> {
-        let component_id = self
-            .entity
-            .world()
-            .components()
-            .get_valid_id(TypeId::of::<T>())?;
-        let components = self.entity.world().components();
-        (!bundle_contains_component::<B>(components, component_id))
-            .then(|| {
-                // SAFETY: We have read access
-                unsafe { self.entity.get_change_ticks::<T>() }
-            })
-            .flatten()
-    }
-
-    /// Retrieves the change ticks for the given [`ComponentId`]. This can be useful for implementing change
-    /// detection in custom runtimes.
-    ///
-    /// **You should prefer to use the typed API [`Self::get_change_ticks`] where possible and only
-    /// use this in cases where the actual component types are not known at
-    /// compile time.**
-    #[inline]
-    pub fn get_change_ticks_by_id(&self, component_id: ComponentId) -> Option<ComponentTicks> {
-        let components = self.entity.world().components();
-        (!bundle_contains_component::<B>(components, component_id))
-            .then(|| {
-                // SAFETY: We have read access
-                unsafe { self.entity.get_change_ticks_by_id(component_id) }
-            })
-            .flatten()
     }
 }
 
@@ -299,11 +192,6 @@ where
         EntityRefExcept::from(self)
     }
 
-    /// Get access to the underlying [`UnsafeEntityCell`]
-    pub fn as_unsafe_entity_cell(&mut self) -> UnsafeEntityCell<'_> {
-        self.entity
-    }
-
     /// Gets access to the component of type `C` for the current entity. Returns
     /// `None` if the component doesn't have a component of that type or if the
     /// type is one of the excluded components.
@@ -344,88 +232,6 @@ where
             // covered by the `contains` check above.
             unsafe { self.entity.get_mut() }
         }
-    }
-
-    /// Returns the source code location from which this entity has been spawned.
-    pub fn spawned_by(&self) -> MaybeLocation {
-        self.entity.spawned_by()
-    }
-
-    /// Returns the [`Tick`] at which this entity has been spawned.
-    pub fn spawn_tick(&self) -> Tick {
-        self.entity.spawn_tick()
-    }
-
-    /// Returns `true` if the current entity has a component of type `T`.
-    /// Otherwise, this returns `false`.
-    ///
-    /// ## Notes
-    ///
-    /// If you do not know the concrete type of a component, consider using
-    /// [`Self::contains_id`] or [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains<T: Component>(&self) -> bool {
-        self.contains_type_id(TypeId::of::<T>())
-    }
-
-    /// Returns `true` if the current entity has a component identified by `component_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you know the component's [`TypeId`] but not its [`ComponentId`], consider using
-    ///   [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains_id(&self, component_id: ComponentId) -> bool {
-        self.entity.contains_id(component_id)
-    }
-
-    /// Returns `true` if the current entity has a component with the type identified by `type_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you have a [`ComponentId`] instead of a [`TypeId`], consider using [`Self::contains_id`].
-    #[inline]
-    pub fn contains_type_id(&self, type_id: TypeId) -> bool {
-        self.entity.contains_type_id(type_id)
-    }
-
-    /// Gets the component of the given [`ComponentId`] from the entity.
-    ///
-    /// **You should prefer to use the typed API [`Self::get`] where possible and only
-    /// use this in cases where the actual component types are not known at
-    /// compile time.**
-    ///
-    /// Unlike [`EntityMutExcept::get`], this returns a raw pointer to the component,
-    /// which is only valid while the [`EntityMutExcept`] is alive.
-    #[inline]
-    pub fn get_by_id(&'w self, component_id: ComponentId) -> Option<Ptr<'w>> {
-        self.as_readonly().get_by_id(component_id)
-    }
-
-    /// Gets a [`MutUntyped`] of the component of the given [`ComponentId`] from the entity.
-    ///
-    /// **You should prefer to use the typed API [`Self::get_mut`] where possible and only
-    /// use this in cases where the actual component types are not known at
-    /// compile time.**
-    ///
-    /// Unlike [`EntityMutExcept::get_mut`], this returns a raw pointer to the component,
-    /// which is only valid while the [`EntityMutExcept`] is alive.
-    #[inline]
-    pub fn get_mut_by_id<F: DynamicComponentFetch>(
-        &mut self,
-        component_id: ComponentId,
-    ) -> Option<MutUntyped<'_>> {
-        let components = self.entity.world().components();
-        (!bundle_contains_component::<B>(components, component_id))
-            .then(|| {
-                // SAFETY: We have write access
-                unsafe { self.entity.get_mut_by_id(component_id).ok() }
-            })
-            .flatten()
     }
 }
 

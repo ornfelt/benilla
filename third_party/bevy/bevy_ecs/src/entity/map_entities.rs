@@ -325,16 +325,6 @@ pub struct SceneEntityMapper<'m> {
 }
 
 impl<'m> SceneEntityMapper<'m> {
-    /// Gets a reference to the underlying [`EntityHashMap<Entity>`].
-    pub fn get_map(&'m self) -> &'m EntityHashMap<Entity> {
-        self.map
-    }
-
-    /// Gets a mutable reference to the underlying [`EntityHashMap<Entity>`].
-    pub fn get_map_mut(&'m mut self) -> &'m mut EntityHashMap<Entity> {
-        self.map
-    }
-
     /// Creates a new [`SceneEntityMapper`], spawning a temporary base [`Entity`] in the provided [`World`]
     pub fn new(map: &'m mut EntityHashMap<Entity>, world: &World) -> Self {
         Self {

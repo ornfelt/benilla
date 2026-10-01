@@ -21,8 +21,6 @@ use crate::{
 /// Stores a cache mapping event ids to their registered observers.
 /// Some observer kinds (like [lifecycle](crate::lifecycle) observers) have a dedicated field,
 /// saving lookups for the most common triggers.
-///
-/// This can be accessed via [`World::observers`](crate::world::World::observers).
 #[derive(Default, Debug)]
 pub struct Observers {
     // Cached ECS observers to save a lookup for high-traffic built-in event types.

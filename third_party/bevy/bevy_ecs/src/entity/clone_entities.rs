@@ -351,8 +351,7 @@ impl<'a, 'b> ComponentCloneCtx<'a, 'b> {
 /// to decide which handler to use for which component. The overall hierarchy looks like this (priority from most to least):
 /// 1. local overrides using [`EntityClonerBuilder::override_clone_behavior`]
 /// 2. component-defined handler using [`Component::clone_behavior`]
-/// 3. default handler override using [`EntityClonerBuilder::with_default_clone_fn`].
-/// 4. reflect-based or noop default clone handler depending on if `bevy_reflect` feature is enabled or not.
+/// 3. reflect-based or noop default clone handler depending on if `bevy_reflect` feature is enabled or not.
 ///
 /// # Moving components
 /// [`EntityCloner`] can be configured to move components instead of cloning them by using [`EntityClonerBuilder::move_components`].
@@ -361,9 +360,6 @@ impl<'a, 'b> ComponentCloneCtx<'a, 'b> {
 /// Components with [`ComponentCloneBehavior::Ignore`] clone behavior will not be moved, while components that
 /// have a [`ComponentCloneBehavior::Custom`] clone behavior will be cloned using it and then removed from the source entity.
 /// All other components will be bitwise copied from the source entity onto the target entity and then removed without dropping.
-///
-/// Choosing to move components instead of cloning makes [`EntityClonerBuilder::with_default_clone_fn`] ineffective since it's replaced by
-/// move handler for components that have [`ComponentCloneBehavior::Default`] clone behavior.
 ///
 /// Note that moving components still triggers `on_remove` hooks/observers on source entity and `on_insert`/`on_add` hooks/observers on the target entity.
 #[derive(Default)]
@@ -468,15 +464,8 @@ impl EntityCloner {
         }
     }
 
-    /// Returns `true` if this cloner is configured to clone entities referenced in cloned components via [`RelationshipTarget::LINKED_SPAWN`](crate::relationship::RelationshipTarget::LINKED_SPAWN).
-    /// This will produce "deep" / recursive clones of relationship trees that have "linked spawn".
-    #[inline]
-    pub fn linked_cloning(&self) -> bool {
-        self.state.linked_cloning
-    }
-
     /// Clones and inserts components from the `source` entity into `target` entity using the stored configuration.
-    /// If this [`EntityCloner`] has [`EntityCloner::linked_cloning`], then it will recursively spawn entities as defined
+    /// If this [`EntityCloner`] has linked cloning, then it will recursively spawn entities as defined
     /// by [`RelationshipTarget`](crate::relationship::RelationshipTarget) components with
     /// [`RelationshipTarget::LINKED_SPAWN`](crate::relationship::RelationshipTarget::LINKED_SPAWN)
     #[track_caller]
@@ -484,17 +473,6 @@ impl EntityCloner {
         let mut map = EntityHashMap::<Entity>::new();
         map.set_mapped(source, target);
         self.clone_entity_mapped(world, source, &mut map);
-    }
-
-    /// Clones and inserts components from the `source` entity into a newly spawned entity using the stored configuration.
-    /// If this [`EntityCloner`] has [`EntityCloner::linked_cloning`], then it will recursively spawn entities as defined
-    /// by [`RelationshipTarget`](crate::relationship::RelationshipTarget) components with
-    /// [`RelationshipTarget::LINKED_SPAWN`](crate::relationship::RelationshipTarget::LINKED_SPAWN)
-    #[track_caller]
-    pub fn spawn_clone(&mut self, world: &mut World, source: Entity) -> Entity {
-        let target = world.spawn_empty().id();
-        self.clone_entity(world, source, target);
-        target
     }
 
     /// Clones the entity into whatever entity `mapper` chooses for it.
@@ -806,14 +784,6 @@ impl<'w, Filter: CloneByFilter> EntityClonerBuilder<'w, Filter> {
         }
     }
 
-    /// Sets the default clone function to use.
-    ///
-    /// Will be overridden if [`EntityClonerBuilder::move_components`] is enabled.
-    pub fn with_default_clone_fn(&mut self, clone_fn: ComponentCloneFn) -> &mut Self {
-        self.state.default_clone_fn = clone_fn;
-        self
-    }
-
     /// Sets whether the cloner should remove any components that were cloned,
     /// effectively moving them from the source entity to the target.
     ///
@@ -821,8 +791,6 @@ impl<'w, Filter: CloneByFilter> EntityClonerBuilder<'w, Filter> {
     ///
     /// The setting only applies to components that are allowed through the filter
     /// at the time [`EntityClonerBuilder::clone_entity`] is called.
-    ///
-    /// Enabling this overrides any custom function set with [`EntityClonerBuilder::with_default_clone_fn`].
     pub fn move_components(&mut self, enable: bool) -> &mut Self {
         self.state.move_components = enable;
         self
@@ -864,15 +832,6 @@ impl<'w, Filter: CloneByFilter> EntityClonerBuilder<'w, Filter> {
         if let Some(id) = self.world.components().valid_component_id::<T>() {
             self.state.clone_behavior_overrides.remove(&id);
         }
-        self
-    }
-
-    /// Removes a previously set override of [`ComponentCloneBehavior`] for a given `component_id` in this builder.
-    pub fn remove_clone_behavior_override_with_id(
-        &mut self,
-        component_id: ComponentId,
-    ) -> &mut Self {
-        self.state.clone_behavior_overrides.remove(&component_id);
         self
     }
 

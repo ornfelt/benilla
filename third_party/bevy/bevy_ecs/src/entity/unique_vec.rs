@@ -82,14 +82,6 @@ impl<T: EntityEquivalent> UniqueEntityEquivalentVec<T> {
         }
     }
 
-    /// Returns the number of elements in the vector, also referred to
-    /// as its 'length'.
-    ///
-    /// Equivalent to [`Vec::len`].
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
     /// Returns `true` if the vector contains no elements.
     ///
     /// Equivalent to [`Vec::is_empty`].

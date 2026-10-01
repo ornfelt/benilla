@@ -245,19 +245,6 @@ impl Access {
         self.remove_component_sparse_set_index_read(sparse_set_index);
     }
 
-    /// Removes write access to the component given by `index`.
-    ///
-    /// Because this method corresponds to the set difference operator ∖, it can
-    /// create complicated logical formulas that you should verify correctness
-    /// of. For example, A ∪ (B ∖ A) isn't equivalent to (A ∪ B) ∖ A, so you
-    /// can't replace a call to `remove_component_write` followed by a call to
-    /// `extend` with a call to `extend` followed by a call to
-    /// `remove_component_write`.
-    pub fn remove_component_write(&mut self, index: ComponentId) {
-        let sparse_set_index = index.index();
-        self.remove_component_sparse_set_index_write(sparse_set_index);
-    }
-
     /// Adds an archetypal (indirect) access to the component given by `index`.
     ///
     /// This is for components whose values are not accessed (and thus will never cause conflicts),
@@ -415,18 +402,6 @@ impl Access {
         self.writes_all_resources = false;
         self.component_writes_inverted = false;
         self.component_writes.clear();
-        self.resource_writes.clear();
-    }
-
-    /// Removes all accesses.
-    pub fn clear(&mut self) {
-        self.reads_all_resources = false;
-        self.writes_all_resources = false;
-        self.component_read_and_writes_inverted = false;
-        self.component_writes_inverted = false;
-        self.component_read_and_writes.clear();
-        self.component_writes.clear();
-        self.resource_read_and_writes.clear();
         self.resource_writes.clear();
     }
 
@@ -743,18 +718,6 @@ impl Access {
         self.resource_writes.ones().map(ComponentId::new)
     }
 
-    /// Returns the indices of the components that this has an archetypal access to.
-    ///
-    /// These are components whose values are not accessed (and thus will never cause conflicts),
-    /// but whose presence in an archetype may affect query results.
-    ///
-    /// Currently, this is only used for [`Has<T>`].
-    ///
-    /// [`Has<T>`]: crate::query::Has
-    pub fn archetypal(&self) -> impl Iterator<Item = ComponentId> + '_ {
-        self.archetypal.ones().map(ComponentId::new)
-    }
-
     /// Returns an iterator over the component IDs and their [`ComponentAccessKind`].
     ///
     /// Returns `Err(UnboundedAccess)` if the access is unbounded.
@@ -891,14 +854,6 @@ pub enum ComponentAccessKind {
     Shared(ComponentId),
     /// Exclusive access, such as `&mut Foo`.
     Exclusive(ComponentId),
-}
-
-impl ComponentAccessKind {
-    /// Gets the index of this `ComponentAccessKind`.
-    pub fn index(&self) -> &ComponentId {
-        let (Self::Archetypal(value) | Self::Shared(value) | Self::Exclusive(value)) = self;
-        value
-    }
 }
 
 /// An [`Access`] that has been filtered to include and exclude certain combinations of elements.
@@ -1322,12 +1277,6 @@ impl FilteredAccessSet {
         &self.combined_access
     }
 
-    /// Returns a reference to the filtered accesses of the set.
-    #[inline]
-    pub fn filtered_accesses(&self) -> &[FilteredAccess] {
-        &self.filtered_accesses
-    }
-
     /// Returns `true` if this and `other` can be active at the same time.
     ///
     /// Access conflict resolution happen in two steps:
@@ -1434,12 +1383,6 @@ impl FilteredAccessSet {
         let mut filter = FilteredAccess::matches_everything();
         filter.write_all();
         self.add(filter);
-    }
-
-    /// Removes all accesses stored in this set.
-    pub fn clear(&mut self) {
-        self.combined_access.clear();
-        self.filtered_accesses.clear();
     }
 }
 

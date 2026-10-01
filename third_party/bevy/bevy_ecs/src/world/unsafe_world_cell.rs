@@ -765,24 +765,11 @@ impl<'w> UnsafeEntityCell<'w> {
         self.world
     }
 
-    /// Returns `true` if the current entity has a component of type `T`.
-    /// Otherwise, this returns `false`.
-    ///
-    /// ## Notes
-    ///
-    /// If you do not know the concrete type of a component, consider using
-    /// [`Self::contains_id`] or [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains<T: Component>(self) -> bool {
-        self.contains_type_id(TypeId::of::<T>())
-    }
-
     /// Returns `true` if the current entity has a component identified by `component_id`.
     /// Otherwise, this returns false.
     ///
     /// ## Notes
     ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
     /// - If you know the component's [`TypeId`] but not its [`ComponentId`], consider using
     ///   [`Self::contains_type_id`].
     #[inline]
@@ -795,8 +782,6 @@ impl<'w> UnsafeEntityCell<'w> {
     ///
     /// ## Notes
     ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you have a [`ComponentId`] instead of a [`TypeId`], consider using [`Self::contains_id`].
     #[inline]
     pub fn contains_type_id(self, type_id: TypeId) -> bool {
         let Some(id) = self.world.components().get_id(type_id) else {
@@ -1145,17 +1130,6 @@ impl<'w> UnsafeEntityCell<'w> {
             .entities()
             .entity_get_spawned_or_despawned_by(self.entity)
             .map(|o| o.unwrap())
-    }
-
-    /// Returns the [`Tick`] at which this entity has been spawned.
-    pub fn spawn_tick(self) -> Tick {
-        // SAFETY: UnsafeEntityCell is only constructed for living entities and offers no despawn method
-        unsafe {
-            self.world()
-                .entities()
-                .entity_get_spawned_or_despawned_unchecked(self.entity)
-                .1
-        }
     }
 }
 

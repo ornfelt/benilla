@@ -1,8 +1,7 @@
 use crate::{
-    archetype::Archetype,
-    change_detection::{ComponentTicks, MaybeLocation, MutUntyped, Tick},
+    change_detection::{ComponentTicks, MutUntyped},
     component::{Component, ComponentId, Mutable},
-    entity::{ContainsEntity, Entity, EntityEquivalent, EntityLocation},
+    entity::{ContainsEntity, Entity, EntityEquivalent},
     query::Access,
     world::{unsafe_world_cell::UnsafeEntityCell, EntityMut, EntityRef, Mut, Ref},
 };
@@ -62,47 +61,16 @@ impl<'w, 's> FilteredEntityRef<'w, 's> {
         self.entity.id()
     }
 
-    /// Gets metadata indicating the location where the current entity is stored.
-    #[inline]
-    pub fn location(&self) -> EntityLocation {
-        self.entity.location()
-    }
-
-    /// Returns the archetype that the current entity belongs to.
-    #[inline]
-    pub fn archetype(&self) -> &Archetype {
-        self.entity.archetype()
-    }
-
-    /// Returns a reference to the underlying [`Access`].
-    #[inline]
-    pub fn access(&self) -> &Access {
-        self.access
-    }
-
     /// Returns `true` if the current entity has a component of type `T`.
     /// Otherwise, this returns `false`.
     ///
     /// ## Notes
     ///
     /// If you do not know the concrete type of a component, consider using
-    /// [`Self::contains_id`] or [`Self::contains_type_id`].
+    /// [`Self::contains_type_id`].
     #[inline]
     pub fn contains<T: Component>(&self) -> bool {
         self.contains_type_id(TypeId::of::<T>())
-    }
-
-    /// Returns `true` if the current entity has a component identified by `component_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you know the component's [`TypeId`] but not its [`ComponentId`], consider using
-    ///   [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains_id(&self, component_id: ComponentId) -> bool {
-        self.entity.contains_id(component_id)
     }
 
     /// Returns `true` if the current entity has a component with the type identified by `type_id`.
@@ -111,7 +79,6 @@ impl<'w, 's> FilteredEntityRef<'w, 's> {
     /// ## Notes
     ///
     /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you have a [`ComponentId`] instead of a [`TypeId`], consider using [`Self::contains_id`].
     #[inline]
     pub fn contains_type_id(&self, type_id: TypeId) -> bool {
         self.entity.contains_type_id(type_id)
@@ -198,16 +165,6 @@ impl<'w, 's> FilteredEntityRef<'w, 's> {
             .then(|| unsafe { self.entity.get_by_id(component_id) })
             .flatten()
     }
-
-    /// Returns the source code location from which this entity has been spawned.
-    pub fn spawned_by(&self) -> MaybeLocation {
-        self.entity.spawned_by()
-    }
-
-    /// Returns the [`Tick`] at which this entity has been spawned.
-    pub fn spawn_tick(&self) -> Tick {
-        self.entity.spawn_tick()
-    }
 }
 
 impl<'a> TryFrom<FilteredEntityRef<'a, '_>> for EntityRef<'a> {
@@ -273,63 +230,6 @@ impl ContainsEntity for FilteredEntityRef<'_, '_> {
 // SAFETY: This type represents one Entity. We implement the comparison traits based on that Entity.
 unsafe impl EntityEquivalent for FilteredEntityRef<'_, '_> {}
 
-/// Variant of [`FilteredEntityMut`] that can be used to create copies of a [`FilteredEntityMut`], as long
-/// as the user ensures that these won't cause aliasing violations.
-///
-/// This can be useful to mutably query multiple components from a single `FilteredEntityMut`.
-///
-/// ### Example Usage
-///
-/// ```
-/// # use bevy_ecs::{prelude::*, world::{FilteredEntityMut, UnsafeFilteredEntityMut}};
-/// #
-/// # #[derive(Component)]
-/// # struct A;
-/// # #[derive(Component)]
-/// # struct B;
-/// #
-/// # let mut world = World::new();
-/// # world.spawn((A, B));
-/// #
-/// // This gives the `FilteredEntityMut` access to `&mut A` and `&mut B`.
-/// let mut query = QueryBuilder::<FilteredEntityMut>::new(&mut world)
-///     .data::<(&mut A, &mut B)>()
-///     .build();
-///
-/// let mut filtered_entity: FilteredEntityMut = query.single_mut(&mut world).unwrap();
-/// let unsafe_filtered_entity = UnsafeFilteredEntityMut::new_readonly(&filtered_entity);
-/// // SAFETY: the original FilteredEntityMut accesses `&mut A` and the clone accesses `&mut B`, so no aliasing violations occur.
-/// let mut filtered_entity_clone: FilteredEntityMut = unsafe { unsafe_filtered_entity.into_mut() };
-/// let a: Mut<A> = filtered_entity.get_mut().unwrap();
-/// let b: Mut<B> = filtered_entity_clone.get_mut().unwrap();
-/// ```
-#[derive(Copy, Clone)]
-pub struct UnsafeFilteredEntityMut<'w, 's> {
-    entity: UnsafeEntityCell<'w>,
-    access: &'s Access,
-}
-
-impl<'w, 's> UnsafeFilteredEntityMut<'w, 's> {
-    /// Creates a [`UnsafeFilteredEntityMut`] that can be used to have multiple concurrent [`FilteredEntityMut`]s.
-    #[inline]
-    pub fn new_readonly(filtered_entity_mut: &FilteredEntityMut<'w, 's>) -> Self {
-        Self {
-            entity: filtered_entity_mut.entity,
-            access: filtered_entity_mut.access,
-        }
-    }
-
-    /// Returns a new instance of [`FilteredEntityMut`].
-    ///
-    /// # Safety
-    /// - The user must ensure that no aliasing violations occur when using the returned `FilteredEntityMut`.
-    #[inline]
-    pub unsafe fn into_mut(self) -> FilteredEntityMut<'w, 's> {
-        // SAFETY: Upheld by caller.
-        unsafe { FilteredEntityMut::new(self.entity, self.access) }
-    }
-}
-
 /// Provides mutable access to a single entity and some of its components defined by the contained [`Access`].
 ///
 /// To define the access when used as a [`QueryData`](crate::query::QueryData),
@@ -353,8 +253,6 @@ impl<'w, 's> UnsafeFilteredEntityMut<'w, 's> {
 /// let mut filtered_entity: FilteredEntityMut = query.single_mut(&mut world).unwrap();
 /// let component: Mut<A> = filtered_entity.get_mut().unwrap();
 /// ```
-///
-/// Also see [`UnsafeFilteredEntityMut`] for a way to bypass borrow-checker restrictions.
 pub struct FilteredEntityMut<'w, 's> {
     entity: UnsafeEntityCell<'w>,
     access: &'s Access,
@@ -373,22 +271,10 @@ impl<'w, 's> FilteredEntityMut<'w, 's> {
         Self { entity, access }
     }
 
-    /// Returns a new instance with a shorter lifetime.
-    /// This is useful if you have `&mut FilteredEntityMut`, but you need `FilteredEntityMut`.
-    pub fn reborrow(&mut self) -> FilteredEntityMut<'_, 's> {
-        // SAFETY: We have exclusive access to the entire entity and its components.
-        unsafe { Self::new(self.entity, self.access) }
-    }
-
     /// Gets read-only access to all of the entity's components.
     #[inline]
     pub fn as_readonly(&self) -> FilteredEntityRef<'_, 's> {
         FilteredEntityRef::from(self)
-    }
-
-    /// Get access to the underlying [`UnsafeEntityCell`]
-    pub fn as_unsafe_entity_cell(&mut self) -> UnsafeEntityCell<'_> {
-        self.entity
     }
 
     /// Returns the [ID](Entity) of the current entity.
@@ -396,61 +282,6 @@ impl<'w, 's> FilteredEntityMut<'w, 's> {
     #[must_use = "Omit the .id() call if you do not need to store the `Entity` identifier."]
     pub fn id(&self) -> Entity {
         self.entity.id()
-    }
-
-    /// Gets metadata indicating the location where the current entity is stored.
-    #[inline]
-    pub fn location(&self) -> EntityLocation {
-        self.entity.location()
-    }
-
-    /// Returns the archetype that the current entity belongs to.
-    #[inline]
-    pub fn archetype(&self) -> &Archetype {
-        self.entity.archetype()
-    }
-
-    /// Returns a reference to the underlying [`Access`].
-    #[inline]
-    pub fn access(&self) -> &Access {
-        self.access
-    }
-
-    /// Returns `true` if the current entity has a component of type `T`.
-    /// Otherwise, this returns `false`.
-    ///
-    /// ## Notes
-    ///
-    /// If you do not know the concrete type of a component, consider using
-    /// [`Self::contains_id`] or [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains<T: Component>(&self) -> bool {
-        self.contains_type_id(TypeId::of::<T>())
-    }
-
-    /// Returns `true` if the current entity has a component identified by `component_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you know the component's [`TypeId`] but not its [`ComponentId`], consider using
-    ///   [`Self::contains_type_id`].
-    #[inline]
-    pub fn contains_id(&self, component_id: ComponentId) -> bool {
-        self.entity.contains_id(component_id)
-    }
-
-    /// Returns `true` if the current entity has a component with the type identified by `type_id`.
-    /// Otherwise, this returns false.
-    ///
-    /// ## Notes
-    ///
-    /// - If you know the concrete type of the component, you should prefer [`Self::contains`].
-    /// - If you have a [`ComponentId`] instead of a [`TypeId`], consider using [`Self::contains_id`].
-    #[inline]
-    pub fn contains_type_id(&self, type_id: TypeId) -> bool {
-        self.entity.contains_type_id(type_id)
     }
 
     /// Gets access to the component of type `T` for the current entity.
@@ -536,17 +367,6 @@ impl<'w, 's> FilteredEntityMut<'w, 's> {
             // and we promise to not create other references to the same component
             .then(|| unsafe { self.entity.get_mut() })
             .flatten()
-    }
-
-    /// Consumes self and gets mutable access to the component of type `T`
-    /// with the world `'w` lifetime for the current entity.
-    /// Returns `None` if the entity does not have a component of type `T`.
-    #[inline]
-    pub fn into_mut<T: Component<Mutability = Mutable>>(self) -> Option<Mut<'w, T>> {
-        // SAFETY:
-        // - We have write access
-        // - The bound `T: Component<Mutability = Mutable>` ensures the component is mutable
-        unsafe { self.into_mut_assume_mutable() }
     }
 
     /// Consumes self and gets mutable access to the component of type `T`
@@ -647,16 +467,6 @@ impl<'w, 's> FilteredEntityMut<'w, 's> {
             // and we promise to not create other references to the same component
             .then(|| unsafe { self.entity.get_mut_by_id(component_id).ok() })
             .flatten()
-    }
-
-    /// Returns the source code location from which this entity has last been spawned.
-    pub fn spawned_by(&self) -> MaybeLocation {
-        self.entity.spawned_by()
-    }
-
-    /// Returns the [`Tick`] at which this entity has been spawned.
-    pub fn spawn_tick(&self) -> Tick {
-        self.entity.spawn_tick()
     }
 }
 

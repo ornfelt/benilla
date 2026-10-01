@@ -106,7 +106,7 @@ impl<'w, D: QueryData, F: QueryFilter> QueryBuilder<'w, D, F> {
         self.world
     }
 
-    /// Adds access to self's underlying [`FilteredAccess`] respecting [`Self::or`] and [`Self::and`]
+    /// Adds access to self's underlying [`FilteredAccess`] respecting [`Self::or`]
     pub fn extend_access(&mut self, mut access: FilteredAccess) {
         if self.or {
             if self.first {
@@ -171,34 +171,6 @@ impl<'w, D: QueryData, F: QueryFilter> QueryBuilder<'w, D, F> {
     pub fn ref_id(&mut self, id: ComponentId) -> &mut Self {
         self.with_id(id);
         self.access.add_component_read(id);
-        self
-    }
-
-    /// Adds `&mut T` to the [`FilteredAccess`] of self.
-    pub fn mut_id(&mut self, id: ComponentId) -> &mut Self {
-        self.with_id(id);
-        self.access.add_component_write(id);
-        self
-    }
-
-    /// Takes a function over mutable access to a [`QueryBuilder`], calls that function
-    /// on an empty builder and then adds all accesses from that builder to self as optional.
-    pub fn optional(&mut self, f: impl Fn(&mut QueryBuilder)) -> &mut Self {
-        let mut builder = QueryBuilder::new(self.world);
-        f(&mut builder);
-        self.access.extend_access(builder.access());
-        self
-    }
-
-    /// Takes a function over mutable access to a [`QueryBuilder`], calls that function
-    /// on an empty builder and then adds all accesses from that builder to self.
-    ///
-    /// Primarily used when inside a [`Self::or`] closure to group several terms.
-    pub fn and(&mut self, f: impl Fn(&mut QueryBuilder)) -> &mut Self {
-        let mut builder = QueryBuilder::new(self.world);
-        f(&mut builder);
-        let access = builder.access().clone();
-        self.extend_access(access);
         self
     }
 

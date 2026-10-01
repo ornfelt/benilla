@@ -22,7 +22,7 @@ pub use deferred_world::DeferredWorld;
 pub use entity_access::{
     ComponentEntry, DynamicComponentFetch, EntityMut, EntityMutExcept, EntityRef, EntityRefExcept,
     EntityWorldMut, FilteredEntityMut, FilteredEntityRef, OccupiedComponentEntry,
-    TryFromFilteredError, UnsafeFilteredEntityMut, VacantComponentEntry,
+    TryFromFilteredError, VacantComponentEntry,
 };
 pub use entity_fetch::{EntityFetcher, WorldEntityFetch};
 pub use filtered_resource::*;
@@ -40,8 +40,7 @@ use crate::{
     },
     component::{
         Component, ComponentDescriptor, ComponentId, ComponentIds, ComponentInfo, Components,
-        ComponentsQueuedRegistrator, ComponentsRegistrator, Mutable, RequiredComponents,
-        RequiredComponentsError,
+        ComponentsQueuedRegistrator, ComponentsRegistrator, Mutable, RequiredComponentsError,
     },
     entity::{Entities, Entity, EntityAllocator, EntityNotSpawnedError, SpawnError},
     entity_disabling::DefaultQueryFilters,
@@ -206,34 +205,10 @@ impl World {
         &self.entities
     }
 
-    /// Retrieves this world's [`EntityAllocator`] collection.
-    #[inline]
-    pub fn entities_allocator(&self) -> &EntityAllocator {
-        &self.allocator
-    }
-
     /// Retrieves this world's [`EntityAllocator`] collection mutably.
     #[inline]
     pub fn entities_allocator_mut(&mut self) -> &mut EntityAllocator {
         &mut self.allocator
-    }
-
-    /// Retrieves this world's [`Entities`] collection mutably.
-    ///
-    /// # Safety
-    /// Mutable reference must not be used to put the [`Entities`] data
-    /// in an invalid state for this [`World`]
-    #[inline]
-    pub unsafe fn entities_mut(&mut self) -> &mut Entities {
-        &mut self.entities
-    }
-
-    /// Retrieves the number of [`Entities`] in the world.
-    ///
-    /// This is helpful as a diagnostic, but it can also be used effectively in tests.
-    #[inline]
-    pub fn entity_count(&self) -> u32 {
-        self.entities.count_spawned()
     }
 
     /// Retrieves this world's [`Archetypes`] collection.
@@ -276,18 +251,6 @@ impl World {
         &self.bundles
     }
 
-    /// Retrieves this world's [`RemovedComponentMessages`] collection
-    #[inline]
-    pub fn removed_components(&self) -> &RemovedComponentMessages {
-        &self.removed_components
-    }
-
-    /// Retrieves this world's [`Observers`] list
-    #[inline]
-    pub fn observers(&self) -> &Observers {
-        &self.observers
-    }
-
     /// Creates a new [`Commands`] instance that writes to the world's command queue
     /// Use [`World::flush`] to apply all queued commands
     #[inline]
@@ -328,17 +291,6 @@ impl World {
         assert!(!self.archetypes.archetypes.iter().any(|a| a.contains(index)), "Components hooks cannot be modified if the component already exists in an archetype, use register_component if {} may already be in use", core::any::type_name::<T>());
         // SAFETY: We just created this component
         unsafe { self.components.get_hooks_mut(index).debug_checked_unwrap() }
-    }
-
-    /// Returns a mutable reference to the [`ComponentHooks`] for a [`Component`] with the given id if it exists.
-    ///
-    /// Will panic if `id` exists in any archetypes.
-    pub fn register_component_hooks_by_id(
-        &mut self,
-        id: ComponentId,
-    ) -> Option<&mut ComponentHooks> {
-        assert!(!self.archetypes.archetypes.iter().any(|a| a.contains(id)), "Components hooks cannot be modified if the component already exists in an archetype, use register_component if the component with id {id:?} may already be in use");
-        self.components.get_hooks_mut(id)
     }
 
     /// Registers the given component `R` as a [required component] for `T`.
@@ -567,19 +519,6 @@ impl World {
         }
     }
 
-    /// Retrieves the [required components](RequiredComponents) for the given component type, if it exists.
-    pub fn get_required_components<C: Component>(&self) -> Option<&RequiredComponents> {
-        let id = self.components().valid_component_id::<C>()?;
-        let component_info = self.components().get_info(id)?;
-        Some(component_info.required_components())
-    }
-
-    /// Retrieves the [required components](RequiredComponents) for the component of the given [`ComponentId`], if it exists.
-    pub fn get_required_components_by_id(&self, id: ComponentId) -> Option<&RequiredComponents> {
-        let component_info = self.components().get_info(id)?;
-        Some(component_info.required_components())
-    }
-
     /// Registers a new [`Component`] type and returns the [`ComponentId`] created for it.
     ///
     /// This method differs from [`World::register_component`] in that it uses a [`ComponentDescriptor`]
@@ -635,17 +574,6 @@ impl World {
     /// [`World::insert_resource`] instead.
     pub fn register_resource<R: Resource>(&mut self) -> ComponentId {
         self.components_registrator().register_resource::<R>()
-    }
-
-    /// Returns the [`ComponentId`] of the given [`Resource`] type `T`.
-    ///
-    /// The returned [`ComponentId`] is specific to the [`World`] instance it was retrieved from
-    /// and should not be used with another [`World`] instance.
-    ///
-    /// Returns [`None`] if the [`Resource`] type has not yet been initialized within the
-    /// [`World`] using [`World::register_resource`], [`World::init_resource`] or [`World::insert_resource`].
-    pub fn resource_id<T: Resource>(&self) -> Option<ComponentId> {
-        self.components.get_resource_id(TypeId::of::<T>())
     }
 
     /// Returns [`EntityRef`]s that expose read-only operations for the given
@@ -1394,41 +1322,6 @@ impl World {
         Ok(result)
     }
 
-    /// Temporarily removes a [`Component`] identified by the provided
-    /// [`ComponentId`] from the provided [`Entity`] and runs the provided
-    /// closure on it, returning the result if the component was available.
-    /// This will trigger the `Remove` and `Replace` component hooks without
-    /// causing an archetype move.
-    ///
-    /// This is most useful with immutable components, where removal and reinsertion
-    /// is the only way to modify a value.
-    ///
-    /// If you do not need to ensure the above hooks are triggered, and your component
-    /// is mutable, prefer using [`get_mut_by_id`](World::get_mut_by_id).
-    ///
-    /// You should prefer the typed [`modify_component`](World::modify_component)
-    /// whenever possible.
-    #[inline]
-    #[track_caller]
-    pub fn modify_component_by_id<R>(
-        &mut self,
-        entity: Entity,
-        component_id: ComponentId,
-        f: impl for<'a> FnOnce(MutUntyped<'a>) -> R,
-    ) -> Result<Option<R>, EntityMutableFetchError> {
-        let mut world = DeferredWorld::from(&mut *self);
-
-        let result = world.modify_component_by_id_with_relationship_hook_mode(
-            entity,
-            component_id,
-            RelationshipHookMode::Run,
-            f,
-        )?;
-
-        self.flush();
-        Ok(result)
-    }
-
     /// Despawns the given [`Entity`], if it exists.
     /// This will also remove all of the entity's [`Components`](Component).
     ///
@@ -1468,21 +1361,6 @@ impl World {
         }
     }
 
-    /// Despawns the given `entity`, if it exists. This will also remove all of the entity's
-    /// [`Components`](Component).
-    ///
-    /// Returns an [`EntityDespawnError`] if the entity is not spawned to be despawned.
-    ///
-    /// # Note
-    ///
-    /// This will also despawn the entities in any [`RelationshipTarget`](crate::relationship::RelationshipTarget) that is configured
-    /// to despawn descendants. For example, this will recursively despawn [`Children`](crate::hierarchy::Children).
-    #[track_caller]
-    #[inline]
-    pub fn try_despawn(&mut self, entity: Entity) -> Result<(), EntityDespawnError> {
-        self.despawn_with_caller(entity, MaybeLocation::caller())
-    }
-
     #[inline]
     pub(crate) fn despawn_with_caller(
         &mut self,
@@ -1497,20 +1375,6 @@ impl World {
             // Only one entity.
             Err(EntityMutableFetchError::AliasedMutability(_)) => unreachable!(),
             Err(EntityMutableFetchError::NotSpawned(err)) => Err(EntityDespawnError(err)),
-        }
-    }
-
-    /// Performs [`try_despawn_no_free`](Self::try_despawn_no_free), warning on errors.
-    /// See that method for more information.
-    #[track_caller]
-    #[inline]
-    pub fn despawn_no_free(&mut self, entity: Entity) -> Option<Entity> {
-        match self.despawn_no_free_with_caller(entity, MaybeLocation::caller()) {
-            Ok(entity) => Some(entity),
-            Err(error) => {
-                warn!("{error}");
-                None
-            }
         }
     }
 
@@ -1690,84 +1554,6 @@ impl World {
     #[inline]
     pub fn query_filtered<D: QueryData, F: QueryFilter>(&mut self) -> QueryState<D, F> {
         QueryState::new(self)
-    }
-
-    /// Returns [`QueryState`] for the given [`QueryData`], which is used to efficiently
-    /// run queries on the [`World`] by storing and reusing the [`QueryState`].
-    /// ```
-    /// use bevy_ecs::{component::Component, entity::Entity, world::World};
-    ///
-    /// #[derive(Component, Debug, PartialEq)]
-    /// struct Position {
-    ///   x: f32,
-    ///   y: f32,
-    /// }
-    ///
-    /// let mut world = World::new();
-    /// world.spawn_batch(vec![
-    ///     Position { x: 0.0, y: 0.0 },
-    ///     Position { x: 1.0, y: 1.0 },
-    /// ]);
-    ///
-    /// fn get_positions(world: &World) -> Vec<(Entity, &Position)> {
-    ///     let mut query = world.try_query::<(Entity, &Position)>().unwrap();
-    ///     query.iter(world).collect()
-    /// }
-    ///
-    /// let positions = get_positions(&world);
-    ///
-    /// assert_eq!(world.get::<Position>(positions[0].0).unwrap(), positions[0].1);
-    /// assert_eq!(world.get::<Position>(positions[1].0).unwrap(), positions[1].1);
-    /// ```
-    ///
-    /// Requires only an immutable world reference, but may fail if, for example,
-    /// the components that make up this query have not been registered into the world.
-    /// ```
-    /// use bevy_ecs::{component::Component, entity::Entity, world::World};
-    ///
-    /// #[derive(Component)]
-    /// struct A;
-    ///
-    /// let mut world = World::new();
-    ///
-    /// let none_query = world.try_query::<&A>();
-    /// assert!(none_query.is_none());
-    ///
-    /// world.register_component::<A>();
-    ///
-    /// let some_query = world.try_query::<&A>();
-    /// assert!(some_query.is_some());
-    /// ```
-    #[inline]
-    pub fn try_query<D: QueryData>(&self) -> Option<QueryState<D, ()>> {
-        self.try_query_filtered::<D, ()>()
-    }
-
-    /// Returns [`QueryState`] for the given filtered [`QueryData`], which is used to efficiently
-    /// run queries on the [`World`] by storing and reusing the [`QueryState`].
-    /// ```
-    /// use bevy_ecs::{component::Component, entity::Entity, world::World, query::With};
-    ///
-    /// #[derive(Component)]
-    /// struct A;
-    /// #[derive(Component)]
-    /// struct B;
-    ///
-    /// let mut world = World::new();
-    /// let e1 = world.spawn(A).id();
-    /// let e2 = world.spawn((A, B)).id();
-    ///
-    /// let mut query = world.try_query_filtered::<Entity, With<B>>().unwrap();
-    /// let matching_entities = query.iter(&world).collect::<Vec<Entity>>();
-    ///
-    /// assert_eq!(matching_entities, vec![e2]);
-    /// ```
-    ///
-    /// Requires only an immutable world reference, but may fail if, for example,
-    /// the components that make up this query have not been registered into the world.
-    #[inline]
-    pub fn try_query_filtered<D: QueryData, F: QueryFilter>(&self) -> Option<QueryState<D, F>> {
-        QueryState::try_new(self)
     }
 
     /// Returns an iterator of entities that had components of type `T` removed
@@ -1961,33 +1747,6 @@ impl World {
             .is_some_and(ResourceData::is_present)
     }
 
-    /// Returns `true` if a resource with provided `component_id` exists. Otherwise returns `false`.
-    #[inline]
-    pub fn contains_resource_by_id(&self, component_id: ComponentId) -> bool {
-        self.storages
-            .resources
-            .get(component_id)
-            .is_some_and(ResourceData::is_present)
-    }
-
-    /// Returns `true` if a resource of type `R` exists. Otherwise returns `false`.
-    #[inline]
-    pub fn contains_non_send<R: 'static>(&self) -> bool {
-        self.components
-            .get_valid_resource_id(TypeId::of::<R>())
-            .and_then(|component_id| self.storages.non_send_resources.get(component_id))
-            .is_some_and(ResourceData::is_present)
-    }
-
-    /// Returns `true` if a resource with provided `component_id` exists. Otherwise returns `false`.
-    #[inline]
-    pub fn contains_non_send_by_id(&self, component_id: ComponentId) -> bool {
-        self.storages
-            .non_send_resources
-            .get(component_id)
-            .is_some_and(ResourceData::is_present)
-    }
-
     /// Returns `true` if a resource of type `R` exists and was added since the world's
     /// [`last_change_tick`](World::last_change_tick()). Otherwise, this returns `false`.
     ///
@@ -2050,16 +1809,7 @@ impl World {
             })
     }
 
-    /// Retrieves the change ticks for the given resource.
-    pub fn get_resource_change_ticks<R: Resource>(&self) -> Option<ComponentTicks> {
-        self.components
-            .get_valid_resource_id(TypeId::of::<R>())
-            .and_then(|component_id| self.get_resource_change_ticks_by_id(component_id))
-    }
-
     /// Retrieves the change ticks for the given [`ComponentId`].
-    ///
-    /// **You should prefer to use the typed API [`World::get_resource_change_ticks`] where possible.**
     pub fn get_resource_change_ticks_by_id(
         &self,
         component_id: ComponentId,
@@ -2083,30 +1833,6 @@ impl World {
     #[track_caller]
     pub fn resource<R: Resource>(&self) -> &R {
         match self.get_resource() {
-            Some(x) => x,
-            None => panic!(
-                "Requested resource {} does not exist in the `World`.
-                Did you forget to add it using `app.insert_resource` / `app.init_resource`?
-                Resources are also implicitly added via `app.add_message`,
-                and can be added by plugins.",
-                DebugName::type_name::<R>()
-            ),
-        }
-    }
-
-    /// Gets a reference to the resource of the given type
-    ///
-    /// # Panics
-    ///
-    /// Panics if the resource does not exist.
-    /// Use [`get_resource_ref`](World::get_resource_ref) instead if you want to handle this case.
-    ///
-    /// If you want to instead insert a value if the resource does not exist,
-    /// use [`get_resource_or_insert_with`](World::get_resource_or_insert_with).
-    #[inline]
-    #[track_caller]
-    pub fn resource_ref<R: Resource>(&self) -> Ref<'_, R> {
-        match self.get_resource_ref() {
             Some(x) => x,
             None => panic!(
                 "Requested resource {} does not exist in the `World`.
@@ -2836,14 +2562,6 @@ impl World {
         self.write_message_batch(core::iter::once(message))?.next()
     }
 
-    /// Writes the default value of the [`Message`] of type `M`.
-    /// This method returns the [`MessageId`] of the written message,
-    /// or [`None`] if the `event` could not be written.
-    #[inline]
-    pub fn write_message_default<M: Message + Default>(&mut self) -> Option<MessageId<M>> {
-        self.write_message(M::default())
-    }
-
     /// Writes a batch of [`Message`]s from an iterator.
     /// This method returns the [IDs](`MessageId`) of the written `messages`,
     /// or [`None`] if the `events` could not be written.
@@ -3184,13 +2902,6 @@ impl World {
         Some(check)
     }
 
-    /// Runs both [`clear_entities`](Self::clear_entities) and [`clear_resources`](Self::clear_resources),
-    /// invalidating all [`Entity`] and resource fetches such as [`Res`](crate::system::Res), [`ResMut`](crate::system::ResMut)
-    pub fn clear_all(&mut self) {
-        self.clear_entities();
-        self.clear_resources();
-    }
-
     /// Despawns all entities in this [`World`].
     pub fn clear_entities(&mut self) {
         self.storages.tables.clear();
@@ -3247,25 +2958,6 @@ impl World {
             self.bundles
                 .register_contributed_bundle_info::<B>(&mut registrator, &mut self.storages)
         }
-    }
-
-    /// Registers the given [`ComponentId`]s as a dynamic bundle and returns both the required component ids and the bundle id.
-    ///
-    /// Note that the components need to be registered first, this function only creates a bundle combining them. Components
-    /// can be registered with [`World::register_component`]/[`_with_descriptor`](World::register_component_with_descriptor).
-    ///
-    /// **You should prefer to use the typed API [`World::register_bundle`] where possible and only use this in cases where
-    /// not all of the actual types are known at compile time.**
-    ///
-    /// # Panics
-    /// This function will panic if any of the provided component ids do not belong to a component known to this [`World`].
-    #[inline]
-    pub fn register_dynamic_bundle(&mut self, component_ids: &[ComponentId]) -> &BundleInfo {
-        let id =
-            self.bundles
-                .init_dynamic_info(&mut self.storages, &self.components, component_ids);
-        // SAFETY: We just initialized the bundle so its id should definitely be valid.
-        unsafe { self.bundles.get(id).debug_checked_unwrap() }
     }
 
     /// Convenience method for accessing the world's default error handler,
@@ -3518,46 +3210,6 @@ impl World {
             })
     }
 
-    /// Gets a `!Send` resource to the resource with the id [`ComponentId`] if it exists.
-    /// The returned pointer must not be used to modify the resource, and must not be
-    /// dereferenced after the immutable borrow of the [`World`] ends.
-    ///
-    /// **You should prefer to use the typed API [`World::get_resource`] where possible and only
-    /// use this in cases where the actual types are not known at compile time.**
-    ///
-    /// # Panics
-    /// This function will panic if it isn't called from the same thread that the resource was inserted from.
-    #[inline]
-    pub fn get_non_send_by_id(&self, component_id: ComponentId) -> Option<Ptr<'_>> {
-        // SAFETY:
-        // - `as_unsafe_world_cell_readonly` gives permission to access the whole world immutably
-        // - `&self` ensures there are no mutable borrows on world data
-        unsafe {
-            self.as_unsafe_world_cell_readonly()
-                .get_non_send_resource_by_id(component_id)
-        }
-    }
-
-    /// Gets a `!Send` resource to the resource with the id [`ComponentId`] if it exists.
-    /// The returned pointer may be used to modify the resource, as long as the mutable borrow
-    /// of the [`World`] is still valid.
-    ///
-    /// **You should prefer to use the typed API [`World::get_resource_mut`] where possible and only
-    /// use this in cases where the actual types are not known at compile time.**
-    ///
-    /// # Panics
-    /// This function will panic if it isn't called from the same thread that the resource was inserted from.
-    #[inline]
-    pub fn get_non_send_mut_by_id(&mut self, component_id: ComponentId) -> Option<MutUntyped<'_>> {
-        // SAFETY:
-        // - `&mut self` ensures that all accessed data is unaliased
-        // - `as_unsafe_world_cell` provides mutable permission to the whole world
-        unsafe {
-            self.as_unsafe_world_cell()
-                .get_non_send_resource_mut_by_id(component_id)
-        }
-    }
-
     /// Removes the resource of a given type, if it exists. Otherwise returns `None`.
     ///
     /// **You should prefer to use the typed API [`World::remove_resource`] where possible and only
@@ -3565,21 +3217,6 @@ impl World {
     pub fn remove_resource_by_id(&mut self, component_id: ComponentId) -> Option<()> {
         self.storages
             .resources
-            .get_mut(component_id)?
-            .remove_and_drop();
-        Some(())
-    }
-
-    /// Removes the resource of a given type, if it exists. Otherwise returns `None`.
-    ///
-    /// **You should prefer to use the typed API [`World::remove_resource`] where possible and only
-    /// use this in cases where the actual types are not known at compile time.**
-    ///
-    /// # Panics
-    /// This function will panic if it isn't called from the same thread that the resource was inserted from.
-    pub fn remove_non_send_by_id(&mut self, component_id: ComponentId) -> Option<()> {
-        self.storages
-            .non_send_resources
             .get_mut(component_id)?
             .remove_and_drop();
         Some(())

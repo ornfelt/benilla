@@ -58,9 +58,8 @@ impl<'w, 's, D: QueryData, F: QueryFilter> QueryIter<'w, 's, D, F> {
     /// Advancing the new iterator will not advance the original one, which will resume at the
     /// point it was left at.
     ///
-    /// Differently from [`remaining_mut`](QueryIter::remaining_mut) the new iterator does not
-    /// borrow from the original one. However it can only be called from an iterator over read only
-    /// items.
+    /// The new iterator does not borrow from the original one. However it can only be called from an
+    /// iterator over read only items.
     ///
     /// # Example
     ///
@@ -89,40 +88,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter> QueryIter<'w, 's, D, F> {
             archetypes: self.archetypes,
             query_state: self.query_state,
             cursor: self.cursor.clone(),
-        }
-    }
-
-    /// Creates a new separate iterator yielding the same remaining items of the current one.
-    /// Advancing the new iterator will not advance the original one, which will resume at the
-    /// point it was left at.
-    ///
-    /// This method can be called on iterators over mutable items. However the original iterator
-    /// will be borrowed while the new iterator exists and will thus not be usable in that timespan.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// #
-    /// # #[derive(Component)]
-    /// # struct ComponentA;
-    ///
-    /// fn combinations(mut query: Query<&mut ComponentA>) {
-    ///     let mut iter = query.iter_mut();
-    ///     while let Some(a) = iter.next() {
-    ///         for b in iter.remaining_mut() {
-    ///             // Check every combination (a, b)
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    pub fn remaining_mut(&mut self) -> QueryIter<'_, 's, D, F> {
-        QueryIter {
-            world: self.world,
-            tables: self.tables,
-            archetypes: self.archetypes,
-            query_state: self.query_state,
-            cursor: self.cursor.reborrow(),
         }
     }
 
@@ -1774,32 +1739,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter, I: Iterator<Item: EntityEquivalent>>
     }
 }
 
-impl<'w, 's, D: QueryData, F: QueryFilter, I: DoubleEndedIterator<Item: EntityEquivalent>>
-    QueryManyIter<'w, 's, D, F, I>
-{
-    /// Get next result from the back of the query
-    #[inline(always)]
-    pub fn fetch_next_back(&mut self) -> Option<D::Item<'_, 's>> {
-        // SAFETY:
-        // All arguments stem from self.
-        // We are limiting the returned reference to self,
-        // making sure this method cannot be called multiple times without getting rid
-        // of any previously returned unique references first, thus preventing aliasing.
-        unsafe {
-            Self::fetch_next_aliased_unchecked(
-                self.entity_iter.by_ref().rev(),
-                self.entities,
-                self.tables,
-                self.archetypes,
-                &mut self.fetch,
-                &mut self.filter,
-                self.query_state,
-            )
-            .map(D::shrink)
-        }
-    }
-}
-
 impl<'w, 's, D: ReadOnlyQueryData, F: QueryFilter, I: Iterator<Item: EntityEquivalent>> Iterator
     for QueryManyIter<'w, 's, D, F, I>
 {
@@ -2055,28 +1994,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter, I: Iterator<Item = Entity>>
     #[inline(always)]
     pub fn fetch_next(&mut self) -> Option<D::Item<'_, 's>> {
         while let Some(entity) = self.entity_iter.next() {
-            // SAFETY:
-            // We have collected the entity_iter once to drop all internal lens query item
-            // references.
-            // We are limiting the returned reference to self,
-            // making sure this method cannot be called multiple times without getting rid
-            // of any previously returned unique references first, thus preventing aliasing.
-            // `entity` is passed from `entity_iter` the first time.
-            if let Some(item) = unsafe { self.fetch_next_aliased_unchecked(entity) } {
-                return Some(D::shrink(item));
-            }
-        }
-        None
-    }
-}
-
-impl<'w, 's, D: QueryData, F: QueryFilter, I: DoubleEndedIterator<Item = Entity>>
-    QuerySortedManyIter<'w, 's, D, F, I>
-{
-    /// Get next result from the query
-    #[inline(always)]
-    pub fn fetch_next_back(&mut self) -> Option<D::Item<'_, 's>> {
-        while let Some(entity) = self.entity_iter.next_back() {
             // SAFETY:
             // We have collected the entity_iter once to drop all internal lens query item
             // references.
@@ -2453,19 +2370,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter> QueryIterationCursor<'w, 's, D, F> {
             is_dense: query_state.is_dense,
             current_len: 0,
             current_row: 0,
-        }
-    }
-
-    fn reborrow(&mut self) -> QueryIterationCursor<'_, 's, D, F> {
-        QueryIterationCursor {
-            is_dense: self.is_dense,
-            fetch: D::shrink_fetch(self.fetch.clone()),
-            filter: F::shrink_fetch(self.filter.clone()),
-            table_entities: self.table_entities,
-            archetype_entities: self.archetype_entities,
-            storage_id_iter: self.storage_id_iter.clone(),
-            current_len: self.current_len,
-            current_row: self.current_row,
         }
     }
 
