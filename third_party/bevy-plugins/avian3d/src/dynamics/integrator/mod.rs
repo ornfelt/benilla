@@ -196,50 +196,37 @@ impl VelocityIntegrationData {
     }
 }
 
-/// Applies gravity and locked axes to the linear and angular velocity increments of bodies.
+/// Applies gravity to the linear and angular velocity increments of bodies.
 pub fn pre_process_velocity_increments(
-    mut bodies: Query<(
-        &RigidBody,
-        &mut VelocityIntegrationData,
-        Option<&LockedAxes>,
-    )>,
+    mut bodies: Query<(&RigidBody, &mut VelocityIntegrationData)>,
     gravity: Res<Gravity>,
     time: Res<Time<Substeps>>,
 ) {
     let delta_secs = time.delta_secs_f64() as Scalar;
 
     // TODO: Do we want to skip kinematic bodies here?
-    bodies
-        .par_iter_mut()
-        .for_each(|(rb, mut integration, locked_axes)| {
-            if !rb.is_dynamic() {
-                // Skip non-dynamic bodies.
-                return;
-            }
+    bodies.par_iter_mut().for_each(|(rb, mut integration)| {
+        if !rb.is_dynamic() {
+            // Skip non-dynamic bodies.
+            return;
+        }
 
-            let locked_axes = locked_axes.map_or(LockedAxes::default(), |locked_axes| *locked_axes);
+        // Update the cached right-hand side of the velocity damping equation,
+        // `1 / (1 + dt * c)`, where `c` is the damping coefficient: `0.0`, no body is damped.
+        integration.update_linear_damping_rhs(0.0, delta_secs);
+        integration.update_angular_damping_rhs(0.0, delta_secs);
 
-            // Update the cached right-hand side of the velocity damping equation,
-            // `1 / (1 + dt * c)`, where `c` is the damping coefficient: `0.0`, no body is damped.
-            integration.update_linear_damping_rhs(0.0, delta_secs);
-            integration.update_angular_damping_rhs(0.0, delta_secs);
+        // NOTE: The `ForcePlugin` handles the application of external forces and torques.
+        // NOTE: The velocity increments are treated as accelerations at this point.
 
-            // NOTE: The `ForcePlugin` handles the application of external forces and torques.
-            // NOTE: The velocity increments are treated as accelerations at this point.
+        // Apply gravity.
+        integration.linear_increment += gravity.0;
 
-            // Apply gravity.
-            integration.linear_increment += gravity.0;
-
-            // Apply locked axes.
-            integration.linear_increment = locked_axes.apply_to_vec(integration.linear_increment);
-            integration.angular_increment =
-                locked_axes.apply_to_angular_velocity(integration.angular_increment);
-
-            // The velocity increments are treated as accelerations until this point.
-            // Multiply by the time step to get the final velocity increments.
-            integration.linear_increment *= delta_secs;
-            integration.angular_increment *= delta_secs;
-        });
+        // The velocity increments are treated as accelerations until this point.
+        // Multiply by the time step to get the final velocity increments.
+        integration.linear_increment *= delta_secs;
+        integration.angular_increment *= delta_secs;
+    });
 }
 
 /// Clears the velocity increments of bodies after the substepping loop.

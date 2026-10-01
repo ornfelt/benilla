@@ -436,6 +436,22 @@ the same repository's.
   `writeback_joint_forces::<T>`. `wake_on_changed` loses its query of changed constant forces and
   gravity scales; the observers that re-added a joint when `JointDisabled` was removed go, and
   the one removing a joint on `Disabled` no longer also fires on `JointDisabled`.
+- **avian3d's collision and material options.** The remaining components only a user inserts:
+  `CollisionEventsEnabled` (with the `collision_events` module, `CollisionStart`/`CollisionEnd`
+  and their message registration, the `CONTACT_EVENTS` proxy and contact-edge flags and every
+  event write), `CollidingEntities`, `CollisionMargin`, `SpeculativeMargin`, `SweptCcd` (with
+  `SweepMode` and the swept time-of-impact code), `NoAutoMass`, `NoAutoAngularInertia`,
+  `NoAutoCenterOfMass` (with their removal hook); `Friction`, `Restitution` and `LockedAxes`
+  stay as plain types (the default-material resources and the solver flags hold them) but are no
+  longer components. Each read becomes its absent result: contacts combine the default friction
+  and restitution with themselves, the collision margin sum is `0.0` (still added to the
+  penetration, which turns a `-0.0` into `0.0`), every speculative margin is the configured
+  default, the AABB growth is the contact tolerance alone (positive, so adding `0.0` was exact),
+  no axis is locked (the integrator's locking was an identity), and the mass helper always writes
+  the computed totals. `trigger_collision_events` (kept exclusive) and `solve_swept_ccd` stay as
+  empty stand-ins in their sets. Kept, because something on benilla's path or a kept avian3d test
+  inserts or observes them: `Sensor`, `RigidBodyDisabled`, `ActiveCollisionHooks`, `Mass`,
+  `AngularInertia`, `CenterOfMass`.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

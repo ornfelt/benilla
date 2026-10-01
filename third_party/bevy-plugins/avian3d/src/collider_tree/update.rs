@@ -77,7 +77,6 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                 &C,
                 &Position,
                 &Rotation,
-                Option<&CollisionMargin>,
                 &mut ColliderAabb,
                 &mut EnlargedAabb,
             )>,
@@ -87,15 +86,13 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                 let contact_tolerance = length_unit.0 * narrow_phase_config.contact_tolerance;
                 let margin = length_unit.0 * AABB_MARGIN;
 
-                if let Ok((collider, pos, rot, collision_margin, mut aabb, mut enlarged_aabb)) =
+                if let Ok((collider, pos, rot, mut aabb, mut enlarged_aabb)) =
                     query.get_mut(trigger.entity)
                 {
-                    let collision_margin = collision_margin.map_or(0.0, |m| m.0);
-
                     // TODO: Should we instead do this in `add_to_tree_on`?
                     // Update tight-fitting AABB.
                     let context = AabbContext::new(&*collider_context);
-                    let growth = Vector::splat(contact_tolerance + collision_margin);
+                    let growth = Vector::splat(contact_tolerance);
                     *aabb = collider
                         .aabb_with_context(pos.0, *rot, context)
                         .grow(growth);
@@ -138,7 +135,6 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                     &EnlargedAabb,
                     Option<&CollisionLayers>,
                     Has<Sensor>,
-                    Has<CollisionEventsEnabled>,
                     Option<&ActiveCollisionHooks>,
                 ),
                 (With<C>, Without<ColliderDisabled>),
@@ -147,14 +143,8 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
              mut moved_proxies: ResMut<MovedProxies>| {
                 let entity = trigger.entity;
 
-                let Ok((
-                    proxy_key,
-                    enlarged_aabb,
-                    layers,
-                    is_sensor,
-                    has_contact_events,
-                    active_hooks,
-                )) = collider_query.get_mut(entity)
+                let Ok((proxy_key, enlarged_aabb, layers, is_sensor, active_hooks)) =
+                    collider_query.get_mut(entity)
                 else {
                     return;
                 };
@@ -174,7 +164,6 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                     flags: ColliderTreeProxyFlags::new(
                         is_sensor,
                         false,
-                        has_contact_events,
                         active_hooks.copied().unwrap_or_default(),
                     ),
                 };
@@ -212,7 +201,6 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                     &mut ColliderTreeProxyKey,
                     Option<&CollisionLayers>,
                     Has<Sensor>,
-                    Has<CollisionEventsEnabled>,
                     Option<&ActiveCollisionHooks>,
                 ),
                 Without<ColliderDisabled>,
@@ -226,14 +214,8 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                 };
 
                 for collider_entity in body_colliders.iter() {
-                    let Ok((
-                        enlarged_aabb,
-                        mut proxy_key,
-                        layers,
-                        is_sensor,
-                        has_contact_events,
-                        active_hooks,
-                    )) = collider_query.get_mut(collider_entity)
+                    let Ok((enlarged_aabb, mut proxy_key, layers, is_sensor, active_hooks)) =
+                        collider_query.get_mut(collider_entity)
                     else {
                         continue;
                     };
@@ -260,7 +242,6 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                         flags: ColliderTreeProxyFlags::new(
                             is_sensor,
                             is_body_disabled,
-                            has_contact_events,
                             active_hooks.copied().unwrap_or_default(),
                         ),
                     };
@@ -410,7 +391,6 @@ fn add_to_tree_on<E: EntityEvent, B: Bundle, F: QueryFilter>(
             &mut ColliderTreeProxyKey,
             Option<&CollisionLayers>,
             Has<Sensor>,
-            Has<CollisionEventsEnabled>,
             Option<&ActiveCollisionHooks>,
         ),
         F,
@@ -420,15 +400,8 @@ fn add_to_tree_on<E: EntityEvent, B: Bundle, F: QueryFilter>(
 ) {
     let entity = trigger.event_target();
 
-    let Ok((
-        collider_of,
-        enlarged_aabb,
-        mut proxy_key,
-        layers,
-        is_sensor,
-        has_contact_events,
-        active_hooks,
-    )) = collider_query.get_mut(entity)
+    let Ok((collider_of, enlarged_aabb, mut proxy_key, layers, is_sensor, active_hooks)) =
+        collider_query.get_mut(entity)
     else {
         return;
     };
@@ -447,7 +420,6 @@ fn add_to_tree_on<E: EntityEvent, B: Bundle, F: QueryFilter>(
         flags: ColliderTreeProxyFlags::new(
             is_sensor,
             is_body_disabled,
-            has_contact_events,
             active_hooks.copied().unwrap_or_default(),
         ),
     };
@@ -657,7 +629,6 @@ fn update_solver_body_aabbs<C: AnyCollider>(
             &LinearVelocity,
             &AngularVelocity,
             &RigidBodyColliders,
-            Has<SweptCcd>,
         ),
         With<SolverBody>,
     >,
@@ -670,8 +641,6 @@ fn update_solver_body_aabbs<C: AnyCollider>(
                 &ColliderTreeProxyKey,
                 &Position,
                 &Rotation,
-                Option<&CollisionMargin>,
-                Option<&SpeculativeMargin>,
             ),
             Without<ColliderDisabled>,
         >,
@@ -707,31 +676,19 @@ fn update_solver_body_aabbs<C: AnyCollider>(
     let collider_query = colliders.p0();
 
     body_query.par_iter().for_each(
-        |(rb_pos, center_of_mass, lin_vel, ang_vel, body_colliders, has_swept_ccd)| {
+        |(rb_pos, center_of_mass, lin_vel, ang_vel, body_colliders)| {
             for collider_entity in body_colliders.iter() {
-                let Ok((
-                    collider,
-                    mut aabb,
-                    mut enlarged_aabb,
-                    proxy_key,
-                    pos,
-                    rot,
-                    collision_margin,
-                    speculative_margin,
-                )) = (unsafe { collider_query.get_unchecked(collider_entity) })
+                let Ok((collider, mut aabb, mut enlarged_aabb, proxy_key, pos, rot)) =
+                    (unsafe { collider_query.get_unchecked(collider_entity) })
                 else {
                     continue;
                 };
 
-                let collision_margin = collision_margin.map_or(0.0, |margin| margin.0);
-                let speculative_margin = if has_swept_ccd {
-                    Scalar::MAX
-                } else {
-                    speculative_margin.map_or(default_speculative_margin, |margin| margin.0)
-                };
+                // No body has `SweptCcd` and no collider or body a `SpeculativeMargin` (both cut).
+                let speculative_margin = default_speculative_margin;
 
                 let context = AabbContext::new(&*collider_context);
-                let growth = Vector::splat(contact_tolerance + collision_margin);
+                let growth = Vector::splat(contact_tolerance);
 
                 if speculative_margin <= 0.0 {
                     *aabb = collider
@@ -830,7 +787,6 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
                 &mut ColliderAabb,
                 &mut EnlargedAabb,
                 Ref<C>,
-                Option<&CollisionMargin>,
                 &ColliderTreeProxyKey,
             ),
             Without<ColliderDisabled>,
@@ -869,7 +825,7 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
     // TODO: par-iter over all colliders, check if they have actually changed since the `LastPhysicsTick`
     let mut collider_query = colliders.p0();
     collider_query.par_iter_mut().for_each(
-        |(pos, rot, mut aabb, mut enlarged_aabb, collider, collision_margin, proxy_key)| {
+        |(pos, rot, mut aabb, mut enlarged_aabb, collider, proxy_key)| {
             // Skip if the collider's AABB can't have changed since the last physics tick.
             if !pos.last_changed().is_newer_than(last_tick.0, this_run)
                 && !rot.last_changed().is_newer_than(last_tick.0, this_run)
@@ -878,11 +834,9 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
                 return;
             }
 
-            let collision_margin = collision_margin.map_or(0.0, |margin| margin.0);
-
             // Update tight-fitting AABB.
             let context = AabbContext::new(&*collider_context);
-            let growth = Vector::splat(contact_tolerance + collision_margin);
+            let growth = Vector::splat(contact_tolerance);
             *aabb = collider
                 .aabb_with_context(pos.0, *rot, context)
                 .grow(growth);

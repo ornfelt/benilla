@@ -64,8 +64,6 @@ bitflags::bitflags! {
         const CUSTOM_FILTER = 1 << 2;
         /// Set if the contact modification hook is active for this collider.
         const MODIFY_CONTACTS = 1 << 3;
-        /// Set if contact events are enabled for this collider.
-        const CONTACT_EVENTS = 1 << 4;
     }
 }
 
@@ -75,7 +73,6 @@ impl ColliderTreeProxyFlags {
     pub fn new(
         is_sensor: bool,
         is_body_disabled: bool,
-        events_enabled: bool,
         active_hooks: ActiveCollisionHooks,
     ) -> Self {
         let mut flags = ColliderTreeProxyFlags::empty();
@@ -90,9 +87,6 @@ impl ColliderTreeProxyFlags {
         }
         if active_hooks.contains(ActiveCollisionHooks::MODIFY_CONTACTS) {
             flags |= ColliderTreeProxyFlags::MODIFY_CONTACTS;
-        }
-        if events_enabled {
-            flags |= ColliderTreeProxyFlags::CONTACT_EVENTS;
         }
         flags
     }

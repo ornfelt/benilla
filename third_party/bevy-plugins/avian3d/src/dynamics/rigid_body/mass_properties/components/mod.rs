@@ -1,10 +1,7 @@
 //! Mass property components.
 
 use crate::prelude::*;
-use bevy::{
-    ecs::{lifecycle::HookContext, world::DeferredWorld},
-    prelude::*,
-};
+use bevy::prelude::*;
 use bevy_heavy::AngularInertiaTensor;
 use derive_more::From;
 use glam_matrix_extras::{MatConversionError, SymmetricMat3};
@@ -92,25 +89,6 @@ pub enum MassError {
 /// # }
 /// ```
 ///
-/// To prevent masses of child entities from contributing to the total [`ComputedMass`],
-/// add the [`NoAutoMass`] component. This can be useful when full control over mass is desired.
-///
-/// ```
-/// # use avian3d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # fn setup(mut commands: Commands) {
-/// // Total mass: 10.0
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     Mass(10.0),
-///     NoAutoMass,
-/// ))
-/// .with_child((Collider::sphere(1.0), Mass(5.0)));
-/// # }
-/// ```
-///
 /// # Mass Updates
 ///
 /// The [`Mass`] component is never modified by the engine, so you can safely update it at any time.
@@ -126,7 +104,6 @@ pub enum MassError {
 /// # Related Types
 ///
 /// - [`ComputedMass`] stores the total mass of a dynamic [rigid body] that considers child entities and colliders.
-/// - [`NoAutoMass`] disables masses of child entities being taken into account for the [`ComputedMass`].
 /// - [`AngularInertia`] is the rotational equivalent of mass, representing resistance to angular acceleration.
 /// - [`CenterOfMass`] is the local point where the mass is concentrated. Applying forces at this point produces no torque.
 /// - [`MassPropertiesBundle`] is a bundle containing mass properties.
@@ -271,28 +248,6 @@ pub enum AngularInertiaError {
 /// # fn main() {}
 /// ```
 ///
-/// To prevent angular inertia of child entities from contributing to the total [`ComputedAngularInertia`],
-/// add the [`NoAutoAngularInertia`] component. This can be useful when full control over inertia is desired.
-///
-/// ```
-/// # use avian3d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # #[cfg(feature = "f32")]
-/// # fn setup(mut commands: Commands) {
-/// // Total angular inertia: [2.0, 5.0, 2.0]
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     AngularInertia::new(Vec3::new(2.0, 5.0, 2.0)),
-///     NoAutoAngularInertia,
-/// ))
-/// .with_child((Collider::sphere(1.0), AngularInertia::new(Vec3::new(1.0, 2.0, 1.0))));
-/// # }
-/// # #[cfg(not(feature = "f32"))]
-/// # fn main() {}
-/// ```
-///
 /// # Angular Inertia Updates
 ///
 /// The [`AngularInertia`] component is never modified by the engine, so you can safely update it at any time.
@@ -308,7 +263,6 @@ pub enum AngularInertiaError {
 /// # Related Types
 ///
 /// - [`ComputedAngularInertia`] stores the total angular inertia of a dynamic [rigid body] that considers child entities and colliders.
-/// - [`NoAutoAngularInertia`] disables the mass properties of child entities being taken into account for the [`ComputedAngularInertia`].
 /// - [`AngularInertiaTensor`] is the symmetric 3x3 matrix representation of angular inertia.
 /// - [`Mass`] is the linear equivalent of angular inertia, representing resistance to linear acceleration.
 /// - [`CenterOfMass`] is the local point where the mass is concentrated. Applying forces at this point produces no torque.
@@ -535,29 +489,6 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// # }
 /// ```
 ///
-/// To prevent the centers of mass of child entities from contributing to the total [`ComputedCenterOfMass`],
-/// add the [`NoAutoCenterOfMass`], component. This can be useful when full control over the center of mass is desired.
-///
-/// ```
-/// # use avian3d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # fn setup(mut commands: Commands) {
-/// // Total center of mass: [0.0, -0.5, 0.0]
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     CenterOfMass::new(0.0, -0.5, 0.0),
-///     Transform::default(),
-/// ))
-/// .with_child((
-///     Collider::sphere(1.0),
-///     Mass(5.0),
-///     Transform::from_xyz(0.0, 4.0, 0.0),
-/// ));
-/// # }
-/// ```
-///
 /// # Center of Mass Updates
 ///
 /// The [`CenterOfMass`] component is never modified by the engine, so you can safely update it at any time.
@@ -573,7 +504,6 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// # Related Types
 ///
 /// - [`ComputedCenterOfMass`] stores the total center of mass of a dynamic [rigid body] that considers child entities and colliders.
-/// - [`NoAutoCenterOfMass`] disables the centers of mass of child entities being taken into account for the [`ComputedCenterOfMass`].
 /// - [`Mass`] represents resistance to linear acceleration.
 /// - [`AngularInertia`] is the rotational equivalent of mass, representing resistance to angular acceleration.
 /// - [`MassPropertiesBundle`] is a bundle containing mass properties.
@@ -583,52 +513,6 @@ impl From<AngularInertia> for AngularInertiaTensor {
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct CenterOfMass(pub VectorF32);
-
-/// A marker component that prevents descendants or attached colliders
-/// from contributing to the total [`ComputedMass`] of a [rigid body].
-///
-/// Only the [`Mass`] component of the rigid body entity itself will be considered.
-/// This is useful when full control over mass is desired.
-///
-/// [rigid body]: RigidBody
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[reflect(Debug, Component, Default, PartialEq)]
-#[require(RecomputeMassProperties)]
-#[component(on_remove = on_remove_no_auto_mass_property)]
-pub struct NoAutoMass;
-
-/// A marker component that prevents descendants or attached colliders
-/// from contributing to the total [`ComputedAngularInertia`] of a [rigid body].
-///
-/// Only the [`AngularInertia`] component of the rigid body entity itself will be considered.
-/// This is useful when full control over inertia is desired.
-///
-/// [rigid body]: RigidBody
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[reflect(Debug, Component, Default, PartialEq)]
-#[require(RecomputeMassProperties)]
-#[component(on_remove = on_remove_no_auto_mass_property)]
-pub struct NoAutoAngularInertia;
-
-/// A marker component that prevents descendants or attached colliders
-/// from contributing to the total [`ComputedCenterOfMass`] of a [rigid body].
-///
-/// Only the [`CenterOfMass`] component of the rigid body entity itself will be considered.
-/// This is useful when full control over the center of mass is desired.
-///
-/// [rigid body]: RigidBody
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[reflect(Debug, Component, Default, PartialEq)]
-#[require(RecomputeMassProperties)]
-#[component(on_remove = on_remove_no_auto_mass_property)]
-pub struct NoAutoCenterOfMass;
-
-/// Triggers the recomputation of mass properties for rigid bodies when automatic computation is re-enabled.
-fn on_remove_no_auto_mass_property(mut world: DeferredWorld, ctx: HookContext) {
-    if let Ok(mut entity_commands) = world.commands().get_entity(ctx.entity) {
-        entity_commands.try_insert(RecomputeMassProperties);
-    }
-}
 
 /// A marker component that forces the recomputation of [`ComputedMass`], [`ComputedAngularInertia`]
 /// and [`ComputedCenterOfMass`] for a [rigid body].

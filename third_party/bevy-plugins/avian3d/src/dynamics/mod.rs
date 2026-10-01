@@ -73,7 +73,7 @@ pub mod prelude {
     pub(crate) use super::rigid_body::mass_properties::{ComputeMassProperties, MassProperties};
     pub use super::solver::xpbd::XpbdSolverPlugin;
     pub use super::{
-        ccd::{CcdPlugin, SpeculativeMargin, SweepMode, SweptCcd},
+        ccd::CcdPlugin,
         integrator::{Gravity, IntegratorPlugin},
         joints::{
             AngleLimit, AngularMotor, DistanceJoint, DistanceLimit, FixedJoint, JointAnchor,
@@ -91,7 +91,7 @@ pub mod prelude {
                 components::{
                     AngularInertia, CenterOfMass, ColliderDensity, ColliderMassProperties,
                     ComputedAngularInertia, ComputedCenterOfMass, ComputedMass, Mass,
-                    MassPropertiesBundle, NoAutoAngularInertia, NoAutoCenterOfMass, NoAutoMass,
+                    MassPropertiesBundle,
                 },
             },
             sleeping::{SleepThreshold, SleepTimer, Sleeping, TimeToSleep},

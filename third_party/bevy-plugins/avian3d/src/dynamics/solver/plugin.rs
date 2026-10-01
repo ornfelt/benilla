@@ -30,7 +30,6 @@ use core::cmp::Ordering;
 /// Warm starting is used to improve convergence, along with a relaxation pass to reduce overshooting.
 ///
 /// [Speculative collision](dynamics::ccd#speculative-collision) is used by default to prevent tunneling.
-/// Optional [sweep-based Continuous Collision Detection (CCD)](dynamics::ccd#swept-ccd) is handled by the [`CcdPlugin`].
 ///
 /// [Joints](dynamics::joints) and user constraints are currently solved using [Extended Position-Based Dynamics (XPBD)](super::xpbd)
 /// if the `xpbd_joints` feature is enabled. In the future, they may transition to an impulse-based approach as well.

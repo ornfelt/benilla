@@ -19,9 +19,6 @@ pub struct RigidBodyQuery {
     pub mass: &'static mut ComputedMass,
     pub angular_inertia: &'static mut ComputedAngularInertia,
     pub center_of_mass: &'static mut ComputedCenterOfMass,
-    pub friction: Option<&'static Friction>,
-    pub restitution: Option<&'static Restitution>,
-    pub locked_axes: Option<&'static LockedAxes>,
     pub is_sleeping: Has<Sleeping>,
     pub is_sensor: Has<Sensor>,
 }

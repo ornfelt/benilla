@@ -185,7 +185,6 @@ fn prepare_solver_bodies(
         &Rotation,
         &ComputedMass,
         &ComputedAngularInertia,
-        Option<&LockedAxes>,
     )>,
 ) {
     #[allow(unused_variables)]
@@ -199,14 +198,14 @@ fn prepare_solver_bodies(
             rotation,
             mass,
             angular_inertia,
-            locked_axes,
         )| {
             solver_body.linear_velocity = linear_velocity.0;
             solver_body.angular_velocity = angular_velocity.0;
             solver_body.delta_position = Vector::ZERO;
             solver_body.delta_rotation = Rotation::IDENTITY;
 
-            let locked_axes = locked_axes.copied().unwrap_or_default();
+            // No body has `LockedAxes` (no longer a component): no axis is locked.
+            let locked_axes = LockedAxes::default();
             *inertial_properties = SolverBodyInertia::new(
                 mass.inverse(),
                 angular_inertia.rotated(rotation.0).inverse(),

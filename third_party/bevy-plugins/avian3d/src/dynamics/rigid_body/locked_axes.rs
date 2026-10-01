@@ -3,27 +3,12 @@ use derive_more::From;
 
 use crate::prelude::*;
 
-/// A component that specifies which translational and rotational axes of a [rigid body](RigidBody) are locked.
+/// Which translational and rotational axes of a [rigid body](RigidBody) are locked.
 ///
 /// The axes are represented using a total of six bits, one for each axis. They can be set directly
 /// with the [`from_bits`](Self::from_bits) and [`to_bits`](Self::to_bits) methods.
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// fn spawn(mut commands: Commands) {
-///     commands.spawn((
-///         RigidBody::Dynamic,
-///         Collider::capsule(0.5, 1.0),
-///         LockedAxes::new().lock_rotation_z(),
-///     ));
-/// }
-/// ```
-#[derive(Component, Reflect, Clone, Copy, Debug, Default, From)]
-#[reflect(Debug, Component, Default)]
+#[derive(Reflect, Clone, Copy, Debug, Default, From)]
+#[reflect(Debug, Default)]
 pub struct LockedAxes(u8);
 
 impl LockedAxes {
@@ -91,19 +76,5 @@ impl LockedAxes {
             vector.z = 0.0;
         }
         vector
-    }
-
-    /// Sets axes of the given angular velocity to zero based on the [`LockedAxes`] configuration.
-    pub(crate) fn apply_to_angular_velocity(&self, mut angular_velocity: Vector) -> Vector {
-        if self.is_rotation_x_locked() {
-            angular_velocity.x = 0.0;
-        }
-        if self.is_rotation_y_locked() {
-            angular_velocity.y = 0.0;
-        }
-        if self.is_rotation_z_locked() {
-            angular_velocity.z = 0.0;
-        }
-        angular_velocity
     }
 }

@@ -33,10 +33,6 @@ struct ColliderQuery<C: AnyCollider> {
     rotation: Read<Rotation>,
     transform: Option<Read<ColliderTransform>>,
     layers: Read<CollisionLayers>,
-    friction: Option<Read<Friction>>,
-    restitution: Option<Read<Restitution>>,
-    collision_margin: Option<Read<CollisionMargin>>,
-    speculative_margin: Option<Read<SpeculativeMargin>>,
     is_sensor: Has<Sensor>,
 }
 
@@ -49,11 +45,6 @@ struct RigidBodyQuery {
     center_of_mass: Read<ComputedCenterOfMass>,
     linear_velocity: Read<LinearVelocity>,
     angular_velocity: Read<AngularVelocity>,
-    // TODO: We should define these as purely collider components and not query for them here.
-    friction: Option<Read<Friction>>,
-    restitution: Option<Read<Restitution>>,
-    collision_margin: Option<Read<CollisionMargin>>,
-    speculative_margin: Option<Read<SpeculativeMargin>>,
 }
 
 /// A system parameter for managing the narrow phase.
@@ -61,7 +52,6 @@ struct RigidBodyQuery {
 /// Responsibilities:
 ///
 /// - Updates each active [`ContactPair`] in the [`ContactGraph`].
-/// - Sends [collision events](crate::collision::collision_events) when colliders start or stop touching.
 /// - Removes contact pairs from the [`ContactGraph`] when AABBs stop overlapping.
 /// - Adds [`ContactManifold`]s to the [`ConstraintGraph`] when they are created.
 /// - Removes [`ContactManifold`]s from the [`ConstraintGraph`] when they are destroyed.
@@ -69,7 +59,6 @@ struct RigidBodyQuery {
 #[expect(missing_docs)]
 pub struct NarrowPhase<'w, 's, C: AnyCollider> {
     collider_query: Query<'w, 's, ColliderQuery<C>, Without<ColliderDisabled>>,
-    colliding_entities_query: Query<'w, 's, &'static mut CollidingEntities>,
     body_query: Query<'w, 's, RigidBodyQuery, Without<RigidBodyDisabled>>,
     body_islands:
         Query<'w, 's, &'static mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
@@ -106,14 +95,11 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
     /// Updates the narrow phase.
     ///
     /// - Updates each active [`ContactPair`] in the [`ContactGraph`].
-    /// - Sends [collision events](crate::collision::collision_events) when colliders start or stop touching.
     /// - Removes contact pairs from the [`ContactGraph`] when AABBs stop overlapping.
     /// - Adds [`ContactManifold`]s to the [`ConstraintGraph`] when they are created.
     /// - Removes [`ContactManifold`]s from the [`ConstraintGraph`] when they are destroyed.
     pub fn update<H: CollisionHooks>(
         &mut self,
-        collision_started_writer: &mut MessageWriter<CollisionStart>,
-        collision_ended_writer: &mut MessageWriter<CollisionEnd>,
         delta_secs: Scalar,
         hooks: &SystemParamItem<H>,
         context: &SystemParamItem<C::Context>,
@@ -149,29 +135,9 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                 // Three options:
                 // 1. The AABBs are no longer overlapping, and the contact pair should be removed.
-                // 2. The colliders started touching, and a collision started event should be sent.
-                // 3. The colliders stopped touching, and a collision ended event should be sent.
+                // 2. The colliders started touching.
+                // 3. The colliders stopped touching.
                 if contact_pair.aabbs_disjoint() {
-                    // Send a collision ended event if the contact pair was touching.
-                    let send_event = contact_edge
-                        .flags
-                        .contains(ContactEdgeFlags::TOUCHING | ContactEdgeFlags::CONTACT_EVENTS);
-                    if send_event {
-                        collision_ended_writer.write(CollisionEnd {
-                            collider1: contact_pair.collider1,
-                            collider2: contact_pair.collider2,
-                            body1: contact_pair.body1,
-                            body2: contact_pair.body2,
-                        });
-                    }
-
-                    // Remove from `CollidingEntities`.
-                    Self::remove_colliding_entities(
-                        &mut self.colliding_entities_query,
-                        contact_pair.collider1,
-                        contact_pair.collider2,
-                    );
-
                     let pair_key = PairKey::new(
                         contact_pair.collider1.index_u32(),
                         contact_pair.collider2.index_u32(),
@@ -206,23 +172,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     // Remove the contact edge from the contact graph.
                     self.contact_graph.remove_edge_by_id(&pair_key, contact_id);
                 } else if contact_pair.collision_started() {
-                    // Send collision started event.
-                    if contact_edge.events_enabled() {
-                        collision_started_writer.write(CollisionStart {
-                            collider1: contact_pair.collider1,
-                            collider2: contact_pair.collider2,
-                            body1: contact_pair.body1,
-                            body2: contact_pair.body2,
-                        });
-                    }
-
-                    // Add to `CollidingEntities`.
-                    Self::add_colliding_entities(
-                        &mut self.colliding_entities_query,
-                        contact_pair.collider1,
-                        contact_pair.collider2,
-                    );
-
                     debug_assert!(
                         !contact_pair.manifolds.is_empty(),
                         "Manifolds should not be empty when colliders start touching"
@@ -261,23 +210,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     .flags
                     .contains(ContactPairFlags::STOPPED_TOUCHING)
                 {
-                    // Send collision ended event.
-                    if contact_edge.events_enabled() {
-                        collision_ended_writer.write(CollisionEnd {
-                            collider1: contact_pair.collider1,
-                            collider2: contact_pair.collider2,
-                            body1: contact_pair.body1,
-                            body2: contact_pair.body2,
-                        });
-                    }
-
-                    // Remove from `CollidingEntities`.
-                    Self::remove_colliding_entities(
-                        &mut self.colliding_entities_query,
-                        contact_pair.collider1,
-                        contact_pair.collider2,
-                    );
-
                     debug_assert!(
                         contact_pair.manifolds.is_empty(),
                         "Manifolds should be empty when colliders stopped touching"
@@ -398,34 +330,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
         }
     }
 
-    /// Adds the colliding entities to their respective [`CollidingEntities`] components.
-    fn add_colliding_entities(
-        query: &mut Query<&mut CollidingEntities>,
-        entity1: Entity,
-        entity2: Entity,
-    ) {
-        if let Ok(mut colliding_entities1) = query.get_mut(entity1) {
-            colliding_entities1.insert(entity2);
-        }
-        if let Ok(mut colliding_entities2) = query.get_mut(entity2) {
-            colliding_entities2.insert(entity1);
-        }
-    }
-
-    /// Removes the colliding entities from their respective [`CollidingEntities`] components.
-    fn remove_colliding_entities(
-        query: &mut Query<&mut CollidingEntities>,
-        entity1: Entity,
-        entity2: Entity,
-    ) {
-        if let Ok(mut colliding_entities1) = query.get_mut(entity1) {
-            colliding_entities1.remove(&entity2);
-        }
-        if let Ok(mut colliding_entities2) = query.get_mut(entity2) {
-            colliding_entities2.remove(&entity1);
-        }
-    }
-
     /// Updates contacts for all contact pairs in the [`ContactGraph`].
     ///
     /// Also updates the [`ContactStatusBits`] resource to track status changes for each contact pair.
@@ -517,56 +421,32 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     .of
                     .and_then(|&ColliderOf { body }| self.body_query.get(body).ok());
 
-                // The rigid body's friction, restitution, collision margin, and speculative margin
-                // will be used if the collider doesn't have them specified.
-                let (
-                    is_static1,
-                    collider_offset1,
-                    world_com1,
-                    mut lin_vel1,
-                    ang_vel1,
-                    rb_friction1,
-                    rb_collision_margin1,
-                    rb_speculative_margin1,
-                ) = body1_bundle
-                    .as_ref()
-                    .map(|body| {
-                        (
-                            body.rb.is_static(),
-                            collider1.position.0 - body.position.0,
-                            body.rotation * body.center_of_mass.0,
-                            body.linear_velocity.0,
-                            body.angular_velocity.0,
-                            body.friction,
-                            body.collision_margin,
-                            body.speculative_margin,
-                        )
-                    })
-                    .unwrap_or_default();
-                let (
-                    is_static2,
-                    collider_offset2,
-                    world_com2,
-                    mut lin_vel2,
-                    ang_vel2,
-                    rb_friction2,
-                    rb_collision_margin2,
-                    rb_speculative_margin2,
-                ) = body2_bundle
-                    .as_ref()
-                    .map(|body| {
-                        (
-                            body.rb.is_static(),
-                            collider2.position.0 - body.position.0,
-                            body.rotation * body.center_of_mass.0,
-                            body.linear_velocity.0,
-                            body.angular_velocity.0,
-                            body.friction,
-                            body.collision_margin,
-                            body.speculative_margin,
-                        )
-                    })
-                    .unwrap_or_default();
+                let (is_static1, collider_offset1, world_com1, mut lin_vel1, ang_vel1) =
+                    body1_bundle
+                        .as_ref()
+                        .map(|body| {
+                            (
+                                body.rb.is_static(),
+                                collider1.position.0 - body.position.0,
+                                body.rotation * body.center_of_mass.0,
+                                body.linear_velocity.0,
+                                body.angular_velocity.0,
+                            )
+                        })
+                        .unwrap_or_default();
+                let (is_static2, collider_offset2, world_com2, mut lin_vel2, ang_vel2) =
+                    body2_bundle
+                        .as_ref()
+                        .map(|body| {
+                            (
+                                body.rb.is_static(),
+                                collider2.position.0 - body.position.0,
+                                body.rotation * body.center_of_mass.0,
+                                body.linear_velocity.0,
+                                body.angular_velocity.0,
+                            )
+                        })
+                        .unwrap_or_default();
 
                 // Store these to avoid having to query for the bodies
                 // when processing status changes for the constraint graph.
@@ -591,73 +471,29 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     .flags
                     .set(ContactPairFlags::GENERATE_CONSTRAINTS, !is_disabled);
 
-                // Get combined friction and restitution coefficients of the colliders
-                // or the bodies they are attached to. Fall back to the global defaults.
-                let friction = collider1
-                    .friction
-                    .or(rb_friction1)
-                    .copied()
-                    .unwrap_or(self.default_friction.0)
-                    .combine(
-                        collider2
-                            .friction
-                            .or(rb_friction2)
-                            .copied()
-                            .unwrap_or(self.default_friction.0),
-                    )
+                // Get combined friction and restitution coefficients: no collider or body has its
+                // own (`Friction` and `Restitution` are no components), so both are the defaults.
+                let friction = self
+                    .default_friction
+                    .0
+                    .combine(self.default_friction.0)
                     .dynamic_coefficient;
-                let restitution = collider1
-                    .restitution
-                    .copied()
-                    .unwrap_or(self.default_restitution.0)
-                    .combine(
-                        collider2
-                            .restitution
-                            .copied()
-                            .unwrap_or(self.default_restitution.0),
-                    )
+                let restitution = self
+                    .default_restitution
+                    .0
+                    .combine(self.default_restitution.0)
                     .coefficient;
 
-                // Use the collider's own collision margin if specified, and fall back to the body's
-                // collision margin.
-                //
-                // The collision margin adds artificial thickness to colliders for performance
-                // and stability. See the `CollisionMargin` documentation for more details.
-                let collision_margin1 = collider1
-                    .collision_margin
-                    .or(rb_collision_margin1)
-                    .map_or(0.0, |margin| margin.0);
-                let collision_margin2 = collider2
-                    .collision_margin
-                    .or(rb_collision_margin2)
-                    .map_or(0.0, |margin| margin.0);
-                let collision_margin_sum = collision_margin1 + collision_margin2;
-
-                // Use the collider's own speculative margin if specified, and fall back to the body's
-                // speculative margin.
-                //
-                // The speculative margin is used to predict contacts that might happen during the frame.
-                // This is used for speculative collision. See the CCD and `SpeculativeMargin` documentation
-                // for more details.
-                let speculative_margin1 = collider1
-                    .speculative_margin
-                    .map_or(rb_speculative_margin1.map(|margin| margin.0), |margin| {
-                        Some(margin.0)
-                    });
-                let speculative_margin2 = collider2
-                    .speculative_margin
-                    .map_or(rb_speculative_margin2.map(|margin| margin.0), |margin| {
-                        Some(margin.0)
-                    });
+                // No collider or body has a collision margin. The sum stays because adding `0.0`
+                // turns a `-0.0` penetration into `0.0`.
+                let collision_margin_sum: Scalar = 0.0;
 
                 let relative_linear_velocity: Vector;
 
                 // Compute the effective speculative margin, clamping it based on velocities and the maximum bound.
                 let effective_speculative_margin = {
-                    let speculative_margin1 =
-                        speculative_margin1.unwrap_or(*self.default_speculative_margin);
-                    let speculative_margin2 =
-                        speculative_margin2.unwrap_or(*self.default_speculative_margin);
+                    let speculative_margin1 = *self.default_speculative_margin;
+                    let speculative_margin2 = *self.default_speculative_margin;
                     let inv_delta_secs = delta_secs.recip();
 
                     // Clamp velocities to the maximum speculative margins.

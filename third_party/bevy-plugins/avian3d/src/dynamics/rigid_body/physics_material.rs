@@ -34,25 +34,21 @@ impl CoefficientCombine {
     }
 }
 
-/// A resource for the default [`Friction`] to use for physics objects.
-///
-/// Friction can be set for individual colliders and rigid bodies using the [`Friction`] component.
+/// A resource for the [`Friction`] to use for physics objects.
 ///
 /// Defaults to dynamic and static friction coefficients of `0.5` with a combine rule of [`CoefficientCombine::Average`].
 #[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Debug, Default, PartialEq)]
 pub struct DefaultFriction(pub Friction);
 
-/// A resource for the default [`Restitution`] to use for physics objects.
-///
-/// Restitution can be set for individual colliders and rigid bodies using the [`Restitution`] component.
+/// A resource for the [`Restitution`] to use for physics objects.
 ///
 /// Defaults to a coefficient of `0.0` with a combine rule of [`CoefficientCombine::Average`].
 #[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
 #[reflect(Debug, Default, PartialEq)]
 pub struct DefaultRestitution(pub Restitution);
 
-/// A component for [dry friction], controlling how strongly a [rigid body](RigidBody) or [collider](Collider)
+/// The coefficients of [dry friction], controlling how strongly a [rigid body](RigidBody) or [collider](Collider)
 /// opposes sliding along other surfaces while in contact.
 ///
 /// For surfaces that are at rest relative to each other, **static friction** is used.
@@ -62,8 +58,7 @@ pub struct DefaultRestitution(pub Restitution);
 /// The friction coefficients should typically be between 0 and 1, where 0 corresponds to no friction at all, and 1 corresponds to high friction.
 /// However, any non-negative value is allowed.
 ///
-/// If a collider does not have [`Friction`] specified, the [`Friction`] of its rigid body entity will be used instead.
-/// If that is not specified either, collisions use the [`DefaultFriction`] resource. The default dynamic and static friction
+/// Collisions use the [`DefaultFriction`] resource. The default dynamic and static friction
 /// coefficients are set to `0.5`.
 ///
 /// [dry friction]: https://en.wikipedia.org/wiki/Friction#Dry_friction
@@ -78,7 +73,7 @@ pub struct DefaultRestitution(pub Restitution);
 ///
 /// # Usage
 ///
-/// Create a new [`Friction`] component with dynamic and static friction coefficients of 0.4:
+/// Create a new [`Friction`] with dynamic and static friction coefficients of 0.4:
 ///
 /// ```ignore
 /// Friction::new(0.4)
@@ -93,13 +88,13 @@ pub struct DefaultRestitution(pub Restitution);
 /// Friction::new(0.4).with_static_coefficient(0.6)
 /// ```
 ///
-/// Configure how the friction coefficients of two [`Friction`] components are combined with [`CoefficientCombine`]:
+/// Configure how the friction coefficients of two [`Friction`]s are combined with [`CoefficientCombine`]:
 ///
 /// ```ignore
 /// Friction::new(0.4).with_combine_rule(CoefficientCombine::Multiply)
 /// ```
 ///
-/// Combine the properties of two [`Friction`] components:
+/// Combine the properties of two [`Friction`]s:
 ///
 /// ```
 /// # use avian3d::prelude::*;
@@ -123,8 +118,8 @@ pub struct DefaultRestitution(pub Restitution);
 /// It is worth noting that in real life, friction coefficients can vary greatly based on material combinations, surface roughness,
 /// and numerous other factors, and they are not uniform across surfaces. For game purposes however, it is impractical to consider
 /// all of these factors, so instead, material interactions are controlled using simple [`CoefficientCombine`] rules.
-#[derive(Reflect, Clone, Copy, Component, Debug, PartialEq, PartialOrd)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Reflect, Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[reflect(Debug, PartialEq)]
 pub struct Friction {
     /// Coefficient of dynamic friction. Applied when bodies are sliding relative to each other.
     ///
@@ -152,7 +147,7 @@ impl Default for Friction {
 }
 
 impl Friction {
-    /// Combines the properties of two [`Friction`] components.
+    /// Combines the properties of two [`Friction`]s.
     pub fn combine(&self, other: Self) -> Self {
         // Choose rule with higher priority
         let rule = self.combine_rule.max(other.combine_rule);
@@ -175,14 +170,13 @@ impl From<Scalar> for Friction {
     }
 }
 
-/// A component for [restitution], controlling how bouncy a [rigid body](RigidBody) or [collider](Collider) is.
+/// The coefficient of [restitution], controlling how bouncy a [rigid body](RigidBody) or [collider](Collider) is.
 ///
 /// The coefficient should be between 0 and 1, where 0 corresponds to a **perfectly inelastic** collision with zero bounce,
 /// and 1 corresponds to a **perfectly elastic** collision that tries to preserve all kinetic energy.
 /// Values larger than 1 can result in unstable or explosive behavior.
 ///
-/// If a collider does not have [`Restitution`] specified, the [`Restitution`] of its rigid body entity will be used instead.
-/// If that is not specified either, collisions use the [`DefaultRestitution`] resource. The default restitution is set to 0,
+/// Collisions use the [`DefaultRestitution`] resource. The default restitution is set to 0,
 /// meaning that objects are not bouncy by default.
 ///
 /// [restitution]: https://en.wikipedia.org/wiki/Coefficient_of_restitution
@@ -196,7 +190,7 @@ impl From<Scalar> for Friction {
 ///
 /// # Usage
 ///
-/// Create a new [`Restitution`] component with a restitution coefficient of `0.4`:
+/// Create a new [`Restitution`] with a restitution coefficient of `0.4`:
 ///
 /// ```ignore
 /// Restitution::new(0.4)
@@ -208,7 +202,7 @@ impl From<Scalar> for Friction {
 /// Restitution::new(0.4).with_combine_rule(CoefficientCombine::Max)
 /// ```
 ///
-/// Combine the properties of two [`Restitution`] components:
+/// Combine the properties of two [`Restitution`]s:
 ///
 /// ```
 /// # use avian3d::prelude::*;
@@ -232,7 +226,6 @@ impl From<Scalar> for Friction {
 ///
 /// - Collisions can have more or less bounce than expected, especially when objects are moving very fast.
 ///   This is largely due to the the sequential solver and [speculative collision](dynamics::ccd#speculative-collision).
-///   For more accurate restitution, consider disabling speculative collision and using [`SweptCcd`] instead.
 ///
 /// - An object falling flat on the ground with multiple contact points may tip over on one side or corner a bit.
 ///   This is because contact points are solved sequentially, and the order of contact points affects the result.
@@ -248,8 +241,8 @@ impl From<Scalar> for Friction {
 /// all of these factors, so instead, material interactions are controlled using simple [`CoefficientCombine`] rules.
 #[doc(alias = "Bounciness")]
 #[doc(alias = "Elasticity")]
-#[derive(Reflect, Clone, Copy, Component, Debug, PartialEq, PartialOrd)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Reflect, Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[reflect(Debug, PartialEq)]
 pub struct Restitution {
     /// The [coefficient of restitution](https://en.wikipedia.org/wiki/Coefficient_of_restitution).
     ///
@@ -276,7 +269,7 @@ impl Default for Restitution {
 }
 
 impl Restitution {
-    /// Creates a new [`Restitution`] component with the given restitution coefficient.
+    /// Creates a new [`Restitution`] with the given restitution coefficient.
     pub fn new(coefficient: Scalar) -> Self {
         Self {
             coefficient,
@@ -291,7 +284,7 @@ impl Restitution {
             ..*self
         }
     }
-    /// Combines the properties of two [`Restitution`] components.
+    /// Combines the properties of two [`Restitution`]s.
     pub fn combine(&self, other: Self) -> Self {
         // Choose rule with higher priority
         let rule = self.combine_rule.max(other.combine_rule);

@@ -182,33 +182,6 @@ use derive_more::From;
 /// # }
 /// ```
 ///
-/// To prevent child entities from contributing to the total mass properties, use the [`NoAutoMass`],
-/// [`NoAutoAngularInertia`], and [`NoAutoCenterOfMass`] marker components.
-///
-/// ```
-/// # use avian3d::prelude::*;
-/// # use bevy::prelude::*;
-/// #
-/// # fn setup(mut commands: Commands) {
-/// // Total mass: 10.0
-/// // Total center of mass: [0.0, -0.5, 0.0]
-/// commands.spawn((
-///     RigidBody::Dynamic,
-///     Collider::capsule(0.5, 1.5),
-///     Mass(10.0),
-///     CenterOfMass::new(0.0, -0.5, 0.0),
-///     NoAutoMass,
-///     NoAutoCenterOfMass,
-///     Transform::default(),
-/// ))
-/// .with_child((
-///     Collider::sphere(1.0),
-///     Mass(5.0),
-///     Transform::from_xyz(0.0, 4.0, 0.0),
-/// ));
-/// # }
-/// ```
-///
 /// See the [`mass_properties`] module for more information.
 ///
 /// [mass]: mass_properties::components::Mass
@@ -220,11 +193,8 @@ use derive_more::From;
 ///
 /// - [Colliders](Collider)
 /// - [Gravity]
-/// - [Friction] and [restitution](Restitution) (bounciness)
-/// - [Lock translational and rotational axes](LockedAxes)
 /// - [Continuous Collision Detection](dynamics::ccd)
 ///     - [Speculative collision](dynamics::ccd#speculative-collision)
-///     - [Swept CCD](dynamics::ccd#swept-ccd)
 /// - [`Transform` interpolation and extrapolation](PhysicsInterpolationPlugin)
 /// - [Temporarily disabling a rigid body](RigidBodyDisabled)
 /// - [Automatic deactivation with sleeping](Sleeping)

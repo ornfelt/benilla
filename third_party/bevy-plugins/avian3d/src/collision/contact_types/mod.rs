@@ -104,12 +104,6 @@ impl ContactEdge {
     pub fn is_sleeping(&self) -> bool {
         self.flags.contains(ContactEdgeFlags::SLEEPING)
     }
-
-    /// Returns `true` if collision events are enabled for the contact.
-    #[inline]
-    pub fn events_enabled(&self) -> bool {
-        self.flags.contains(ContactEdgeFlags::CONTACT_EVENTS)
-    }
 }
 
 // These are stored separately from `ContactPairFlags` to avoid needing to fetch
@@ -126,8 +120,6 @@ bitflags::bitflags! {
         const TOUCHING = 1 << 0;
         /// Set if the contact pair is between sleeping bodies.
         const SLEEPING = 1 << 1;
-        /// Set if the contact pair should emit contact events or sensor events.
-        const CONTACT_EVENTS = 1 << 2;
     }
 }
 

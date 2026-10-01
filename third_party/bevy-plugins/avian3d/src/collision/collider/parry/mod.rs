@@ -38,8 +38,7 @@ pub type TrimeshBuilderError = parry::shape::TriMeshBuilderError;
 /// # }
 /// ```
 ///
-/// Colliders on their own only detect contacts and generate
-/// [collision events](crate::collision#collision-events).
+/// Colliders on their own only detect contacts.
 /// To make colliders apply contact forces, they have to be attached
 /// to [rigid bodies](RigidBody):
 ///
@@ -58,8 +57,8 @@ pub type TrimeshBuilderError = parry::shape::TriMeshBuilderError;
 /// }
 /// ```
 ///
-/// Colliders can be further configured using various components like [`Friction`], [`Restitution`],
-/// [`Sensor`], [`CollisionLayers`], [`CollisionMargin`], and [`ColliderDensity`].
+/// Colliders can be further configured using various components like [`Sensor`],
+/// [`CollisionLayers`], and [`ColliderDensity`].
 ///
 /// ## Multiple Colliders
 ///
@@ -87,19 +86,14 @@ pub type TrimeshBuilderError = parry::shape::TriMeshBuilderError;
 /// The rigid body that a collider is attached to can be accessed using the [`ColliderOf`] component.
 ///
 /// The benefit of using separate entities for the colliders is that each collider can have its own
-/// [friction](Friction), [restitution](Restitution), [collision layers](CollisionLayers),
-/// and other configuration options, and they send separate [collision events](crate::collision#collision-events).
+/// [collision layers](CollisionLayers) and other configuration options.
 ///
 /// # See More
 ///
 /// - [Rigid bodies](RigidBody)
 /// - [Density](ColliderDensity)
-/// - [Friction] and [restitution](Restitution) (bounciness)
 /// - [Collision layers](CollisionLayers)
 /// - [Sensors](Sensor)
-/// - [Collision margins for adding extra thickness to colliders](CollisionMargin)
-/// - [Get colliding entities](CollidingEntities)
-/// - [Collision events](crate::collision#collision-events)
 /// - [Filtering and modifying contacts with hooks](CollisionHooks)
 /// - [Manual contact queries](contact_query)
 ///
@@ -356,9 +350,6 @@ impl Collider {
     /// Note that the resulting collider will be hollow and have no interior.
     /// This makes it more prone to tunneling and other collision issues.
     ///
-    /// The [`CollisionMargin`] component can be used to add thickness to the shape if needed.
-    /// For thin shapes like triangle meshes, it can help improve collision stability and performance.
-    ///
     /// # Panics
     ///
     /// Panics if the given vertex and index buffers do not contain any triangles,
@@ -372,9 +363,6 @@ impl Collider {
     ///
     /// Note that the resulting collider will be hollow and have no interior.
     /// This makes it more prone to tunneling and other collision issues.
-    ///
-    /// The [`CollisionMargin`] component can be used to add thickness to the shape if needed.
-    /// For thin shapes like triangle meshes, it can help improve collision stability and performance.
     ///
     /// # Errors
     ///

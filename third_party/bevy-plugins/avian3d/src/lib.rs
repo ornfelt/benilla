@@ -117,10 +117,8 @@
 //!     - [External forces, impulses, and acceleration](dynamics::rigid_body::forces)
 //! - [Gravity]
 //! - [Mass properties](dynamics::rigid_body::mass_properties)
-//! - [Lock translational and rotational axes](LockedAxes)
 //! - [Continuous Collision Detection (CCD)](dynamics::ccd)
 //!     - [Speculative collision](dynamics::ccd#speculative-collision)
-//!     - [Swept CCD](dynamics::ccd#swept-ccd)
 //! - [`Transform` interpolation and extrapolation](PhysicsInterpolationPlugin)
 //! - [Temporarily disabling a rigid body](RigidBodyDisabled)
 //! - [Automatic deactivation with sleeping](Sleeping)
@@ -132,11 +130,8 @@
 //! - [Colliders](Collider)
 //!     - [Creation](Collider#creation)
 //!     - [Density](ColliderDensity)
-//!     - [Friction] and [restitution](Restitution) (bounciness)
 //!     - [Collision layers](CollisionLayers)
 //!     - [Sensors](Sensor)
-//! - [Get colliding entities](CollidingEntities)
-//! - [Collision events](collision#collision-events)
 //! - [Filtering and modifying contacts with hooks](CollisionHooks)
 //! - [Manual contact queries](collision::collider::contact_query)
 //! - [Temporarily disabling a collider](ColliderDisabled)
@@ -429,7 +424,7 @@ pub mod prelude {
         PhysicsPlugins,
         collider_tree::{ColliderTreeOptimization, ColliderTreePlugin, TreeOptimizationMode},
         collision::prelude::*,
-        dynamics::{self, ccd::SpeculativeMargin, prelude::*},
+        dynamics::{self, prelude::*},
         interpolation::*,
         physics_transform::{PhysicsTransformPlugin, Position, Rotation},
         schedule::{

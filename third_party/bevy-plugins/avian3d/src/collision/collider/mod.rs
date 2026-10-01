@@ -4,12 +4,10 @@ use crate::prelude::*;
 use bevy::{
     ecs::{
         component::Mutable,
-        entity::{EntityMapper, MapEntities, hash_set::EntityHashSet},
         system::{ReadOnlySystemParam, SystemParam, SystemParamItem},
     },
     prelude::*,
 };
-use derive_more::From;
 
 mod backend;
 
@@ -311,8 +309,7 @@ pub struct ColliderDisabled;
 
 /// A component that marks a [`Collider`] as a sensor, also known as a trigger.
 ///
-/// Sensor colliders send [collision events](crate::collision#collision-events) and register intersections,
-/// but allow other bodies to pass through them. This is often used to detect when something enters
+/// Sensor colliders register intersections, but allow other bodies to pass through them. This is often used to detect when something enters
 /// or leaves an area or is intersecting some shape.
 ///
 /// Sensor colliders do *not* contribute to the mass properties of rigid bodies.
@@ -436,93 +433,5 @@ impl EnlargedAabb {
     /// Gets the [`ColliderAabb`] of the enlarged AABB.
     pub fn get(&self) -> ColliderAabb {
         self.0
-    }
-}
-
-/// A component that adds an extra margin or "skin" around [`Collider`] shapes to help maintain
-/// additional separation to other objects. This added thickness can help improve
-/// stability and performance in some cases, especially for thin shapes such as trimeshes.
-///
-/// There are three primary reasons for collision margins:
-///
-/// 1. Collision detection is often more efficient when shapes are not overlapping
-/// further than their collision margins. Deeply overlapping shapes require
-/// more expensive collision algorithms.
-///
-/// 2. Some shapes such as triangles and planes are infinitely thin,
-/// which can cause precision errors. A collision margin adds artificial
-/// thickness to shapes, improving stability.
-///
-/// 3. Overall, collision margins give the physics engine more
-/// room for error when resolving contacts. This can also help
-/// prevent visible artifacts such as objects poking through the ground.
-///
-/// If a rigid body with a [`CollisionMargin`] has colliders as child entities,
-/// and those colliders don't have their own [`CollisionMargin`] components,
-/// the colliders will use the rigid body's [`CollisionMargin`].
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// fn setup(mut commands: Commands) {
-///     let mesh = Mesh::from(Torus::default());
-///
-///     // Spawn a rigid body with a triangle mesh collider.
-///     // A margin of `0.1` is added around the shape.
-///     commands.spawn((
-///         RigidBody::Dynamic,
-///         Collider::trimesh_from_mesh(&mesh).unwrap(),
-///         CollisionMargin(0.1),
-///     ));
-/// }
-/// ```
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Component)]
-#[doc(alias = "ContactSkin")]
-pub struct CollisionMargin(pub Scalar);
-
-/// A component for reading which entities are colliding with a collider entity.
-/// Must be added manually for desired colliders.
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// fn setup(mut commands: Commands) {
-///     commands.spawn((
-///         RigidBody::Dynamic,
-///         Collider::capsule(0.5, 1.5),
-///         // Add the `CollidingEntities` component to read entities colliding with this entity.
-///         CollidingEntities::default(),
-///     ));
-/// }
-///
-/// fn my_system(query: Query<(Entity, &CollidingEntities)>) {
-///     for (entity, colliding_entities) in &query {
-///         println!(
-///             "{} is colliding with the following entities: {:?}",
-///             entity,
-///             colliding_entities,
-///         );
-///     }
-/// }
-/// ```
-#[derive(Reflect, Clone, Component, Debug, Default, Deref, DerefMut, PartialEq, Eq)]
-#[reflect(Debug, Component, Default, PartialEq)]
-pub struct CollidingEntities(pub EntityHashSet);
-
-impl MapEntities for CollidingEntities {
-    fn map_entities<M: EntityMapper>(&mut self, entity_mapper: &mut M) {
-        self.0 = self
-            .0
-            .clone()
-            .into_iter()
-            .map(|e| entity_mapper.get_mapped(e))
-            .collect()
     }
 }

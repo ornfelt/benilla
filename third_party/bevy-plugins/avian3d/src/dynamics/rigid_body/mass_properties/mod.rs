@@ -22,10 +22,6 @@
 //! [`ComputedAngularInertia`], and [`ComputedCenterOfMass`] components, which are updated
 //! automatically when mass properties are changed, or when colliders are added or removed.
 //!
-//! To prevent mass properties of child entities from contributing to the total mass properties,
-//! you can use the [`NoAutoMass`], [`NoAutoAngularInertia`], and [`NoAutoCenterOfMass`] marker components.
-//! This can be useful when full control over mass properties is desired.
-//!
 //! [rigid bodies]: crate::dynamics::rigid_body::RigidBody
 //! [colliders]: crate::collision::collider::Collider
 //! [mass]: components::Mass
@@ -84,33 +80,6 @@
 //!     Collider::capsule(0.5, 1.5),
 //!     Mass(10.0),
 //!     CenterOfMass::new(0.0, -0.5, 0.0),
-//!     Transform::default(),
-//! ))
-//! .with_child((
-//!     Collider::sphere(1.0),
-//!     Mass(5.0),
-//!     Transform::from_xyz(0.0, 4.0, 0.0),
-//! ));
-//! # }
-//! ```
-//!
-//! To prevent child entities from contributing to the total mass properties, use the [`NoAutoMass`],
-//! [`NoAutoAngularInertia`], and [`NoAutoCenterOfMass`] marker components.
-//!
-//! ```
-//! # use avian3d::prelude::*;
-//! # use bevy::prelude::*;
-//! #
-//! # fn setup(mut commands: Commands) {
-//! // Total mass: 10.0
-//! // Total center of mass: [0.0, -0.5, 0.0]
-//! commands.spawn((
-//!     RigidBody::Dynamic,
-//!     Collider::capsule(0.5, 1.5),
-//!     Mass(10.0),
-//!     CenterOfMass::new(0.0, -0.5, 0.0),
-//!     NoAutoMass,
-//!     NoAutoCenterOfMass,
 //!     Transform::default(),
 //! ))
 //! .with_child((

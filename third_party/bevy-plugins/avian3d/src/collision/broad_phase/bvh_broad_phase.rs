@@ -5,7 +5,6 @@ use crate::{
         ColliderTree, ColliderTreeProxy, ColliderTreeProxyFlags, ColliderTreeProxyKey,
         ColliderTreeType, ColliderTrees, MovedProxies, ProxyId,
     },
-    collision::contact_types::ContactEdgeFlags,
     data_structures::pair_key::PairKey,
     dynamics::solver::joint_graph::JointGraph,
     prelude::*,
@@ -176,12 +175,6 @@ fn collect_collision_pairs<H: CollisionHooks>(
         contact_edge.body2 = proxy2.body;
 
         let flags_union = proxy1.flags.union(proxy2.flags);
-
-        // Contact event flags
-        contact_edge.flags.set(
-            ContactEdgeFlags::CONTACT_EVENTS,
-            flags_union.contains(ColliderTreeProxyFlags::CONTACT_EVENTS),
-        );
 
         contact_graph.add_edge_with(contact_edge, |contact_pair| {
             contact_pair.body1 = proxy1.body;
