@@ -110,12 +110,12 @@ where
     ///
     /// This method is great if you have an instance of a type or a `dyn Reflect`,
     /// and want to access its [`TypeInfo`]. However, if this method is to be called
-    /// frequently, consider using [`TypeRegistry::get_type_info`] as it can be more
+    /// frequently, consider using [`TypeRegistry::get`] as it can be more
     /// performant for such use cases.
     ///
     /// [`DynamicStruct`]: crate::DynamicStruct
     /// [`DynamicList`]: crate::DynamicList
-    /// [`TypeRegistry::get_type_info`]: crate::TypeRegistry::get_type_info
+    /// [`TypeRegistry::get`]: crate::TypeRegistry::get
     fn get_represented_type_info(&self) -> Option<&'static TypeInfo>;
 
     /// Casts this type to a boxed, reflected value.
@@ -435,16 +435,6 @@ pub trait Reflect: PartialReflect + DynamicTyped + Any {
 }
 
 impl dyn PartialReflect {
-    /// Returns `true` if the underlying value represents a value of type `T`, or `false`
-    /// otherwise.
-    ///
-    /// Read `is` for more information on underlying values and represented types.
-    #[inline]
-    pub fn represents<T: Reflect + TypePath>(&self) -> bool {
-        self.get_represented_type_info()
-            .is_some_and(|t| t.type_path() == T::type_path())
-    }
-
     /// Downcasts the value to type `T`, consuming the trait object.
     ///
     /// If the underlying value does not implement [`Reflect`]

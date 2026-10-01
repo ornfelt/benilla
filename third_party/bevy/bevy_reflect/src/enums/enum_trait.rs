@@ -5,7 +5,6 @@ use crate::{
 };
 use alloc::{boxed::Box, format, string::String};
 use bevy_platform::collections::HashMap;
-use core::slice::Iter;
 
 /// A trait used to power [enum-like] operations via [reflection].
 ///
@@ -149,7 +148,6 @@ pub struct EnumInfo {
     ty: Type,
     generics: Generics,
     variants: Box<[VariantInfo]>,
-    variant_names: Box<[&'static str]>,
     variant_indices: HashMap<&'static str, usize>,
 }
 
@@ -166,20 +164,12 @@ impl EnumInfo {
             .map(|(index, variant)| (variant.name(), index))
             .collect::<HashMap<_, _>>();
 
-        let variant_names = variants.iter().map(VariantInfo::name).collect();
-
         Self {
             ty: Type::of::<TEnum>(),
             generics: Generics::new(),
             variants: variants.to_vec().into_boxed_slice(),
-            variant_names,
             variant_indices,
         }
-    }
-
-    /// A slice containing the names of all variants in order.
-    pub fn variant_names(&self) -> &[&'static str] {
-        &self.variant_names
     }
 
     /// Get a variant with the given name.
@@ -192,28 +182,6 @@ impl EnumInfo {
     /// Get a variant at the given index.
     pub fn variant_at(&self, index: usize) -> Option<&VariantInfo> {
         self.variants.get(index)
-    }
-
-    /// Get the index of the variant with the given name.
-    pub fn index_of(&self, name: &str) -> Option<usize> {
-        self.variant_indices.get(name).copied()
-    }
-
-    /// Returns the full path to the given variant.
-    ///
-    /// This does _not_ check if the given variant exists.
-    pub fn variant_path(&self, name: &str) -> String {
-        format!("{}::{name}", self.type_path())
-    }
-
-    /// Checks if a variant with the given name exists within this enum.
-    pub fn contains_variant(&self, name: &str) -> bool {
-        self.variant_indices.contains_key(name)
-    }
-
-    /// Iterate over the variants of this enum.
-    pub fn iter(&self) -> Iter<'_, VariantInfo> {
-        self.variants.iter()
     }
 
     /// The number of variants in this enum.

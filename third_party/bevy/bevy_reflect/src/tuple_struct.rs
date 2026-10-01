@@ -7,10 +7,7 @@ use crate::{
     UnnamedField,
 };
 use alloc::{boxed::Box, vec::Vec};
-use core::{
-    fmt::{Debug, Formatter},
-    slice::Iter,
-};
+use core::fmt::{Debug, Formatter};
 
 /// A trait used to power [tuple struct-like] operations via [reflection].
 ///
@@ -92,11 +89,6 @@ impl TupleStructInfo {
     /// Get the field at the given index.
     pub fn field_at(&self, index: usize) -> Option<&UnnamedField> {
         self.fields.get(index)
-    }
-
-    /// Iterate over the fields of this struct.
-    pub fn iter(&self) -> Iter<'_, UnnamedField> {
-        self.fields.iter()
     }
 
     /// The total number of fields in this struct.

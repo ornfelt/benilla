@@ -39,14 +39,6 @@ impl Generics {
         // a linear search is often faster using a `HashMap`.
         self.0.iter().find(|info| info.name() == name)
     }
-
-    /// Adds the given generic parameter to the set.
-    pub fn with(mut self, info: impl Into<GenericInfo>) -> Self {
-        self.0 = IntoIterator::into_iter(self.0)
-            .chain(core::iter::once(info.into()))
-            .collect();
-        self
-    }
 }
 
 impl<T: Into<GenericInfo>> FromIterator<T> for Generics {

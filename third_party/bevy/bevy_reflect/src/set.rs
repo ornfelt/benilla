@@ -103,7 +103,6 @@ pub trait Set: PartialReflect {
 pub struct SetInfo {
     ty: Type,
     generics: Generics,
-    value_ty: Type,
 }
 
 impl SetInfo {
@@ -112,18 +111,10 @@ impl SetInfo {
         Self {
             ty: Type::of::<TSet>(),
             generics: Generics::new(),
-            value_ty: Type::of::<TValue>(),
         }
     }
 
     impl_type_methods!(ty);
-
-    /// The [type] of the value.
-    ///
-    /// [type]: Type
-    pub fn value_ty(&self) -> Type {
-        self.value_ty
-    }
 
     impl_generic_info_methods!(generics);
 }

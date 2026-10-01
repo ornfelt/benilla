@@ -12,7 +12,6 @@ use alloc::{boxed::Box, vec, vec::Vec};
 use core::{
     any::Any,
     fmt::{Debug, Formatter},
-    slice::Iter,
 };
 
 /// A trait used to power [tuple-like] operations via [reflection].
@@ -73,16 +72,6 @@ pub trait Tuple: PartialReflect {
 pub struct TupleFieldIter<'a> {
     pub(crate) tuple: &'a dyn Tuple,
     pub(crate) index: usize,
-}
-
-impl<'a> TupleFieldIter<'a> {
-    /// Creates a new [`TupleFieldIter`].
-    pub fn new(value: &'a dyn Tuple) -> Self {
-        TupleFieldIter {
-            tuple: value,
-            index: 0,
-        }
-    }
 }
 
 impl<'a> Iterator for TupleFieldIter<'a> {
@@ -178,16 +167,6 @@ impl TupleInfo {
         self.fields.get(index)
     }
 
-    /// Iterate over the fields of this tuple.
-    pub fn iter(&self) -> Iter<'_, UnnamedField> {
-        self.fields.iter()
-    }
-
-    /// The total number of fields in this tuple.
-    pub fn field_len(&self) -> usize {
-        self.fields.len()
-    }
-
     impl_type_methods!(ty);
 
     impl_generic_info_methods!(generics);
@@ -201,23 +180,6 @@ pub struct DynamicTuple {
 }
 
 impl DynamicTuple {
-    /// Sets the [type] to be represented by this `DynamicTuple`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the given [type] is not a [`TypeInfo::Tuple`].
-    ///
-    /// [type]: TypeInfo
-    pub fn set_represented_type(&mut self, represented_type: Option<&'static TypeInfo>) {
-        if let Some(represented_type) = represented_type {
-            assert!(
-                matches!(represented_type, TypeInfo::Tuple(_)),
-                "expected TypeInfo::Tuple but received: {represented_type:?}"
-            );
-        }
-        self.represented_type = represented_type;
-    }
-
     /// Appends an element with value `value` to the tuple.
     pub fn insert_boxed(&mut self, value: Box<dyn PartialReflect>) {
         self.represented_type = None;

@@ -6,10 +6,7 @@ use crate::{
 use alloc::{borrow::Cow, boxed::Box, vec::Vec};
 use bevy_platform::collections::HashMap;
 use bevy_reflect_derive::impl_type_path;
-use core::{
-    fmt::{Debug, Formatter},
-    slice::Iter,
-};
+use core::fmt::{Debug, Formatter};
 
 /// A trait used to power [struct-like] operations via [reflection].
 ///
@@ -90,7 +87,6 @@ pub struct StructInfo {
     ty: Type,
     generics: Generics,
     fields: Box<[NamedField]>,
-    field_names: Box<[&'static str]>,
     field_indices: HashMap<&'static str, usize>,
 }
 
@@ -107,20 +103,12 @@ impl StructInfo {
             .map(|(index, field)| (field.name(), index))
             .collect::<HashMap<_, _>>();
 
-        let field_names = fields.iter().map(NamedField::name).collect();
-
         Self {
             ty: Type::of::<T>(),
             generics: Generics::new(),
             fields: fields.to_vec().into_boxed_slice(),
-            field_names,
             field_indices,
         }
-    }
-
-    /// A slice containing the names of all fields in order.
-    pub fn field_names(&self) -> &[&'static str] {
-        &self.field_names
     }
 
     /// Get the field with the given name.
@@ -138,16 +126,6 @@ impl StructInfo {
     /// Get the index of the field with the given name.
     pub fn index_of(&self, name: &str) -> Option<usize> {
         self.field_indices.get(name).copied()
-    }
-
-    /// Iterate over the fields of this struct.
-    pub fn iter(&self) -> Iter<'_, NamedField> {
-        self.fields.iter()
-    }
-
-    /// The total number of fields in this struct.
-    pub fn field_len(&self) -> usize {
-        self.fields.len()
     }
 
     impl_type_methods!(ty);

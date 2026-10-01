@@ -566,6 +566,25 @@ the same repository's.
   registry's defaults register only the primitives and `String`). Two kept tests move from std's
   `HashSet` and `RandomState` to bevy_platform's `HashSet` and `FixedHasher`. Every kept derive
   expands to the same tokens.
+- **`bevy_reflect`'s uncalled methods**, which no other crate, derive output or kept test of
+  bevy_reflect calls: `TypeRegistry`'s `register_by_val`, `add_registration`,
+  `overwrite_registration`, the short-path lookups with their ambiguity bookkeeping
+  (`short_path_to_id`, `ambiguous_names`, `get_with_short_type_path(_mut)`, `is_ambiguous`),
+  `get_with_type_path_mut`, `get_type_data_mut`, `get_type_info`, `iter_mut`, `iter_with_data`;
+  `TypeRegistration`'s `data_by_id`, `data_mut(_by_id)`, `contains(_by_id)`, `len`, `is_empty`;
+  `ReflectFromPtr::from_ptr(_mut)`; the infos' `field_names`/`variant_names` (with the fields
+  holding them), `iter`, `field_len`, `index_of`, `variant_path`, `contains_variant`,
+  `UnnamedField::index` (the field; `new` still takes the index), `SetInfo::value_ty` (the
+  field), `Type`'s `short_path`/`ident`/`crate_name`/`module_path`, `Generics::with`; the
+  dynamic types' `DynamicArray::new`, `DynamicEnum::set_variant_with_index`/`variant`/
+  `variant_mut`, `DynamicList`'s and `DynamicTuple`'s `set_represented_type`,
+  `TupleFieldIter::new`, `dyn PartialReflect::represents`; the kind casts nobody makes
+  (`ReflectRef::as_opaque`, `ReflectMut`'s casts but `as_map`/`as_set`, `ReflectOwned`'s but
+  `into_struct`/`into_enum`, `VariantInfo::as_struct_variant`/`as_unit_variant`). Kept: what
+  the derive's output can name (`SerializationData`/`SkippedField` for `skip_serializing`
+  fields, `StructVariantInfo::new`, the `set_represented_type`s it calls),
+  `ReflectSerialize`/`ReflectDeserialize` whole, the methods the info macros generate, and what
+  bevy_reflect's own tests call. Every kept derive expands to the same tokens.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

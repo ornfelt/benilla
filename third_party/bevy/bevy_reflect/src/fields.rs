@@ -40,24 +40,17 @@ impl NamedField {
 /// The unnamed field of a reflected tuple or tuple struct.
 #[derive(Clone, Debug)]
 pub struct UnnamedField {
-    index: usize,
     type_info: fn() -> Option<&'static TypeInfo>,
     ty: Type,
 }
 
 impl UnnamedField {
     /// Create a new [`UnnamedField`].
-    pub fn new<T: PartialReflect + MaybeTyped + TypePath>(index: usize) -> Self {
+    pub fn new<T: PartialReflect + MaybeTyped + TypePath>(_index: usize) -> Self {
         Self {
-            index,
             type_info: T::maybe_type_info,
             ty: Type::of::<T>(),
         }
-    }
-
-    /// Returns the index of the field.
-    pub fn index(&self) -> usize {
-        self.index
     }
 
     /// The [`TypeInfo`] of the field.

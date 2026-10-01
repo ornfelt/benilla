@@ -1,7 +1,6 @@
 use crate::{NamedField, UnnamedField};
 use alloc::boxed::Box;
 use bevy_platform::collections::HashMap;
-use core::slice::Iter;
 use thiserror::Error;
 
 /// Describes the form of an enum variant.
@@ -121,9 +120,7 @@ macro_rules! impl_cast_method {
 
 /// Conversion convenience methods for [`VariantInfo`].
 impl VariantInfo {
-    impl_cast_method!(as_struct_variant: Struct => StructVariantInfo);
     impl_cast_method!(as_tuple_variant: Tuple => TupleVariantInfo);
-    impl_cast_method!(as_unit_variant: Unit => UnitVariantInfo);
 }
 
 /// Type info for struct variants.
@@ -131,7 +128,6 @@ impl VariantInfo {
 pub struct StructVariantInfo {
     name: &'static str,
     fields: Box<[NamedField]>,
-    field_names: Box<[&'static str]>,
     field_indices: HashMap<&'static str, usize>,
 }
 
@@ -139,11 +135,9 @@ impl StructVariantInfo {
     /// Create a new [`StructVariantInfo`].
     pub fn new(name: &'static str, fields: &[NamedField]) -> Self {
         let field_indices = Self::collect_field_indices(fields);
-        let field_names = fields.iter().map(NamedField::name).collect();
         Self {
             name,
             fields: fields.to_vec().into_boxed_slice(),
-            field_names,
             field_indices,
         }
     }
@@ -151,11 +145,6 @@ impl StructVariantInfo {
     /// The name of this variant.
     pub fn name(&self) -> &'static str {
         self.name
-    }
-
-    /// A slice containing the names of all fields in order.
-    pub fn field_names(&self) -> &[&'static str] {
-        &self.field_names
     }
 
     /// Get the field with the given name.
@@ -168,16 +157,6 @@ impl StructVariantInfo {
     /// Get the field at the given index.
     pub fn field_at(&self, index: usize) -> Option<&NamedField> {
         self.fields.get(index)
-    }
-
-    /// Get the index of the field with the given name.
-    pub fn index_of(&self, name: &str) -> Option<usize> {
-        self.field_indices.get(name).copied()
-    }
-
-    /// Iterate over the fields of this variant.
-    pub fn iter(&self) -> Iter<'_, NamedField> {
-        self.fields.iter()
     }
 
     /// The total number of fields in this variant.
@@ -218,16 +197,6 @@ impl TupleVariantInfo {
     /// Get the field at the given index.
     pub fn field_at(&self, index: usize) -> Option<&UnnamedField> {
         self.fields.get(index)
-    }
-
-    /// Iterate over the fields of this variant.
-    pub fn iter(&self) -> Iter<'_, UnnamedField> {
-        self.fields.iter()
-    }
-
-    /// The total number of fields in this variant.
-    pub fn field_len(&self) -> usize {
-        self.fields.len()
     }
 }
 

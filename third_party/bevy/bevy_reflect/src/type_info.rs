@@ -183,20 +183,20 @@ pub enum TypeInfoError {
 /// 1. [`Typed::type_info`]
 /// 2. [`DynamicTyped::reflect_type_info`]
 /// 3. [`PartialReflect::get_represented_type_info`]
-/// 4. [`TypeRegistry::get_type_info`]
+/// 4. [`TypeRegistry::get`]
 ///
 /// Each returns a static reference to [`TypeInfo`], but they all have their own use cases.
 /// For example, if you know the type at compile time, [`Typed::type_info`] is probably
 /// the simplest. If you have a `dyn Reflect` you can use [`DynamicTyped::reflect_type_info`].
 /// If all you have is a `dyn PartialReflect`, you'll probably want [`PartialReflect::get_represented_type_info`].
 /// Lastly, if all you have is a [`TypeId`] or [type path], you will need to go through
-/// [`TypeRegistry::get_type_info`].
+/// [`TypeRegistry::get`].
 ///
-/// You may also opt to use [`TypeRegistry::get_type_info`] in place of the other methods simply because
+/// You may also opt to use [`TypeRegistry::get`] in place of the other methods simply because
 /// it can be more performant. This is because those other methods may require attaining a lock on
 /// the static [`TypeInfo`], while the registry simply checks a map.
 ///
-/// [`TypeRegistry::get_type_info`]: crate::TypeRegistry::get_type_info
+/// [`TypeRegistry::get`]: crate::TypeRegistry::get
 /// [`PartialReflect::get_represented_type_info`]: crate::PartialReflect::get_represented_type_info
 /// [type path]: TypePath::type_path
 #[derive(Debug, Clone)]
@@ -416,26 +416,6 @@ impl Type {
     /// See [`TypePath::type_path`].
     pub fn path(&self) -> &'static str {
         self.type_path_table.path()
-    }
-
-    /// See [`TypePath::short_type_path`].
-    pub fn short_path(&self) -> &'static str {
-        self.type_path_table.short_path()
-    }
-
-    /// See [`TypePath::type_ident`].
-    pub fn ident(&self) -> Option<&'static str> {
-        self.type_path_table.ident()
-    }
-
-    /// See [`TypePath::crate_name`].
-    pub fn crate_name(&self) -> Option<&'static str> {
-        self.type_path_table.crate_name()
-    }
-
-    /// See [`TypePath::module_path`].
-    pub fn module_path(&self) -> Option<&'static str> {
-        self.type_path_table.module_path()
     }
 
     /// A representation of the type path of this.

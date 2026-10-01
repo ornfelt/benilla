@@ -214,7 +214,6 @@ impl<'a> ReflectRef<'a> {
     impl_cast_method!(as_map: Map => &'a dyn Map);
     impl_cast_method!(as_set: Set => &'a dyn Set);
     impl_cast_method!(as_enum: Enum => &'a dyn Enum);
-    impl_cast_method!(as_opaque: Opaque => &'a dyn PartialReflect);
 }
 
 /// A mutable enumeration of ["kinds"] of a reflected type.
@@ -267,15 +266,8 @@ pub enum ReflectMut<'a> {
 impl_reflect_kind_conversions!(ReflectMut<'_>);
 
 impl<'a> ReflectMut<'a> {
-    impl_cast_method!(as_struct: Struct => &'a mut dyn Struct);
-    impl_cast_method!(as_tuple_struct: TupleStruct => &'a mut dyn TupleStruct);
-    impl_cast_method!(as_tuple: Tuple => &'a mut dyn Tuple);
-    impl_cast_method!(as_list: List => &'a mut dyn List);
-    impl_cast_method!(as_array: Array => &'a mut dyn Array);
     impl_cast_method!(as_map: Map => &'a mut dyn Map);
     impl_cast_method!(as_set: Set => &'a mut dyn Set);
-    impl_cast_method!(as_enum: Enum => &'a mut dyn Enum);
-    impl_cast_method!(as_opaque: Opaque => &'a mut dyn PartialReflect);
 }
 
 /// An owned enumeration of ["kinds"] of a reflected type.
@@ -329,14 +321,7 @@ impl_reflect_kind_conversions!(ReflectOwned);
 
 impl ReflectOwned {
     impl_cast_method!(into_struct: Struct => Box<dyn Struct>);
-    impl_cast_method!(into_tuple_struct: TupleStruct => Box<dyn TupleStruct>);
-    impl_cast_method!(into_tuple: Tuple => Box<dyn Tuple>);
-    impl_cast_method!(into_list: List => Box<dyn List>);
-    impl_cast_method!(into_array: Array => Box<dyn Array>);
-    impl_cast_method!(into_map: Map => Box<dyn Map>);
-    impl_cast_method!(into_set: Set => Box<dyn Set>);
     impl_cast_method!(into_enum: Enum => Box<dyn Enum>);
-    impl_cast_method!(into_value: Opaque => Box<dyn PartialReflect>);
 }
 
 #[cfg(test)]
