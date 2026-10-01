@@ -160,16 +160,6 @@ impl Friction {
     }
 }
 
-impl From<Scalar> for Friction {
-    fn from(coefficient: Scalar) -> Self {
-        Self {
-            dynamic_coefficient: coefficient,
-            static_coefficient: coefficient,
-            ..default()
-        }
-    }
-}
-
 /// The coefficient of [restitution], controlling how bouncy a [rigid body](RigidBody) or [collider](Collider) is.
 ///
 /// The coefficient should be between 0 and 1, where 0 corresponds to a **perfectly inelastic** collision with zero bounce,
@@ -292,15 +282,6 @@ impl Restitution {
         Self {
             coefficient: rule.mix(self.coefficient, other.coefficient),
             combine_rule: rule,
-        }
-    }
-}
-
-impl From<Scalar> for Restitution {
-    fn from(coefficient: Scalar) -> Self {
-        Self {
-            coefficient,
-            ..default()
         }
     }
 }

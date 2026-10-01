@@ -112,7 +112,7 @@ fn add_joint_to_graph<
     let [body1, body2] = joint.entities();
 
     // Add the joint to the joint graph.
-    let joint_edge = JointGraphEdge::new(entity, body1, body2, false);
+    let joint_edge = JointGraphEdge::new(entity, body1, body2);
     let joint_id = joint_graph.add_joint(body1, body2, joint_edge);
 
     // Link the joint to an island.

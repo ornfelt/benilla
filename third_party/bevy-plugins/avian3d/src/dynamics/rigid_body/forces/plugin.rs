@@ -115,13 +115,10 @@ fn apply_local_acceleration(
         .iter_mut()
         .for_each(|(mut body, acceleration, rotation)| {
             let rotation = body.delta_rotation * *rotation;
-            let locked_axes = body.flags.locked_axes();
 
-            // Compute the world space velocity increments with locked axes applied.
-            let world_linear_acceleration =
-                locked_axes.apply_to_vec(rotation * acceleration.linear);
-            let world_angular_acceleration =
-                locked_axes.apply_to_vec(rotation * acceleration.angular);
+            // Compute the world space velocity increments.
+            let world_linear_acceleration = rotation * acceleration.linear;
+            let world_angular_acceleration = rotation * acceleration.angular;
 
             // Apply acceleration.
             body.linear_velocity += world_linear_acceleration * delta_secs;

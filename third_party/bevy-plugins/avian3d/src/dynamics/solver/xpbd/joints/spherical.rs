@@ -17,25 +17,9 @@ pub struct SphericalJointSolverData {
     pub(super) swing_axis2: Vector,
     pub(super) twist_axis1: Vector,
     pub(super) twist_axis2: Vector,
-    pub(super) total_swing_lagrange: Vector,
-    pub(super) total_twist_lagrange: Vector,
 }
 
-impl XpbdConstraintSolverData for SphericalJointSolverData {
-    fn clear_lagrange_multipliers(&mut self) {
-        self.point_constraint.clear_lagrange_multipliers();
-        self.total_swing_lagrange = Vector::ZERO;
-        self.total_twist_lagrange = Vector::ZERO;
-    }
-
-    fn total_position_lagrange(&self) -> Vector {
-        self.point_constraint.total_position_lagrange()
-    }
-
-    fn total_rotation_lagrange(&self) -> AngularVector {
-        self.total_swing_lagrange + self.total_twist_lagrange
-    }
-}
+impl XpbdConstraintSolverData for SphericalJointSolverData {}
 
 impl XpbdConstraint<2> for SphericalJoint {
     type SolverData = SphericalJointSolverData;
@@ -133,7 +117,7 @@ impl SphericalJoint {
                 let inv_inertia1 = inertia1.effective_inv_angular_inertia();
                 let inv_inertia2 = inertia2.effective_inv_angular_inertia();
 
-                solver_data.total_swing_lagrange += self.align_orientation(
+                self.align_orientation(
                     body1,
                     body2,
                     inv_inertia1,
@@ -191,7 +175,7 @@ impl SphericalJoint {
                 let inv_inertia1 = inertia1.effective_inv_angular_inertia();
                 let inv_inertia2 = inertia2.effective_inv_angular_inertia();
 
-                solver_data.total_twist_lagrange += self.align_orientation(
+                self.align_orientation(
                     body1,
                     body2,
                     inv_inertia1,

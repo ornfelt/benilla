@@ -14,7 +14,7 @@ pub use plugin::SolverBodyPlugin;
 use bevy::prelude::*;
 
 use super::{Rotation, Vector};
-use crate::{SymmetricTensor, math::Scalar, prelude::LockedAxes};
+use crate::{SymmetricTensor, math::Scalar};
 use crate::{math::Quaternion, prelude::ComputedAngularInertia};
 
 // The `SolverBody` layout is inspired by `b2BodyState` in Box2D v3.
@@ -110,24 +110,6 @@ pub struct SolverBodyFlags(u32);
 
 bitflags::bitflags! {
     impl SolverBodyFlags: u32 {
-        /// Set if translation along the `X` axis is locked.
-        const TRANSLATION_X_LOCKED = 0b100_000;
-        /// Set if translation along the `Y` axis is locked.
-        const TRANSLATION_Y_LOCKED = 0b010_000;
-        /// Set if translation along the `Z` axis is locked.
-        const TRANSLATION_Z_LOCKED = 0b001_000;
-        /// Set if rotation around the `X` axis is locked.
-        const ROTATION_X_LOCKED = 0b000_100;
-        /// Set if rotation around the `Y` axis is locked.
-        const ROTATION_Y_LOCKED = 0b000_010;
-        /// Set if rotation around the `Z` axis is locked.
-        const ROTATION_Z_LOCKED = 0b000_001;
-        /// Set if all translational axes are locked.
-        const TRANSLATION_LOCKED = Self::TRANSLATION_X_LOCKED.bits() | Self::TRANSLATION_Y_LOCKED.bits() | Self::TRANSLATION_Z_LOCKED.bits();
-        /// Set if all rotational axes are locked.
-        const ROTATION_LOCKED = Self::ROTATION_X_LOCKED.bits() | Self::ROTATION_Y_LOCKED.bits() | Self::ROTATION_Z_LOCKED.bits();
-        /// Set if all translational and rotational axes are locked.
-        const ALL_LOCKED = Self::TRANSLATION_LOCKED.bits() | Self::ROTATION_LOCKED.bits();
         /// Set if the body is kinematic. Otherwise, it is dynamic.
         const IS_KINEMATIC = 1 << 6;
         /// Set if gyroscopic motion is enabled.
@@ -136,11 +118,6 @@ bitflags::bitflags! {
 }
 
 impl SolverBodyFlags {
-    /// Returns the [`LockedAxes`] of the body.
-    pub fn locked_axes(&self) -> LockedAxes {
-        LockedAxes::from_bits(self.0 as u8)
-    }
-
     /// Returns `true` if the body is kinematic.
     pub fn is_kinematic(&self) -> bool {
         self.contains(SolverBodyFlags::IS_KINEMATIC)
@@ -235,24 +212,6 @@ pub struct InertiaFlags(u16);
 
 bitflags::bitflags! {
     impl InertiaFlags: u16 {
-        /// Set if translation along the `X` axis is locked.
-        const TRANSLATION_X_LOCKED = 0b100_000;
-        /// Set if translation along the `Y` axis is locked.
-        const TRANSLATION_Y_LOCKED = 0b010_000;
-        /// Set if translation along the `Z` axis is locked.
-        const TRANSLATION_Z_LOCKED = 0b001_000;
-        /// Set if rotation around the `X` axis is locked.
-        const ROTATION_X_LOCKED = 0b000_100;
-        /// Set if rotation around the `Y` axis is locked.
-        const ROTATION_Y_LOCKED = 0b000_010;
-        /// Set if rotation around the `Z` axis is locked.
-        const ROTATION_Z_LOCKED = 0b000_001;
-        /// Set if all translational axes are locked.
-        const TRANSLATION_LOCKED = Self::TRANSLATION_X_LOCKED.bits() | Self::TRANSLATION_Y_LOCKED.bits() | Self::TRANSLATION_Z_LOCKED.bits();
-        /// Set if all rotational axes are locked.
-        const ROTATION_LOCKED = Self::ROTATION_X_LOCKED.bits() | Self::ROTATION_Y_LOCKED.bits() | Self::ROTATION_Z_LOCKED.bits();
-        /// Set if all translational and rotational axes are locked.
-        const ALL_LOCKED = Self::TRANSLATION_LOCKED.bits() | Self::ROTATION_LOCKED.bits();
         /// Set if the body has infinite mass.
         const INFINITE_MASS = 1 << 6;
         /// Set if the body has infinite inertia.
@@ -262,26 +221,11 @@ bitflags::bitflags! {
     }
 }
 
-impl InertiaFlags {
-    /// Returns the [`LockedAxes`] of the body.
-    pub fn locked_axes(&self) -> LockedAxes {
-        LockedAxes::from_bits(self.0 as u8)
-    }
-}
-
 impl SolverBodyInertia {
-    /// Creates a new [`SolverBodyInertia`] with the given mass, angular inertia,
-    /// and locked axes.
+    /// Creates a new [`SolverBodyInertia`] with the given mass and angular inertia.
     #[inline]
-    pub fn new(
-        inv_mass: Scalar,
-        inv_inertia: SymmetricTensor,
-        locked_axes: LockedAxes,
-        dominance: i8,
-        is_dynamic: bool,
-    ) -> Self {
-        let mut effective_inv_angular_inertia = inv_inertia;
-        let mut flags = InertiaFlags(locked_axes.to_bits() as u16);
+    pub fn new(inv_mass: Scalar, inv_inertia: SymmetricTensor, is_dynamic: bool) -> Self {
+        let mut flags = InertiaFlags(0);
 
         if inv_mass == 0.0 {
             flags |= InertiaFlags::INFINITE_MASS;
@@ -290,93 +234,34 @@ impl SolverBodyInertia {
             flags |= InertiaFlags::INFINITE_ANGULAR_INERTIA;
         }
 
-        if locked_axes.is_rotation_x_locked() {
-            effective_inv_angular_inertia.m00 = 0.0;
-            effective_inv_angular_inertia.m01 = 0.0;
-            effective_inv_angular_inertia.m02 = 0.0;
-        }
-
-        if locked_axes.is_rotation_y_locked() {
-            effective_inv_angular_inertia.m01 = 0.0;
-            effective_inv_angular_inertia.m11 = 0.0;
-            effective_inv_angular_inertia.m12 = 0.0;
-        }
-
-        if locked_axes.is_rotation_z_locked() {
-            effective_inv_angular_inertia.m02 = 0.0;
-            effective_inv_angular_inertia.m12 = 0.0;
-            effective_inv_angular_inertia.m22 = 0.0;
-        }
-
         Self {
             inv_mass,
-            effective_inv_angular_inertia,
-            dominance: if is_dynamic {
-                dominance as i16
-            } else {
-                i8::MAX as i16 + 1
-            },
+            effective_inv_angular_inertia: inv_inertia,
+            dominance: if is_dynamic { 0 } else { i8::MAX as i16 + 1 },
             flags: InertiaFlags(flags.0),
         }
     }
 
-    /// Returns the effective inverse mass of the body,
-    /// taking into account any locked axes.
+    /// Returns the effective inverse mass of the body.
     #[inline]
     pub fn effective_inv_mass(&self) -> Vector {
-        let mut inv_mass = Vector::splat(self.inv_mass);
-
-        if self.flags.contains(InertiaFlags::TRANSLATION_X_LOCKED) {
-            inv_mass.x = 0.0;
-        }
-        if self.flags.contains(InertiaFlags::TRANSLATION_Y_LOCKED) {
-            inv_mass.y = 0.0;
-        }
-        if self.flags.contains(InertiaFlags::TRANSLATION_Z_LOCKED) {
-            inv_mass.z = 0.0;
-        }
-
-        inv_mass
+        Vector::splat(self.inv_mass)
     }
 
-    /// Returns the effective inverse angular inertia of the body in world space,
-    /// taking into account any locked axes.
+    /// Returns the effective inverse angular inertia of the body in world space.
     #[inline]
     pub fn effective_inv_angular_inertia(&self) -> SymmetricTensor {
         self.effective_inv_angular_inertia
     }
 
-    /// Updates the effective inverse angular inertia of the body in world space,
-    /// taking into account any locked axes.
+    /// Updates the effective inverse angular inertia of the body in world space.
     #[inline]
     pub fn update_effective_inv_angular_inertia(
         &mut self,
         computed_angular_inertia: &ComputedAngularInertia,
         rotation: Quaternion,
     ) {
-        let locked_axes = self.flags.locked_axes();
-        let mut effective_inv_angular_inertia =
-            computed_angular_inertia.rotated(rotation).inverse();
-
-        if locked_axes.is_rotation_x_locked() {
-            effective_inv_angular_inertia.m00 = 0.0;
-            effective_inv_angular_inertia.m01 = 0.0;
-            effective_inv_angular_inertia.m02 = 0.0;
-        }
-
-        if locked_axes.is_rotation_y_locked() {
-            effective_inv_angular_inertia.m11 = 0.0;
-            effective_inv_angular_inertia.m01 = 0.0;
-            effective_inv_angular_inertia.m12 = 0.0;
-        }
-
-        if locked_axes.is_rotation_z_locked() {
-            effective_inv_angular_inertia.m22 = 0.0;
-            effective_inv_angular_inertia.m02 = 0.0;
-            effective_inv_angular_inertia.m12 = 0.0;
-        }
-
-        self.effective_inv_angular_inertia = effective_inv_angular_inertia;
+        self.effective_inv_angular_inertia = computed_angular_inertia.rotated(rotation).inverse();
     }
 
     /// Returns the dominance of the body: `0` for dynamic bodies,

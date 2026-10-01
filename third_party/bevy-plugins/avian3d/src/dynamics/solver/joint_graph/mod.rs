@@ -77,10 +77,6 @@ pub struct JointGraphEdge {
     /// [rigid body]: crate::dynamics::RigidBody
     pub body2: Entity,
 
-    /// If `true`, collisions are disabled between the bodies connected by this joint.
-    /// Joints are added with `false`.
-    pub collision_disabled: bool,
-
     /// The [`IslandNode`] associated with this joint.
     pub island: IslandNode<JointId>,
 }
@@ -88,14 +84,13 @@ pub struct JointGraphEdge {
 impl JointGraphEdge {
     /// Creates a new [`JointGraphEdge`].
     #[inline]
-    pub fn new(entity: Entity, body1: Entity, body2: Entity, collision_disabled: bool) -> Self {
+    pub fn new(entity: Entity, body1: Entity, body2: Entity) -> Self {
         Self {
             // This gets set to a valid ID when the joint is added to the `JointGraph`.
             id: JointId::PLACEHOLDER,
             entity,
             body1,
             body2,
-            collision_disabled,
             island: IslandNode::default(),
         }
     }
@@ -133,36 +128,11 @@ impl JointGraph {
         self.graph.edge_weight(joint_id.into())
     }
 
-    /// Returns a mutable reference to the [`JointGraphEdge`] for the given joint entity.
-    /// If the joint is not in the graph, `None` is returned.
-    #[inline]
-    pub fn get_mut(&mut self, joint: Entity) -> Option<&mut JointGraphEdge> {
-        let joint_index = self.entity_to_joint(joint)?;
-        self.get_mut_by_id(joint_index)
-    }
-
     /// Returns a mutable reference to the [`JointGraphEdge`] for the given [`JointId`].
     /// If the joint is not in the graph, `None` is returned.
     #[inline]
     pub fn get_mut_by_id(&mut self, joint_id: JointId) -> Option<&mut JointGraphEdge> {
         self.graph.edge_weight_mut(joint_id.into())
-    }
-
-    /// Returns the [`JointGraphEdge`] between two entities.
-    /// If the edge does not exist, `None` is returned.
-    #[inline]
-    pub fn joints_between(
-        &self,
-        body1: Entity,
-        body2: Entity,
-    ) -> impl Iterator<Item = &JointGraphEdge> {
-        let (Some(index1), Some(index2)) = (self.entity_to_body(body1), self.entity_to_body(body2))
-        else {
-            return itertools::Either::Left(core::iter::empty());
-        };
-
-        let joints = self.graph.edges_between(index1, index2).map(|e| e.weight());
-        itertools::Either::Right(joints)
     }
 
     /// Returns an iterator yielding immutable access to all joint edges involving the given entity.
@@ -174,19 +144,6 @@ impl JointGraph {
         } else {
             itertools::Either::Right(core::iter::empty())
         }
-    }
-
-    /// Returns the bodies that are connected by the given joint entity.
-    /// If the joint is not in the graph, `None` is returned.
-    #[inline]
-    pub fn bodies_of(&self, joint: Entity) -> Option<[Entity; 2]> {
-        let joint_index = self.entity_to_joint(joint)?;
-        let (body1_index, body2_index) = self.graph.edge_endpoints(joint_index.into())?;
-
-        Some([
-            *self.graph.node_weight(body1_index)?,
-            *self.graph.node_weight(body2_index)?,
-        ])
     }
 
     /// Creates a [`JointGraphEdge`] between two entities if it does not already exist,

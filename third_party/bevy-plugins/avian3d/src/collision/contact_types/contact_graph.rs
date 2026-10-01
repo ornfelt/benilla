@@ -20,8 +20,6 @@ use super::{ContactEdge, ContactId};
 ///
 /// # Usage
 ///
-/// [`entities_colliding_with`](Self::entities_colliding_with) can be used for querying collisions.
-///
 /// While mutable access is allowed, contact modification and filtering should typically
 /// be done using [`CollisionHooks`]. See the documentation for more information.
 ///
@@ -185,22 +183,6 @@ impl ContactGraph {
         } else {
             itertools::Either::Right(core::iter::empty())
         }
-    }
-
-    /// Returns an iterator yielding immutable access to all entities that have a contact pair with the given entity.
-    ///
-    /// A contact pair exists between two entities if their [`ColliderAabb`]s intersect,
-    /// even if the shapes themselves are not yet touching.
-    #[inline]
-    pub fn entities_colliding_with(&self, entity: Entity) -> impl Iterator<Item = Entity> + '_ {
-        self.entity_to_node
-            .get(entity)
-            .into_iter()
-            .flat_map(move |&index| {
-                self.edges
-                    .neighbors(index)
-                    .map(|index| *self.edges.node_weight(index).unwrap())
-            })
     }
 
     /// Creates a [`ContactEdge`] between two entities, calling the provided callback

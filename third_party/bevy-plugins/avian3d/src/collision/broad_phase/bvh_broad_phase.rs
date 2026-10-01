@@ -6,7 +6,6 @@ use crate::{
         ColliderTreeType, ColliderTrees, MovedProxies, ProxyId,
     },
     data_structures::pair_key::PairKey,
-    dynamics::solver::joint_graph::JointGraph,
     prelude::*,
 };
 use bevy::{
@@ -53,7 +52,6 @@ fn collect_collision_pairs<H: CollisionHooks>(
     hooks: StaticSystemParam<H>,
     par_commands: ParallelCommands,
     mut contact_graph: ResMut<ContactGraph>,
-    joint_graph: Res<JointGraph>,
 ) where
     for<'w, 's> SystemParamItem<'w, 's, H>: CollisionHooks,
 {
@@ -96,7 +94,6 @@ fn collect_collision_pairs<H: CollisionHooks>(
                         &hooks,
                         &mut commands,
                         &contact_graph,
-                        &joint_graph,
                         &mut pairs,
                     );
 
@@ -113,7 +110,6 @@ fn collect_collision_pairs<H: CollisionHooks>(
                         &hooks,
                         &mut commands,
                         &contact_graph,
-                        &joint_graph,
                         &mut pairs,
                     );
 
@@ -132,7 +128,6 @@ fn collect_collision_pairs<H: CollisionHooks>(
                             &hooks,
                             &mut commands,
                             &contact_graph,
-                            &joint_graph,
                             &mut pairs,
                         );
                     }
@@ -150,7 +145,6 @@ fn collect_collision_pairs<H: CollisionHooks>(
                         &hooks,
                         &mut commands,
                         &contact_graph,
-                        &joint_graph,
                         &mut pairs,
                     );
                 }
@@ -207,7 +201,6 @@ fn query_tree(
     hooks: &impl CollisionHooks,
     commands: &mut Commands,
     contact_graph: &ContactGraph,
-    joint_graph: &JointGraph,
     pairs: &mut Vec<(ColliderTreeProxyKey, ColliderTreeProxyKey)>,
 ) {
     tree.bvh.aabb_traverse(proxy_aabb1, |bvh, node_index| {
@@ -257,16 +250,6 @@ fn query_tree(
             // Avoid duplicate pairs.
             let pair_key = PairKey::new(entity1.index_u32(), entity2.index_u32());
             if contact_graph.contains_key(&pair_key) {
-                continue;
-            }
-
-            // Check if a joint disables contacts between the two bodies.
-            if let Some(body1) = proxy1.body
-                && let Some(body2) = proxy2.body
-                && joint_graph
-                    .joints_between(body1, body2)
-                    .any(|edge| edge.collision_disabled)
-            {
                 continue;
             }
 

@@ -71,10 +71,6 @@
 //!     fn clear_lagrange_multipliers(&mut self) {
 //!         self.total_lagrange = Vector::ZERO;
 //!     }
-//!
-//!     fn total_position_lagrange(&self) -> Vector {
-//!         self.total_lagrange
-//!     }
 //! }
 //!
 //! // This tells the solver how to get the entities from the constraint.
@@ -293,21 +289,6 @@ use super::solver_body::{SolverBody, SolverBodyInertia};
 pub trait XpbdConstraintSolverData {
     /// Sets the constraint's [Lagrange multipliers](self#lagrange-multipliers) to 0.
     fn clear_lagrange_multipliers(&mut self) {}
-
-    /// Returns the total Lagrange multiplier update applied to satisfy the position constraint.
-    fn total_position_lagrange(&self) -> Vector {
-        Vector::ZERO
-    }
-
-    /// Returns the total Lagrange multiplier update applied to satisfy the rotation constraint.
-    fn total_rotation_lagrange(&self) -> AngularVector {
-        AngularVector::ZERO
-    }
-
-    /// Returns the total Lagrange multiplier accumulated by the motor, if any.
-    fn total_motor_lagrange(&self) -> Scalar {
-        0.0
-    }
 }
 
 /// A trait for all XPBD [constraints](self#constraints).

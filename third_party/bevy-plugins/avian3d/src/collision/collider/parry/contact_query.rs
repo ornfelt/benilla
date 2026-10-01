@@ -163,19 +163,3 @@ pub fn contact_manifolds(
         Some(manifold)
     }));
 }
-
-/// Information about the closest points between two [`Collider`]s.
-#[derive(Reflect, Clone, Copy, Debug, PartialEq)]
-#[reflect(Debug, PartialEq)]
-pub enum ClosestPoints {
-    /// The two shapes are intersecting each other.
-    Intersecting,
-    /// The two shapes are not intersecting each other but the distance between the closest points
-    /// is below the user-defined maximum distance.
-    ///
-    /// The points are expressed in world space.
-    WithinMargin(Vector, Vector),
-    /// The two shapes are not intersecting each other and the distance between the closest points
-    /// exceeds the user-defined maximum distance.
-    OutsideMargin,
-}

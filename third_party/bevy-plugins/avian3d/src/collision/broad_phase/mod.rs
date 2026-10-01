@@ -64,14 +64,13 @@
 //! check for AABB overlaps, and create contacts for overlapping colliders:
 //!
 //! ```
-//! # use avian3d::{dynamics::solver::joint_graph::JointGraph, prelude::*};
+//! # use avian3d::prelude::*;
 //! # use bevy::prelude::*;
 //! #
 //! fn collect_collision_pairs(
 //!     colliders: Query<(Entity, &ColliderAabb, &CollisionLayers, &ColliderOf)>,
 //!     bodies: Query<&RigidBody>,
 //!     mut contact_graph: ResMut<ContactGraph>,
-//!     joint_graph: Res<JointGraph>,
 //! ) {
 //!     // Loop through all entity combinations and create contact pairs for overlapping AABBs.
 //!     for [
@@ -99,14 +98,6 @@
 //!
 //!         // Check collision layers.
 //!         if !layers1.interacts_with(*layers2) {
-//!             continue;
-//!         }
-//!
-//!         // Check if a joint disables contacts between the two bodies.
-//!         if joint_graph
-//!             .joints_between(collider_of1.body, collider_of2.body)
-//!             .any(|edge| edge.collision_disabled)
-//!         {
 //!             continue;
 //!         }
 //!

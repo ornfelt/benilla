@@ -441,9 +441,9 @@ the same repository's.
   and their message registration, the `CONTACT_EVENTS` proxy and contact-edge flags and every
   event write), `CollidingEntities`, `CollisionMargin`, `SpeculativeMargin`, `SweptCcd` (with
   `SweepMode` and the swept time-of-impact code), `NoAutoMass`, `NoAutoAngularInertia`,
-  `NoAutoCenterOfMass` (with their removal hook); `Friction`, `Restitution` and `LockedAxes`
-  stay as plain types (the default-material resources and the solver flags hold them) but are no
-  longer components. Each read becomes its absent result: contacts combine the default friction
+  `NoAutoCenterOfMass` (with their removal hook); `Friction` and `Restitution` stay as plain
+  types (the default-material resources hold them) but are no longer components, and `LockedAxes`
+  went with the locking (below). Each read becomes its absent result: contacts combine the default friction
   and restitution with themselves, the collision margin sum is `0.0` (still added to the
   penetration, which turns a `-0.0` into `0.0`), every speculative margin is the configured
   default, the AABB growth is the contact tolerance alone (positive, so adding `0.0` was exact),
@@ -452,6 +452,20 @@ the same repository's.
   empty stand-ins in their sets. Kept, because something on benilla's path or a kept avian3d test
   inserts or observes them: `Sensor`, `RigidBodyDisabled`, `ActiveCollisionHooks`, `Mass`,
   `AngularInertia`, `CenterOfMass`.
+- **avian3d's dead-code leftovers.** What the two option cuts above left with no reader, and what
+  the uncalled-function pass then named: axis locking (`LockedAxes`, the lock bits of
+  `SolverBodyFlags` and `InertiaFlags` and every branch reading them, which no body set:
+  `effective_inv_mass` is the plain inverse mass, the angular inertia is never masked, forces are
+  not projected, and gyroscopic motion depends only on the inertia's isotropy);
+  `SolverBodyInertia::new`'s `dominance` parameter (always `0`; static and kinematic bodies still
+  get `128`); `JointGraphEdge::collision_disabled` (always `false`) with the broad phase's joint
+  check and its `JointGraph` parameter; the XPBD solver data's `total_*_lagrange` accessors with
+  the totals only they read (the motor totals stay: warm starting reads them);
+  `ContactGraph::entities_colliding_with`, `JointGraph::get_mut`/`bodies_of`/`joints_between`,
+  `StableUnGraph`'s `edge_count`, `edge_endpoints`, `neighbors`, `edges` and `edges_between` with
+  the `Neighbors`, `Edges`, `EdgesBetween` and `EdgeReference` iterators, `Edge::source`/`target`;
+  `Friction`'s and `Restitution`'s `From<Scalar>`; the unused `ClosestPoints` and
+  `PointProjection`.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

@@ -78,18 +78,6 @@ pub struct Edge<E> {
     pub(super) node: [NodeIndex; 2],
 }
 
-impl<E> Edge<E> {
-    /// Return the source node index.
-    pub fn source(&self) -> NodeIndex {
-        self.node[0]
-    }
-
-    /// Return the target node index.
-    pub fn target(&self) -> NodeIndex {
-        self.node[1]
-    }
-}
-
 /// A graph with undirected edges.
 ///
 /// The graph can invalidate node or edge indices when items are removed.

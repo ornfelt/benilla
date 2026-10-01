@@ -5,11 +5,9 @@ pub mod mass_properties;
 pub mod sleeping;
 
 // Components
-mod locked_axes;
 mod physics_material;
 mod world_query;
 
-pub use locked_axes::LockedAxes;
 pub use physics_material::{
     CoefficientCombine, DefaultFriction, DefaultRestitution, Friction, Restitution,
 };

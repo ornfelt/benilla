@@ -13,18 +13,6 @@ use bevy::prelude::*;
 pub struct FixedAngleConstraintShared {
     /// The target rotation difference between the two bodies.
     pub rotation_difference: Quaternion,
-    /// The total Lagrange multiplier across the whole time step.
-    pub total_lagrange: AngularVector,
-}
-
-impl XpbdConstraintSolverData for FixedAngleConstraintShared {
-    fn clear_lagrange_multipliers(&mut self) {
-        self.total_lagrange = AngularVector::ZERO;
-    }
-
-    fn total_rotation_lagrange(&self) -> AngularVector {
-        self.total_lagrange
-    }
 }
 
 impl FixedAngleConstraintShared {
@@ -66,7 +54,7 @@ impl FixedAngleConstraintShared {
             .xyz();
 
         // Align orientation
-        self.total_lagrange += self.align_orientation(
+        self.align_orientation(
             body1,
             body2,
             inv_inertia1,

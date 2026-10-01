@@ -430,15 +430,3 @@ impl SpatialQuery<'_, '_> {
         });
     }
 }
-
-/// The result of a [point projection](spatial_query#point-projection) on a [collider](Collider).
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
-pub struct PointProjection {
-    /// The entity of the collider that the point was projected onto.
-    pub entity: Entity,
-    /// The point where the point was projected.
-    pub point: Vector,
-    /// True if the point was inside of the collider.
-    pub is_inside: bool,
-}

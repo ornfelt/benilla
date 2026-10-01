@@ -20,8 +20,6 @@ pub struct RevoluteJointSolverData {
     pub(super) a2: Vector,
     pub(super) b1: Vector,
     pub(super) b2: Vector,
-    pub(super) total_align_lagrange: AngularVector,
-    pub(super) total_limit_lagrange: AngularVector,
     /// Accumulated motor Lagrange multiplier for this frame.
     pub(super) total_motor_lagrange: AngularVector,
     /// Motor Lagrange multiplier from the previous frame, used for warm starting.
@@ -31,24 +29,9 @@ pub struct RevoluteJointSolverData {
 
 impl XpbdConstraintSolverData for RevoluteJointSolverData {
     fn clear_lagrange_multipliers(&mut self) {
-        self.point_constraint.clear_lagrange_multipliers();
-        self.total_align_lagrange = AngularVector::ZERO;
-        self.total_limit_lagrange = AngularVector::ZERO;
         // Save motor lagrange for warm starting before clearing.
         self.warm_start_motor_lagrange = self.total_motor_lagrange;
         self.total_motor_lagrange = AngularVector::ZERO;
-    }
-
-    fn total_motor_lagrange(&self) -> Scalar {
-        self.total_motor_lagrange.length()
-    }
-
-    fn total_position_lagrange(&self) -> Vector {
-        self.point_constraint.total_position_lagrange()
-    }
-
-    fn total_rotation_lagrange(&self) -> AngularVector {
-        self.total_align_lagrange + self.total_limit_lagrange + self.total_motor_lagrange
     }
 }
 
@@ -110,7 +93,7 @@ impl XpbdConstraint<2> for RevoluteJoint {
             let a2 = body2.delta_rotation * solver_data.a2;
             let difference = a1.cross(a2);
 
-            solver_data.total_align_lagrange += self.align_orientation(
+            self.align_orientation(
                 body1,
                 body2,
                 inv_angular_inertia1,
@@ -198,7 +181,7 @@ impl RevoluteJoint {
             return;
         };
 
-        solver_data.total_limit_lagrange += self.align_orientation(
+        self.align_orientation(
             body1,
             body2,
             inv_angular_inertia1,

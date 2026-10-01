@@ -19,7 +19,6 @@ pub struct PrismaticJointSolverData {
     pub(super) world_r2: Vector,
     pub(super) center_difference: Vector,
     pub(super) free_axis1: Vector,
-    pub(super) total_position_lagrange: Vector,
     pub(super) angle_constraint: FixedAngleConstraintShared,
     /// Accumulated motor Lagrange multiplier for this frame.
     pub(super) total_motor_lagrange: Scalar,
@@ -30,23 +29,9 @@ pub struct PrismaticJointSolverData {
 
 impl XpbdConstraintSolverData for PrismaticJointSolverData {
     fn clear_lagrange_multipliers(&mut self) {
-        self.total_position_lagrange = Vector::ZERO;
-        self.angle_constraint.clear_lagrange_multipliers();
         // Save motor lagrange for warm starting before clearing.
         self.warm_start_motor_lagrange = self.total_motor_lagrange;
         self.total_motor_lagrange = 0.0;
-    }
-
-    fn total_position_lagrange(&self) -> Vector {
-        self.total_position_lagrange
-    }
-
-    fn total_rotation_lagrange(&self) -> AngularVector {
-        self.angle_constraint.total_rotation_lagrange()
-    }
-
-    fn total_motor_lagrange(&self) -> Scalar {
-        self.total_motor_lagrange
     }
 }
 
@@ -222,7 +207,6 @@ impl PrismaticJoint {
         let delta_lagrange =
             compute_lagrange_update(0.0, magnitude, &[w1, w2], self.align_compliance, dt);
         let impulse = delta_lagrange * dir;
-        solver_data.total_position_lagrange += impulse;
 
         // Apply positional correction to align the positions of the bodies
         self.apply_positional_impulse(
@@ -325,7 +309,6 @@ impl PrismaticJoint {
         solver_data.total_motor_lagrange += delta_lagrange;
 
         let impulse = delta_lagrange * axis1;
-        solver_data.total_position_lagrange += impulse;
 
         // Negate impulse: apply_positional_impulse convention is opposite to motor direction.
         self.apply_positional_impulse(

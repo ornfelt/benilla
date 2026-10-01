@@ -33,13 +33,6 @@ impl<N, E> Default for StableUnGraph<N, E> {
 }
 
 impl<N, E> StableUnGraph<N, E> {
-    /// Returns the number of edges in the graph.
-    ///
-    /// Computes in **O(1)** time.
-    pub fn edge_count(&self) -> usize {
-        self.edge_ids.len()
-    }
-
     /// Adds a node (also called vertex) with associated data `weight` to the graph.
     ///
     /// Computes in **O(1)** time.
@@ -195,12 +188,6 @@ impl<N, E> StableUnGraph<N, E> {
         edge.weight.as_mut()
     }
 
-    /// Accesses the source and target nodes for `e`.
-    pub fn edge_endpoints(&self, e: EdgeIndex) -> Option<(NodeIndex, NodeIndex)> {
-        let edge = self.graph.edges.get(e.index())?;
-        Some((edge.source(), edge.target()))
-    }
-
     /// Removes `a` from the graph if it exists, calling `edge_callback` for each of its edges
     /// right before removal, and returns its weight. If it doesn't exist in the graph, returns `None`.
     ///
@@ -273,49 +260,6 @@ impl<N, E> StableUnGraph<N, E> {
         edge_slot.weight.take()
     }
 
-    /// Returns an iterator of all nodes with an edge connected to `a`.
-    ///
-    /// Produces an empty iterator if the node doesn't exist.
-    ///
-    /// The iterator element type is `NodeIndex`.
-    pub fn neighbors(&self, a: NodeIndex) -> Neighbors<'_, E> {
-        Neighbors {
-            skip_start: a,
-            edges: &self.graph.edges,
-            next: match self.get_node(a) {
-                None => [EdgeIndex::END, EdgeIndex::END],
-                Some(n) => n.next,
-            },
-        }
-    }
-
-    /// Returns an iterator of all edges connected to `a`.
-    ///
-    /// Produces an empty iterator if the node doesn't exist.
-    ///
-    /// The iterator element type is `EdgeReference<E>`.
-    pub fn edges(&self, a: NodeIndex) -> Edges<'_, E> {
-        Edges {
-            skip_start: a,
-            edges: &self.graph.edges,
-            direction: EdgeDirection::Outgoing,
-            next: match self.get_node(a) {
-                None => [EdgeIndex::END, EdgeIndex::END],
-                Some(n) => n.next,
-            },
-        }
-    }
-
-    /// Returns an iterator over all edges between `a` and `b`.
-    ///
-    /// The iterator element type is `EdgeReference<E>`.
-    pub fn edges_between(&self, a: NodeIndex, b: NodeIndex) -> EdgesBetween<'_, E> {
-        EdgesBetween {
-            target_node: b,
-            edges: self.edges(a),
-        }
-    }
-
     /// Returns an iterator yielding immutable access to edge weights for edges from or to `a`.
     pub fn edge_weights(&self, a: NodeIndex) -> EdgeWeights<'_, E> {
         EdgeWeights {
@@ -337,170 +281,6 @@ impl<N, E> StableUnGraph<N, E> {
     }
 }
 
-/// An iterator over the neighbors of a node.
-///
-/// The iterator element type is `NodeIndex`.
-#[derive(Debug)]
-pub struct Neighbors<'a, E: 'a> {
-    /// The starting node to skip over.
-    skip_start: NodeIndex,
-
-    /// The edges to iterate over.
-    edges: &'a [Edge<Option<E>>],
-
-    /// The next edge to visit.
-    next: [EdgeIndex; 2],
-}
-
-impl<E> Iterator for Neighbors<'_, E> {
-    type Item = NodeIndex;
-
-    fn next(&mut self) -> Option<NodeIndex> {
-        // First any outgoing edges.
-        match self.edges.get(self.next[0].index()) {
-            None => {}
-            Some(edge) => {
-                debug_assert!(edge.weight.is_some());
-                self.next[0] = edge.next[0];
-                return Some(edge.node[1]);
-            }
-        }
-
-        // Then incoming edges.
-        // For an "undirected" iterator, make sure we don't double
-        // count self-loops by skipping them in the incoming list.
-        while let Some(edge) = self.edges.get(self.next[1].index()) {
-            debug_assert!(edge.weight.is_some());
-            self.next[1] = edge.next[1];
-            if edge.node[0] != self.skip_start {
-                return Some(edge.node[0]);
-            }
-        }
-        None
-    }
-}
-
-impl<E> Clone for Neighbors<'_, E> {
-    fn clone(&self) -> Self {
-        Neighbors {
-            skip_start: self.skip_start,
-            edges: self.edges,
-            next: self.next,
-        }
-    }
-}
-
-/// An iterator over edges from or to a node.
-pub struct Edges<'a, E: 'a> {
-    /// The starting node to skip over.
-    skip_start: NodeIndex,
-
-    /// The edges to iterate over.
-    edges: &'a [Edge<Option<E>>],
-
-    /// The next edge to visit.
-    next: [EdgeIndex; 2],
-
-    /// The direction of edges.
-    direction: EdgeDirection,
-}
-
-impl<'a, E> Iterator for Edges<'a, E> {
-    type Item = EdgeReference<'a, E>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Outgoing
-        let i = self.next[0].index();
-        if let Some(Edge {
-            node,
-            weight: Some(weight),
-            next,
-            ..
-        }) = self.edges.get(i)
-        {
-            self.next[0] = next[0];
-            return Some(EdgeReference {
-                index: EdgeIndex(i as u32),
-                node: if self.direction == EdgeDirection::Incoming {
-                    swap_pair(*node)
-                } else {
-                    *node
-                },
-                weight,
-            });
-        }
-
-        // Incoming
-        while let Some(Edge {
-            node,
-            weight: Some(weight),
-            next,
-        }) = self.edges.get(self.next[1].index())
-        {
-            let edge_index = self.next[1];
-            self.next[1] = next[1];
-
-            // In any of the "both" situations, self-loops would be iterated over twice.
-            // Skip them here.
-            if node[0] == self.skip_start {
-                continue;
-            }
-
-            return Some(EdgeReference {
-                index: edge_index,
-                node: if self.direction == EdgeDirection::Outgoing {
-                    swap_pair(*node)
-                } else {
-                    *node
-                },
-                weight,
-            });
-        }
-
-        None
-    }
-}
-
-impl<E> Clone for Edges<'_, E> {
-    fn clone(&self) -> Self {
-        Edges {
-            skip_start: self.skip_start,
-            edges: self.edges,
-            next: self.next,
-            direction: self.direction,
-        }
-    }
-}
-
-/// Iterator over the edges between a source node and a target node.
-#[derive(Clone)]
-pub struct EdgesBetween<'a, E: 'a> {
-    target_node: NodeIndex,
-    edges: Edges<'a, E>,
-}
-
-impl<'a, E> Iterator for EdgesBetween<'a, E> {
-    type Item = EdgeReference<'a, E>;
-
-    fn next(&mut self) -> Option<EdgeReference<'a, E>> {
-        let target_node = self.target_node;
-        self.edges
-            .by_ref()
-            .find(|&edge| edge.target() == target_node)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let (_, upper) = self.edges.size_hint();
-        (0, upper)
-    }
-}
-
-fn swap_pair<T>(mut x: [T; 2]) -> [T; 2] {
-    x.swap(0, 1);
-    x
-}
-
-// TODO: Reduce duplication between `Edges` variants.
 /// An iterator over edge weights for edges from or to a node.
 pub struct EdgeWeights<'a, E: 'a> {
     /// The starting node to skip over.
@@ -560,44 +340,5 @@ impl<E> Clone for EdgeWeights<'_, E> {
             next: self.next,
             direction: self.direction,
         }
-    }
-}
-
-/// A reference to a graph edge.
-#[derive(Debug)]
-pub struct EdgeReference<'a, E: 'a> {
-    index: EdgeIndex,
-    node: [NodeIndex; 2],
-    weight: &'a E,
-}
-
-impl<'a, E: 'a> EdgeReference<'a, E> {
-    /// Returns the target node index.
-    #[inline]
-    pub fn target(&self) -> NodeIndex {
-        self.node[1]
-    }
-
-    /// Returns the weight of the edge.
-    #[inline]
-    pub fn weight(&self) -> &'a E {
-        self.weight
-    }
-}
-
-impl<E> Clone for EdgeReference<'_, E> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<E> Copy for EdgeReference<'_, E> {}
-
-impl<E> PartialEq for EdgeReference<'_, E>
-where
-    E: PartialEq,
-{
-    fn eq(&self, rhs: &Self) -> bool {
-        self.index == rhs.index && self.weight == rhs.weight
     }
 }

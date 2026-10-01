@@ -8,9 +8,7 @@ use crate::{
     AngularVelocity, LinearVelocity, PhysicsSchedule, Position, RigidBody, RigidBodyActiveFilter,
     RigidBodyDisabled, Rotation, Sleeping, SolverSystems, Vector,
     dynamics::solver::{SolverDiagnostics, solver_body::SolverBodyFlags},
-    prelude::{
-        AppDiagnosticsExt, ComputedAngularInertia, ComputedCenterOfMass, ComputedMass, LockedAxes,
-    },
+    prelude::{AppDiagnosticsExt, ComputedAngularInertia, ComputedCenterOfMass, ComputedMass},
 };
 use crate::{
     MatExt,
@@ -204,25 +202,18 @@ fn prepare_solver_bodies(
             solver_body.delta_position = Vector::ZERO;
             solver_body.delta_rotation = Rotation::IDENTITY;
 
-            // No body has `LockedAxes` (no longer a component): no axis is locked.
-            let locked_axes = LockedAxes::default();
             *inertial_properties = SolverBodyInertia::new(
                 mass.inverse(),
                 angular_inertia.rotated(rotation.0).inverse(),
-                locked_axes,
-                0,
                 rb.is_dynamic(),
             );
-            solver_body.flags = SolverBodyFlags(locked_axes.to_bits() as u32);
+            solver_body.flags = SolverBodyFlags::empty();
             solver_body
                 .flags
                 .set(SolverBodyFlags::IS_KINEMATIC, rb.is_kinematic());
 
             {
-                // Only compute gyroscopic motion if the following conditions are met:
-                //
-                // 1. Rotation is unlocked on at least one axis.
-                // 2. The inertia tensor is not isotropic.
+                // Only compute gyroscopic motion if the inertia tensor is not isotropic.
                 //
                 // If the inertia tensor is isotropic, it is invariant under all rotations,
                 // and the same around any axis passing through the object's center of mass.
@@ -237,8 +228,7 @@ fn prepare_solver_bodies(
                 // TODO: Should we scale the epsilon based on the `PhysicsLengthUnit`?
                 // TODO: We should only do this when the body is added or the local inertia tensor is changed.
                 let epsilon = 1e-6;
-                let is_gyroscopic = !locked_axes.is_rotation_locked()
-                    && !angular_inertia.inverse().is_isotropic(epsilon);
+                let is_gyroscopic = !angular_inertia.inverse().is_isotropic(epsilon);
 
                 solver_body
                     .flags
