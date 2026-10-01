@@ -44,13 +44,7 @@ default = [
     "std",
     "bevy_ecs/default",
 ]
-dynamic_linking = []
-serialize = [
-    "dep:serde",
-    "bevy_platform/serialize",
-]
 std = [
-    "serde?/std",
     "bevy_ecs/std",
     "bevy_app/std",
     "bevy_platform/std",
@@ -80,15 +74,6 @@ version = "1.1.0"
 [dependencies.log]
 version = "0.4"
 default-features = false
-
-[dependencies.serde]
-version = "1.0"
-features = ["alloc"]
-optional = true
-default-features = false
-
-[dev-dependencies.serde_test]
-version = "1.0"
 
 [target.'cfg(all(target_os="macos"))'.dependencies.sysinfo]
 version = "0.37.0"

@@ -381,7 +381,6 @@ impl From<BVec2> for IgnoreScroll {
     Visibility,
     ZIndex
 )]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Node {
     /// Which layout algorithm to use when laying out this node's contents:
     ///   - [`Display::Flex`]: Use the Flexbox layout algorithm
@@ -692,7 +691,6 @@ impl Default for Node {
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-items>
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum AlignItems {
     /// The items are packed in their default position as if no alignment was applied.
     Default,
@@ -729,7 +727,6 @@ impl Default for AlignItems {
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-self>
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum AlignSelf {
     /// Use the parent node's [`AlignItems`] value to determine how this item should be aligned.
     Auto,
@@ -766,7 +763,6 @@ impl Default for AlignSelf {
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-content>
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum AlignContent {
     /// The items are packed in their default position as if no alignment was applied.
     Default,
@@ -807,7 +803,6 @@ impl Default for AlignContent {
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-content>
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum JustifyContent {
     /// The items are packed in their default position as if no alignment was applied.
     Default,
@@ -847,7 +842,6 @@ impl Default for JustifyContent {
 ///
 /// Part of the [`Node`] component.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum Display {
     /// Use Flexbox layout model to determine the position of this [`Node`]'s children.
     Flex,
@@ -874,7 +868,6 @@ impl Default for Display {
 ///
 /// See: <https://developer.mozilla.org/en-US/docs/Web/CSS/box-sizing>
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum BoxSizing {
     /// Length styles like width and height refer to the "border box" size (size including padding and border)
     BorderBox,
@@ -894,7 +887,6 @@ impl Default for BoxSizing {
 
 /// Defines how flexbox items are ordered within a flexbox
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FlexDirection {
     /// Same way as text direction along the main axis.
     Row,
@@ -918,7 +910,6 @@ impl Default for FlexDirection {
 
 /// Whether to show or hide overflowing items
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Overflow {
     /// Whether to show or clip overflowing items on the x axis
     pub x: OverflowAxis,
@@ -993,7 +984,6 @@ impl Default for Overflow {
 
 /// Whether to show or hide overflowing items
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum OverflowAxis {
     /// Show overflowing items.
     Visible,
@@ -1022,7 +1012,6 @@ impl Default for OverflowAxis {
 
 /// The bounds of the visible area when a UI node is clipped.
 #[derive(Default, Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct OverflowClipMargin {
     /// Visible unclipped area
     pub visual_box: OverflowClipBox,
@@ -1040,7 +1029,6 @@ impl OverflowClipMargin {
 
 /// Used to determine the bounds of the visible area when a UI node is clipped.
 #[derive(Default, Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum OverflowClipBox {
     /// Clip any content that overflows outside the content box
     ContentBox,
@@ -1053,7 +1041,6 @@ pub enum OverflowClipBox {
 
 /// The strategy used to position this node
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum PositionType {
     /// Relative to all other nodes with the [`PositionType::Relative`] value.
     Relative,
@@ -1073,7 +1060,6 @@ impl Default for PositionType {
 
 /// Defines if flexbox items appear on a single line or on multiple lines
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FlexWrap {
     /// Single line, will overflow if needed.
     NoWrap,
@@ -1097,7 +1083,6 @@ impl Default for FlexWrap {
 ///
 /// This serves as the "fill" color.
 #[derive(Component, Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct BackgroundColor(pub Color);
 
 impl BackgroundColor {
@@ -1119,7 +1104,6 @@ impl<T: Into<Color>> From<T> for BackgroundColor {
 
 /// The border color of the UI node.
 #[derive(Component, Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct BorderColor {
     pub top: Color,
     pub right: Color,
@@ -1180,7 +1164,6 @@ impl Default for BorderColor {
 }
 
 #[derive(Component, Copy, Clone, Default, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 /// The [`Outline`] component adds an outline outside the edge of a UI node.
 /// Outlines do not take up space in the layout.
 ///
@@ -1335,7 +1318,6 @@ pub struct GlobalZIndex(pub i32);
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius>
 #[derive(Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct BorderRadius {
     pub top_left: Val,
     pub top_right: Val,
@@ -1491,7 +1473,6 @@ impl From<ResolvedBorderRadius> for [f32; 4] {
 }
 
 #[derive(Component, Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 /// This component can be added to any UI node to modify its layout behavior.
 pub struct LayoutConfig {
     /// If set to true the coordinates for this node and its descendents will be rounded to the nearest physical pixel.

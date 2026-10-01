@@ -33,8 +33,6 @@ pub struct TaskPoolBuilder {
     /// If set, we'll set up the thread pool to use at most `num_threads` threads.
     /// Otherwise use the logical core count of the system
     num_threads: Option<usize>,
-    /// If set, we'll use the given stack size rather than the system default
-    stack_size: Option<usize>,
     /// Allows customizing the name of the threads - helpful for debugging. If set, threads will
     /// be named `<thread_name> (<thread_index>)`, i.e. `"MyThreadPool (2)"`.
     thread_name: Option<String>,
@@ -56,12 +54,6 @@ impl TaskPoolBuilder {
         self
     }
 
-    /// Override the stack size of the threads created for the pool
-    pub fn stack_size(mut self, stack_size: usize) -> Self {
-        self.stack_size = Some(stack_size);
-        self
-    }
-
     /// Override the name of the threads created for the pool. If set, threads will
     /// be named `<thread_name> (<thread_index>)`, i.e. `MyThreadPool (2)`
     pub fn thread_name(mut self, thread_name: String) -> Self {
@@ -76,18 +68,6 @@ impl TaskPoolBuilder {
     pub fn on_thread_spawn(mut self, f: impl Fn() + Send + Sync + 'static) -> Self {
         let arc = Arc::new(f);
 
-        #[cfg(not(target_has_atomic = "ptr"))]
-        #[expect(
-            unsafe_code,
-            reason = "unsized coercion is an unstable feature for non-std types"
-        )]
-        // SAFETY:
-        // - Coercion from `impl Fn` to `dyn Fn` is valid
-        // - `Arc::from_raw` receives a valid pointer from a previous call to `Arc::into_raw`
-        let arc = unsafe {
-            Arc::from_raw(Arc::into_raw(arc) as *const (dyn Fn() + Send + Sync + 'static))
-        };
-
         self.on_thread_spawn = Some(arc);
         self
     }
@@ -98,18 +78,6 @@ impl TaskPoolBuilder {
     /// This will block thread termination until the callback completes.
     pub fn on_thread_destroy(mut self, f: impl Fn() + Send + Sync + 'static) -> Self {
         let arc = Arc::new(f);
-
-        #[cfg(not(target_has_atomic = "ptr"))]
-        #[expect(
-            unsafe_code,
-            reason = "unsized coercion is an unstable feature for non-std types"
-        )]
-        // SAFETY:
-        // - Coercion from `impl Fn` to `dyn Fn` is valid
-        // - `Arc::from_raw` receives a valid pointer from a previous call to `Arc::into_raw`
-        let arc = unsafe {
-            Arc::from_raw(Arc::into_raw(arc) as *const (dyn Fn() + Send + Sync + 'static))
-        };
 
         self.on_thread_destroy = Some(arc);
         self
@@ -176,11 +144,7 @@ impl TaskPool {
                 } else {
                     format!("TaskPool ({i})")
                 };
-                let mut thread_builder = thread::Builder::new().name(thread_name);
-
-                if let Some(stack_size) = builder.stack_size {
-                    thread_builder = thread_builder.stack_size(stack_size);
-                }
+                let thread_builder = thread::Builder::new().name(thread_name);
 
                 let on_thread_spawn = builder.on_thread_spawn.clone();
                 let on_thread_destroy = builder.on_thread_destroy.clone();

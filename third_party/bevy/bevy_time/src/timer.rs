@@ -23,7 +23,6 @@ use core::time::Duration;
 /// You can check how many times a timer elapsed each tick with [`Timer::times_finished_this_tick`].
 /// For non-repeating timers, this will always be 0 or 1.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
 pub struct Timer {
     stopwatch: Stopwatch,
     duration: Duration,
@@ -443,7 +442,6 @@ impl Timer {
 
 /// Specifies [`Timer`] behavior.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
 pub enum TimerMode {
     /// Run once and stop.
     #[default]

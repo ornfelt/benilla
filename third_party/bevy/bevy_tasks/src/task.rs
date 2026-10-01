@@ -9,8 +9,7 @@ use core::{
 ///
 /// Tasks are also futures themselves and yield the output of the spawned future.
 ///
-/// When a task is dropped, it gets canceled and won't be polled again. To cancel a task a bit
-/// more gracefully and wait until it stops running, use the [`Task::cancel()`] method.
+/// When a task is dropped, it gets canceled and won't be polled again.
 ///
 /// Tasks that panic get immediately canceled. Awaiting a canceled task also causes a panic.
 #[must_use = "Tasks are canceled when dropped, use `.detach()` to run them in the background."]
@@ -27,18 +26,6 @@ impl<T> Task<T> {
     /// Detaches the task to let it keep running in the background.
     pub fn detach(self) {
         self.0.detach();
-    }
-
-    /// Cancels the task and waits for it to stop running.
-    ///
-    /// Returns the task's output if it was completed just before it got canceled, or [`None`] if
-    /// it didn't complete.
-    ///
-    /// While it's possible to simply drop the [`Task`] to cancel it, this is a cleaner way of
-    /// canceling because it also waits for the task to stop running.
-    pub async fn cancel(self) -> Option<T> {
-        // Wait for the task to become canceled
-        self.0.cancel().await
     }
 
     /// Returns `true` if the current task is finished.

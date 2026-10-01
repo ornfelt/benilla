@@ -13,7 +13,6 @@ use bevy_math::{IVec2, UVec2};
 /// This component is synchronized with `winit` through `bevy_winit`, but is effectively
 /// read-only as `winit` does not support changing monitor properties.
 #[derive(Component, Debug, Clone)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Monitor {
     /// The name of the monitor
     pub name: Option<String>,
@@ -44,7 +43,6 @@ impl Monitor {
 
 /// Represents a video mode that a monitor supports
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct VideoMode {
     /// The resolution of the video mode
     pub physical_size: UVec2,

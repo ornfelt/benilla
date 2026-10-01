@@ -36,12 +36,6 @@ all-features = true
 
 [features]
 default = []
-serialize = [
-    "serde",
-    "smallvec/serde",
-    "bevy_math/serialize",
-    "bevy_platform/serialize",
-]
 
 [lib]
 name = "bevy_ui"
@@ -94,11 +88,6 @@ version = "0.18.0"
 
 [dependencies.bevy_window]
 version = "0.18.0"
-
-[dependencies.serde]
-version = "1"
-features = ["derive"]
-optional = true
 
 [dependencies.smallvec]
 version = "1"

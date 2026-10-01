@@ -90,7 +90,6 @@ use smol_str::SmolStr;
 /// [`ButtonInput<KeyCode>`](ButtonInput<KeyCode>) and
 /// [`ButtonInput<Key>`](ButtonInput<Key>) resources.
 #[derive(Message, Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct KeyboardInput {
     /// The physical key code of the key.
     ///
@@ -130,7 +129,6 @@ pub struct KeyboardInput {
 /// OS specific key combination that leads to Bevy window losing focus and not receiving any
 /// input events
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct KeyboardFocusLost;
 
 /// Updates the [`ButtonInput<KeyCode>`] and [`ButtonInput<Key>`] resources with the latest [`KeyboardInput`] events.
@@ -189,7 +187,6 @@ pub fn keyboard_input_system(
 /// - Correctly match key press and release events.
 /// - On non-web platforms, support assigning keybinds to virtually any key through a UI.
 #[derive(Debug, Clone, Ord, PartialOrd, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum NativeKeyCode {
     /// Unidentified
     Unidentified,
@@ -222,7 +219,6 @@ pub enum NativeKeyCode {
 ///
 /// The resource is updated inside of the [`keyboard_input_system`].
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[expect(
     clippy::doc_markdown,
     reason = "We use camel-case words inside `<kbd>` tags to represent keyboard keys, which are not identifiers that we should be putting inside backticks."
@@ -709,7 +705,6 @@ pub enum KeyCode {
 /// key identifier to a meaningful [`Key`] variant. This lets you use [`Key`], and let the user
 /// define keybinds which work in the presence of identifiers we haven't mapped for you yet.
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum NativeKey {
     /// Unidentified
     Unidentified,
@@ -746,7 +741,6 @@ pub enum NativeKey {
 /// Its values map 1 to 1 to winit's Key.
 #[non_exhaustive]
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[expect(
     clippy::doc_markdown,
     reason = "We use camel-case words inside `<kbd>` tags to represent keyboard keys, which are not identifiers that we should be putting inside backticks."

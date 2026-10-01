@@ -170,7 +170,6 @@ picking = [
 png = ["bevy_internal/png"]
 reflect_auto_register = ["bevy_internal/reflect_auto_register"]
 scene = ["bevy_scene"]
-serialize = ["bevy_internal/serialize"]
 smaa_luts = ["bevy_internal/smaa_luts"]
 sprite_picking = ["bevy_internal/sprite_picking"]
 std = ["bevy_internal/std"]

@@ -104,12 +104,6 @@ impl<'task, 'ticker> ThreadExecutorTicker<'task, 'ticker> {
     pub async fn tick(&self) {
         self.executor.executor.tick().await;
     }
-
-    /// Synchronously try to tick a task on the executor.
-    /// Returns false if does not find a task to tick.
-    pub fn try_tick(&self) -> bool {
-        self.executor.executor.try_tick()
-    }
 }
 
 #[cfg(test)]

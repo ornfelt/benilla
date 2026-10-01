@@ -37,7 +37,6 @@ use smallvec::SmallVec;
 ///
 /// - [`Button`](crate::widget::Button) which requires this component
 #[derive(Component, Copy, Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum Interaction {
     /// The node has been pressed.
     ///
@@ -61,7 +60,6 @@ impl Default for Interaction {
 
 /// Describes whether the node should block interactions with lower nodes
 #[derive(Component, Copy, Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FocusPolicy {
     /// Blocks interaction
     Block,

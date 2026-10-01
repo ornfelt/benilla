@@ -41,16 +41,11 @@ custom_cursor = [
 ]
 default = ["std"]
 libm = ["bevy_math/libm"]
-serialize = [
-    "serde",
-    "bevy_input/serialize",
-]
 std = [
     "bevy_app/std",
     "bevy_ecs/std",
     "bevy_input/std",
     "bevy_math/std",
-    "serde?/std",
     "raw-window-handle/std",
     "bevy_platform/std",
 ]
@@ -101,15 +96,6 @@ default-features = false
 [dependencies.raw-window-handle]
 version = "0.6"
 features = ["alloc"]
-default-features = false
-
-[dependencies.serde]
-version = "1.0"
-features = [
-    "alloc",
-    "derive",
-]
-optional = true
 default-features = false
 
 [lints.clippy]

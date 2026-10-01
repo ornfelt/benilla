@@ -37,7 +37,6 @@ use bevy_ecs::{component::Component, hierarchy::validate_parent_has_component};
 ///
 /// [transform_example]: https://github.com/bevyengine/bevy/blob/latest/examples/transforms/transform.rs
 #[derive(Debug, PartialEq, Clone, Copy, From)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "bevy-support",
     derive(Component),

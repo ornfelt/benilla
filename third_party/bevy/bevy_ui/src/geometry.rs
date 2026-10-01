@@ -7,7 +7,6 @@ use thiserror::Error;
 /// This enum allows specifying values for various [`Node`](crate::Node) properties in different units,
 /// such as logical pixels, percentages, or automatically determined values.
 #[derive(Copy, Clone, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum Val {
     /// Automatically determine the value based on the context and other [`Node`](crate::Node) properties.
     Auto,
@@ -402,7 +401,6 @@ impl TryStableInterpolate for Val {
 /// };
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct UiRect {
     /// The value corresponding to the left side of the UI rect.
     pub left: Val,

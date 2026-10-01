@@ -38,7 +38,6 @@ use {bevy_ecs::reflect::ReflectComponent, bevy_reflect::prelude::*};
 ///
 /// [transform_example]: https://github.com/bevyengine/bevy/blob/latest/examples/transforms/transform.rs
 #[derive(Debug, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "bevy-support",
     derive(Component),
@@ -48,10 +47,6 @@ use {bevy_ecs::reflect::ReflectComponent, bevy_reflect::prelude::*};
     feature = "bevy_reflect",
     derive(Reflect),
     reflect(Component, Default, PartialEq, Debug, Clone)
-)]
-#[cfg_attr(
-    all(feature = "bevy_reflect", feature = "serialize"),
-    reflect(Serialize, Deserialize)
 )]
 pub struct Transform {
     /// Position of the entity. In 2d, the last value of the `Vec3` is used for z-ordering.
@@ -369,15 +364,10 @@ impl Mul<Vec3> for Transform {
 /// mark all entities of the hierarchy as "dirty" if any of their descendants have a changed
 /// `Transform`. If this component is *not* marked `is_changed()`, propagation will halt.
 #[derive(Clone, Copy, Default, PartialEq, Debug)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "bevy-support", derive(Component))]
 #[cfg_attr(
     feature = "bevy_reflect",
     derive(Reflect),
     reflect(Component, Default, PartialEq, Debug)
-)]
-#[cfg_attr(
-    all(feature = "bevy_reflect", feature = "serialize"),
-    reflect(Serialize, Deserialize)
 )]
 pub struct TransformTreeChanged;

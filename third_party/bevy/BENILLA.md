@@ -814,6 +814,26 @@ the same repository's.
   `UnsafeEntityCell` methods this left uncalled go too (`has_read_all*`,
   `FilteredAccess::read_all_components`/`write_all_components`, `get_change_ticks(_by_id)` with
   the private `get_ticks`). No system, schedule or run-time path changed.
+- **The off `serialize` features of `bevy_input`, `bevy_window`, `bevy_diagnostic`, `bevy_time`,
+  `bevy_transform` and `bevy_ui`, and of `bevy` and `bevy_internal`.** No manifest in the build
+  names `bevy/serialize` any more, so none of them was on: their serde derives and
+  `reflect(Serialize, Deserialize)` data, `FrameCount`'s hand-written serde impls with its test,
+  the features and the `serde`/`serde_test` dependencies they enabled go, and so does
+  `bevy_diagnostic`'s off `dynamic_linking` (one `not(..)` in the `sysinfo` gate). No crate's
+  resolved features change.
+- **`bevy_tasks`, to the multi-threaded pool and the API anything calls.** The build enables
+  `multi_threaded`, `async_executor` and `futures-lite`, never `async-io`, so the single-threaded
+  pool (`single_threaded_task_pool.rs`), the `no_std` executor (`edge_executor.rs`), the
+  `async-io` and busy-wait `block_on`s, the `cfg` alias module and the two `Arc` coercions for
+  targets without pointer atomics are deleted (`block_on` is `futures_lite`'s, as it was), with
+  the `async-io`, `atomic-waker`, `crossbeam-queue` and `heapless` dependencies and the README's
+  `no_std` section. Nothing calls `ParallelIterator` (no type implements it outside its own
+  adapters) or the `futures` module (`now_or_never`, `check_ready`): `iter/` and `futures.rs` go.
+  `ParallelSliceMut::par_splat_map_mut` with its test, `TaskPoolBuilder::stack_size` (never set,
+  so every pool thread already took the system default), the pools' `try_get`, `Task::cancel` and
+  `ThreadExecutorTicker::try_tick` had no caller (marked `#[deprecated]`, the workspace checked
+  with `--all-targets`: no warning outside bevy_tasks). No system, schedule or run-time path
+  changed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
@@ -949,7 +969,7 @@ the same repository's.
   `getrandom`'s `wasm_js`, which only wasm builds compile.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
-  `bevy_transform_interpolation`'s `critical-section`, `libm`, `serialize`), each
+  `bevy_transform_interpolation`'s `critical-section` and `libm`), each
   enabling what it did minus the cut crates; `bevy`'s examples, tests, dev-dependencies, profiles
   and `dynamic_linking` are gone. The optional dependencies no kept feature reaches left with them
   (`bevy_audio`, `bevy_dev_tools`, `bevy_feathers`, `bevy_ui_widgets`, `bevy_solari`,

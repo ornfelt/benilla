@@ -44,13 +44,7 @@ default = [
     "std",
     "bevy_app/default",
 ]
-serialize = [
-    "dep:serde",
-    "bevy_ecs/serialize",
-    "bevy_platform/serialize",
-]
 std = [
-    "serde?/std",
     "bevy_ecs/std",
     "bevy_app/std",
     "bevy_platform/std",
@@ -74,12 +68,6 @@ default-features = false
 
 [dependencies.log]
 version = "0.4"
-default-features = false
-
-[dependencies.serde]
-version = "1"
-features = ["derive"]
-optional = true
 default-features = false
 
 [lints.clippy]

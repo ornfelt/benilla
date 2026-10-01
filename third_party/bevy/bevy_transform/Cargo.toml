@@ -35,7 +35,7 @@ rustdoc-args = [
 all-features = true
 
 [features]
-alloc = ["serde?/alloc"]
+alloc = []
 async_executor = [
     "std",
     "bevy_tasks/async_executor",
@@ -64,10 +64,6 @@ default = [
     "async_executor",
 ]
 libm = ["bevy_math/libm"]
-serialize = [
-    "dep:serde",
-    "bevy_math/serialize",
-]
 std = [
     "alloc",
     "bevy_app?/std",
@@ -76,7 +72,6 @@ std = [
     "bevy_math/std",
     "bevy_reflect?/std",
     "bevy_utils/parallel",
-    "serde?/std",
 ]
 
 [lib]
@@ -119,12 +114,6 @@ default-features = false
 [dependencies.derive_more]
 version = "2"
 features = ["from"]
-default-features = false
-
-[dependencies.serde]
-version = "1"
-features = ["derive"]
-optional = true
 default-features = false
 
 [dependencies.thiserror]

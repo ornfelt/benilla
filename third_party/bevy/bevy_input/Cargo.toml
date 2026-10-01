@@ -49,12 +49,6 @@ gestures = []
 keyboard = []
 libm = ["bevy_math/libm"]
 mouse = []
-serialize = [
-    "serde",
-    "smol_str?/serde",
-    "bevy_math/serialize",
-    "bevy_platform/serialize",
-]
 smol_str = [
     "dep:smol_str",
 ]
@@ -84,15 +78,6 @@ default-features = false
 
 [dependencies.bevy_platform]
 version = "0.18.0"
-default-features = false
-
-[dependencies.serde]
-version = "1"
-features = [
-    "alloc",
-    "derive",
-]
-optional = true
 default-features = false
 
 [dependencies.smol_str]

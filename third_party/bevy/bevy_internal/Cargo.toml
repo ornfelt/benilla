@@ -185,18 +185,6 @@ multi_threaded = [
 ]
 png = ["bevy_image/png"]
 reflect_auto_register = []
-serialize = [
-    "bevy_color?/serialize",
-    "bevy_input/serialize",
-    "bevy_math/serialize",
-    "bevy_scene?/serialize",
-    "bevy_time/serialize",
-    "bevy_transform/serialize",
-    "bevy_ui?/serialize",
-    "bevy_window?/serialize",
-    "bevy_platform/serialize",
-    "bevy_render?/serialize",
-]
 smaa_luts = [
     "ktx2",
     "bevy_image/zstd",

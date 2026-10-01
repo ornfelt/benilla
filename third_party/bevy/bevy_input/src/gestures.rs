@@ -13,7 +13,6 @@ use bevy_math::Vec2;
 /// - Only available on **`macOS`** and **`iOS`**.
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct PinchGesture(pub f32);
 
 /// Two-finger rotation gesture.
@@ -26,7 +25,6 @@ pub struct PinchGesture(pub f32);
 /// - Only available on **`macOS`** and **`iOS`**.
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct RotationGesture(pub f32);
 
 /// Double tap gesture.
@@ -36,7 +34,6 @@ pub struct RotationGesture(pub f32);
 /// - Only available on **`macOS`** and **`iOS`**.
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct DoubleTapGesture;
 
 /// Pan gesture.
@@ -45,5 +42,4 @@ pub struct DoubleTapGesture;
 ///
 /// - On **`iOS`**, must be enabled first
 #[derive(Message, Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct PanGesture(pub Vec2);

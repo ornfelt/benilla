@@ -23,7 +23,6 @@ use core::time::Duration;
 /// assert_eq!(stopwatch.elapsed_secs(), 0.0);
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
 pub struct Stopwatch {
     elapsed: Duration,
     is_paused: bool,

@@ -1,12 +1,6 @@
-//! Provides a fundamental executor primitive appropriate for the target platform
-//! and feature set selected.
-//! By default, the `async_executor` feature will be enabled, which will rely on
-//! [`async-executor`] for the underlying implementation. This requires `std`,
-//! so is not suitable for `no_std` contexts. Instead, you must use `edge_executor`,
-//! which relies on the alternate [`edge-executor`] backend.
+//! Provides a fundamental executor primitive, built on [`async-executor`].
 //!
 //! [`async-executor`]: https://crates.io/crates/async-executor
-//! [`edge-executor`]: https://crates.io/crates/edge-executor
 
 use core::{
     fmt,
@@ -14,19 +8,10 @@ use core::{
 };
 use derive_more::{Deref, DerefMut};
 
-crate::cfg::async_executor! {
-    if {
-        type ExecutorInner<'a> = async_executor::Executor<'a>;
-        type LocalExecutorInner<'a> = async_executor::LocalExecutor<'a>;
-    } else {
-        type ExecutorInner<'a> = crate::edge_executor::Executor<'a, 64>;
-        type LocalExecutorInner<'a> = crate::edge_executor::LocalExecutor<'a, 64>;
-    }
-}
+type ExecutorInner<'a> = async_executor::Executor<'a>;
+type LocalExecutorInner<'a> = async_executor::LocalExecutor<'a>;
 
-crate::cfg::multi_threaded! {
-    pub use async_task::FallibleTask;
-}
+pub use async_task::FallibleTask;
 
 /// Wrapper around a multi-threading-aware async executor.
 /// Spawning will generally require tasks to be `Send` and `Sync` to allow multiple

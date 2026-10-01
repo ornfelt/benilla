@@ -78,7 +78,6 @@
 ///
 /// [`window_settings`]: https://github.com/bevyengine/bevy/blob/latest/examples/window/window_settings.rs
 #[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum SystemCursorIcon {
     /// The platform-dependent default cursor. Often rendered as arrow.
     #[default]
