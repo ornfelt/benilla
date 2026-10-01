@@ -3,10 +3,7 @@ use crate::{
         integrator::{
             self, CustomVelocityIntegration, IntegrationSystems, VelocityIntegrationData,
         },
-        solver::{
-            SolverDiagnostics,
-            solver_body::{SolverBody, SolverBodyInertia},
-        },
+        solver::solver_body::{SolverBody, SolverBodyInertia},
     },
     prelude::*,
 };
@@ -198,11 +195,8 @@ fn apply_local_acceleration(
         (&mut SolverBody, &AccumulatedLocalAcceleration, &Rotation),
         Without<CustomVelocityIntegration>,
     >,
-    mut diagnostics: ResMut<SolverDiagnostics>,
     time: Res<Time<Substeps>>,
 ) {
-    let start = crate::utils::Instant::now();
-
     let delta_secs = time.delta_secs_f64() as Scalar;
 
     bodies
@@ -223,8 +217,6 @@ fn apply_local_acceleration(
                 body.angular_velocity += world_angular_acceleration * delta_secs;
             }
         });
-
-    diagnostics.integrate_velocities += start.elapsed();
 }
 
 fn clear_accumulated_local_acceleration(mut query: Query<&mut AccumulatedLocalAcceleration>) {

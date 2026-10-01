@@ -1,7 +1,5 @@
 use crate::{
-    collider_tree::{
-        ColliderTree, ColliderTreeDiagnostics, ColliderTreeSystems, ColliderTreeType, ColliderTrees,
-    },
+    collider_tree::{ColliderTree, ColliderTreeSystems, ColliderTreeType, ColliderTrees},
     data_structures::stable_vec::StableVec,
     prelude::*,
 };
@@ -166,10 +164,7 @@ fn optimize_trees(
     mut collider_trees: ResMut<ColliderTrees>,
     mut optimization_tasks: ResMut<OptimizationTasks>,
     optimization_settings: Res<ColliderTreeOptimization>,
-    mut diagnostics: ResMut<ColliderTreeDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     let task_pool = AsyncComputeTaskPool::get();
 
     let use_async_tasks = optimization_settings.use_async_tasks;
@@ -218,8 +213,6 @@ fn optimize_trees(
             optimize_tree_in_place(tree, optimization_strategy);
         }
     }
-
-    diagnostics.optimize += start.elapsed();
 }
 
 fn optimize_tree_in_place(tree: &mut ColliderTree, optimization_strategy: TreeOptimizationMode) {
@@ -275,18 +268,10 @@ fn spawn_optimization_task(
 }
 
 /// Completes the [`ColliderTree`] optimization tasks started in [`optimize_trees`].
-fn block_on_optimize_trees(
-    mut commands: Commands,
-    mut optimization: ResMut<OptimizationTasks>,
-    mut diagnostics: ResMut<ColliderTreeDiagnostics>,
-) {
-    let start = crate::utils::Instant::now();
-
+fn block_on_optimize_trees(mut commands: Commands, mut optimization: ResMut<OptimizationTasks>) {
     // Complete all ongoing optimization tasks.
     optimization.drain(..).for_each(|task| {
         let mut command_queue = block_on(task);
         commands.append(&mut command_queue);
     });
-
-    diagnostics.optimize += start.elapsed();
 }

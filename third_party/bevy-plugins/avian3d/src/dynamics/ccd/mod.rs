@@ -233,7 +233,6 @@ use crate::prelude::*;
 use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use derive_more::From;
-use dynamics::solver::SolverDiagnostics;
 use parry::query::{
     NonlinearRigidMotion, ShapeCastHit, ShapeCastOptions, cast_shapes, cast_shapes_nonlinear,
 };
@@ -471,10 +470,7 @@ fn solve_swept_ccd(
     time: Res<Time>,
     contact_graph: Res<ContactGraph>,
     narrow_phase_config: Res<NarrowPhaseConfig>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     let delta_secs = time.delta_seconds_adjusted();
 
     let mut dummy_body = SolverBody::default();
@@ -613,8 +609,6 @@ fn solve_swept_ccd(
             }
         }
     }
-
-    diagnostics.swept_ccd += start.elapsed();
 }
 
 /// Computes the time of impact for the motion of two objects for Continuous Collision Detection.

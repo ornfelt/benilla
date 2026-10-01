@@ -3,9 +3,8 @@ use core::marker::PhantomData;
 
 use crate::{
     collider_tree::{
-        ColliderTree, ColliderTreeDiagnostics, ColliderTreeProxy, ColliderTreeProxyKey,
-        ColliderTreeSystems, ColliderTreeType, ColliderTrees, ProxyId,
-        tree::ColliderTreeProxyFlags,
+        ColliderTree, ColliderTreeProxy, ColliderTreeProxyKey, ColliderTreeSystems,
+        ColliderTreeType, ColliderTrees, ProxyId, tree::ColliderTreeProxyFlags,
     },
     collision::collider::EnlargedAabb,
     data_structures::bit_vec::BitVec,
@@ -95,7 +94,7 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
 
                     // TODO: Should we instead do this in `add_to_tree_on`?
                     // Update tight-fitting AABB.
-                    let context = AabbContext::new(trigger.entity, &*collider_context);
+                    let context = AabbContext::new(&*collider_context);
                     let growth = Vector::splat(contact_tolerance + collision_margin);
                     *aabb = collider
                         .aabb_with_context(pos.0, *rot, context)
@@ -685,12 +684,9 @@ fn update_solver_body_aabbs<C: AnyCollider>(
     mut enlarged_proxies: ResMut<EnlargedProxies>,
     time: Res<Time>,
     collider_context: StaticSystemParam<C::Context>,
-    mut diagnostics: ResMut<ColliderTreeDiagnostics>,
     mut last_tick: ResMut<LastDynamicKinematicAabbUpdate>,
     system_tick: SystemChangeTick,
 ) {
-    let start = crate::utils::Instant::now();
-
     let this_run = system_tick.this_run();
 
     // An upper bound on the number of proxies, for sizing the bit vectors.
@@ -734,7 +730,7 @@ fn update_solver_body_aabbs<C: AnyCollider>(
                     speculative_margin.map_or(default_speculative_margin, |margin| margin.0)
                 };
 
-                let context = AabbContext::new(collider_entity, &*collider_context);
+                let context = AabbContext::new(&*collider_context);
                 let growth = Vector::splat(contact_tolerance + collision_margin);
 
                 if speculative_margin <= 0.0 {
@@ -822,8 +818,6 @@ fn update_solver_body_aabbs<C: AnyCollider>(
     // Update the last update tick.
     // TODO: Remove this
     last_tick.0 = this_run;
-
-    diagnostics.update += start.elapsed();
 }
 
 /// Updates the AABBs of colliders that have been manually moved after the previous physics step.
@@ -831,7 +825,6 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
     mut colliders: ParamSet<(
         Query<
             (
-                Entity,
                 Ref<Position>,
                 Ref<Rotation>,
                 &mut ColliderAabb,
@@ -850,12 +843,9 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
     mut moved_proxies: ResMut<MovedProxies>,
     mut enlarged_proxies: ResMut<EnlargedProxies>,
     collider_context: StaticSystemParam<C::Context>,
-    mut diagnostics: ResMut<ColliderTreeDiagnostics>,
     last_tick: Res<LastPhysicsTick>,
     system_tick: SystemChangeTick,
 ) {
-    let start = crate::utils::Instant::now();
-
     let this_run = system_tick.this_run();
 
     // An upper bound on the number of proxies, for sizing the bit vectors.
@@ -879,7 +869,7 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
     // TODO: par-iter over all colliders, check if they have actually changed since the `LastPhysicsTick`
     let mut collider_query = colliders.p0();
     collider_query.par_iter_mut().for_each(
-        |(entity, pos, rot, mut aabb, mut enlarged_aabb, collider, collision_margin, proxy_key)| {
+        |(pos, rot, mut aabb, mut enlarged_aabb, collider, collision_margin, proxy_key)| {
             // Skip if the collider's AABB can't have changed since the last physics tick.
             if !pos.last_changed().is_newer_than(last_tick.0, this_run)
                 && !rot.last_changed().is_newer_than(last_tick.0, this_run)
@@ -891,7 +881,7 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
             let collision_margin = collision_margin.map_or(0.0, |margin| margin.0);
 
             // Update tight-fitting AABB.
-            let context = AabbContext::new(entity, &*collider_context);
+            let context = AabbContext::new(&*collider_context);
             let growth = Vector::splat(contact_tolerance + collision_margin);
             *aabb = collider
                 .aabb_with_context(pos.0, *rot, context)
@@ -967,8 +957,6 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
             tree.refit_all();
         }
     }
-
-    diagnostics.update += start.elapsed();
 }
 
 /// Updates the collider tree for the moved proxies indicated in the given bit vector.

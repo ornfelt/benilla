@@ -362,13 +362,10 @@ pub(super) struct BodyQuery {
 fn prepare_contact_constraints(
     contact_graph: Res<ContactGraph>,
     mut constraint_graph: ResMut<ConstraintGraph>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
     bodies: Query<BodyQuery, RigidBodyActiveFilter>,
     narrow_phase_config: Res<NarrowPhaseConfig>,
     contact_softness: Res<ContactSoftnessCoefficients>,
 ) {
-    let start = crate::utils::Instant::now();
-
     for color in constraint_graph.colors.iter_mut() {
         // TODO: Instead of clearing the vector, we could resize it, and just overwrite the old values in the loop below.
         //       Then the inner loop could be parallelized too.
@@ -437,13 +434,6 @@ fn prepare_contact_constraints(
             }
         }
     });
-
-    diagnostics.prepare_constraints += start.elapsed();
-    diagnostics.contact_constraint_count = constraint_graph
-        .colors
-        .iter()
-        .map(|color| color.contact_constraints.len())
-        .sum::<usize>() as u32;
 }
 
 /// Warm starts the solver by applying the impulses from the previous frame or substep.
@@ -453,10 +443,7 @@ fn warm_start(
     bodies: Query<(&mut SolverBody, &SolverBodyInertia)>,
     mut constraint_graph: ResMut<ConstraintGraph>,
     solver_config: Res<SolverConfig>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     // Warm start overflow constraints serially. They have lower priority, so they are solved first.
     for constraint in constraint_graph.colors[COLOR_OVERFLOW_INDEX]
         .contact_constraints
@@ -476,8 +463,6 @@ fn warm_start(
             warm_start_internal(&bodies, constraint, solver_config.warm_start_coefficient);
         });
     }
-
-    diagnostics.warm_start += start.elapsed();
 }
 
 fn warm_start_internal(
@@ -533,10 +518,7 @@ fn solve_contacts<const USE_BIAS: bool>(
     solver_config: Res<SolverConfig>,
     length_unit: Res<PhysicsLengthUnit>,
     time: Res<Time>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     let delta_secs = time.delta_seconds_adjusted();
     let max_overlap_solve_speed = solver_config.max_overlap_solve_speed * length_unit.0;
 
@@ -568,12 +550,6 @@ fn solve_contacts<const USE_BIAS: bool>(
                 delta_secs,
             );
         });
-    }
-
-    if USE_BIAS {
-        diagnostics.solve_constraints += start.elapsed();
-    } else {
-        diagnostics.relax_velocities += start.elapsed();
     }
 }
 
@@ -631,10 +607,7 @@ fn solve_restitution(
     mut constraint_graph: ResMut<ConstraintGraph>,
     solver_config: Res<SolverConfig>,
     length_unit: Res<PhysicsLengthUnit>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     // The restitution threshold determining the speed required for restitution to be applied.
     let threshold = solver_config.restitution_threshold * length_unit.0;
 
@@ -667,8 +640,6 @@ fn solve_restitution(
             );
         });
     }
-
-    diagnostics.apply_restitution += start.elapsed();
 }
 
 fn solve_restitution_internal(
@@ -721,10 +692,7 @@ fn solve_restitution_internal(
 fn store_contact_impulses(
     mut contact_graph: ResMut<ContactGraph>,
     mut constraint_graph: ResMut<ConstraintGraph>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     for color in constraint_graph.colors.iter_mut() {
         for constraint in &mut color.contact_constraints {
             let Some(manifold) = contact_graph.get_manifold_mut(ContactManifoldHandle {
@@ -749,8 +717,6 @@ fn store_contact_impulses(
             }
         }
     }
-
-    diagnostics.store_impulses += start.elapsed();
 }
 
 /// Applies velocity corrections caused by joint damping.

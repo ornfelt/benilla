@@ -271,12 +271,9 @@ fn update_narrow_phase<C: AnyCollider, H: CollisionHooks + 'static>(
     hooks: StaticSystemParam<H>,
     context: StaticSystemParam<C::Context>,
     mut commands: ParallelCommands,
-    mut diagnostics: ResMut<CollisionDiagnostics>,
 ) where
     for<'w, 's> SystemParamItem<'w, 's, H>: CollisionHooks,
 {
-    let start = crate::utils::Instant::now();
-
     narrow_phase.update::<H>(
         &mut collision_started_writer,
         &mut collision_ended_writer,
@@ -285,9 +282,6 @@ fn update_narrow_phase<C: AnyCollider, H: CollisionHooks + 'static>(
         &context,
         &mut commands,
     );
-
-    diagnostics.narrow_phase = start.elapsed();
-    diagnostics.contact_count = narrow_phase.contact_graph.edges.edge_count() as u32;
 }
 
 #[derive(SystemParam)]

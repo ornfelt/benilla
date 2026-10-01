@@ -5,7 +5,7 @@ use crate::{
         ColliderTree, ColliderTreeProxy, ColliderTreeProxyFlags, ColliderTreeProxyKey,
         ColliderTreeType, ColliderTrees, MovedProxies, ProxyId,
     },
-    collision::{CollisionDiagnostics, contact_types::ContactEdgeFlags},
+    collision::contact_types::ContactEdgeFlags,
     data_structures::pair_key::PairKey,
     dynamics::solver::joint_graph::JointGraph,
     prelude::*,
@@ -55,12 +55,9 @@ fn collect_collision_pairs<H: CollisionHooks>(
     par_commands: ParallelCommands,
     mut contact_graph: ResMut<ContactGraph>,
     joint_graph: Res<JointGraph>,
-    mut diagnostics: ResMut<CollisionDiagnostics>,
 ) where
     for<'w, 's> SystemParamItem<'w, 's, H>: CollisionHooks,
 {
-    let start = crate::utils::Instant::now();
-
     let hooks = hooks.into_inner();
     let mut broad_collision_pairs = Vec::<(ColliderTreeProxyKey, ColliderTreeProxyKey)>::new();
 
@@ -202,8 +199,6 @@ fn collect_collision_pairs<H: CollisionHooks>(
             );
         });
     }
-
-    diagnostics.broad_phase += start.elapsed();
 }
 
 #[inline]

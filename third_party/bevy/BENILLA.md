@@ -412,6 +412,16 @@ the same repository's.
   convex-decomposition, voxel and mesh-built shapes), `SpatialQuery`'s `ray_hits`, `cast_shape`,
   `shape_hits` and their callbacks, `ColliderTree`'s `ray_traverse_all`/`sweep_traverse_all`, with
   `VhacdParameters`, `FillMode`, `TrimeshFlags` and the `IVector` alias.
+- **avian3d's unread fields.** The diagnostics resources' timers and counters were only written
+  (the `bevy_diagnostic` writer that read them went with the feature), so `CollisionDiagnostics`,
+  `SolverDiagnostics` and `ColliderTreeDiagnostics` are fieldless like `SpatialQueryDiagnostics`,
+  each with its reset system in `PhysicsDiagnosticsSystems::Reset`, and the nineteen systems that
+  timed into them lose their `ResMut` and their `Instant` reads (the systems stay, in their sets).
+  `PhysicsInterpolationPlugin` loses its four private `*_all` flags, which only `Default` set,
+  always to `false`, with the four branches of `build` they guarded. `AabbContext` and
+  `ContactManifoldContext` lose their entities, which the one `AnyCollider` (parry's `Collider`)
+  never reads; their doc example reads `Time` only, and `update_moved_collider_aabbs`'s collider
+  query no longer fetches the `Entity` it passed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

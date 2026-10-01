@@ -263,10 +263,7 @@ fn writeback_solver_bodies(
         &mut LinearVelocity,
         &mut AngularVelocity,
     )>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = bevy::platform::time::Instant::now();
-
     query.par_iter_mut().for_each(
         |(solver_body, mut pos, mut rot, com, mut lin_vel, mut ang_vel)| {
             // Write back the position and rotation deltas,
@@ -281,8 +278,6 @@ fn writeback_solver_bodies(
             ang_vel.0 = solver_body.angular_velocity;
         },
     );
-
-    diagnostics.finalize += start.elapsed();
 }
 
 pub(crate) fn update_solver_body_angular_inertia(

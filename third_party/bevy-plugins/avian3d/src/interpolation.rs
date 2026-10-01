@@ -157,12 +157,7 @@ use crate::prelude::*;
 ///
 /// Refer to the [`bevy_transform_interpolation`] documentation for more information on how to use it.
 #[derive(Debug, Default)]
-pub struct PhysicsInterpolationPlugin {
-    interpolate_translation_all: bool,
-    interpolate_rotation_all: bool,
-    extrapolate_translation_all: bool,
-    extrapolate_rotation_all: bool,
-}
+pub struct PhysicsInterpolationPlugin;
 
 impl Plugin for PhysicsInterpolationPlugin {
     fn build(&self, app: &mut App) {
@@ -175,22 +170,6 @@ impl Plugin for PhysicsInterpolationPlugin {
         // Make the previous velocity components required for Hermite interpolation to insert them automatically.
         app.register_required_components::<TranslationHermiteEasing, PreviousLinearVelocity>();
         app.register_required_components::<RotationHermiteEasing, PreviousAngularVelocity>();
-
-        // Enable interpolation for all entities with a rigid body.
-        if self.interpolate_translation_all {
-            let _ = app.try_register_required_components::<RigidBody, TranslationInterpolation>();
-        }
-        if self.interpolate_rotation_all {
-            let _ = app.try_register_required_components::<RigidBody, RotationInterpolation>();
-        }
-
-        // Enable extrapolation for all entities with a rigid body.
-        if self.extrapolate_translation_all {
-            let _ = app.try_register_required_components::<RigidBody, TranslationExtrapolation>();
-        }
-        if self.extrapolate_rotation_all {
-            let _ = app.try_register_required_components::<RigidBody, RotationExtrapolation>();
-        }
 
         // Update previous velocity components for Hermite interpolation.
         app.add_systems(

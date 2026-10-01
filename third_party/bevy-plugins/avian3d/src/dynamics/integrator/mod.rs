@@ -8,7 +8,6 @@ use bevy::{
     ecs::{intern::Interned, query::QueryData, schedule::ScheduleLabel},
     prelude::*,
 };
-use dynamics::solver::SolverDiagnostics;
 
 use super::solver::solver_body::SolverBody;
 
@@ -236,10 +235,7 @@ pub fn pre_process_velocity_increments(
     )>,
     gravity: Res<Gravity>,
     time: Res<Time<Substeps>>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     let delta_secs = time.delta_secs_f64() as Scalar;
 
     // TODO: Do we want to skip kinematic bodies here?
@@ -276,23 +272,14 @@ pub fn pre_process_velocity_increments(
             integration.angular_increment *= delta_secs;
         },
     );
-
-    diagnostics.update_velocity_increments += start.elapsed();
 }
 
 /// Clears the velocity increments of bodies after the substepping loop.
-fn clear_velocity_increments(
-    mut bodies: Query<&mut VelocityIntegrationData, With<SolverBody>>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
-) {
-    let start = crate::utils::Instant::now();
-
+fn clear_velocity_increments(mut bodies: Query<&mut VelocityIntegrationData, With<SolverBody>>) {
     bodies.par_iter_mut().for_each(|mut integration| {
         integration.linear_increment = Vector::ZERO;
         integration.angular_increment = AngularVector::ZERO;
     });
-
-    diagnostics.update_velocity_increments += start.elapsed();
 }
 
 #[derive(QueryData)]
@@ -311,11 +298,8 @@ pub fn integrate_velocities(
         VelocityIntegrationQuery,
         (RigidBodyActiveFilter, Without<CustomVelocityIntegration>),
     >,
-    mut diagnostics: ResMut<SolverDiagnostics>,
     time: Res<Time>,
 ) {
-    let start = crate::utils::Instant::now();
-
     let delta_secs = time.delta_secs_f64() as Scalar;
 
     bodies.par_iter_mut().for_each(|mut body| {
@@ -350,8 +334,6 @@ pub fn integrate_velocities(
             }
         }
     });
-
-    diagnostics.integrate_velocities += start.elapsed();
 }
 
 /// Applies the effects of gyroscopic motion to the given angular velocity.
@@ -432,10 +414,7 @@ fn clamp_velocities(
         Query<(&mut SolverBody, &MaxLinearSpeed)>,
         Query<(&mut SolverBody, &MaxAngularSpeed)>,
     )>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     // Clamp linear velocity.
     bodies.p0().iter_mut().for_each(|(mut body, max_speed)| {
         let linear_speed_squared = body.linear_velocity.length_squared();
@@ -451,18 +430,13 @@ fn clamp_velocities(
             body.angular_velocity *= max_speed.0 / angular_speed_squared.sqrt();
         }
     });
-
-    diagnostics.integrate_velocities += start.elapsed();
 }
 
 /// Integrates the positions of bodies based on their velocities and the time step.
 pub fn integrate_positions(
     mut solver_bodies: Query<&mut SolverBody, Without<CustomPositionIntegration>>,
     time: Res<Time>,
-    mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    let start = crate::utils::Instant::now();
-
     let delta_secs = time.delta_seconds_adjusted();
 
     solver_bodies.par_iter_mut().for_each(|body| {
@@ -480,8 +454,6 @@ pub fn integrate_positions(
                 Quaternion::from_scaled_axis(*angular_velocity * delta_secs) * delta_rotation.0;
         }
     });
-
-    diagnostics.integrate_positions += start.elapsed();
 }
 
 #[cfg(test)]

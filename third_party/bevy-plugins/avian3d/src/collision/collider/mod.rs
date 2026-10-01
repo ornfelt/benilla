@@ -36,70 +36,46 @@ pub trait IntoCollider<C: AnyCollider> {
 /// Context necessary to calculate [`ColliderAabb`]s for an [`AnyCollider`]
 #[derive(Deref)]
 pub struct AabbContext<'a, 'w, 's, T: ReadOnlySystemParam> {
-    /// The entity for which the aabb is being calculated
-    pub entity: Entity,
     #[deref]
     item: &'a SystemParamItem<'w, 's, T>,
 }
 
 impl<T: ReadOnlySystemParam> Clone for AabbContext<'_, '_, '_, T> {
     fn clone(&self) -> Self {
-        Self {
-            entity: self.entity,
-            item: self.item,
-        }
+        Self { item: self.item }
     }
 }
 
 impl<'a, 'w, 's, T: ReadOnlySystemParam> AabbContext<'a, 'w, 's, T> {
     /// Construct an [`AabbContext`]
-    pub fn new(entity: Entity, item: &'a <T as SystemParam>::Item<'w, 's>) -> Self {
-        Self { entity, item }
+    pub fn new(item: &'a <T as SystemParam>::Item<'w, 's>) -> Self {
+        Self { item }
     }
 }
 
 impl AabbContext<'_, '_, '_, ()> {
     fn fake() -> Self {
-        Self {
-            entity: Entity::PLACEHOLDER,
-            item: &(),
-        }
+        Self { item: &() }
     }
 }
 
 /// Context necessary to calculate [`ContactManifold`]s for a set of [`AnyCollider`]
 #[derive(Deref)]
 pub struct ContactManifoldContext<'a, 'w, 's, T: ReadOnlySystemParam> {
-    /// The first collider entity involved in the contact.
-    pub entity1: Entity,
-    /// The second collider entity involved in the contact.
-    pub entity2: Entity,
     #[deref]
     item: &'a SystemParamItem<'w, 's, T>,
 }
 
 impl<'a, 'w, 's, T: ReadOnlySystemParam> ContactManifoldContext<'a, 'w, 's, T> {
     /// Construct a [`ContactManifoldContext`]
-    pub fn new(
-        entity1: Entity,
-        entity2: Entity,
-        item: &'a <T as SystemParam>::Item<'w, 's>,
-    ) -> Self {
-        Self {
-            entity1,
-            entity2,
-            item,
-        }
+    pub fn new(item: &'a <T as SystemParam>::Item<'w, 's>) -> Self {
+        Self { item }
     }
 }
 
 impl ContactManifoldContext<'_, '_, '_, ()> {
     fn fake() -> Self {
-        Self {
-            entity1: Entity::PLACEHOLDER,
-            entity2: Entity::PLACEHOLDER,
-            item: &(),
-        }
+        Self { item: &() }
     }
 }
 
@@ -109,24 +85,17 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
     /// A type providing additional context for collider operations.
     ///
     /// `Context` allows you to access an arbitrary [`ReadOnlySystemParam`] on
-    /// the world, for context-sensitive behavior in collider operations. You
-    /// can use this to query components on the collider entity, or get any
-    /// other necessary context from the world.
+    /// the world, for context-sensitive behavior in collider operations.
     ///
     /// # Example
     ///
     /// ```
     /// # use avian3d::{prelude::*, math::{Vector, Scalar}};
     /// # use bevy::prelude::*;
-    /// # use bevy::ecs::system::{SystemParam, lifetimeless::{SRes, SQuery}};
+    /// # use bevy::ecs::system::{SystemParam, lifetimeless::SRes};
     /// #
     /// #[derive(Component)]
     /// pub struct VoxelCollider;
-    ///
-    /// #[derive(Component)]
-    /// pub struct VoxelData {
-    ///     // collider voxel data...
-    /// }
     ///
     /// # impl ComputeMassProperties2d for VoxelCollider {
     /// #     fn mass(&self, density: f32) -> f32 {0.}
@@ -141,12 +110,8 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
     /// # }
     /// #
     /// impl AnyCollider for VoxelCollider {
-    ///     type Context = (
-    ///         // you can query extra components here
-    ///         SQuery<&'static VoxelData>,
-    ///         // or put any other read-only system param here
-    ///         SRes<Time>,
-    ///     );
+    ///     // any read-only system param
+    ///     type Context = SRes<Time>;
     ///
     /// #   fn aabb_with_context(
     /// #       &self,
@@ -166,9 +131,7 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
     ///         manifolds: &mut Vec<ContactManifold>,
     ///         context: ContactManifoldContext<Self::Context>,
     ///     ) {
-    ///         let [voxels1, voxels2] = context.0.get_many([context.entity1, context.entity2])
-    ///             .expect("our own `VoxelCollider` entities should have `VoxelData`");
-    ///         let elapsed = context.1.elapsed();
+    ///         let elapsed = context.elapsed();
     ///         // do some computation...
     /// #       unimplemented!()
     ///     }
