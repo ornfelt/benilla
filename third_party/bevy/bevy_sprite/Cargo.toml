@@ -62,9 +62,6 @@ version = "0.18.0"
 [dependencies.bevy_mesh]
 version = "0.18.0"
 
-[dependencies.bevy_reflect]
-version = "0.18.0"
-
 [dependencies.bevy_text]
 version = "0.18.0"
 optional = true

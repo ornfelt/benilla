@@ -9,21 +9,12 @@ pub use custom_cursor::*;
 pub use system_cursor::*;
 
 use bevy_ecs::component::Component;
-#[cfg(feature = "bevy_reflect")]
-use bevy_ecs::reflect::ReflectComponent;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 #[cfg(feature = "custom_cursor")]
 pub use crate::cursor::{CustomCursor, CustomCursorImage};
 
 /// Insert into a window entity to set the cursor for that window.
 #[derive(Component, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Component, Debug, Default, PartialEq, Clone)
-)]
 pub enum CursorIcon {
     #[cfg(feature = "custom_cursor")]
     /// Custom cursor image.

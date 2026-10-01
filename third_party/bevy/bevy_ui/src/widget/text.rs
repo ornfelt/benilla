@@ -10,13 +10,11 @@ use bevy_ecs::{
     component::Component,
     entity::Entity,
     query::With,
-    reflect::ReflectComponent,
     system::{Query, Res, ResMut},
     world::Ref,
 };
 use bevy_image::prelude::*;
 use bevy_math::Vec2;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_text::{
     ComputedTextBlock, CosmicFontSystem, Font, FontAtlasSet, FontHinting, LineBreak, LineHeight,
     SwashCache, TextBounds, TextColor, TextError, TextFont, TextLayout, TextLayoutInfo,
@@ -28,8 +26,7 @@ use tracing::error;
 /// UI text system flags.
 ///
 /// Used internally by [`measure_text_system`] and [`text_system`] to schedule text for processing.
-#[derive(Component, Debug, Clone, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Clone)]
 pub struct TextNodeFlags {
     /// If set then a new measure function for the text node will be created.
     needs_measure_fn: bool,
@@ -93,8 +90,7 @@ impl Default for TextNodeFlags {
 ///     parent.spawn((TextSpan::new("!"), TextColor(BLUE.into())));
 /// });
 /// ```
-#[derive(Component, Debug, Default, Clone, Deref, DerefMut, Reflect, PartialEq)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Debug, Default, Clone, Deref, DerefMut, PartialEq)]
 #[require(
     Node,
     TextLayout,
@@ -139,8 +135,7 @@ impl From<String> for Text {
 /// Adds a shadow behind text
 ///
 /// Use the `Text2dShadow` component for `Text2d` shadows
-#[derive(Component, Copy, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Default, Debug, Clone, PartialEq)]
+#[derive(Component, Copy, Clone, Debug, PartialEq)]
 pub struct TextShadow {
     /// Shadow displacement in logical pixels
     /// With a value of zero the shadow will be hidden directly behind the text

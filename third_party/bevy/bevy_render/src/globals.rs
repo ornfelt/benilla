@@ -1,7 +1,6 @@
 use crate::{extract_resource::ExtractResource, render_resource::ShaderType};
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
-use bevy_reflect::prelude::*;
 
 pub struct GlobalsPlugin;
 
@@ -13,8 +12,7 @@ impl Plugin for GlobalsPlugin {
 
 /// Contains global values useful when writing shaders.
 /// Currently only contains values related to time.
-#[derive(Default, Clone, Resource, ExtractResource, Reflect, ShaderType)]
-#[reflect(Resource, Default, Clone)]
+#[derive(Default, Clone, Resource, ExtractResource, ShaderType)]
 pub struct GlobalsUniform {
     /// The time since startup in seconds.
     /// Wraps to 0 after 1 hour.

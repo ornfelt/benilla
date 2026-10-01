@@ -70,9 +70,6 @@ version = "0.18.0"
 [dependencies.bevy_platform]
 version = "0.18.0"
 
-[dependencies.bevy_reflect]
-version = "0.18.0"
-
 [dependencies.bevy_transform]
 version = "0.18.0"
 

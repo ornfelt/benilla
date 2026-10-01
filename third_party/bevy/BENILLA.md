@@ -491,6 +491,26 @@ the same repository's.
   stays for its tests), as does `bevy_transform_interpolation`'s `serialize` with its `serde`
   dependency; avian3d stops asking `glam_matrix_extras` for `bevy_reflect` and bevy_egui drops its
   `bevy_reflect` dependency.
+- **The Bevy crates' `Reflect` derives, first part** (`bevy_ui`, `bevy_text`, `bevy_light`,
+  `bevy_pbr`, `bevy_core_pipeline`, `bevy_sprite`, `bevy_sprite_render`, `bevy_ui_render`,
+  `bevy_gizmos`, `bevy_scene`, `bevy_camera`, `bevy_render`, `bevy_mesh`, `bevy_image`,
+  `bevy_animation`, `bevy_asset`, `bevy_window`): 289 derives and 359 `#[reflect(..)]` attributes go.
+  What a bound reads keeps its derive: the gizmo config groups (`GizmoConfigGroup: Reflect`) with
+  `LightGizmoColor`, `AnimatableCurve` and `AnimatableKeyframeCurve` (the animation curve bounds),
+  and the types of the kept scene tests. An asset that lost its derive gets `#[derive(TypePath)]`
+  (`StandardMaterial`, `ColorMaterial`, `Mesh`, `AnimationClip`, `AnimationGraph`,
+  `ShaderStorageBuffer`). `bevy_image`'s and `bevy_window`'s own `bevy_reflect` features go by cfg
+  resolution, with `bevy_window`'s dependency and `bevy_internal`'s request for the feature;
+  `bevy_image`'s took the last two `register_asset_reflect` calls (`Image`, `TextureAtlasLayout`)
+  with it. With nothing calling it, `register_asset_reflect` goes, and so do `ReflectAsset` and
+  `ReflectHandle` (`reflect.rs`) and `Handle`'s reflection test, `ActiveAnimation`'s
+  `DynamicMap` test, and `bevy_ui`'s reflected `Serialize`/`Deserialize` under its off `serialize`
+  feature. Two items only reflection kept alive go: `MeshExtractableData::ExtractedToRenderWorld`
+  (only `FromReflect` could build it since the render world's extraction went) with
+  `MeshAccessError::ExtractedToRenderWorld`, and `MorphWeights::first_mesh` (always `None`).
+  `bevy_ui`, `bevy_light`, `bevy_core_pipeline`, `bevy_sprite`, `bevy_ui_render` and
+  `bevy_camera` drop their `bevy_reflect` dependency, and `bevy_reflect` loses its `wgpu-types`
+  feature, which only `bevy_camera` asked for.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

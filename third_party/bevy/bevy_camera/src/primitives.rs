@@ -1,12 +1,11 @@
 use core::borrow::Borrow;
 
-use bevy_ecs::{component::Component, entity::EntityHashMap, reflect::ReflectComponent};
+use bevy_ecs::{component::Component, entity::EntityHashMap};
 use bevy_math::{
     bounding::{Aabb3d, BoundingVolume},
     Affine3A, Mat3A, Mat4, Vec3, Vec3A, Vec4, Vec4Swizzles,
 };
 use bevy_mesh::{Mesh, VertexAttributeValues};
-use bevy_reflect::prelude::*;
 
 pub trait MeshAabb {
     /// Compute the Axis-Aligned Bounding Box of the mesh vertices in model space
@@ -57,8 +56,7 @@ impl MeshAabb for Mesh {
 /// [`NoFrustumCulling`]: crate::visibility::NoFrustumCulling
 /// [`CalculateBounds`]: crate::visibility::VisibilitySystems::CalculateBounds
 /// [`Mesh3d`]: bevy_mesh::Mesh
-#[derive(Component, Clone, Copy, Debug, Default, Reflect, PartialEq)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Aabb {
     pub center: Vec3A,
     pub half_extents: Vec3A,
@@ -258,10 +256,8 @@ impl HalfSpace {
 /// [`GlobalTransform`]: bevy_transform::components::GlobalTransform
 /// [`Camera2d`]: crate::Camera2d
 /// [`Camera3d`]: crate::Camera3d
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Clone, Copy, Debug, Default)]
 pub struct Frustum {
-    #[reflect(ignore, clone)]
     pub half_spaces: [HalfSpace; 6],
 }
 
@@ -406,10 +402,8 @@ pub const CUBE_MAP_FACES: [CubeMapFace; 6] = [
     },
 ];
 
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct CubemapFrusta {
-    #[reflect(ignore, clone)]
     pub frusta: [Frustum; 6],
 }
 
@@ -423,7 +417,7 @@ impl CubemapFrusta {
 }
 
 /// Cubemap layout defines the order of images in a packed cubemap image.
-#[derive(Default, Reflect, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum CubemapLayout {
     /// layout in a vertical cross format
     /// ```text
@@ -458,10 +452,8 @@ pub enum CubemapLayout {
     SequenceHorizontal = 3,
 }
 
-#[derive(Component, Debug, Default, Reflect, Clone)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Default, Clone)]
 pub struct CascadesFrusta {
-    #[reflect(ignore, clone)]
     pub frusta: EntityHashMap<Vec<Frustum>>,
 }
 

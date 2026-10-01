@@ -2,11 +2,9 @@ use crate::mesh::Mesh;
 use bevy_asset::{AsAssetId, AssetEvent, AssetId, Handle};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
-    change_detection::DetectChangesMut, component::Component, message::MessageReader,
-    reflect::ReflectComponent, system::Query,
+    change_detection::DetectChangesMut, component::Component, message::MessageReader, system::Query,
 };
 use bevy_platform::{collections::HashSet, hash::FixedHasher};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_transform::components::Transform;
 use derive_more::derive::From;
 
@@ -37,8 +35,7 @@ use derive_more::derive::From;
 ///     ));
 /// }
 /// ```
-#[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect, PartialEq, Eq, From)]
-#[reflect(Component, Default, Clone, PartialEq)]
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq, From)]
 #[require(Transform)]
 pub struct Mesh2d(pub Handle<Mesh>);
 
@@ -92,8 +89,7 @@ impl AsAssetId for Mesh2d {
 ///     ));
 /// }
 /// ```
-#[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect, PartialEq, Eq, From)]
-#[reflect(Component, Default, Clone, PartialEq)]
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq, From)]
 #[require(Transform)]
 pub struct Mesh3d(pub Handle<Mesh>);
 
@@ -147,6 +143,5 @@ pub fn mark_3d_meshes_as_changed_if_their_assets_changed(
 }
 
 /// A component that stores an arbitrary index used to identify the mesh instance when rendering.
-#[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect, PartialEq, Eq)]
-#[reflect(Component, Default, Clone, PartialEq)]
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq)]
 pub struct MeshTag(pub u32);

@@ -5,11 +5,9 @@ use bevy_ecs::{
     entity::{ContainsEntity, Entity, EntityEquivalent},
     lifecycle::{Add, Remove},
     observer::On,
-    reflect::ReflectComponent,
     resource::Resource,
     system::{Query, ResMut},
 };
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 /// A plugin that synchronizes entities with [`SyncToRenderWorld`] between the main world and the render world.
 ///
@@ -115,17 +113,15 @@ impl Plugin for SyncWorldPlugin {
 ///
 /// [`ExtractComponentPlugin`]: crate::extract_component::ExtractComponentPlugin
 /// [`SyncComponentPlugin`]: crate::sync_component::SyncComponentPlugin
-#[derive(Component, Copy, Clone, Debug, Default, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Copy, Clone, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct SyncToRenderWorld;
 
 /// Component added on the main world entities that are synced to the Render World in order to keep track of the corresponding render world entity.
 ///
 /// Can also be used as a newtype wrapper for render world entities.
-#[derive(Component, Deref, Copy, Clone, Debug, Eq, Hash, PartialEq, Reflect)]
+#[derive(Component, Deref, Copy, Clone, Debug, Eq, Hash, PartialEq)]
 #[component(clone_behavior = Ignore)]
-#[reflect(Component, Clone)]
 pub struct RenderEntity(Entity);
 impl RenderEntity {
     #[inline]
@@ -152,8 +148,7 @@ unsafe impl EntityEquivalent for RenderEntity {}
 /// Component added on the render world entities to keep track of the corresponding main world entity.
 ///
 /// Can also be used as a newtype wrapper for main world entities.
-#[derive(Component, Deref, Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Reflect)]
-#[reflect(Component, Clone)]
+#[derive(Component, Deref, Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct MainEntity(Entity);
 impl MainEntity {
     #[inline]

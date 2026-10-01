@@ -1,7 +1,4 @@
-use super::Mesh;
-use bevy_asset::Handle;
 use bevy_ecs::prelude::*;
-use bevy_reflect::prelude::*;
 
 /// Controls the [morph targets] for all child [`Mesh3d`](crate::Mesh3d) entities. In most cases, [`MorphWeights`] should be considered
 /// the "source of truth" when writing morph targets for meshes. However you can choose to write child [`MeshMorphWeights`]
@@ -16,12 +13,9 @@ use bevy_reflect::prelude::*;
 /// Add this to the parent of one or more [`Entities`](`Entity`) with a [`Mesh3d`](crate::Mesh3d) with a [`MeshMorphWeights`].
 ///
 /// [morph targets]: https://en.wikipedia.org/wiki/Morph_target_animation
-#[derive(Reflect, Default, Debug, Clone, Component)]
-#[reflect(Debug, Component, Default, Clone)]
+#[derive(Default, Debug, Clone, Component)]
 pub struct MorphWeights {
     weights: Vec<f32>,
-    /// The first mesh primitive assigned to these weights
-    first_mesh: Option<Handle<Mesh>>,
 }
 
 impl MorphWeights {
@@ -41,8 +35,7 @@ impl MorphWeights {
 /// of each morph target.
 ///
 /// [morph targets]: https://en.wikipedia.org/wiki/Morph_target_animation
-#[derive(Reflect, Default, Debug, Clone, Component)]
-#[reflect(Debug, Component, Default, Clone)]
+#[derive(Default, Debug, Clone, Component)]
 pub struct MeshMorphWeights {
     weights: Vec<f32>,
 }

@@ -7,7 +7,6 @@ use bevy_camera::{
 use bevy_color::Color;
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
-use bevy_reflect::prelude::*;
 use bevy_transform::components::Transform;
 use tracing::warn;
 
@@ -55,8 +54,7 @@ use super::{
 /// change the [`CascadeShadowConfig`] component of the entity with the [`DirectionalLight`].
 ///
 /// To control the resolution of the shadow maps, use the [`DirectionalLightShadowMap`] resource.
-#[derive(Component, Debug, Clone, Copy, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Clone, Copy)]
 #[require(
     Cascades,
     CascadesFrusta,
@@ -160,8 +158,7 @@ impl DirectionalLight {
 /// Add to a [`DirectionalLight`] to add a light texture effect.
 /// A texture mask is applied to the light source to modulate its intensity,  
 /// simulating patterns like window shadows, gobo/cookie effects, or soft falloffs.
-#[derive(Clone, Component, Debug, Reflect)]
-#[reflect(Component, Debug)]
+#[derive(Clone, Component, Debug)]
 #[require(DirectionalLight)]
 pub struct DirectionalLightTexture {
     /// The texture image. Only the R channel is read.
@@ -178,8 +175,7 @@ pub struct DirectionalLightTexture {
 /// App::new()
 ///     .insert_resource(DirectionalLightShadowMap { size: 4096 });
 /// ```
-#[derive(Resource, Clone, Debug, Reflect)]
-#[reflect(Resource, Debug, Default, Clone)]
+#[derive(Resource, Clone, Debug)]
 pub struct DirectionalLightShadowMap {
     // The width and height of each cascade.
     ///

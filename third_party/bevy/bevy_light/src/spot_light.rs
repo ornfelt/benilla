@@ -7,7 +7,6 @@ use bevy_color::Color;
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
 use bevy_math::{Affine3A, Dir3, Mat3, Mat4, Vec3};
-use bevy_reflect::prelude::*;
 use bevy_transform::components::{GlobalTransform, Transform};
 
 use crate::cluster::{ClusterVisibilityClass, GlobalVisibleClusterableObjects};
@@ -19,8 +18,7 @@ use crate::cluster::{ClusterVisibilityClass, GlobalVisibleClusterableObjects};
 /// the transform, and can be specified with [`Transform::looking_at`](Transform::looking_at).
 ///
 /// To control the resolution of the shadow maps, use the [`DirectionalLightShadowMap`](`crate::DirectionalLightShadowMap`)  resource.
-#[derive(Component, Debug, Clone, Copy, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Clone, Copy)]
 #[require(Frustum, VisibleMeshEntities, Transform, Visibility, VisibilityClass)]
 #[component(on_add = visibility::add_visibility_class::<ClusterVisibilityClass>)]
 pub struct SpotLight {
@@ -192,8 +190,7 @@ pub fn spot_light_clip_from_view(angle: f32, near_z: f32) -> Mat4 {
 /// Add to a [`SpotLight`] to add a light texture effect.
 /// A texture mask is applied to the light source to modulate its intensity,  
 /// simulating patterns like window shadows, gobo/cookie effects, or soft falloffs.
-#[derive(Clone, Component, Debug, Reflect)]
-#[reflect(Component, Debug)]
+#[derive(Clone, Component, Debug)]
 #[require(SpotLight)]
 pub struct SpotLightTexture {
     /// The texture image. Only the R channel is read.

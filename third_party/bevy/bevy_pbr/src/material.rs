@@ -6,8 +6,6 @@ use bevy_ecs::prelude::*;
 use bevy_mesh::{
     mark_3d_meshes_as_changed_if_their_assets_changed, Mesh3d, MeshVertexBufferLayoutRef,
 };
-use bevy_reflect::std_traits::ReflectDefault;
-use bevy_reflect::Reflect;
 use bevy_render::{
     alpha::AlphaMode,
     extract_resource::ExtractResource,
@@ -334,8 +332,7 @@ pub fn check_entities_needing_specialization<M>(
 }
 
 /// Default render method used for opaque materials.
-#[derive(Default, Resource, Clone, Debug, ExtractResource, Reflect)]
-#[reflect(Resource, Default, Debug, Clone)]
+#[derive(Default, Resource, Clone, Debug, ExtractResource)]
 pub struct DefaultOpaqueRendererMethod(OpaqueRendererMethod);
 
 impl DefaultOpaqueRendererMethod {
@@ -374,8 +371,7 @@ impl DefaultOpaqueRendererMethod {
 /// bandwidth usage which can be unsuitable for low end mobile or other bandwidth-constrained devices.
 ///
 /// If a material indicates `OpaqueRendererMethod::Auto`, `DefaultOpaqueRendererMethod` will be used.
-#[derive(Default, Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Default, Clone, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub enum OpaqueRendererMethod {
     #[default]
     Forward,

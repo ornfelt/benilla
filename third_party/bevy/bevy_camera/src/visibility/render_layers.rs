@@ -1,5 +1,4 @@
-use bevy_ecs::prelude::{Component, ReflectComponent};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
+use bevy_ecs::prelude::Component;
 use smallvec::SmallVec;
 
 pub const DEFAULT_LAYERS: &RenderLayers = &RenderLayers::layer(0);
@@ -15,8 +14,7 @@ pub type Layer = usize;
 /// without this component also belong to layer `0`.
 ///
 /// An empty `RenderLayers` makes the entity invisible.
-#[derive(Component, Clone, Reflect, PartialEq, Eq, PartialOrd, Ord)]
-#[reflect(Component, Default, PartialEq, Debug, Clone)]
+#[derive(Component, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RenderLayers(SmallVec<[u64; INLINE_BLOCKS]>);
 
 /// The number of memory blocks stored inline

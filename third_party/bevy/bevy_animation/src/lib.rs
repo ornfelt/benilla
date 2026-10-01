@@ -35,7 +35,7 @@ use bevy_app::{AnimationSystems, App, Plugin, PostUpdate};
 use bevy_asset::{Asset, AssetApp, AssetEventSystems, Assets};
 use bevy_ecs::{prelude::*, world::EntityMutExcept};
 use bevy_platform::{collections::HashMap, hash::NoOpHash};
-use bevy_reflect::{prelude::ReflectDefault, Reflect, TypePath};
+use bevy_reflect::TypePath;
 use bevy_time::Time;
 use bevy_transform::TransformSystems;
 use bevy_utils::{PreHashMap, PreHashMapExt, TypeIdMap};
@@ -91,11 +91,9 @@ impl VariableCurve {
 ///
 /// Because animation clips refer to targets by UUID, they can target any
 /// entity with that ID.
-#[derive(Asset, Reflect, Clone, Debug, Default)]
-#[reflect(Clone, Default)]
+#[derive(Asset, TypePath, Clone, Debug, Default)]
 pub struct AnimationClip {
     // This field is ignored by reflection because AnimationCurves can contain things that are not reflect-able
-    #[reflect(ignore, clone)]
     curves: AnimationCurves,
     duration: f32,
 }
@@ -124,8 +122,7 @@ pub type AnimationCurves = HashMap<AnimationTargetId, Vec<VariableCurve>, NoOpHa
 /// connected to a bone named `Stomach`.
 ///
 /// [UUID]: https://en.wikipedia.org/wiki/Universally_unique_identifier
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Reflect, Debug, Component)]
-#[reflect(Component, Clone)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Component)]
 pub struct AnimationTargetId(pub Uuid);
 
 impl Hash for AnimationTargetId {
@@ -152,8 +149,7 @@ impl Hash for AnimationTargetId {
 /// Note that each entity can only be animated by one animation player at a
 /// time. However, you can change [`AnimatedBy`] components at runtime and
 /// link them to a different player.
-#[derive(Clone, Copy, Component, Reflect, Debug)]
-#[reflect(Component, Clone)]
+#[derive(Clone, Copy, Component, Debug)]
 pub struct AnimatedBy(#[entities] pub Entity);
 
 impl AnimationClip {
@@ -224,8 +220,7 @@ impl AnimationClip {
 }
 
 /// Repetition behavior of an animation.
-#[derive(Reflect, Debug, PartialEq, Eq, Copy, Clone, Default)]
-#[reflect(Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum RepeatAnimation {
     /// The animation will finish after running once.
     #[default]
@@ -262,8 +257,7 @@ pub enum AnimationEvaluationError {
 /// playing, but is presently paused.
 ///
 /// A stopped animation is considered no longer active.
-#[derive(Debug, Clone, Copy, Reflect)]
-#[reflect(Clone, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct ActiveAnimation {
     /// The factor by which the weight from the [`AnimationGraph`] is multiplied.
     weight: f32,
@@ -432,8 +426,7 @@ impl ActiveAnimation {
 ///
 /// Automatically added to any root animations of a scene when it is
 /// spawned.
-#[derive(Component, Default, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Default)]
 pub struct AnimationPlayer {
     active_animations: HashMap<AnimationNodeIndex, ActiveAnimation>,
 }
@@ -991,21 +984,5 @@ impl AnimationEvaluationState {
                 .unwrap()
                 .commit(entity_mut.reborrow())
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use bevy_reflect::{DynamicMap, Map};
-
-    use super::*;
-
-    #[test]
-    fn test_animation_node_index_as_key_of_dynamic_map() {
-        let mut map = DynamicMap::default();
-        map.insert_boxed(
-            Box::new(AnimationNodeIndex::new(0)),
-            Box::new(ActiveAnimation::default()),
-        );
     }
 }

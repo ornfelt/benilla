@@ -5,7 +5,6 @@ use crate::{primitives::Frustum, visibility::VisibilitySystems};
 use bevy_app::{App, Plugin, PostUpdate};
 use bevy_ecs::prelude::*;
 use bevy_math::{ops, vec4, AspectRatio, Mat4, Rect, Vec2, Vec3A, Vec4};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect, ReflectDeserialize, ReflectSerialize};
 use bevy_transform::{components::GlobalTransform, TransformSystems};
 use derive_more::derive::From;
 use serde::{Deserialize, Serialize};
@@ -106,10 +105,8 @@ mod sealed {
 /// custom projection.
 ///
 /// The contained dynamic object can be downcast into a static type using [`CustomProjection::get`].
-#[derive(Debug, Reflect)]
-#[reflect(Default, Clone)]
+#[derive(Debug)]
 pub struct CustomProjection {
-    #[reflect(ignore)]
     dyn_projection: Box<dyn sealed::DynCameraProjection>,
 }
 
@@ -211,8 +208,7 @@ impl DerefMut for CustomProjection {
 /// frustum: the volume in 3d space that is visible to a camera.
 ///
 /// [`Camera`]: crate::camera::Camera
-#[derive(Component, Debug, Clone, Reflect, From)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Clone, From)]
 pub enum Projection {
     Perspective(PerspectiveProjection),
     Orthographic(OrthographicProjection),
@@ -268,8 +264,7 @@ impl Default for Projection {
 }
 
 /// A 3D camera projection in which distant objects appear smaller than close objects.
-#[derive(Debug, Clone, Reflect)]
-#[reflect(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct PerspectiveProjection {
     /// The vertical field of view (FOV) in radians.
     ///
@@ -505,8 +500,7 @@ impl PerspectiveProjection {
 ///    ..OrthographicProjection::default_2d()
 /// });
 /// ```
-#[derive(Default, Debug, Clone, Copy, Reflect, Serialize, Deserialize)]
-#[reflect(Serialize, Deserialize, Default, Clone)]
+#[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ScalingMode {
     /// Match the viewport size.
     ///
@@ -562,8 +556,7 @@ pub enum ScalingMode {
 ///     ..OrthographicProjection::default_2d()
 /// });
 /// ```
-#[derive(Debug, Clone, Reflect)]
-#[reflect(Debug, FromWorld, Clone)]
+#[derive(Debug, Clone)]
 pub struct OrthographicProjection {
     /// The distance of the near clipping plane in world units.
     ///

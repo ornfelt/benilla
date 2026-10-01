@@ -170,7 +170,6 @@ mod id;
 mod loader;
 mod loader_builders;
 mod path;
-mod reflect;
 mod render_asset;
 mod server;
 
@@ -185,7 +184,6 @@ pub use id::*;
 pub use loader::*;
 pub use loader_builders::{Deferred, Immediate, NestedLoader, StaticTyped};
 pub use path::*;
-pub use reflect::*;
 pub use render_asset::*;
 pub use server::*;
 
@@ -202,12 +200,11 @@ use alloc::{
 use bevy_app::{App, Plugin, PostUpdate, PreUpdate};
 use bevy_ecs::{prelude::Component, schedule::common_conditions::resource_exists};
 use bevy_ecs::{
-    reflect::AppTypeRegistry,
     schedule::{IntoScheduleConfigs, SystemSet},
     world::FromWorld,
 };
 use bevy_platform::collections::HashSet;
-use bevy_reflect::{FromReflect, GetTypeRegistration, Reflect, TypePath};
+use bevy_reflect::TypePath;
 use tracing::error;
 
 /// Provides "asset" loading and processing functionality. An [`Asset`] is a "runtime value" that is loaded from an [`AssetSource`],
@@ -523,13 +520,6 @@ pub trait AssetApp {
     ///   mutable access to this resource this causes a conflict, but they rarely actually
     ///   modify the same underlying asset.
     fn init_asset<A: Asset>(&mut self) -> &mut Self;
-    /// Registers the asset type `T` using `[App::register]`,
-    /// and adds [`ReflectAsset`] type data to `T` and [`ReflectHandle`] type data to [`Handle<T>`] in the type registry.
-    ///
-    /// This enables reflection code to access assets. For detailed information, see the docs on [`ReflectAsset`] and [`ReflectHandle`].
-    fn register_asset_reflect<A>(&mut self) -> &mut Self
-    where
-        A: Asset + Reflect + FromReflect + GetTypeRegistration;
     /// Preregisters a loader for the given extensions, that will block asset loads until a real loader
     /// is registered.
     fn preregister_asset_loader<L: AssetLoader>(&mut self, extensions: &[&str]) -> &mut Self;
@@ -587,23 +577,6 @@ impl AssetApp for App {
                 PreUpdate,
                 Assets::<A>::track_assets.in_set(AssetTrackingSystems),
             )
-    }
-
-    fn register_asset_reflect<A>(&mut self) -> &mut Self
-    where
-        A: Asset + Reflect + FromReflect + GetTypeRegistration,
-    {
-        let type_registry = self.world().resource::<AppTypeRegistry>();
-        {
-            let mut type_registry = type_registry.write();
-
-            type_registry.register::<A>();
-            type_registry.register::<Handle<A>>();
-            type_registry.register_type_data::<A, ReflectAsset>();
-            type_registry.register_type_data::<Handle<A>, ReflectHandle>();
-        }
-
-        self
     }
 
     fn preregister_asset_loader<L: AssetLoader>(&mut self, extensions: &[&str]) -> &mut Self {

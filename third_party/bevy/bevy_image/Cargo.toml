@@ -35,8 +35,7 @@ rustdoc-args = [
 all-features = true
 
 [features]
-bevy_reflect = ["bevy_math/bevy_reflect"]
-default = ["bevy_reflect"]
+default = []
 ktx2 = ["dep:ktx2"]
 png = ["image/png"]
 zstd = []

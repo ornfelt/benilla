@@ -6,7 +6,6 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     component::Component,
     entity::Entity,
-    reflect::ReflectComponent,
     resource::Resource,
     system::{Query, ResMut},
 };
@@ -14,7 +13,6 @@ use bevy_image::prelude::*;
 use bevy_log::{once, warn};
 use bevy_math::{UVec2, Vec2};
 use bevy_platform::collections::HashMap;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 use crate::{
     add_glyph_to_atlas, error::TextError, get_glyph_atlas_info, ComputedTextBlock, Font,
@@ -416,8 +414,7 @@ impl TextPipeline {
 ///
 /// Contains scaled glyphs and their size. Generated via [`TextPipeline::update_text_layout_info`] when an entity has
 /// [`TextLayout`] and [`ComputedTextBlock`] components.
-#[derive(Component, Clone, Default, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Clone, Default, Debug)]
 pub struct TextLayoutInfo {
     /// The target scale factor for this text layout
     pub scale_factor: f32,

@@ -3,14 +3,13 @@
 use bevy_camera::visibility::RenderLayers;
 pub use bevy_gizmos_macros::GizmoConfigGroup;
 
-use bevy_ecs::{reflect::ReflectResource, resource::Resource};
+use bevy_ecs::resource::Resource;
 use bevy_reflect::{std_traits::ReflectDefault, Reflect, TypePath};
 use bevy_utils::TypeIdMap;
 use core::{any::TypeId, hash::Hash, ops::Deref, panic};
 
 /// An enum configuring how line joints will be drawn.
-#[derive(Debug, Default, Copy, Clone, Reflect, PartialEq, Eq, Hash)]
-#[reflect(Default, PartialEq, Hash, Clone)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum GizmoLineJoint {
     /// Does not draw any line joints.
     #[default]
@@ -27,8 +26,7 @@ pub enum GizmoLineJoint {
 }
 
 /// An enum used to configure the style of gizmo lines, similar to CSS line-style
-#[derive(Copy, Clone, Debug, Default, PartialEq, Reflect)]
-#[reflect(Default, PartialEq, Hash, Clone)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub enum GizmoLineStyle {
     /// A solid line without any decorators
@@ -87,11 +85,9 @@ pub struct ErasedGizmoConfigGroup;
 /// A [`Resource`] storing [`GizmoConfig`] and [`GizmoConfigGroup`] structs
 ///
 /// Use `app.init_gizmo_group::<T>()` to register a custom config group.
-#[derive(Reflect, Resource, Default)]
-#[reflect(Resource, Default)]
+#[derive(Resource, Default)]
 pub struct GizmoConfigStore {
     // INVARIANT: must map TypeId::of::<T>() to correct type T
-    #[reflect(ignore)]
     store: TypeIdMap<(GizmoConfig, Box<dyn Reflect>)>,
 }
 
@@ -125,8 +121,7 @@ impl GizmoConfigStore {
 }
 
 /// A struct that stores configuration for gizmos.
-#[derive(Clone, Reflect, Debug)]
-#[reflect(Clone, Default)]
+#[derive(Clone, Debug)]
 pub struct GizmoConfig {
     /// Set to `false` to stop drawing gizmos.
     ///
@@ -165,8 +160,7 @@ impl Default for GizmoConfig {
 }
 
 /// A struct that stores configuration for gizmos.
-#[derive(Clone, Reflect, Debug)]
-#[reflect(Clone, Default)]
+#[derive(Clone, Debug)]
 pub struct GizmoLineConfig {
     /// Line width specified in pixels.
     ///

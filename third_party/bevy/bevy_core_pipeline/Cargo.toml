@@ -72,9 +72,6 @@ features = [
 ]
 default-features = false
 
-[dependencies.bevy_reflect]
-version = "0.18.0"
-
 [dependencies.bevy_render]
 version = "0.18.0"
 

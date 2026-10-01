@@ -5,7 +5,6 @@ use bevy_asset::{AsAssetId, Asset, AssetApp, AssetEventSystems, AssetId, Handle}
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_mesh::{Mesh2d, MeshVertexBufferLayoutRef};
-use bevy_reflect::{prelude::ReflectDefault, Reflect};
 use bevy_render::render_resource::{
     AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError,
 };
@@ -156,8 +155,7 @@ pub trait Material2d: AsBindGroup + Asset + Clone + Sized {
 /// ```
 ///
 /// [`MeshMaterial2d`]: crate::MeshMaterial2d
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect, From)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone, Debug, Deref, DerefMut, From)]
 pub struct MeshMaterial2d<M: Material2d>(pub Handle<M>);
 
 impl<M: Material2d> Default for MeshMaterial2d<M> {
@@ -199,8 +197,7 @@ impl<M: Material2d> AsAssetId for MeshMaterial2d<M> {
 ///
 /// This is very similar to [`AlphaMode`](bevy_render::alpha::AlphaMode) but this only applies to 2d meshes.
 /// We use a separate type because 2d doesn't support all the transparency modes that 3d does.
-#[derive(Debug, Default, Reflect, Copy, Clone, PartialEq)]
-#[reflect(Default, Debug, Clone)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub enum AlphaMode2d {
     /// Base color alpha values are overridden to be fully opaque (1.0).
     #[default]

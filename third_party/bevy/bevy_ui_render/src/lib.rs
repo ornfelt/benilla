@@ -12,8 +12,6 @@ mod ui_material_pipeline;
 
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use bevy_reflect::prelude::ReflectDefault;
-use bevy_reflect::Reflect;
 use bevy_ui::Node;
 
 pub use ui_material_pipeline::*;
@@ -70,8 +68,7 @@ pub mod stack_z_offsets {
 ///     ));
 /// }
 /// ```
-#[derive(Component, Clone, Copy, Default, Debug, Reflect, Eq, PartialEq)]
-#[reflect(Component, Default, PartialEq, Clone)]
+#[derive(Component, Clone, Copy, Default, Debug, Eq, PartialEq)]
 pub enum UiAntiAlias {
     /// UI will render with anti-aliasing
     #[default]
@@ -97,8 +94,7 @@ pub enum UiAntiAlias {
 ///     ));
 /// }
 /// ```
-#[derive(Component, Clone, Copy, Debug, Reflect, Eq, PartialEq)]
-#[reflect(Component, Default, PartialEq, Clone)]
+#[derive(Component, Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BoxShadowSamples(pub u32);
 
 impl Default for BoxShadowSamples {

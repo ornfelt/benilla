@@ -1,12 +1,10 @@
 use bevy_math::Vec2;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 /// Defines border insets that shrink a rectangle from its minimum and maximum corners.
 ///
 /// This struct is used to represent thickness or offsets from the four edges
 /// of a rectangle, with values increasing inwards.
-#[derive(Default, Copy, Clone, PartialEq, Debug, Reflect)]
-#[reflect(Clone, PartialEq, Default)]
+#[derive(Default, Copy, Clone, PartialEq, Debug)]
 pub struct BorderRect {
     /// Inset applied to the rectangle’s minimum corner
     pub min_inset: Vec2,

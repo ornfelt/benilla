@@ -2,7 +2,7 @@ use bevy_asset::Asset;
 use bevy_color::{Alpha, ColorToComponents};
 use bevy_math::{Affine2, Affine3, Mat2, Mat3, Vec2, Vec3, Vec4};
 use bevy_mesh::MeshVertexBufferLayoutRef;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
+use bevy_reflect::TypePath;
 use bevy_render::{render_asset::RenderAssets, render_resource::*, texture::GpuImage};
 use bitflags::bitflags;
 
@@ -14,8 +14,7 @@ use crate::{deferred::DEFAULT_PBR_DEFERRED_LIGHTING_PASS_ID, *};
 /// It only supports two UV attributes, [`bevy_mesh::Mesh::ATTRIBUTE_UV_0`] and
 /// [`bevy_mesh::Mesh::ATTRIBUTE_UV_1`].
 /// The default is [`UvChannel::Uv0`].
-#[derive(Reflect, Default, Debug, Clone, PartialEq, Eq)]
-#[reflect(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum UvChannel {
     #[default]
     Uv0,
@@ -27,11 +26,10 @@ pub enum UvChannel {
 /// <https://google.github.io/filament/notes/material_properties.html>.
 ///
 /// May be created directly from a [`Color`] or an [`Image`].
-#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
 #[bind_group_data(StandardMaterialKey)]
 #[data(0, StandardMaterialUniform, binding_array(10))]
 #[bindless(index_table(range(0..31)))]
-#[reflect(Default, Debug, Clone)]
 pub struct StandardMaterial {
     /// The color of the surface of the material before lighting.
     ///
@@ -664,7 +662,6 @@ pub struct StandardMaterial {
     ///
     /// [`Mesh`]: bevy_mesh::Mesh
     // TODO: include this in reflection somehow (maybe via remote types like serde https://serde.rs/remote-derive.html)
-    #[reflect(ignore, clone)]
     pub cull_mode: Option<Face>,
 
     /// Whether to apply only the base color to this material.

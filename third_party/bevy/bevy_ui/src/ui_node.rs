@@ -7,7 +7,6 @@ use bevy_color::{Alpha, Color};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{prelude::*, system::SystemParam};
 use bevy_math::{BVec2, Rect, UVec2, Vec2, Vec4, Vec4Swizzles};
-use bevy_reflect::prelude::*;
 use bevy_sprite::BorderRect;
 use bevy_utils::once;
 use bevy_window::{PrimaryWindow, WindowRef};
@@ -20,8 +19,7 @@ use tracing::warn;
 /// For example, in a scrollbar you may want to derive the handle's size from the proportion of
 /// scrollable content in-view. You can directly modify `ComputedNode` after layout to set the
 /// handle size without any delays.
-#[derive(Component, Debug, Copy, Clone, PartialEq, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Copy, Clone, PartialEq)]
 pub struct ComputedNode {
     /// The order of the node in the UI layout.
     /// Nodes with a higher stack index are drawn on top of and receive interactions before nodes with lower stack indices.
@@ -325,8 +323,7 @@ impl Default for ComputedNode {
 /// Updating the values of `ScrollPosition` will reposition the children of the node by the offset amount in logical pixels.
 /// `ScrollPosition` may be updated by the layout system when a layout change makes a previously valid `ScrollPosition` invalid.
 /// Changing this does nothing on a `Node` without setting at least one `OverflowAxis` to `OverflowAxis::Scroll`.
-#[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Debug, Clone, Default, Deref, DerefMut)]
 pub struct ScrollPosition(pub Vec2);
 
 impl ScrollPosition {
@@ -344,8 +341,7 @@ impl From<Vec2> for ScrollPosition {
 /// When an axis is set to `true`, the node will not have the parent’s scroll position applied
 /// on that axis. This can be used to keep an element visually fixed along one or both axes
 /// even when its parent UI element is scrolled.
-#[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Debug, Clone, Default, Deref, DerefMut)]
 pub struct IgnoreScroll(pub BVec2);
 
 impl From<BVec2> for IgnoreScroll {
@@ -372,7 +368,7 @@ impl From<BVec2> for IgnoreScroll {
 ///
 /// - [`Interaction`](crate::Interaction) to obtain the interaction state of this node
 
-#[derive(Component, Clone, PartialEq, Debug, Reflect)]
+#[derive(Component, Clone, PartialEq, Debug)]
 #[require(
     ComputedNode,
     ComputedUiTargetCamera,
@@ -385,12 +381,7 @@ impl From<BVec2> for IgnoreScroll {
     Visibility,
     ZIndex
 )]
-#[reflect(Component, Default, PartialEq, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Node {
     /// Which layout algorithm to use when laying out this node's contents:
     ///   - [`Display::Flex`]: Use the Flexbox layout algorithm
@@ -700,13 +691,8 @@ impl Default for Node {
 /// - For Flexbox containers, sets default cross axis alignment of the child items.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-items>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum AlignItems {
     /// The items are packed in their default position as if no alignment was applied.
     Default,
@@ -742,13 +728,8 @@ impl Default for AlignItems {
 /// - For Flexbox items, controls cross axis alignment of the item.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-self>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum AlignSelf {
     /// Use the parent node's [`AlignItems`] value to determine how this item should be aligned.
     Auto,
@@ -784,13 +765,8 @@ impl Default for AlignSelf {
 /// - For Flexbox containers, controls alignment of lines if `flex_wrap` is set to [`FlexWrap::Wrap`] and there are multiple lines of items.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/align-content>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum AlignContent {
     /// The items are packed in their default position as if no alignment was applied.
     Default,
@@ -830,13 +806,8 @@ impl Default for AlignContent {
 /// - For Flexbox containers, controls alignment of items in the main axis.
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/justify-content>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum JustifyContent {
     /// The items are packed in their default position as if no alignment was applied.
     Default,
@@ -875,13 +846,8 @@ impl Default for JustifyContent {
 /// Defines the layout model used by this node.
 ///
 /// Part of the [`Node`] component.
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum Display {
     /// Use Flexbox layout model to determine the position of this [`Node`]'s children.
     Flex,
@@ -907,13 +873,8 @@ impl Default for Display {
 /// Which part of a Node's box length styles like width and height control
 ///
 /// See: <https://developer.mozilla.org/en-US/docs/Web/CSS/box-sizing>
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum BoxSizing {
     /// Length styles like width and height refer to the "border box" size (size including padding and border)
     BorderBox,
@@ -932,13 +893,8 @@ impl Default for BoxSizing {
 }
 
 /// Defines how flexbox items are ordered within a flexbox
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FlexDirection {
     /// Same way as text direction along the main axis.
     Row,
@@ -961,13 +917,8 @@ impl Default for FlexDirection {
 }
 
 /// Whether to show or hide overflowing items
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Overflow {
     /// Whether to show or clip overflowing items on the x axis
     pub x: OverflowAxis,
@@ -1041,13 +992,8 @@ impl Default for Overflow {
 }
 
 /// Whether to show or hide overflowing items
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum OverflowAxis {
     /// Show overflowing items.
     Visible,
@@ -1075,13 +1021,8 @@ impl Default for OverflowAxis {
 }
 
 /// The bounds of the visible area when a UI node is clipped.
-#[derive(Default, Copy, Clone, PartialEq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Default, Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct OverflowClipMargin {
     /// Visible unclipped area
     pub visual_box: OverflowClipBox,
@@ -1098,13 +1039,8 @@ impl OverflowClipMargin {
 }
 
 /// Used to determine the bounds of the visible area when a UI node is clipped.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum OverflowClipBox {
     /// Clip any content that overflows outside the content box
     ContentBox,
@@ -1116,13 +1052,8 @@ pub enum OverflowClipBox {
 }
 
 /// The strategy used to position this node
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum PositionType {
     /// Relative to all other nodes with the [`PositionType::Relative`] value.
     Relative,
@@ -1141,13 +1072,8 @@ impl Default for PositionType {
 }
 
 /// Defines if flexbox items appear on a single line or on multiple lines
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
-#[reflect(Default, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FlexWrap {
     /// Single line, will overflow if needed.
     NoWrap,
@@ -1170,13 +1096,8 @@ impl Default for FlexWrap {
 /// The background color of the node
 ///
 /// This serves as the "fill" color.
-#[derive(Component, Copy, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct BackgroundColor(pub Color);
 
 impl BackgroundColor {
@@ -1197,13 +1118,8 @@ impl<T: Into<Color>> From<T> for BackgroundColor {
 }
 
 /// The border color of the UI node.
-#[derive(Component, Copy, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct BorderColor {
     pub top: Color,
     pub right: Color,
@@ -1263,13 +1179,8 @@ impl Default for BorderColor {
     }
 }
 
-#[derive(Component, Copy, Clone, Default, Debug, PartialEq, Reflect)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Copy, Clone, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 /// The [`Outline`] component adds an outline outside the edge of a UI node.
 /// Outlines do not take up space in the layout.
 ///
@@ -1345,8 +1256,7 @@ impl Outline {
 }
 
 /// The calculated clip of the node
-#[derive(Component, Default, Copy, Clone, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Default, Copy, Clone, Debug)]
 pub struct CalculatedClip {
     /// The rect of the clip
     pub clip: Rect,
@@ -1375,8 +1285,7 @@ sure it's recognized as a markdown link."
 ///
 /// Use [`GlobalZIndex`] if you need to order separate UI hierarchies or nodes that are
 /// not siblings in a given UI hierarchy.
-#[derive(Component, Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ZIndex(pub i32);
 
 /// `GlobalZIndex` allows a [`Node`] entity anywhere in the UI hierarchy to escape the implicit draw ordering of the UI's layout tree and
@@ -1385,8 +1294,7 @@ pub struct ZIndex(pub i32);
 /// Nodes with a `GlobalZIndex` of less than 0 will be drawn below nodes without a `GlobalZIndex` or nodes with a greater `GlobalZIndex`.
 ///
 /// If two Nodes have the same `GlobalZIndex`, the node with the greater [`ZIndex`] will be drawn on top.
-#[derive(Component, Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct GlobalZIndex(pub i32);
 
 /// Used to add rounded corners to a UI node. You can set a UI node to have uniformly
@@ -1426,13 +1334,8 @@ pub struct GlobalZIndex(pub i32);
 /// ```
 ///
 /// <https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius>
-#[derive(Copy, Clone, Debug, PartialEq, Reflect)]
-#[reflect(PartialEq, Default, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct BorderRadius {
     pub top_left: Val,
     pub top_right: Val,
@@ -1559,8 +1462,7 @@ impl BorderRadius {
 /// Represents the resolved border radius values for a UI node.
 ///
 /// The values are in physical pixels.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Reflect)]
-#[reflect(Clone, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct ResolvedBorderRadius {
     pub top_left: f32,
     pub top_right: f32,
@@ -1588,13 +1490,8 @@ impl From<ResolvedBorderRadius> for [f32; 4] {
     }
 }
 
-#[derive(Component, Copy, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Debug, PartialEq, Default, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 /// This component can be added to any UI node to modify its layout behavior.
 pub struct LayoutConfig {
     /// If set to true the coordinates for this node and its descendents will be rounded to the nearest physical pixel.
@@ -1621,8 +1518,7 @@ impl Default for LayoutConfig {
 /// Root node's without an explicit [`UiTargetCamera`] will be rendered to the default UI camera,
 /// which is either a single camera with the [`IsDefaultUiCamera`] marker component or the highest
 /// order camera targeting the primary window.
-#[derive(Component, Clone, Debug, Reflect, Eq, PartialEq)]
-#[reflect(Component, Debug, PartialEq, Clone)]
+#[derive(Component, Clone, Debug, Eq, PartialEq)]
 pub struct UiTargetCamera(pub Entity);
 
 impl UiTargetCamera {
@@ -1698,8 +1594,7 @@ impl<'w, 's> DefaultUiCamera<'w, 's> {
 /// Derived information about the camera target for this UI node.
 ///
 /// Updated in [`UiSystems::Prepare`](crate::UiSystems::Prepare) by [`propagate_ui_target_cameras`](crate::update::propagate_ui_target_cameras)
-#[derive(Component, Clone, Copy, Debug, Reflect, PartialEq)]
-#[reflect(Component, Default, PartialEq, Clone)]
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct ComputedUiTargetCamera {
     pub(crate) camera: Entity,
 }
@@ -1720,8 +1615,7 @@ impl ComputedUiTargetCamera {
 }
 
 /// Derived information about the render target for this UI node.
-#[derive(Component, Clone, Copy, Debug, Reflect, PartialEq)]
-#[reflect(Component, Default, PartialEq, Clone)]
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct ComputedUiRenderTargetInfo {
     /// The scale factor of the target camera's render target.
     pub(crate) scale_factor: f32,

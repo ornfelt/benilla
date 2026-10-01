@@ -24,7 +24,6 @@ use bevy_ecs::{
     message::MessageReader,
     prelude::With,
     query::QueryItem,
-    reflect::ReflectComponent,
     schedule::IntoScheduleConfigs,
     system::{Query, Res},
     world::DeferredWorld,
@@ -32,7 +31,6 @@ use bevy_ecs::{
 use bevy_image::Image;
 use bevy_math::{uvec2, UVec2};
 use bevy_platform::collections::HashSet;
-use bevy_reflect::prelude::*;
 use bevy_window::{PrimaryWindow, Window, WindowCreated, WindowResized, WindowScaleFactorChanged};
 use tracing::warn;
 
@@ -106,9 +104,7 @@ impl ExtractComponent for Camera3d {
 }
 
 /// Configures the [`RenderGraph`] name assigned to be run for a given [`Camera`] entity.
-#[derive(Component, Debug, Deref, DerefMut, Reflect, Clone)]
-#[reflect(opaque)]
-#[reflect(Component, Debug, Clone)]
+#[derive(Component, Debug, Deref, DerefMut, Clone)]
 pub struct CameraRenderGraph(InternedRenderSubGraph);
 
 impl CameraRenderGraph {
@@ -341,8 +337,7 @@ pub struct ExtractedCamera {
 /// Camera component specifying a mip bias to apply when sampling from material textures.
 ///
 /// Often used in conjunction with antialiasing post-process effects to reduce textures blurriness.
-#[derive(Component, Reflect, Clone)]
-#[reflect(Default, Component)]
+#[derive(Component, Clone)]
 pub struct MipBias(pub f32);
 
 impl Default for MipBias {

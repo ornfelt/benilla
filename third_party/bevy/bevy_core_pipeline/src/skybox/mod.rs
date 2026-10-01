@@ -1,9 +1,8 @@
 use bevy_app::{App, Plugin};
 use bevy_asset::Handle;
-use bevy_ecs::{prelude::Component, reflect::ReflectComponent};
+use bevy_ecs::prelude::Component;
 use bevy_image::Image;
 use bevy_math::Quat;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render::sync_component::SyncComponentPlugin;
 
 pub struct SkyboxPlugin;
@@ -20,8 +19,7 @@ impl Plugin for SkyboxPlugin {
 /// To do so, use `EnvironmentMapLight` alongside this component.
 ///
 /// See also <https://en.wikipedia.org/wiki/Skybox_(video_games)>.
-#[derive(Component, Clone, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone)]
 pub struct Skybox {
     pub image: Handle<Image>,
     /// Scale factor applied to the skybox image.

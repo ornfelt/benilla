@@ -1,13 +1,11 @@
 use bevy_camera::Camera;
 use bevy_color::Color;
 use bevy_ecs::prelude::*;
-use bevy_reflect::prelude::*;
 
 /// An ambient light, which lights the entire scene equally.
 ///
 /// It can be added to a camera to override [`GlobalAmbientLight`], which is the default that is otherwise used.
-#[derive(Component, Clone, Debug, Reflect)]
-#[reflect(Component, Debug, Default, Clone)]
+#[derive(Component, Clone, Debug)]
 #[require(Camera)]
 pub struct AmbientLight {
     pub color: Color,
@@ -56,8 +54,7 @@ impl Default for AmbientLight {
 /// ```
 ///
 /// [`LightPlugin`]: crate::LightPlugin
-#[derive(Resource, Clone, Debug, Reflect)]
-#[reflect(Resource, Debug, Default, Clone)]
+#[derive(Resource, Clone, Debug)]
 pub struct GlobalAmbientLight {
     pub color: Color,
 

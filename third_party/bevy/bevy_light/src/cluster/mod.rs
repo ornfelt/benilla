@@ -9,14 +9,12 @@ use bevy_ecs::{
     component::Component,
     entity::Entity,
     query::{With, Without},
-    reflect::ReflectComponent,
     resource::Resource,
     system::{Commands, Query},
 };
 use bevy_image::Image;
 use bevy_math::{AspectRatio, UVec2, UVec3, Vec3Swizzles as _};
 use bevy_platform::collections::HashSet;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_transform::components::Transform;
 use tracing::warn;
 
@@ -44,8 +42,7 @@ pub struct GlobalClusterSettings {
 
 /// Configure the far z-plane mode used for the furthest depth slice for clustered forward
 /// rendering
-#[derive(Debug, Copy, Clone, Reflect)]
-#[reflect(Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClusterFarZMode {
     /// Calculate the required maximum z-depth based on currently visible
     /// clusterable objects.  Makes better use of available clusters, speeding
@@ -57,8 +54,7 @@ pub enum ClusterFarZMode {
 }
 
 /// Configure the depth-slicing strategy for clustered forward rendering
-#[derive(Debug, Copy, Clone, Reflect)]
-#[reflect(Default, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ClusterZConfig {
     /// Far `Z` plane of the first depth slice
     pub first_slice_depth: f32,
@@ -67,8 +63,7 @@ pub struct ClusterZConfig {
 }
 
 /// Configuration of the clustering strategy for clustered forward rendering
-#[derive(Debug, Copy, Clone, Component, Reflect)]
-#[reflect(Component, Debug, Default, Clone)]
+#[derive(Debug, Copy, Clone, Component)]
 pub enum ClusterConfig {
     /// Disable cluster calculations for this view
     None,
@@ -161,8 +156,7 @@ pub struct ClusterableObjectCounts {
 /// but they require bindless textures. This means that they presently can't be
 /// used on WebGL 2, WebGPU, macOS, or iOS. Bevy's clustered decals can be used
 /// with forward or deferred rendering and don't require a prepass.
-#[derive(Component, Debug, Clone, Default, Reflect)]
-#[reflect(Component, Debug, Clone, Default)]
+#[derive(Component, Debug, Clone, Default)]
 #[require(Transform, Visibility, VisibilityClass)]
 #[component(on_add = visibility::add_visibility_class::<ClusterVisibilityClass>)]
 pub struct ClusteredDecal {

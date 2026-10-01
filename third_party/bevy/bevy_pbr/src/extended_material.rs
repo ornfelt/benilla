@@ -4,7 +4,7 @@ use bevy_asset::Asset;
 use bevy_ecs::system::SystemParamItem;
 use bevy_mesh::MeshVertexBufferLayoutRef;
 use bevy_platform::{collections::HashSet, hash::FixedHasher};
-use bevy_reflect::{impl_type_path, Reflect};
+use bevy_reflect::impl_type_path;
 use bevy_render::{
     alpha::AlphaMode,
     render_resource::{
@@ -118,9 +118,7 @@ pub trait MaterialExtension: Asset + AsBindGroup + Clone + Sized {
 /// When used with `StandardMaterial` as the base, all the standard material fields are
 /// present, so the `pbr_fragment` shader functions can be called from the extension shader (see
 /// the `extended_material` example).
-#[derive(Asset, Clone, Debug, Reflect)]
-#[reflect(type_path = false)]
-#[reflect(Clone)]
+#[derive(Asset, Clone, Debug)]
 pub struct ExtendedMaterial<B: Material, E: MaterialExtension> {
     pub base: B,
     pub extension: E,

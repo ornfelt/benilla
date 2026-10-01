@@ -1,10 +1,7 @@
 use bevy_app::prelude::*;
 use bevy_asset::{Asset, AssetApp as _, Assets, Handle};
 use bevy_math::{URect, UVec2};
-#[cfg(not(feature = "bevy_reflect"))]
 use bevy_reflect::TypePath;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 /// Adds support for texture atlases.
 pub struct TextureAtlasPlugin;
@@ -12,9 +9,6 @@ pub struct TextureAtlasPlugin;
 impl Plugin for TextureAtlasPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<TextureAtlasLayout>();
-
-        #[cfg(feature = "bevy_reflect")]
-        app.register_asset_reflect::<TextureAtlasLayout>();
     }
 }
 
@@ -24,13 +18,7 @@ impl Plugin for TextureAtlasPlugin {
 /// [Example usage animating sprite.](https://github.com/bevyengine/bevy/blob/latest/examples/2d/sprite_sheet.rs)
 /// [Example usage animating sprite in response to an event.](https://github.com/bevyengine/bevy/blob/latest/examples/2d/sprite_animation.rs)
 /// [Example usage loading sprite sheet.](https://github.com/bevyengine/bevy/blob/latest/examples/2d/texture_atlas.rs)
-#[derive(Asset, PartialEq, Eq, Debug, Clone)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
-#[cfg_attr(not(feature = "bevy_reflect"), derive(TypePath))]
+#[derive(Asset, TypePath, PartialEq, Eq, Debug, Clone)]
 pub struct TextureAtlasLayout {
     /// Total size of texture atlas.
     pub size: UVec2,
@@ -83,11 +71,6 @@ impl TextureAtlasLayout {
 /// - [`sprite animation event example`](https://github.com/bevyengine/bevy/blob/latest/examples/2d/sprite_animation.rs)
 /// - [`texture atlas example`](https://github.com/bevyengine/bevy/blob/latest/examples/2d/texture_atlas.rs)
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Default, Debug, PartialEq, Hash, Clone)
-)]
 pub struct TextureAtlas {
     /// Texture atlas layout handle
     pub layout: Handle<TextureAtlasLayout>,

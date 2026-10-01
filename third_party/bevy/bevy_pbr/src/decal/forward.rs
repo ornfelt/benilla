@@ -9,7 +9,7 @@ use bevy_ecs::{
 };
 use bevy_math::{prelude::Rectangle, Quat, Vec2, Vec3};
 use bevy_mesh::{Mesh, Mesh3d, MeshBuilder, MeshVertexBufferLayoutRef, Meshable};
-use bevy_reflect::{Reflect, TypePath};
+use bevy_reflect::TypePath;
 use bevy_render::{
     alpha::AlphaMode,
     render_asset::RenderAssets,
@@ -56,7 +56,7 @@ impl Plugin for ForwardDecalPlugin {
 /// * Looking at forward decals at a steep angle can cause distortion. This can be mitigated by padding your decal's
 ///   texture with extra transparent pixels on the edges.
 /// * On Wasm, requires using WebGPU and disabling `Msaa` on your camera.
-#[derive(Component, Reflect)]
+#[derive(Component)]
 #[require(Mesh3d)]
 #[component(on_add=forward_decal_set_mesh)]
 pub struct ForwardDecal;

@@ -10,7 +10,6 @@ use bevy_ecs::{
     world::{Mut, World},
 };
 use bevy_platform::collections::{HashMap, HashSet};
-use bevy_reflect::Reflect;
 use bevy_utils::prelude::DebugName;
 use thiserror::Error;
 use uuid::Uuid;
@@ -29,8 +28,7 @@ use bevy_ecs::{
 /// See also [`On`], [`SceneSpawner::instance_is_ready`].
 ///
 /// [`On`]: bevy_ecs::observer::On
-#[derive(Clone, Copy, Debug, Eq, PartialEq, EntityEvent, Reflect)]
-#[reflect(Debug, PartialEq, Clone)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, EntityEvent)]
 pub struct SceneInstanceReady {
     /// The entity whose scene instance is ready.
     pub entity: Entity,
@@ -48,8 +46,7 @@ struct InstanceInfo {
 }
 
 /// Unique id identifying a scene instance.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Reflect)]
-#[reflect(Debug, PartialEq, Hash, Clone)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct InstanceId(Uuid);
 
 impl InstanceId {

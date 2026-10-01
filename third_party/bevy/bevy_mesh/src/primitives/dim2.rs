@@ -3,12 +3,10 @@ use bevy_asset::RenderAssetUsages;
 
 use super::{MeshBuilder, Meshable};
 use bevy_math::{primitives::Rectangle, Vec2};
-use bevy_reflect::prelude::*;
 use wgpu_types::PrimitiveTopology;
 
 /// A builder used for creating a [`Mesh`] with a [`Rectangle`] shape.
-#[derive(Clone, Copy, Debug, Reflect)]
-#[reflect(Default, Debug, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct RectangleMeshBuilder {
     half_size: Vec2,
 }

@@ -5,10 +5,9 @@ use super::{
     ClearColorConfig, MsaaWriteback,
 };
 use bevy_asset::Handle;
-use bevy_ecs::{component::Component, entity::Entity, reflect::ReflectComponent};
+use bevy_ecs::{component::Component, entity::Entity};
 use bevy_image::Image;
 use bevy_math::{ops, Dir3, FloatOrd, Mat4, Ray3d, Rect, URect, UVec2, Vec2, Vec3, Vec3A};
-use bevy_reflect::prelude::*;
 use bevy_transform::components::{GlobalTransform, Transform};
 use bevy_window::{NormalizedWindowRef, WindowRef};
 use core::ops::Range;
@@ -21,8 +20,7 @@ use wgpu_types::{BlendState, TextureUsages};
 /// The viewport defines the area on the render target to which the camera renders its image.
 /// You can overlay multiple cameras in a single window using viewports to create effects like
 /// split screen, minimaps, and character viewers.
-#[derive(Reflect, Debug, Clone)]
-#[reflect(Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Viewport {
     /// The physical position to render this viewport to within the [`RenderTarget`] of this [`Camera`].
     /// (0,0) corresponds to the top-left corner
@@ -108,8 +106,7 @@ impl Viewport {
 /// be divided by 120 and still produce the same image. Camera D would for
 /// example have the following values:
 /// `full_size` = 32x18, `size` = 16x9, `offset` = 16,9
-#[derive(Debug, Clone, Copy, Reflect, PartialEq)]
-#[reflect(Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SubCameraView {
     /// Size of the entire camera view
     pub full_size: UVec2,
@@ -163,9 +160,7 @@ pub struct ComputedCameraValues {
 /// How much energy a [`Camera3d`](crate::Camera3d) absorbs from incoming light.
 ///
 /// <https://en.wikipedia.org/wiki/Exposure_(photography)>
-#[derive(Component, Clone, Copy, Reflect)]
-#[reflect(opaque)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone, Copy)]
 pub struct Exposure {
     /// <https://en.wikipedia.org/wiki/Exposure_value#Tabulated_exposure_values>
     pub ev100: f32,
@@ -252,8 +247,7 @@ pub enum ViewportConversionError {
 ///
 /// [`Camera2d`]: crate::Camera2d
 /// [`Camera3d`]: crate::Camera3d
-#[derive(Component, Debug, Reflect, Clone)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Clone)]
 #[require(
     Frustum,
     CameraMainTextureUsages,
@@ -271,7 +265,6 @@ pub struct Camera {
     /// camera will not be rendered.
     pub is_active: bool,
     /// Computed values for this camera, such as the projection matrix and the render target size.
-    #[reflect(ignore, clone)]
     pub computed: ComputedCameraValues,
     // todo: reflect this when #6042 lands
     /// The [`CameraOutputMode`] for this camera.
@@ -568,7 +561,7 @@ impl Camera {
 }
 
 /// Control how this [`Camera`] outputs once rendering is completed.
-#[derive(Debug, Clone, Copy, Reflect)]
+#[derive(Debug, Clone, Copy)]
 pub enum CameraOutputMode {
     /// Writes the camera output to configured render target.
     Write {
@@ -598,8 +591,7 @@ impl Default for CameraOutputMode {
 
 /// The "target" that a [`Camera`] will render to. For example, this could be a `Window`
 /// swapchain or an [`Image`].
-#[derive(Component, Debug, Clone, Reflect, From)]
-#[reflect(Clone, Component)]
+#[derive(Component, Debug, Clone, From)]
 pub enum RenderTarget {
     /// Window to which the camera's view is rendered.
     Window(WindowRef),
@@ -650,8 +642,7 @@ impl RenderTarget {
 /// Normalized version of the render target.
 ///
 /// Once we have this we shouldn't need to resolve it down anymore.
-#[derive(Debug, Clone, Reflect, PartialEq, Eq, Hash, PartialOrd, Ord, From)]
-#[reflect(Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From)]
 pub enum NormalizedRenderTarget {
     /// Window to which the camera's view is rendered.
     Window(NormalizedWindowRef),
@@ -675,13 +666,11 @@ pub enum NormalizedRenderTarget {
 /// A unique id that corresponds to a specific `ManualTextureView` in the `ManualTextureViews` collection.
 ///
 /// See `ManualTextureViews` in `bevy_camera` for more details.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Component, Reflect)]
-#[reflect(Component, Default, Debug, PartialEq, Hash, Clone)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Component)]
 pub struct ManualTextureViewHandle(pub u32);
 
 /// A render target that renders to an [`Image`].
-#[derive(Debug, Clone, Reflect)]
-#[reflect(Clone, PartialEq, Hash)]
+#[derive(Debug, Clone)]
 pub struct ImageRenderTarget {
     /// The image to render to.
     pub handle: Handle<Image>,
@@ -741,9 +730,7 @@ impl Default for RenderTarget {
 }
 
 /// This component lets you control the [`TextureUsages`] field of the main texture generated for the camera
-#[derive(Component, Clone, Copy, Reflect)]
-#[reflect(opaque)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone, Copy)]
 pub struct CameraMainTextureUsages(pub TextureUsages);
 
 impl Default for CameraMainTextureUsages {

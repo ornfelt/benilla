@@ -9,19 +9,14 @@ use bevy_ecs::{
     hierarchy::ChildOf,
     prelude::{Component, With},
     query::{QueryData, Without},
-    reflect::ReflectComponent,
     system::{Local, Query, Res},
 };
 use bevy_input::{mouse::MouseButton, touch::Touches, ButtonInput};
 use bevy_math::Vec2;
 use bevy_platform::collections::HashMap;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_window::{PrimaryWindow, Window};
 
 use smallvec::SmallVec;
-
-#[cfg(feature = "serialize")]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 
 /// Describes what type of input interaction has occurred for a UI node.
 ///
@@ -41,13 +36,8 @@ use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 /// # See also
 ///
 /// - [`Button`](crate::widget::Button) which requires this component
-#[derive(Component, Copy, Clone, Eq, PartialEq, Debug, Reflect)]
-#[reflect(Component, Default, PartialEq, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Copy, Clone, Eq, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum Interaction {
     /// The node has been pressed.
     ///
@@ -70,13 +60,8 @@ impl Default for Interaction {
 }
 
 /// Describes whether the node should block interactions with lower nodes
-#[derive(Component, Copy, Clone, Eq, PartialEq, Debug, Reflect)]
-#[reflect(Component, Default, PartialEq, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Copy, Clone, Eq, PartialEq, Debug)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub enum FocusPolicy {
     /// Blocks interaction
     Block,

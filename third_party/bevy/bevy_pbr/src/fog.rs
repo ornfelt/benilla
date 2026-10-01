@@ -2,7 +2,6 @@ use bevy_camera::Camera;
 use bevy_color::{Color, ColorToComponents, LinearRgba};
 use bevy_ecs::prelude::*;
 use bevy_math::{ops, Vec3};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render::extract_component::ExtractComponent;
 
 /// Configures the “classic” computer graphics [distance fog](https://en.wikipedia.org/wiki/Distance_fog) effect,
@@ -46,9 +45,8 @@ use bevy_render::extract_component::ExtractComponent;
 ///
 /// Once enabled for a specific camera, the fog effect can also be disabled for individual
 /// [`StandardMaterial`](crate::StandardMaterial) instances via the `fog_enabled` flag.
-#[derive(Debug, Clone, Component, Reflect, ExtractComponent)]
+#[derive(Debug, Clone, Component, ExtractComponent)]
 #[extract_component_filter(With<Camera>)]
-#[reflect(Component, Default, Debug, Clone)]
 pub struct DistanceFog {
     /// The color of the fog effect.
     ///
@@ -94,8 +92,7 @@ pub struct DistanceFog {
 ///     - [`FogFalloff::from_visibility_colors()`]
 ///     - [`FogFalloff::from_visibility_contrast_color()`]
 ///     - [`FogFalloff::from_visibility_contrast_colors()`]
-#[derive(Debug, Clone, Reflect)]
-#[reflect(Clone)]
+#[derive(Debug, Clone)]
 pub enum FogFalloff {
     /// A linear fog falloff that grows in intensity between `start` and `end` distances.
     ///

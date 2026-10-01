@@ -11,7 +11,7 @@ use bevy_asset::{Asset, RenderAssetUsages};
 #[cfg(feature = "morph")]
 use bevy_image::Image;
 use bevy_math::{bounding::Aabb3d, *};
-use bevy_reflect::Reflect;
+use bevy_reflect::TypePath;
 use thiserror::Error;
 use tracing::warn;
 use wgpu_types::VertexFormat;
@@ -19,8 +19,6 @@ use wgpu_types::VertexFormat;
 /// Error from accessing mesh vertex attributes or indices
 #[derive(Error, Debug, Clone)]
 pub enum MeshAccessError {
-    #[error("The mesh vertex/index data has been extracted to the RenderWorld (via `Mesh::asset_usage`)")]
-    ExtractedToRenderWorld,
     #[error("The requested mesh data wasn't found in this mesh")]
     NotFound,
 }
@@ -29,12 +27,11 @@ const MESH_EXTRACTED_ERROR: &str = "Mesh has been extracted to RenderWorld. To a
 
 // storage for extractable data with access methods which return errors if the
 // contents have already been extracted
-#[derive(Debug, Clone, PartialEq, Reflect, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 enum MeshExtractableData<T> {
     Data(T),
     #[default]
     NoData,
-    ExtractedToRenderWorld,
 }
 
 impl<T> MeshExtractableData<T> {
@@ -44,9 +41,6 @@ impl<T> MeshExtractableData<T> {
         match self {
             MeshExtractableData::Data(data) => Ok(data),
             MeshExtractableData::NoData => Err(MeshAccessError::NotFound),
-            MeshExtractableData::ExtractedToRenderWorld => {
-                Err(MeshAccessError::ExtractedToRenderWorld)
-            }
         }
     }
 
@@ -55,9 +49,6 @@ impl<T> MeshExtractableData<T> {
         match self {
             MeshExtractableData::Data(data) => Ok(Some(data)),
             MeshExtractableData::NoData => Ok(None),
-            MeshExtractableData::ExtractedToRenderWorld => {
-                Err(MeshAccessError::ExtractedToRenderWorld)
-            }
         }
     }
 
@@ -67,9 +58,6 @@ impl<T> MeshExtractableData<T> {
         match self {
             MeshExtractableData::Data(data) => Ok(data),
             MeshExtractableData::NoData => Err(MeshAccessError::NotFound),
-            MeshExtractableData::ExtractedToRenderWorld => {
-                Err(MeshAccessError::ExtractedToRenderWorld)
-            }
         }
     }
 
@@ -79,10 +67,6 @@ impl<T> MeshExtractableData<T> {
         data: impl Into<MeshExtractableData<T>>,
     ) -> Result<Option<T>, MeshAccessError> {
         match core::mem::replace(self, data.into()) {
-            MeshExtractableData::ExtractedToRenderWorld => {
-                *self = MeshExtractableData::ExtractedToRenderWorld;
-                Err(MeshAccessError::ExtractedToRenderWorld)
-            }
             MeshExtractableData::Data(t) => Ok(Some(t)),
             MeshExtractableData::NoData => Ok(None),
         }
@@ -182,16 +166,13 @@ impl<T> From<Option<T>> for MeshExtractableData<T> {
 /// - Vertex winding order: by default, `StandardMaterial.cull_mode` is `Some(Face::Back)`,
 ///   which means that Bevy would *only* render the "front" of each triangle, which
 ///   is the side of the triangle from where the vertices appear in a *counter-clockwise* order.
-#[derive(Asset, Debug, Clone, Reflect, PartialEq)]
-#[reflect(Clone)]
+#[derive(Asset, TypePath, Debug, Clone, PartialEq)]
 pub struct Mesh {
-    #[reflect(ignore, clone)]
     primitive_topology: PrimitiveTopology,
     /// `std::collections::BTreeMap` with all defined vertex attributes (Positions, Normals, ...)
     /// for this mesh. Attribute ids to attribute values.
     /// Uses a [`BTreeMap`] because, unlike `HashMap`, it has a defined iteration order,
     /// which allows easy stable `VertexBuffers` (i.e. same buffer order)
-    #[reflect(ignore, clone)]
     attributes: MeshExtractableData<BTreeMap<MeshVertexAttributeId, MeshAttributeData>>,
     indices: MeshExtractableData<Indices>,
     #[cfg(feature = "morph")]

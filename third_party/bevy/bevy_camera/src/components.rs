@@ -1,13 +1,11 @@
 use crate::{primitives::Frustum, Camera, CameraProjection, OrthographicProjection, Projection};
 use bevy_ecs::prelude::*;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect, ReflectDeserialize, ReflectSerialize};
 use bevy_transform::prelude::{GlobalTransform, Transform};
 use serde::{Deserialize, Serialize};
 use wgpu_types::{LoadOp, TextureUsages};
 
 /// A 2D camera component. Enables the 2D render graph for a [`Camera`].
-#[derive(Component, Default, Reflect, Clone)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Default, Clone)]
 #[require(
     Camera,
     Projection::Orthographic(OrthographicProjection::default_2d()),
@@ -19,8 +17,7 @@ pub struct Camera2d;
 ///
 /// The camera coordinate space is right-handed X-right, Y-up, Z-back.
 /// This means "forward" is -Z.
-#[derive(Component, Reflect, Clone)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone)]
 #[require(Camera, Projection)]
 pub struct Camera3d {
     /// The depth clear operation to perform for the main 3d pass.
@@ -65,8 +62,7 @@ impl Default for Camera3d {
     }
 }
 
-#[derive(Clone, Copy, Reflect, Serialize, Deserialize)]
-#[reflect(Serialize, Deserialize, Clone)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Camera3dDepthTextureUsage(pub u32);
 
 impl From<TextureUsages> for Camera3dDepthTextureUsage {
@@ -82,8 +78,7 @@ impl From<Camera3dDepthTextureUsage> for TextureUsages {
 }
 
 /// The depth clear operation to perform for the main 3d pass.
-#[derive(Reflect, Serialize, Deserialize, Clone, Debug)]
-#[reflect(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Camera3dDepthLoadOp {
     /// Clear with a specified value.
     /// Note that 0.0 is the far plane due to bevy's use of reverse-z projections.
@@ -113,8 +108,7 @@ impl From<Camera3dDepthLoadOp> for LoadOp<f32> {
 /// Higher qualities are more GPU-intensive.
 ///
 /// **Note:** You can get better-looking results at any quality level by enabling TAA. See: `TemporalAntiAliasPlugin`
-#[derive(Resource, Default, Clone, Copy, Reflect, PartialEq, PartialOrd, Debug)]
-#[reflect(Resource, Default, Clone, Debug, PartialEq)]
+#[derive(Resource, Default, Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum ScreenSpaceTransmissionQuality {
     /// Best performance at the cost of quality. Suitable for lower end GPUs. (e.g. Mobile)
     ///

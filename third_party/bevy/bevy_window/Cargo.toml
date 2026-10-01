@@ -35,20 +35,11 @@ rustdoc-args = [
 all-features = true
 
 [features]
-bevy_reflect = [
-    "dep:bevy_reflect",
-    "bevy_app/bevy_reflect",
-    "bevy_ecs/bevy_reflect",
-    "bevy_input/bevy_reflect",
-]
 custom_cursor = [
     "bevy_image",
     "bevy_asset",
 ]
-default = [
-    "std",
-    "bevy_reflect",
-]
+default = ["std"]
 libm = ["bevy_math/libm"]
 serialize = [
     "serde",
@@ -60,7 +51,6 @@ std = [
     "bevy_ecs/std",
     "bevy_input/std",
     "bevy_math/std",
-    "bevy_reflect?/std",
     "serde?/std",
     "raw-window-handle/std",
     "bevy_platform/std",
@@ -103,12 +93,6 @@ default-features = false
 
 [dependencies.bevy_platform]
 version = "0.18.0"
-default-features = false
-
-[dependencies.bevy_reflect]
-version = "0.18.0"
-features = ["glam"]
-optional = true
 default-features = false
 
 [dependencies.log]

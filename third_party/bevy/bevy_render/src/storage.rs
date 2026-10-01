@@ -5,7 +5,7 @@ use crate::{
 };
 use bevy_app::{App, Plugin};
 use bevy_asset::{Asset, AssetApp, RenderAssetUsages};
-use bevy_reflect::{prelude::ReflectDefault, Reflect};
+use bevy_reflect::TypePath;
 use bevy_utils::default;
 use encase::{internal::WriteInto, ShaderType};
 
@@ -21,9 +21,7 @@ impl Plugin for StoragePlugin {
 }
 
 /// A storage buffer that is prepared as a [`RenderAsset`] and uploaded to the GPU.
-#[derive(Asset, Reflect, Debug, Clone)]
-#[reflect(opaque)]
-#[reflect(Default, Debug, Clone)]
+#[derive(Asset, TypePath, Debug, Clone)]
 pub struct ShaderStorageBuffer {
     /// Optional data used to initialize the buffer.
     pub data: Option<Vec<u8>>,

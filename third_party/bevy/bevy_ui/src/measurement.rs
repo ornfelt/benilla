@@ -1,6 +1,5 @@
-use bevy_ecs::{prelude::Component, reflect::ReflectComponent};
+use bevy_ecs::prelude::Component;
 use bevy_math::Vec2;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_text::CosmicFontSystem;
 use core::fmt::Formatter;
 pub use taffy::style::AvailableSpace;
@@ -70,11 +69,9 @@ impl Measure for FixedMeasure {
 
 /// A node with a `ContentSize` component is a node where its size
 /// is based on its content.
-#[derive(Component, Reflect, Default)]
-#[reflect(Component, Default)]
+#[derive(Component, Default)]
 pub struct ContentSize {
     /// The `Measure` used to compute the intrinsic size
-    #[reflect(ignore)]
     pub(crate) measure: Option<NodeMeasure>,
 }
 

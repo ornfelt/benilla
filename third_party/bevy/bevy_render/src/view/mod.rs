@@ -15,7 +15,6 @@ use alloc::sync::Arc;
 use bevy_app::{App, Plugin};
 use bevy_color::LinearRgba;
 use bevy_ecs::prelude::*;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render_macros::ExtractComponent;
 use core::{
     ops::Range,
@@ -46,19 +45,8 @@ impl Plugin for ViewPlugin {
 ///
 /// Note that the web currently only supports 1 or 4 samples.
 #[derive(
-    Component,
-    Default,
-    Clone,
-    Copy,
-    ExtractComponent,
-    Reflect,
-    PartialEq,
-    PartialOrd,
-    Eq,
-    Hash,
-    Debug,
+    Component, Default, Clone, Copy, ExtractComponent, PartialEq, PartialOrd, Eq, Hash, Debug,
 )]
-#[reflect(Component, Default, PartialEq, Hash, Debug)]
 pub enum Msaa {
     Off = 1,
     Sample2 = 2,
@@ -88,10 +76,7 @@ impl Msaa {
 /// This allows rendering with a wider range of lighting values. However, this does *not* affect
 /// whether the camera will render with hdr display output (which bevy does not support currently)
 /// and only affects the intermediate render texture.
-#[derive(
-    Component, Default, Copy, Clone, ExtractComponent, Reflect, PartialEq, Eq, Hash, Debug,
-)]
-#[reflect(Component, Default, PartialEq, Hash, Debug)]
+#[derive(Component, Default, Copy, Clone, ExtractComponent, PartialEq, Eq, Hash, Debug)]
 pub struct Hdr;
 
 /// Configures filmic color grading parameters to adjust the image appearance.
@@ -100,8 +85,7 @@ pub struct Hdr;
 /// [`Camera`](bevy_camera::Camera) entity, with the sole exception of the
 /// `post_saturation` value in [`ColorGradingGlobal`], which is applied after
 /// tonemapping.
-#[derive(Component, Reflect, Debug, Default, Clone)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Default, Clone)]
 pub struct ColorGrading {
     /// Filmic color grading values applied to the image as a whole (as opposed
     /// to individual sections, like shadows and highlights).
@@ -129,8 +113,7 @@ pub struct ColorGrading {
 
 /// Filmic color grading values applied to the image as a whole (as opposed to
 /// individual sections, like shadows and highlights).
-#[derive(Clone, Debug, Reflect)]
-#[reflect(Default, Clone)]
+#[derive(Clone, Debug)]
 pub struct ColorGradingGlobal {
     /// Exposure value (EV) offset, measured in stops.
     pub exposure: f32,
@@ -179,8 +162,7 @@ pub struct ColorGradingGlobal {
 
 /// A section of color grading values that can be selectively applied to
 /// shadows, midtones, and highlights.
-#[derive(Reflect, Debug, Copy, Clone, PartialEq)]
-#[reflect(Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorGradingSection {
     /// Values below 1.0 desaturate, with a value of 0.0 resulting in a grayscale image
     /// with luminance defined by ITU-R BT.709.

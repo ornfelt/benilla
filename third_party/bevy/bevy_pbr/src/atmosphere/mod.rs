@@ -39,7 +39,6 @@ use bevy_app::{App, Plugin, Update};
 use bevy_asset::Handle;
 use bevy_ecs::component::Component;
 use bevy_math::{UVec2, UVec3, Vec3};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render::{sync_component::SyncComponentPlugin, view::Hdr};
 
 use environment::{prepare_atmosphere_probe_components, AtmosphereEnvironmentMap};
@@ -120,8 +119,7 @@ impl Atmosphere {
 /// The aerial-view lut is a 3d LUT fit to the view frustum, which stores the luminance
 /// scattered towards the camera at each point (RGB channels), alongside the average
 /// transmittance to that point (A channel).
-#[derive(Clone, Component, Reflect)]
-#[reflect(Clone, Default)]
+#[derive(Clone, Component)]
 pub struct AtmosphereSettings {
     /// The size of the transmittance LUT
     pub transmittance_lut_size: UVec2,
@@ -195,8 +193,7 @@ impl Default for AtmosphereSettings {
     }
 }
 
-#[derive(Clone, Component, Reflect)]
-#[reflect(Default)]
+#[derive(Clone, Component)]
 pub struct GpuAtmosphereSettings {
     pub transmittance_lut_size: UVec2,
     pub multiscattering_lut_size: UVec2,
@@ -242,7 +239,7 @@ impl From<AtmosphereSettings> for GpuAtmosphereSettings {
 /// Selects how the atmosphere is rendered. Choose based on scene scale and
 /// volumetric shadow quality, and based on performance needs.
 #[repr(u32)]
-#[derive(Clone, Default, Reflect, Copy)]
+#[derive(Clone, Default, Copy)]
 pub enum AtmosphereMode {
     /// High-performance solution tailored to scenes that are mostly inside of the atmosphere.
     /// Uses a set of lookup textures to approximate scattering integration.

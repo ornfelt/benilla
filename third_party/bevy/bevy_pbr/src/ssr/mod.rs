@@ -2,8 +2,7 @@
 
 use bevy_app::{App, Plugin};
 use bevy_core_pipeline::prepass::{DeferredPrepass, DepthPrepass};
-use bevy_ecs::{component::Component, reflect::ReflectComponent};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
+use bevy_ecs::component::Component;
 use bevy_render::sync_component::SyncComponentPlugin;
 
 /// Enables screen-space reflections for a camera.
@@ -35,8 +34,7 @@ pub struct ScreenSpaceReflectionsPlugin;
 /// Screen-space reflections are presently unsupported on WebGL 2 because of a
 /// bug whereby Naga doesn't generate correct GLSL when sampling depth buffers,
 /// which is required for screen-space raymarching.
-#[derive(Clone, Copy, Component, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Clone, Copy, Component)]
 #[require(DepthPrepass, DeferredPrepass)]
 #[doc(alias = "Ssr")]
 pub struct ScreenSpaceReflections {

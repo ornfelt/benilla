@@ -2,8 +2,7 @@ use crate::{Font, TextLayoutInfo, TextSpanAccess};
 use bevy_asset::Handle;
 use bevy_color::Color;
 use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::{prelude::*, reflect::ReflectComponent};
-use bevy_reflect::prelude::*;
+use bevy_ecs::prelude::*;
 use bevy_utils::{default, once};
 use core::fmt::{Debug, Formatter};
 use core::str::from_utf8;
@@ -25,8 +24,7 @@ impl Default for CosmicBuffer {
 /// A sub-entity of a [`ComputedTextBlock`].
 ///
 /// Returned by [`ComputedTextBlock::entities`].
-#[derive(Debug, Copy, Clone, Reflect)]
-#[reflect(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct TextEntity {
     /// The entity.
     pub entity: Entity,
@@ -39,8 +37,7 @@ pub struct TextEntity {
 /// See [`TextLayout`].
 ///
 /// Automatically updated by 2d and UI text systems.
-#[derive(Component, Debug, Clone, Reflect)]
-#[reflect(Component, Debug, Default, Clone)]
+#[derive(Component, Debug, Clone)]
 pub struct ComputedTextBlock {
     /// Buffer for managing text layout and creating [`TextLayoutInfo`].
     ///
@@ -48,7 +45,6 @@ pub struct ComputedTextBlock {
     /// `TextLayoutInfo`. If you want to control the buffer contents manually or use the `cosmic-text`
     /// editor, then you need to not use `TextLayout` and instead manually implement the conversion to
     /// `TextLayoutInfo`.
-    #[reflect(ignore, clone)]
     pub(crate) buffer: CosmicBuffer,
     /// Entities for all text spans in the block, including the root-level text.
     ///
@@ -112,8 +108,7 @@ impl Default for ComputedTextBlock {
 /// to [`TextLayoutInfo`] for rendering.
 ///
 /// See `Text2d` in `bevy_sprite` for the core component of 2d text, and `Text` in `bevy_ui` for UI text.
-#[derive(Component, Debug, Copy, Clone, Default, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Copy, Clone, Default)]
 #[require(ComputedTextBlock, TextLayoutInfo)]
 pub struct TextLayout {
     /// The text's internal alignment.
@@ -148,8 +143,7 @@ impl TextLayout {
 /// with `TextSpan` extend this text by appending their content to the parent's text in sequence to
 /// form a [`ComputedTextBlock`]. The parent's [`TextLayout`] determines the layout of the block
 /// but each node has its own [`TextFont`] and [`TextColor`].
-#[derive(Component, Debug, Default, Clone, Deref, DerefMut, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Default, Clone, Deref, DerefMut)]
 #[require(TextFont, TextColor, LineHeight)]
 pub struct TextSpan(pub String);
 
@@ -185,8 +179,7 @@ impl From<String> for TextSpan {
 ///
 /// _Has no affect on a single line text entity_, unless used together with a
 /// [`TextBounds`](super::bounds::TextBounds) component with an explicit `width` value.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Reflect, Serialize, Deserialize)]
-#[reflect(Serialize, Deserialize, Clone, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[doc(alias = "JustifyText")]
 pub enum Justify {
     /// Leftmost character is immediately to the right of the render position.
@@ -218,8 +211,7 @@ impl From<Justify> for cosmic_text::Align {
 
 /// `TextFont` determines the style of a text span within a [`ComputedTextBlock`], specifically
 /// the font face, the font size, the line height, and the antialiasing method.
-#[derive(Component, Clone, Debug, Reflect, PartialEq)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct TextFont {
     /// The specific font face to use, as a `Handle` to a [`Font`] asset.
     ///
@@ -274,7 +266,7 @@ impl Default for TextFont {
 /// A weight of 0 is treated as [`FontWeight::DEFAULT`].
 ///
 /// `<https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/font-weight>`
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FontWeight(pub u16);
 
 impl FontWeight {
@@ -309,7 +301,7 @@ impl From<FontWeight> for cosmic_text::Weight {
 }
 
 /// An OpenType font feature tag.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FontFeatureTag([u8; 4]);
 
 impl Debug for FontFeatureTag {
@@ -328,7 +320,7 @@ impl Debug for FontFeatureTag {
 /// Examples features include ligatures, small-caps, and fractional number display. For the complete
 /// list of OpenType features, see the spec at
 /// `<https://learn.microsoft.com/en-us/typography/opentype/spec/featurelist>`.
-#[derive(Clone, Debug, Default, Reflect, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct FontFeatures {
     features: Vec<(FontFeatureTag, u32)>,
 }
@@ -351,8 +343,7 @@ impl From<&FontFeatures> for cosmic_text::FontFeatures {
 /// Specifies the height of each line of text for `Text` and `Text2d`
 ///
 /// Default is 1.2x the font size
-#[derive(Component, Debug, Clone, Copy, PartialEq, Reflect)]
-#[reflect(Component, Debug, Clone, PartialEq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum LineHeight {
     /// Set line height to a specific number of pixels
     Px(f32),
@@ -376,8 +367,7 @@ impl Default for LineHeight {
 }
 
 /// The color of the text for this section.
-#[derive(Component, Copy, Clone, Debug, Deref, DerefMut, Reflect, PartialEq)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Copy, Clone, Debug, Deref, DerefMut, PartialEq)]
 pub struct TextColor(pub Color);
 
 impl Default for TextColor {
@@ -398,8 +388,7 @@ impl TextColor {
 }
 
 /// Determines how lines will be broken when preventing text from running out of bounds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Reflect, Serialize, Deserialize)]
-#[reflect(Serialize, Deserialize, Clone, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum LineBreak {
     /// Uses the [Unicode Line Breaking Algorithm](https://www.unicode.org/reports/tr14/).
     /// Lines will be broken up at the nearest suitable word boundary, usually a space.
@@ -421,8 +410,7 @@ pub enum LineBreak {
 /// rendered with grayscale antialiasing, but this can be changed to achieve a pixelated look.
 ///
 /// **Note:** Subpixel antialiasing is not currently supported.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Reflect, Serialize, Deserialize)]
-#[reflect(Serialize, Deserialize, Clone, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[doc(alias = "antialiasing")]
 #[doc(alias = "pixelated")]
 pub enum FontSmoothing {
@@ -552,8 +540,7 @@ pub fn detect_text_needs_rerender<Root: Component>(
     }
 }
 
-#[derive(Component, Debug, Copy, Clone, Default, Reflect, PartialEq)]
-#[reflect(Component, Default, Debug, Clone, PartialEq)]
+#[derive(Component, Debug, Copy, Clone, Default, PartialEq)]
 /// Font hinting strategy.
 ///
 /// The text bounds can underflow or overflow slightly with `FontHinting::Enabled`.

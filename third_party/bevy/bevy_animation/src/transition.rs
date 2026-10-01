@@ -5,10 +5,8 @@
 
 use bevy_ecs::{
     component::Component,
-    reflect::ReflectComponent,
     system::{Query, Res},
 };
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_time::Time;
 use core::time::Duration;
 
@@ -28,8 +26,7 @@ use crate::{graph::AnimationNodeIndex, ActiveAnimation, AnimationPlayer};
 /// the [`AnimationPlayer`] directly will cause the [`AnimationTransitions`]
 /// component to get confused about which animation is the "main" animation, and
 /// transitions will usually be incorrect as a result.
-#[derive(Component, Default, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Default)]
 pub struct AnimationTransitions {
     main_animation: Option<AnimationNodeIndex>,
     transitions: Vec<AnimationTransition>,
@@ -51,8 +48,7 @@ impl Clone for AnimationTransitions {
 }
 
 /// An animation that is being faded out as part of a transition
-#[derive(Debug, Clone, Copy, Reflect)]
-#[reflect(Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct AnimationTransition {
     /// The current weight. Starts at 1.0 and goes to 0.0 during the fade-out.
     current_weight: f32,

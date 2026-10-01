@@ -10,12 +10,11 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     component::Component,
     message::MessageReader,
-    reflect::ReflectComponent,
     resource::Resource,
     system::{Res, ResMut},
 };
 use bevy_platform::collections::HashMap;
-use bevy_reflect::{prelude::ReflectDefault, Reflect};
+use bevy_reflect::TypePath;
 use derive_more::derive::From;
 use petgraph::{
     graph::{DiGraph, NodeIndex},
@@ -96,8 +95,7 @@ use crate::{AnimationClip, AnimationTargetId};
 /// information.
 ///
 /// [RFC 51]: https://github.com/bevyengine/rfcs/blob/main/rfcs/51-animation-composition.md
-#[derive(Asset, Reflect, Clone, Debug)]
-#[reflect(Debug, Clone)]
+#[derive(Asset, TypePath, Clone, Debug)]
 pub struct AnimationGraph {
     /// The `petgraph` data structure that defines the animation graph.
     pub graph: AnimationDiGraph,
@@ -118,8 +116,7 @@ pub struct AnimationGraph {
 }
 
 /// A [`Handle`] to the [`AnimationGraph`] to be used by the [`AnimationPlayer`](crate::AnimationPlayer) on the same entity.
-#[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect, PartialEq, Eq, From)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq, From)]
 pub struct AnimationGraphHandle(pub Handle<AnimationGraph>);
 
 impl From<AnimationGraphHandle> for AssetId<AnimationGraph> {
@@ -151,8 +148,7 @@ pub type AnimationNodeIndex = NodeIndex<u32>;
 /// of a *clip node*, a *blend node*, or an *add node*. Clip nodes, the leaves
 /// of the graph, contain animation clips to play. Blend and add nodes describe
 /// how to combine their children to produce a final animation.
-#[derive(Clone, Reflect, Debug)]
-#[reflect(Clone)]
+#[derive(Clone, Debug)]
 pub struct AnimationGraphNode {
     /// Animation node data specific to the type of node (clip, blend, or add).
     ///
@@ -193,8 +189,7 @@ pub struct AnimationGraphNode {
 ///
 /// In the case of clip nodes, this contains the actual animation clip
 /// associated with the node.
-#[derive(Clone, Default, Reflect, Debug)]
-#[reflect(Clone)]
+#[derive(Clone, Default, Debug)]
 pub enum AnimationNodeType {
     /// A *clip node*, which plays an animation clip.
     ///
@@ -227,7 +222,7 @@ pub enum AnimationNodeType {
 ///
 /// These are kept up to date as [`AnimationGraph`] instances are added,
 /// modified, and removed.
-#[derive(Default, Reflect, Resource)]
+#[derive(Default, Resource)]
 pub struct ThreadedAnimationGraphs(
     pub(crate) HashMap<AssetId<AnimationGraph>, ThreadedAnimationGraph>,
 );
@@ -237,7 +232,7 @@ pub struct ThreadedAnimationGraphs(
 ///
 /// This is kept up to date as the associated [`AnimationGraph`] instance is
 /// added, modified, or removed.
-#[derive(Default, Reflect)]
+#[derive(Default)]
 pub struct ThreadedAnimationGraph {
     /// A cached postorder traversal of the graph.
     ///

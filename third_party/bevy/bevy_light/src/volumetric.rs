@@ -4,15 +4,13 @@ use bevy_color::Color;
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
 use bevy_math::Vec3;
-use bevy_reflect::prelude::*;
 use bevy_transform::components::Transform;
 
 /// Add this component to a [`DirectionalLight`](crate::DirectionalLight) with a shadow map
 /// (`shadows_enabled: true`) to make volumetric fog interact with it.
 ///
 /// This allows the light to generate light shafts/god rays.
-#[derive(Clone, Copy, Component, Default, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Clone, Copy, Component, Default, Debug)]
 pub struct VolumetricLight;
 
 /// When placed on a [`bevy_camera::Camera3d`], enables
@@ -20,8 +18,7 @@ pub struct VolumetricLight;
 /// rays.
 ///
 /// Requires using WebGPU on Wasm builds.
-#[derive(Clone, Copy, Component, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Clone, Copy, Component, Debug)]
 pub struct VolumetricFog {
     /// Color of the ambient light.
     ///
@@ -70,8 +67,7 @@ impl Default for VolumetricFog {
     }
 }
 
-#[derive(Clone, Component, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Clone, Component, Debug)]
 #[require(Transform, Visibility)]
 pub struct FogVolume {
     /// The color of the fog.

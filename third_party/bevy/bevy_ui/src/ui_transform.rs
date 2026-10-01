@@ -1,22 +1,15 @@
 use crate::Val;
 use bevy_derive::Deref;
 use bevy_ecs::component::Component;
-use bevy_ecs::prelude::ReflectComponent;
 use bevy_math::Affine2;
 use bevy_math::Mat2;
 use bevy_math::Rot2;
 use bevy_math::Vec2;
-use bevy_reflect::prelude::*;
 use core::ops::Mul;
 
 /// A pair of [`Val`]s used to represent a 2-dimensional size or offset.
-#[derive(Debug, PartialEq, Clone, Copy, Reflect)]
-#[reflect(Default, PartialEq, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct Val2 {
     /// Translate the node along the x-axis.
     /// `Val::Percent` values are resolved based on the computed width of the Ui Node.
@@ -59,13 +52,8 @@ impl Default for Val2 {
 /// Relative 2D transform for UI nodes
 ///
 /// [`UiGlobalTransform`] is automatically inserted whenever [`UiTransform`] is inserted.
-#[derive(Component, Debug, PartialEq, Clone, Copy, Reflect)]
-#[reflect(Component, Default, PartialEq, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Debug, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[require(UiGlobalTransform)]
 pub struct UiTransform {
     /// Translate the node.
@@ -104,13 +92,8 @@ impl Default for UiTransform {
 ///
 /// [`UiGlobalTransform`]s are updated from [`UiTransform`] and [`Node`](crate::ui_node::Node)
 ///  in [`ui_layout_system`](crate::layout::ui_layout_system)
-#[derive(Component, Debug, PartialEq, Clone, Copy, Reflect, Deref)]
-#[reflect(Component, Default, PartialEq, Debug, Clone)]
-#[cfg_attr(
-    feature = "serialize",
-    derive(serde::Serialize, serde::Deserialize),
-    reflect(Serialize, Deserialize)
-)]
+#[derive(Component, Debug, PartialEq, Clone, Copy, Deref)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 pub struct UiGlobalTransform(Affine2);
 
 impl Default for UiGlobalTransform {

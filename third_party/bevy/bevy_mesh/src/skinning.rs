@@ -1,11 +1,10 @@
 use bevy_asset::{AsAssetId, Asset, AssetId, Handle};
-use bevy_ecs::{component::Component, entity::Entity, prelude::ReflectComponent};
+use bevy_ecs::{component::Component, entity::Entity};
 use bevy_math::Mat4;
 use bevy_reflect::prelude::*;
 use core::ops::Deref;
 
-#[derive(Component, Debug, Default, Clone, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Default, Clone)]
 pub struct SkinnedMesh {
     pub inverse_bindposes: Handle<SkinnedMeshInverseBindposes>,
     #[entities]

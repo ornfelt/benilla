@@ -1,15 +1,13 @@
 use bevy_color::Color;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
-use bevy_reflect::prelude::*;
 use derive_more::derive::From;
 use serde::{Deserialize, Serialize};
 
 /// For a camera, specifies the color used to clear the viewport
 /// [before rendering](crate::camera::Camera::clear_color)
 /// or when [writing to the final render target texture](crate::camera::Camera::output_mode).
-#[derive(Reflect, Serialize, Deserialize, Copy, Clone, Debug, Default, From)]
-#[reflect(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Default, From)]
 pub enum ClearColorConfig {
     /// The clear color is taken from the world's [`ClearColor`] resource.
     #[default]
@@ -26,8 +24,7 @@ pub enum ClearColorConfig {
 ///
 /// MSAA writeback copies the previous camera's output into the MSAA sampled texture before
 /// rendering, allowing multiple cameras to layer their results when MSAA is enabled.
-#[derive(Reflect, Serialize, Deserialize, Copy, Clone, Debug, Default, PartialEq, Eq)]
-#[reflect(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum MsaaWriteback {
     /// Never perform MSAA writeback for this camera.
     Off,
@@ -50,8 +47,7 @@ pub enum MsaaWriteback {
 /// clear color or opt out of clearing their viewport.
 ///
 /// [`Camera.clear_color`]: crate::camera::Camera::clear_color
-#[derive(Resource, Clone, Debug, Deref, DerefMut, Reflect)]
-#[reflect(Resource, Default, Debug, Clone)]
+#[derive(Resource, Clone, Debug, Deref, DerefMut)]
 pub struct ClearColor(pub Color);
 
 /// Match the dark gray bevy website code block color by default.

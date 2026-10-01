@@ -1,4 +1,3 @@
-use bevy_reflect::Reflect;
 use core::iter;
 use core::iter::FusedIterator;
 use wgpu_types::IndexFormat;
@@ -6,8 +5,7 @@ use wgpu_types::IndexFormat;
 /// An array of indices into the [`VertexAttributeValues`](super::VertexAttributeValues) for a mesh.
 ///
 /// It describes the order in which the vertex attributes should be joined into faces.
-#[derive(Debug, Clone, Reflect, PartialEq)]
-#[reflect(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Indices {
     U16(Vec<u16>),
     U32(Vec<u32>),

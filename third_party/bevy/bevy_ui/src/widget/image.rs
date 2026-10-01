@@ -4,13 +4,11 @@ use bevy_color::Color;
 use bevy_ecs::prelude::*;
 use bevy_image::{prelude::*, TRANSPARENT_IMAGE_HANDLE};
 use bevy_math::{Rect, UVec2, Vec2};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_sprite::TextureSlicer;
 use taffy::{MaybeMath, MaybeResolve};
 
 /// A UI Node that renders an image.
-#[derive(Component, Clone, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Clone, Debug)]
 #[require(Node, ImageNodeSize, ContentSize)]
 pub struct ImageNode {
     /// The tint color used to draw the image.
@@ -88,8 +86,7 @@ impl AsAssetId for ImageNode {
 }
 
 /// Controls how the image is altered to fit within the layout and how the layout algorithm determines the space in the layout for the image
-#[derive(Default, Debug, Clone, PartialEq, Reflect)]
-#[reflect(Clone, Default, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum NodeImageMode {
     /// The image will be sized automatically by taking the size of the source image and applying any layout constraints.
     #[default]
@@ -124,8 +121,7 @@ impl NodeImageMode {
 /// The size of the image's texture
 ///
 /// This component is updated automatically by [`update_image_content_size_system`]
-#[derive(Component, Debug, Copy, Clone, Default, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Copy, Clone, Default)]
 pub struct ImageNodeSize {
     /// The size of the image's texture
     ///

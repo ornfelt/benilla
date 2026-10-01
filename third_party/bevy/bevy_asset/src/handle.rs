@@ -3,7 +3,7 @@ use crate::{
     ErasedAssetIndex, UntypedAssetId,
 };
 use alloc::sync::Arc;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect, TypePath};
+use bevy_reflect::TypePath;
 use core::{
     any::TypeId,
     hash::{Hash, Hasher},
@@ -127,15 +127,13 @@ impl core::fmt::Debug for StrongHandle {
 /// of the [`Handle`] are dropped.
 ///
 /// [`Handle::Strong`], via [`StrongHandle`] also provides access to useful [`Asset`] metadata, such as the [`AssetPath`] (if it exists).
-#[derive(Reflect)]
-#[reflect(Default, Debug, Hash, PartialEq, Clone)]
 pub enum Handle<A: Asset> {
     /// A "strong" reference to a live (or loading) [`Asset`]. If a [`Handle`] is [`Handle::Strong`], the [`Asset`] will be kept
     /// alive until the [`Handle`] is dropped. Strong handles also provide access to additional asset metadata.
     Strong(Arc<StrongHandle>),
     /// A reference to an [`Asset`] using a stable-across-runs / const identifier. Dropping this
     /// handle will not result in the asset being dropped.
-    Uuid(Uuid, #[reflect(ignore, clone)] PhantomData<fn() -> A>),
+    Uuid(Uuid, PhantomData<fn() -> A>),
 }
 
 impl<T: Asset> Clone for Handle<T> {
@@ -280,7 +278,7 @@ impl<A: Asset> From<Uuid> for Handle<A> {
 /// to be stored together and compared.
 ///
 /// See [`Handle`] for more information.
-#[derive(Clone, Reflect)]
+#[derive(Clone)]
 pub enum UntypedHandle {
     /// A strong handle, which will keep the referenced [`Asset`] alive until all strong handles are dropped.
     Strong(Arc<StrongHandle>),
@@ -536,9 +534,7 @@ pub enum UntypedAssetConversionError {
 
 #[cfg(test)]
 mod tests {
-    use alloc::boxed::Box;
     use bevy_platform::hash::FixedHasher;
-    use bevy_reflect::PartialReflect;
     use core::hash::BuildHasher;
     use uuid::Uuid;
 
@@ -641,65 +637,5 @@ mod tests {
 
         assert!(handle.is_uuid());
         assert_eq!(handle.id(), AssetId::Uuid { uuid });
-    }
-
-    /// `PartialReflect::reflect_clone`/`PartialReflect::to_dynamic` should increase the strong count of a strong handle
-    #[test]
-    fn strong_handle_reflect_clone() {
-        use crate::{AssetApp, AssetPlugin, Assets, VisitAssetDependencies};
-        use bevy_app::App;
-        use bevy_reflect::FromReflect;
-
-        #[derive(Reflect)]
-        struct MyAsset {
-            value: u32,
-        }
-        impl Asset for MyAsset {}
-        impl VisitAssetDependencies for MyAsset {
-            fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
-        }
-
-        let mut app = App::new();
-        app.add_plugins(AssetPlugin::default())
-            .init_asset::<MyAsset>();
-        let mut assets = app.world_mut().resource_mut::<Assets<MyAsset>>();
-
-        let handle: Handle<MyAsset> = assets.add(MyAsset { value: 1 });
-        match &handle {
-            Handle::Strong(strong) => {
-                assert_eq!(
-                    Arc::strong_count(strong),
-                    1,
-                    "Inserting the asset should result in a strong count of 1"
-                );
-
-                let reflected: &dyn Reflect = &handle;
-                let _cloned_handle: Box<dyn Reflect> = reflected.reflect_clone().unwrap();
-
-                assert_eq!(
-                    Arc::strong_count(strong),
-                    2,
-                    "Cloning the handle with reflect should increase the strong count to 2"
-                );
-
-                let dynamic_handle: Box<dyn PartialReflect> = reflected.to_dynamic();
-
-                assert_eq!(
-                    Arc::strong_count(strong),
-                    3,
-                    "Converting the handle to a dynamic should increase the strong count to 3"
-                );
-
-                let from_reflect_handle: Handle<MyAsset> =
-                    FromReflect::from_reflect(&*dynamic_handle).unwrap();
-
-                assert_eq!(Arc::strong_count(strong), 4, "Converting the reflected value back to a handle should increase the strong count to 4");
-                assert!(
-                    from_reflect_handle.is_strong(),
-                    "The cloned handle should still be strong"
-                );
-            }
-            _ => panic!("Expected a strong handle"),
-        }
     }
 }

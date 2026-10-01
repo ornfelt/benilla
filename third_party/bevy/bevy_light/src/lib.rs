@@ -12,7 +12,6 @@ use bevy_camera::{
 use bevy_ecs::{entity::EntityHashSet, prelude::*};
 use bevy_math::Vec3A;
 use bevy_mesh::Mesh3d;
-use bevy_reflect::prelude::*;
 use bevy_transform::{components::GlobalTransform, TransformSystems};
 use bevy_utils::Parallel;
 use core::ops::DerefMut;
@@ -208,16 +207,14 @@ impl Plugin for LightPlugin {
 pub type WithLight = Or<(With<PointLight>, With<SpotLight>, With<DirectionalLight>)>;
 
 /// Add this component to make a [`Mesh3d`] not cast shadows.
-#[derive(Debug, Component, Reflect, Default, Clone, PartialEq)]
-#[reflect(Component, Default, Debug, Clone, PartialEq)]
+#[derive(Debug, Component, Default, Clone, PartialEq)]
 pub struct NotShadowCaster;
 /// Add this component to make a [`Mesh3d`] not receive shadows.
 ///
 /// **Note:** If you're using diffuse transmission, setting [`NotShadowReceiver`] will
 /// cause both “regular” shadows as well as diffusely transmitted shadows to be disabled,
 /// even when [`TransmittedShadowReceiver`] is being used.
-#[derive(Debug, Component, Reflect, Default)]
-#[reflect(Component, Default, Debug)]
+#[derive(Debug, Component, Default)]
 pub struct NotShadowReceiver;
 /// Add this component to make a [`Mesh3d`] using a PBR material with `StandardMaterial::diffuse_transmission > 0.0`
 /// receive shadows on its diffuse transmission lobe. (i.e. its “backside”)
@@ -226,8 +223,7 @@ pub struct NotShadowReceiver;
 /// (and potentially even baking a thickness texture!) to match the geometry of the mesh, in order to avoid self-shadow artifacts.
 ///
 /// **Note:** Using [`NotShadowReceiver`] overrides this component.
-#[derive(Debug, Component, Reflect, Default)]
-#[reflect(Component, Default, Debug)]
+#[derive(Debug, Component, Default)]
 pub struct TransmittedShadowReceiver;
 
 /// Add this component to a [`Camera3d`](bevy_camera::Camera3d)
@@ -235,8 +231,7 @@ pub struct TransmittedShadowReceiver;
 ///
 /// The different modes use different approaches to
 /// [Percentage Closer Filtering](https://developer.nvidia.com/gpugems/gpugems/part-ii-lighting-and-shadows/chapter-11-shadow-map-antialiasing).
-#[derive(Debug, Component, Reflect, Clone, Copy, PartialEq, Eq, Default)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Debug, Component, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ShadowFilteringMethod {
     /// Hardware 2x2.
     ///

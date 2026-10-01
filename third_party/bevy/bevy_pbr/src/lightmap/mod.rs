@@ -18,10 +18,9 @@
 //! [`bevy-baked-gi`]: https://github.com/pcwalton/bevy-baked-gi
 
 use bevy_asset::Handle;
-use bevy_ecs::{component::Component, reflect::ReflectComponent};
+use bevy_ecs::component::Component;
 use bevy_image::Image;
 use bevy_math::Rect;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 /// A component that applies baked indirect diffuse global illumination from a
 /// lightmap.
@@ -30,8 +29,7 @@ use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 /// [`MeshMaterial3d<StandardMaterial>`](crate::StandardMaterial), if the mesh
 /// has a second UV layer ([`ATTRIBUTE_UV_1`](bevy_mesh::Mesh::ATTRIBUTE_UV_1)),
 /// then the lightmap will render using those UVs.
-#[derive(Component, Clone, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone)]
 pub struct Lightmap {
     /// The lightmap texture.
     pub image: Handle<Image>,

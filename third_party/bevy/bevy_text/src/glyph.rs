@@ -3,15 +3,13 @@
 use bevy_asset::AssetId;
 use bevy_image::prelude::*;
 use bevy_math::{IVec2, Vec2};
-use bevy_reflect::Reflect;
 
 /// A glyph of a font, typically representing a single character, positioned in screen space.
 ///
 /// Contains information about how and where to render a glyph.
 ///
 /// Used in [`TextPipeline::update_text_layout_info`](crate::TextPipeline::update_text_layout_info) and [`TextLayoutInfo`](`crate::TextLayoutInfo`) for rendering glyphs.
-#[derive(Debug, Clone, Reflect)]
-#[reflect(Clone)]
+#[derive(Debug, Clone)]
 pub struct PositionedGlyph {
     /// The position of the glyph in the text block's bounding box.
     pub position: Vec2,
@@ -35,8 +33,7 @@ pub struct PositionedGlyph {
 /// in one or more [`FontAtlas`](crate::FontAtlas)es.
 ///
 /// Used in [`PositionedGlyph`] and [`FontAtlasSet`](crate::FontAtlasSet).
-#[derive(Debug, Clone, Reflect)]
-#[reflect(Clone)]
+#[derive(Debug, Clone)]
 pub struct GlyphAtlasInfo {
     /// An asset ID to the [`Image`] data for the texture atlas this glyph was placed in.
     ///
@@ -55,8 +52,7 @@ pub struct GlyphAtlasInfo {
 /// and how it should be positioned when placed.
 ///
 /// Used in [`GlyphAtlasInfo`] and [`FontAtlas`](crate::FontAtlas).
-#[derive(Debug, Clone, Copy, Reflect)]
-#[reflect(Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct GlyphAtlasLocation {
     /// The index of the glyph in the atlas
     pub glyph_index: usize,

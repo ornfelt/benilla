@@ -14,26 +14,11 @@ use std::path::PathBuf;
 #[cfg(not(feature = "std"))]
 use alloc::string::String as PathBuf;
 
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::Reflect;
-
-#[cfg(feature = "serialize")]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
-
 use crate::WindowTheme;
 
 /// A window event that is sent whenever a window's logical size has changed.
 #[derive(Message, Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowResized {
     /// Window that has changed.
     pub window: Entity,
@@ -46,32 +31,14 @@ pub struct WindowResized {
 /// An event that indicates all of the application's windows should be redrawn,
 /// even if their control flow is set to `Wait` and there have been no window events.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct RequestRedraw;
 
 /// An event that is sent whenever a new window is created.
 ///
 /// To create a new window, spawn an entity with a [`Window`](`crate::Window`) on it.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowCreated {
     /// Window that has been created.
     pub window: Entity,
@@ -88,16 +55,7 @@ pub struct WindowCreated {
 /// [`WindowPlugin`]: crate::WindowPlugin
 /// [`Window`]: crate::Window
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowCloseRequested {
     /// Window to close.
     pub window: Entity,
@@ -106,16 +64,7 @@ pub struct WindowCloseRequested {
 /// An event that is sent whenever a window is closed. This will be sent when
 /// the window entity loses its [`Window`](crate::window::Window) component or is despawned.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowClosed {
     /// Window that has been closed.
     ///
@@ -127,16 +76,7 @@ pub struct WindowClosed {
 /// An event that is sent whenever a window is closing. This will be sent when
 /// after a [`WindowCloseRequested`] event is received and the window is in the process of closing.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowClosing {
     /// Window that has been requested to close and is the process of closing.
     pub window: Entity,
@@ -147,16 +87,7 @@ pub struct WindowClosing {
 /// Note that if your application only has a single window, this event may be your last chance to
 /// persist state before the application terminates.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowDestroyed {
     /// Window that has been destroyed.
     ///
@@ -177,16 +108,7 @@ pub struct WindowDestroyed {
 ///
 /// [`WindowEvent::CursorMoved`]: https://docs.rs/winit/latest/winit/event/enum.WindowEvent.html#variant.CursorMoved
 #[derive(Message, Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct CursorMoved {
     /// Window that the cursor moved inside.
     pub window: Entity,
@@ -202,16 +124,7 @@ pub struct CursorMoved {
 
 /// An event that is sent whenever the user's cursor enters a window.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct CursorEntered {
     /// Window that the cursor entered.
     pub window: Entity,
@@ -219,16 +132,7 @@ pub struct CursorEntered {
 
 /// An event that is sent whenever the user's cursor leaves a window.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct CursorLeft {
     /// Window that the cursor left.
     pub window: Entity,
@@ -240,16 +144,7 @@ pub struct CursorLeft {
 ///
 /// It is only sent if IME was enabled on the window with [`Window::ime_enabled`](crate::window::Window::ime_enabled).
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum Ime {
     /// Notifies when a new composing text should be set at the cursor position.
     Preedit {
@@ -285,16 +180,7 @@ pub enum Ime {
 
 /// An event that indicates a window has received or lost focus.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowFocused {
     /// Window that changed focus.
     pub window: Entity,
@@ -312,16 +198,7 @@ pub struct WindowFocused {
 ///
 /// [`WindowEvent::Occluded`]: https://docs.rs/winit/latest/winit/event/enum.WindowEvent.html#variant.Occluded
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowOccluded {
     /// Window that changed occluded state.
     pub window: Entity,
@@ -331,16 +208,7 @@ pub struct WindowOccluded {
 
 /// An event that indicates a window's scale factor has changed.
 #[derive(Message, Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowScaleFactorChanged {
     /// Window that had its scale factor changed.
     pub window: Entity,
@@ -350,16 +218,7 @@ pub struct WindowScaleFactorChanged {
 
 /// An event that indicates a window's OS-reported scale factor has changed.
 #[derive(Message, Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowBackendScaleFactorChanged {
     /// Window that had its scale factor changed by the backend.
     pub window: Entity,
@@ -369,16 +228,7 @@ pub struct WindowBackendScaleFactorChanged {
 
 /// Events related to files being dragged and dropped on a window.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum FileDragAndDrop {
     /// File is being dropped into a window.
     DroppedFile {
@@ -405,16 +255,7 @@ pub enum FileDragAndDrop {
 
 /// An event that is sent when a window is repositioned in physical pixels.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowMoved {
     /// Window that moved.
     pub window: Entity,
@@ -427,16 +268,7 @@ pub struct WindowMoved {
 /// This event is only sent when the window is relying on the system theme to control its appearance.
 /// i.e. It is only sent when [`Window::window_theme`](crate::window::Window::window_theme) is `None` and the system theme changes.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct WindowThemeChanged {
     /// Window for which the system theme has changed.
     pub window: Entity,
@@ -446,16 +278,7 @@ pub struct WindowThemeChanged {
 
 /// Application lifetime events
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum AppLifecycle {
     /// The application is not started yet.
     Idle,
@@ -489,16 +312,7 @@ impl AppLifecycle {
 /// operating system. Otherwise, the event types are individually
 /// readable with `MessageReader<E>` (e.g. `MessageReader<KeyboardInput>`).
 #[derive(Message, Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(Debug, PartialEq, Clone)
-)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
-)]
 pub enum WindowEvent {
     /// An application lifecycle event.
     AppLifecycle(AppLifecycle),

@@ -3,10 +3,7 @@ use crate::ImageLoader;
 #[cfg(feature = "ktx2")]
 use super::ktx2::*;
 use bevy_app::{App, Plugin};
-#[cfg(not(feature = "bevy_reflect"))]
 use bevy_reflect::TypePath;
-#[cfg(feature = "bevy_reflect")]
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 
 use bevy_asset::{uuid_handle, Asset, AssetApp, Assets, Handle, RenderAssetUsages};
 use bevy_color::{Color, ColorToComponents, Gray, LinearRgba, Srgba, Xyza};
@@ -189,8 +186,6 @@ impl ImagePlugin {
 impl Plugin for ImagePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<Image>();
-        #[cfg(feature = "bevy_reflect")]
-        app.register_asset_reflect::<Image>();
 
         let mut image_assets = app.world_mut().resource_mut::<Assets<Image>>();
 
@@ -362,13 +357,7 @@ impl ToExtents for UVec3 {
 }
 
 /// An image, optimized for usage in rendering.
-#[derive(Asset, Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "bevy_reflect",
-    derive(Reflect),
-    reflect(opaque, Default, Debug, Clone)
-)]
-#[cfg_attr(not(feature = "bevy_reflect"), derive(TypePath))]
+#[derive(Asset, TypePath, Debug, Clone, PartialEq)]
 pub struct Image {
     /// Raw pixel data.
     /// If the image is being used as a storage texture which doesn't need to be initialized by the

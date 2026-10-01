@@ -4,7 +4,6 @@ use bevy_app::prelude::*;
 use bevy_camera::{Camera3d, RenderTarget};
 use bevy_ecs::{component::*, lifecycle::ComponentHook, prelude::*};
 use bevy_platform::collections::HashSet;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render::{
     extract_component::{ExtractComponent, ExtractComponentPlugin},
     render_resource::{ShaderType, TextureUsages},
@@ -19,8 +18,7 @@ use tracing::warn;
 // depth peeling, stochastic transparency, ray tracing etc.
 // This should probably be done by adding an enum to this component.
 // We use the same struct to pass on the settings to the drawing shader.
-#[derive(Clone, Copy, ExtractComponent, Reflect, ShaderType)]
-#[reflect(Clone, Default)]
+#[derive(Clone, Copy, ExtractComponent, ShaderType)]
 pub struct OrderIndependentTransparencySettings {
     /// Controls how many layers will be used to compute the blending.
     /// The more layers you use the more memory it will use but it will also give better results.

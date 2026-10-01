@@ -404,7 +404,6 @@ default-features = false
 
 [dependencies.bevy_window]
 version = "0.18.0"
-features = ["bevy_reflect"]
 optional = true
 default-features = false
 

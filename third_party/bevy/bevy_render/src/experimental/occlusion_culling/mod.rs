@@ -4,8 +4,7 @@
 //! Bevy.
 
 use bevy_app::{App, Plugin};
-use bevy_ecs::{component::Component, prelude::ReflectComponent};
-use bevy_reflect::{prelude::ReflectDefault, Reflect};
+use bevy_ecs::component::Component;
 
 use crate::extract_component::ExtractComponent;
 
@@ -72,6 +71,5 @@ impl Plugin for OcclusionCullingPlugin {
 ///
 /// [*two-phase occlusion culling*]:
 /// https://medium.com/@mil_kru/two-pass-occlusion-culling-4100edcad501
-#[derive(Component, ExtractComponent, Clone, Copy, Default, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, ExtractComponent, Clone, Copy, Default)]
 pub struct OcclusionCulling;

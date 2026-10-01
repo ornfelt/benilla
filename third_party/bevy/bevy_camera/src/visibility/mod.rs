@@ -14,7 +14,6 @@ use bevy_app::{Plugin, PostUpdate};
 use bevy_asset::prelude::AssetChanged;
 use bevy_asset::{AssetEventSystems, Assets};
 use bevy_ecs::{hierarchy::validate_parent_has_component, prelude::*};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_transform::{components::GlobalTransform, TransformSystems};
 use bevy_utils::{Parallel, TypeIdMap};
 use smallvec::SmallVec;
@@ -33,8 +32,7 @@ use bevy_mesh::{mark_3d_meshes_as_changed_if_their_assets_changed, Mesh, Mesh2d,
 ///
 /// This is done by the `visibility_propagate_system` which uses the entity hierarchy and
 /// `Visibility` to set the values of each entity's [`InheritedVisibility`] component.
-#[derive(Component, Clone, Copy, Reflect, Debug, PartialEq, Eq, Default)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[require(InheritedVisibility, ViewVisibility)]
 pub enum Visibility {
     /// An entity with `Visibility::Inherited` will inherit the Visibility of its [`ChildOf`] target.
@@ -75,8 +73,7 @@ impl PartialEq<&Visibility> for Visibility {
 /// If this is false, then [`ViewVisibility`] should also be false.
 ///
 /// [`VisibilityPropagate`]: VisibilitySystems::VisibilityPropagate
-#[derive(Component, Deref, Debug, Default, Clone, Copy, Reflect, PartialEq, Eq)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Deref, Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[component(on_insert = validate_parent_has_component::<Self>)]
 pub struct InheritedVisibility(bool);
 
@@ -122,8 +119,7 @@ impl InheritedVisibility {
 //
 // Note: This can't be a `ComponentId` because the visibility classes are copied
 // into the render world, and component IDs are per-world.
-#[derive(Clone, Component, Default, Reflect, Deref, DerefMut)]
-#[reflect(Component, Default, Clone)]
+#[derive(Clone, Component, Default, Deref, DerefMut)]
 #[component(clone_behavior=Ignore)]
 pub struct VisibilityClass(pub SmallVec<[TypeId; 1]>);
 
@@ -140,8 +136,7 @@ pub struct VisibilityClass(pub SmallVec<[TypeId; 1]>);
 ///
 /// [`VisibilityPropagate`]: VisibilitySystems::VisibilityPropagate
 /// [`CheckVisibility`]: VisibilitySystems::CheckVisibility
-#[derive(Component, Debug, Default, Clone, Copy, Reflect, PartialEq, Eq)]
-#[reflect(Component, Default, Debug, PartialEq, Clone)]
+#[derive(Component, Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ViewVisibility(
     /// Bit packed booleans to track current and previous view visibility state.
     ///
@@ -225,8 +220,7 @@ impl<'a> SetViewVisibility for Mut<'a, ViewVisibility> {
 /// - when a [`Mesh`] is updated but its [`Aabb`] is not, which might happen with animations,
 /// - when using some light effects, like wanting a [`Mesh`] out of the [`Frustum`]
 ///   to appear in the reflection of a [`Mesh`] within.
-#[derive(Debug, Component, Default, Reflect)]
-#[reflect(Component, Default, Debug)]
+#[derive(Debug, Component, Default)]
 pub struct NoFrustumCulling;
 
 /// Collection of entities visible from the current view.
@@ -238,10 +232,8 @@ pub struct NoFrustumCulling;
 ///
 /// This component is intended to be attached to the same entity as the [`Camera`] and
 /// the [`Frustum`] defining the view.
-#[derive(Clone, Component, Default, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Clone, Component, Default, Debug)]
 pub struct VisibleEntities {
-    #[reflect(ignore, clone)]
     pub entities: TypeIdMap<Vec<Entity>>,
 }
 
@@ -289,17 +281,13 @@ impl VisibleEntities {
 ///
 /// This component contains all mesh entities visible from the current light view.
 /// The collection is updated automatically by `bevy_pbr::SimulationLightSystems`.
-#[derive(Component, Clone, Debug, Default, Reflect, Deref, DerefMut)]
-#[reflect(Component, Debug, Default, Clone)]
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut)]
 pub struct VisibleMeshEntities {
-    #[reflect(ignore, clone)]
     pub entities: Vec<Entity>,
 }
 
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component, Debug, Default, Clone)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct CubemapVisibleEntities {
-    #[reflect(ignore, clone)]
     data: [VisibleMeshEntities; 6],
 }
 
@@ -321,11 +309,9 @@ impl CubemapVisibleEntities {
     }
 }
 
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct CascadesVisibleEntities {
     /// Map of view entity to the visible entities for each cascade frustum.
-    #[reflect(ignore, clone)]
     pub entities: EntityHashMap<Vec<VisibleMeshEntities>>,
 }
 
@@ -405,7 +391,7 @@ impl Plugin for VisibilityPlugin {
 /// This is useful if entities are already spawned with a correct `Aabb` component, or you have
 /// many entities and want to avoid the cost of table scans searching for entities that need to have
 /// their AABB recomputed.
-#[derive(Component, Clone, Debug, Default, Reflect)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct NoAutoAabb;
 
 /// Computes and adds an [`Aabb`] component to entities with a
@@ -985,9 +971,8 @@ mod test {
         assert_eq!(1, size_of::<Option<Visibility>>());
     }
 
-    #[derive(Component, Default, Clone, Reflect)]
+    #[derive(Component, Default, Clone)]
     #[require(VisibilityClass)]
-    #[reflect(Component, Default, Clone)]
     #[component(on_add = add_visibility_class::<Self>)]
     struct TestVisibilityClassHook;
 

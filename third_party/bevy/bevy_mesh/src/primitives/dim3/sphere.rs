@@ -1,7 +1,6 @@
 use crate::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology};
 use bevy_asset::RenderAssetUsages;
 use bevy_math::{ops, primitives::Sphere};
-use bevy_reflect::prelude::*;
 use core::f32::consts::PI;
 use hexasphere::shapes::IcoSphere;
 use thiserror::Error;
@@ -20,8 +19,7 @@ pub enum IcosphereError {
 }
 
 /// A type of sphere mesh.
-#[derive(Clone, Copy, Debug, Reflect)]
-#[reflect(Default, Debug, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum SphereKind {
     /// An icosphere, a spherical mesh that consists of similar sized triangles.
     Ico {
@@ -48,8 +46,7 @@ impl Default for SphereKind {
 }
 
 /// A builder used for creating a [`Mesh`] with an [`Sphere`] shape.
-#[derive(Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Default, Debug, Clone)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct SphereMeshBuilder {
     /// The [`Sphere`] shape.
     pub sphere: Sphere,

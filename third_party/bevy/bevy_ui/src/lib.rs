@@ -18,7 +18,6 @@ pub mod widget;
 pub mod ui_transform;
 
 use bevy_derive::{Deref, DerefMut};
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 mod accessibility;
 // This module is not re-exported, but is instead made public.
 // This is intended to discourage accidental use of the experimental API.
@@ -102,8 +101,7 @@ pub enum UiSystems {
 ///
 /// A multiplier to fixed-sized ui values.
 /// **Note:** This will only affect fixed ui values like [`Val::Px`]
-#[derive(Debug, Reflect, Resource, Deref, DerefMut)]
-#[reflect(Resource, Debug, Default)]
+#[derive(Debug, Resource, Deref, DerefMut)]
 pub struct UiScale(pub f32);
 
 impl Default for UiScale {

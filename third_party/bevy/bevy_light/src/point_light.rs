@@ -7,7 +7,6 @@ use bevy_color::Color;
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
 use bevy_math::Mat4;
-use bevy_reflect::prelude::*;
 use bevy_transform::components::{GlobalTransform, Transform};
 
 use crate::{
@@ -38,8 +37,7 @@ use crate::{
 /// To enable shadows, set the `shadows_enabled` property to `true`.
 ///
 /// To control the resolution of the shadow maps, use the [`PointLightShadowMap`] resource.
-#[derive(Component, Debug, Clone, Copy, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Clone, Copy)]
 #[require(
     CubemapFrusta,
     CubemapVisibleEntities,
@@ -152,8 +150,7 @@ impl PointLight {
 /// Add to a [`PointLight`] to add a light texture effect.
 /// A texture mask is applied to the light source to modulate its intensity,  
 /// simulating patterns like window shadows, gobo/cookie effects, or soft falloffs.
-#[derive(Clone, Component, Debug, Reflect)]
-#[reflect(Component, Debug)]
+#[derive(Clone, Component, Debug)]
 #[require(PointLight)]
 pub struct PointLightTexture {
     /// The texture image. Only the R channel is read.
@@ -170,8 +167,7 @@ pub struct PointLightTexture {
 /// App::new()
 ///     .insert_resource(PointLightShadowMap { size: 2048 });
 /// ```
-#[derive(Resource, Clone, Debug, Reflect)]
-#[reflect(Resource, Debug, Default, Clone)]
+#[derive(Resource, Clone, Debug)]
 pub struct PointLightShadowMap {
     /// The width and height of each of the 6 faces of the cubemap.
     ///

@@ -3,7 +3,6 @@ use bevy_camera::visibility::Visibility;
 use bevy_ecs::prelude::*;
 use bevy_image::Image;
 use bevy_math::{Quat, UVec2};
-use bevy_reflect::prelude::*;
 use bevy_transform::components::Transform;
 
 /// A marker component for a light probe, which is a cuboid region that provides
@@ -45,8 +44,7 @@ use bevy_transform::components::Transform;
 /// perhaps some other technique, while in Bevy *light probe* refers not to a
 /// specific technique but rather to a class of techniques. Developers familiar
 /// with other engines should be aware of this terminology difference.
-#[derive(Component, Debug, Clone, Copy, Default, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Debug, Clone, Copy, Default)]
 #[require(Transform, Visibility)]
 pub struct LightProbe;
 
@@ -62,8 +60,7 @@ impl LightProbe {
 /// area in space.
 ///
 /// See `bevy_pbr::environment_map` for detailed information.
-#[derive(Clone, Component, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Clone, Component)]
 pub struct EnvironmentMapLight {
     /// The blurry image that represents diffuse radiance surrounding a region.
     pub diffuse_map: Handle<Image>,
@@ -111,8 +108,7 @@ impl Default for EnvironmentMapLight {
 /// A generated environment map that is filtered at runtime.
 ///
 /// See `bevy_pbr::light_probe::generate` for detailed information.
-#[derive(Clone, Component, Reflect)]
-#[reflect(Component, Default, Clone)]
+#[derive(Clone, Component)]
 pub struct GeneratedEnvironmentMapLight {
     /// Source cubemap to be filtered on the GPU, size must be a power of two.
     pub environment_map: Handle<Image>,
@@ -179,8 +175,7 @@ impl Default for AtmosphereEnvironmentMapLight {
 ///
 /// This component requires the [`LightProbe`] component, and is typically used with
 /// [`bevy_transform::components::Transform`] to place the volume appropriately.
-#[derive(Clone, Reflect, Component, Debug)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Clone, Component, Debug)]
 #[require(LightProbe)]
 pub struct IrradianceVolume {
     /// The 3D texture that represents the ambient cubes, encoded in the format

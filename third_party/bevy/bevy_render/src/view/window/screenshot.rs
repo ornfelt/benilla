@@ -5,7 +5,6 @@ use bevy_camera::{ManualTextureViewHandle, RenderTarget};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{message::message_update_system, prelude::*};
 use bevy_image::Image;
-use bevy_reflect::Reflect;
 use bevy_window::WindowRef;
 use std::{
     path::Path,
@@ -13,8 +12,7 @@ use std::{
 };
 use tracing::{error, info};
 
-#[derive(EntityEvent, Reflect, Deref, DerefMut, Debug)]
-#[reflect(Debug)]
+#[derive(EntityEvent, Deref, DerefMut, Debug)]
 pub struct ScreenshotCaptured {
     pub entity: Entity,
     #[deref]
@@ -44,8 +42,7 @@ pub struct ScreenshotCaptured {
 ///       .observe(save_to_disk("screenshot.png"));
 /// }
 /// ```
-#[derive(Component, Deref, DerefMut, Reflect, Debug)]
-#[reflect(Component, Debug)]
+#[derive(Component, Deref, DerefMut, Debug)]
 pub struct Screenshot(pub RenderTarget);
 
 /// A marker component that indicates that a screenshot is currently being captured.

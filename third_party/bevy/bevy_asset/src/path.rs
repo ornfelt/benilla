@@ -4,7 +4,6 @@ use alloc::{
     string::{String, ToString},
 };
 use atomicow::CowArc;
-use bevy_reflect::{Reflect, ReflectDeserialize, ReflectSerialize};
 use core::{
     fmt::{Debug, Display},
     hash::Hash,
@@ -51,9 +50,7 @@ use thiserror::Error;
 /// This means that the common case of `asset_server.load("my_scene.scn")` when it creates and
 /// clones internal owned [`AssetPaths`](AssetPath).
 /// This also means that you should use [`AssetPath::parse`] in cases where `&str` is the explicit type.
-#[derive(Eq, PartialEq, Hash, Clone, Default, Reflect)]
-#[reflect(opaque)]
-#[reflect(Debug, PartialEq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Hash, Clone, Default)]
 pub struct AssetPath<'a> {
     source: AssetSourceId<'a>,
     path: CowArc<'a, Path>,

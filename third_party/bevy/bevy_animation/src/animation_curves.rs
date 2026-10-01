@@ -298,7 +298,6 @@ pub struct AnimatableCurve<P, C> {
 ///
 /// You shouldn't ordinarily need to instantiate one of these manually. Bevy
 /// will automatically do so when you use an [`AnimatableCurve`] instance.
-#[derive(Reflect)]
 pub struct AnimatableCurveEvaluator<A: Animatable> {
     evaluator: BasicAnimationCurveEvaluator<A>,
     property: Box<dyn AnimatableProperty<Property = A>>,
@@ -419,7 +418,6 @@ impl<A: Animatable> AnimationCurveEvaluator for AnimatableCurveEvaluator<A> {
     }
 }
 
-#[derive(Reflect)]
 struct BasicAnimationCurveEvaluator<A>
 where
     A: Animatable,
@@ -428,7 +426,6 @@ where
     blend_register: Option<(A, f32)>,
 }
 
-#[derive(Reflect)]
 struct BasicAnimationCurveEvaluatorStackElement<A>
 where
     A: Animatable,

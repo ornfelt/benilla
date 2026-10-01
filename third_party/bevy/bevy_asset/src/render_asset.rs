@@ -1,4 +1,3 @@
-use bevy_reflect::{Reflect, ReflectDeserialize, ReflectSerialize};
 use serde::{Deserialize, Serialize};
 
 bitflags::bitflags! {
@@ -26,9 +25,7 @@ bitflags::bitflags! {
     /// [discussion about memory management](https://github.com/WebAssembly/design/issues/1397) for more
     /// details.
     #[repr(transparent)]
-    #[derive(Serialize, Deserialize, Hash, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
-    #[reflect(opaque)]
-    #[reflect(Serialize, Deserialize, Hash, Clone, PartialEq, Debug)]
+    #[derive(Serialize, Deserialize, Hash, Clone, Copy, PartialEq, Eq, Debug)]
     pub struct RenderAssetUsages: u8 {
         /// The bit flag for the main world.
         const MAIN_WORLD = 1 << 0;

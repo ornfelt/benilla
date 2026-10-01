@@ -1,7 +1,6 @@
 use bevy_camera::{Camera, Projection};
 use bevy_ecs::{entity::EntityHashMap, prelude::*};
 use bevy_math::{ops, Mat4, Vec3A, Vec4};
-use bevy_reflect::prelude::*;
 use bevy_transform::components::GlobalTransform;
 
 use crate::{DirectionalLight, DirectionalLightShadowMap};
@@ -19,8 +18,7 @@ use crate::{DirectionalLight, DirectionalLightShadowMap};
 ///   ..default()
 /// }.into();
 /// ```
-#[derive(Component, Clone, Debug, Reflect)]
-#[reflect(Component, Default, Debug, Clone)]
+#[derive(Component, Clone, Debug)]
 pub struct CascadeShadowConfig {
     /// The (positive) distance to the far boundary of each cascade.
     pub bounds: Vec<f32>,
@@ -152,15 +150,13 @@ impl From<CascadeShadowConfigBuilder> for CascadeShadowConfig {
     }
 }
 
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component, Debug, Default, Clone)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct Cascades {
     /// Map from a view to the configuration of each of its [`Cascade`]s.
     pub cascades: EntityHashMap<Vec<Cascade>>,
 }
 
-#[derive(Clone, Debug, Default, Reflect)]
-#[reflect(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Cascade {
     /// The transform of the light, i.e. the view to world matrix.
     pub world_from_cascade: Mat4,

@@ -19,7 +19,6 @@ use bevy_ecs::{
     world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World},
 };
 use bevy_math::Vec3;
-use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_utils::default;
 
 use crate::{
@@ -285,8 +284,7 @@ where
 }
 
 /// Buffer for gizmo vertex data.
-#[derive(Debug, Clone, Reflect)]
-#[reflect(Default)]
+#[derive(Debug, Clone)]
 pub struct GizmoBuffer<Config, Clear>
 where
     Config: GizmoConfigGroup,
@@ -301,7 +299,6 @@ where
     pub strip_positions: Vec<Vec3>,
     /// The colors of line strip vertices.
     pub strip_colors: Vec<LinearRgba>,
-    #[reflect(ignore, clone)]
     pub(crate) marker: PhantomData<(Config, Clear)>,
 }
 
