@@ -6,8 +6,7 @@ use bevy::prelude::*;
 ///
 /// When combine rules clash with each other, the following priority order is used:
 /// `Max > Multiply > Min > GeometricMean > Average`.
-#[derive(Reflect, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CoefficientCombine {
     /// Coefficients are combined by computing their average `(a + b) / 2.0`.
     Average = 1,
@@ -37,15 +36,13 @@ impl CoefficientCombine {
 /// A resource for the [`Friction`] to use for physics objects.
 ///
 /// Defaults to dynamic and static friction coefficients of `0.5` with a combine rule of [`CoefficientCombine::Average`].
-#[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[reflect(Debug, Default, PartialEq)]
+#[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq)]
 pub struct DefaultFriction(pub Friction);
 
 /// A resource for the [`Restitution`] to use for physics objects.
 ///
 /// Defaults to a coefficient of `0.0` with a combine rule of [`CoefficientCombine::Average`].
-#[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq, Reflect)]
-#[reflect(Debug, Default, PartialEq)]
+#[derive(Resource, Clone, Copy, Debug, Default, Deref, DerefMut, PartialEq)]
 pub struct DefaultRestitution(pub Restitution);
 
 /// The coefficients of [dry friction], controlling how strongly a [rigid body](RigidBody) or [collider](Collider)
@@ -118,8 +115,7 @@ pub struct DefaultRestitution(pub Restitution);
 /// It is worth noting that in real life, friction coefficients can vary greatly based on material combinations, surface roughness,
 /// and numerous other factors, and they are not uniform across surfaces. For game purposes however, it is impractical to consider
 /// all of these factors, so instead, material interactions are controlled using simple [`CoefficientCombine`] rules.
-#[derive(Reflect, Clone, Copy, Debug, PartialEq, PartialOrd)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Friction {
     /// Coefficient of dynamic friction. Applied when bodies are sliding relative to each other.
     ///
@@ -231,8 +227,7 @@ impl Friction {
 /// all of these factors, so instead, material interactions are controlled using simple [`CoefficientCombine`] rules.
 #[doc(alias = "Bounciness")]
 #[doc(alias = "Elasticity")]
-#[derive(Reflect, Clone, Copy, Debug, PartialEq, PartialOrd)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Restitution {
     /// The [coefficient of restitution](https://en.wikipedia.org/wiki/Coefficient_of_restitution).
     ///

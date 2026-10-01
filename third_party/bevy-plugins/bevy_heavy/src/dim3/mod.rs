@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 
 use bevy_math::{DVec3, Isometry3d, Mat3, Quat, Vec3};
-#[cfg(all(feature = "bevy_reflect", feature = "serialize"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 
 mod angular_inertia;
 pub use angular_inertia::{AngularInertiaTensor, AngularInertiaTensorError};
@@ -88,13 +86,6 @@ pub trait ComputeMassProperties3d {
 /// [angular inertia]: crate#angular-inertia
 /// [center of mass]: crate#center-of-mass
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
-#[cfg_attr(feature = "bevy_reflect", reflect(Debug, PartialEq))]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "bevy_reflect", feature = "serialize"),
-    reflect(Serialize, Deserialize)
-)]
 pub struct MassProperties3d {
     /// The [mass].
     ///

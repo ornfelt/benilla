@@ -15,8 +15,7 @@ use crate::{
 use bevy::prelude::*;
 
 /// A stable identifier for a [`ContactEdge`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ContactId(pub u32);
 
 impl ContactId {
@@ -110,8 +109,7 @@ impl ContactEdge {
 // the `ContactPair` when for example querying for touching contacts.
 /// Flags for a [`ContactEdge`].
 #[repr(transparent)]
-#[derive(Hash, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
-#[reflect(opaque, Hash, PartialEq, Debug)]
+#[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ContactEdgeFlags(u8);
 
 bitflags::bitflags! {
@@ -159,8 +157,7 @@ pub struct ContactPair {
 
 /// Flags indicating the status and type of a [contact pair](ContactPair).
 #[repr(transparent)]
-#[derive(Hash, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
-#[reflect(opaque, Hash, PartialEq, Debug)]
+#[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ContactPairFlags(u16);
 
 bitflags::bitflags! {

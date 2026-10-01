@@ -135,18 +135,13 @@
 #![warn(missing_docs)]
 #![no_std]
 
-#[cfg(any(feature = "2d", feature = "3d"))]
 extern crate alloc;
 
-#[cfg(feature = "2d")]
 mod dim2;
-#[cfg(feature = "3d")]
 mod dim3;
 mod math_ext;
 
-#[cfg(feature = "2d")]
 pub use dim2::*;
-#[cfg(feature = "3d")]
 pub use dim3::*;
 pub use glam_matrix_extras::{Mat3Ext, MatConversionError, SquareMatExt, SymmetricMat3};
 pub use math_ext::RecipOrZero;

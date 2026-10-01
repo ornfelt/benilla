@@ -260,36 +260,30 @@ pub type TransformEasingSet = TransformEasingSystems;
 pub struct LastEasingTick(Tick);
 
 /// Explicitly marks this entity as having no transform easing, disabling interpolation and/or extrapolation.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(NoTranslationEasing, NoRotationEasing, NoScaleEasing)]
 pub struct NoTransformEasing;
 
 /// Explicitly marks this entity as having no translation easing, disabling interpolation and/or extrapolation.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoTranslationEasing;
 
 /// Explicitly marks this entity as having no rotation easing, disabling interpolation and/or extrapolation.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoRotationEasing;
 
 /// Explicitly marks this entity as having no scale easing, disabling interpolation and/or extrapolation.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoScaleEasing;
 
 /// A marker component that indicates that the entity has non-linear translation easing,
 /// and linear easing should not be applied.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NonlinearTranslationEasing;
 
 /// A marker component that indicates that the entity has non-linear rotation easing,
 /// and linear easing should not be applied.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NonlinearRotationEasing;
 
 /// A [`QueryData`] type for specifying the components that store velocity for easing.
@@ -420,10 +414,7 @@ impl VelocitySource for () {
 ///
 /// On its own, this component is not updated automatically. Enable an easing backend
 /// such as the [`TransformInterpolationPlugin`] to perform automatic interpolation.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct TranslationEasingState {
     /// The start translation for the interpolation.
     pub start: Option<Vec3>,
@@ -436,10 +427,7 @@ pub struct TranslationEasingState {
 ///
 /// On its own, this component is not updated automatically. Enable an easing backend
 /// such as the [`TransformInterpolationPlugin`] to perform automatic interpolation.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct RotationEasingState {
     /// The start rotation for the interpolation.
     pub start: Option<Quat>,
@@ -452,10 +440,7 @@ pub struct RotationEasingState {
 ///
 /// On its own, this component is not updated automatically. Enable an easing backend
 /// such as the [`TransformInterpolationPlugin`] to perform automatic interpolation.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ScaleEasingState {
     /// The start scale for the interpolation.
     pub start: Option<Vec3>,

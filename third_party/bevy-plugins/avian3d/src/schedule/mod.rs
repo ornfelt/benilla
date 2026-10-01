@@ -212,8 +212,7 @@ pub enum PhysicsStepSystems {
 }
 
 /// A [`Tick`] corresponding to the end of the previous run of the [`PhysicsSchedule`].
-#[derive(Resource, Reflect, Default)]
-#[reflect(Resource, Default)]
+#[derive(Resource, Default)]
 pub struct LastPhysicsTick(pub Tick);
 
 pub(crate) fn is_changed_after_tick<C: Component>(

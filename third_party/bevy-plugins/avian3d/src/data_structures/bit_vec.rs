@@ -5,11 +5,8 @@
 use core::ops::BitOrAssign;
 use core::slice;
 
-use bevy::reflect::Reflect;
-
 /// A dynamically sized compact bit vector with a fixed block size of 64 bits.
-#[derive(Clone, Debug, Default, Reflect)]
-#[reflect(Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BitVec {
     blocks: Vec<u64>,
     block_capacity: usize,

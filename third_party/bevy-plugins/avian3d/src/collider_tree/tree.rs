@@ -1,7 +1,4 @@
-use bevy::{
-    ecs::{entity::Entity, resource::Resource},
-    reflect::prelude::*,
-};
+use bevy::ecs::{entity::Entity, resource::Resource};
 use obvhs::{
     aabb::Aabb,
     bvh2::{Bvh2, insertion_removal::SiblingInsertionCandidate, reinsertion::ReinsertionOptimizer},
@@ -50,8 +47,7 @@ pub struct ColliderTreeProxy {
 
 /// Flags for a [`ColliderTreeProxy`].
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ColliderTreeProxyFlags(u32);
 
 bitflags::bitflags! {

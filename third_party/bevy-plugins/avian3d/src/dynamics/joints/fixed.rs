@@ -3,10 +3,7 @@ use crate::{
     prelude::*,
 };
 use bevy::{
-    ecs::{
-        entity::{EntityMapper, MapEntities},
-        reflect::ReflectMapEntities,
-    },
+    ecs::entity::{EntityMapper, MapEntities},
     prelude::*,
 };
 
@@ -28,8 +25,7 @@ use bevy::{
 /// and basis of each frame aligned, locking them together.
 ///
 #[doc = include_str!("./images/point_constraint.svg")]
-#[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Debug, MapEntities, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct FixedJoint {
     /// The first body constrained by the joint.
     pub body1: Entity,

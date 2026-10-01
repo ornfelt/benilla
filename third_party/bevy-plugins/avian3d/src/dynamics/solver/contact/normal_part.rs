@@ -1,5 +1,4 @@
 use crate::{dynamics::solver::softness_parameters::SoftnessCoefficients, prelude::*};
-use bevy::reflect::Reflect;
 
 pub type NormalImpulse = Scalar;
 
@@ -7,8 +6,7 @@ pub type NormalImpulse = Scalar;
 // TODO: One-body constraint version
 /// The normal part of a [`ContactConstraintPoint`](super::ContactConstraintPoint).
 /// Aims to resolve overlap.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ContactNormalPart {
     /// The magnitude of the contact impulse along the contact normal.
     pub impulse: NormalImpulse,

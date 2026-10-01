@@ -47,8 +47,7 @@ use bevy::prelude::*;
 /// [simulation islands]: crate::dynamics::solver::islands
 /// [`IslandPlugin`]: crate::dynamics::solver::islands::IslandPlugin
 /// [`IslandSleepingPlugin`]: crate::dynamics::solver::islands::IslandSleepingPlugin
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct Sleeping;
 
 /// A component for the maximum [`LinearVelocity`] and [`AngularVelocity`]
@@ -58,8 +57,7 @@ pub struct Sleeping;
 ///
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
-#[derive(Component, Clone, Copy, PartialEq, PartialOrd, Debug, Reflect)]
-#[reflect(Component, Debug, PartialEq)]
+#[derive(Component, Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub struct SleepThreshold {
     /// The maximum linear velocity for the body to be allowed to be [`Sleeping`].
     ///
@@ -92,8 +90,7 @@ impl Default for SleepThreshold {
 /// [`RigidBody`]: super::RigidBody
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct SleepTimer(pub f32);
 
 /// A resource that specifies the time in seconds that a [`RigidBody`] must rest
@@ -105,8 +102,7 @@ pub struct SleepTimer(pub f32);
 /// [`RigidBody`]: super::RigidBody
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
-#[derive(Resource, Clone, Copy, Debug, PartialEq, PartialOrd, Reflect)]
-#[reflect(Debug, Default, PartialEq)]
+#[derive(Resource, Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct TimeToSleep(pub f32);
 
 impl Default for TimeToSleep {

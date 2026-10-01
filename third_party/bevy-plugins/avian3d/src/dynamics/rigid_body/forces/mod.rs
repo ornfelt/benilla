@@ -29,8 +29,7 @@ use bevy::prelude::*;
 
 /// A component with the user-applied local acceleration
 /// accumulated for a rigid body before the physics step.
-#[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
-#[reflect(Component, Debug, Default, PartialEq)]
+#[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct AccumulatedLocalAcceleration {
     /// The accumulated linear acceleration in local space.
     pub linear: Vector,

@@ -5,11 +5,9 @@ use crate::{
     },
     prelude::*,
 };
-use bevy::prelude::*;
 
 /// Constraint data required by the XPBD constraint solver for a fixed angle constraint.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FixedAngleConstraintShared {
     /// The target rotation difference between the two bodies.
     pub rotation_difference: Quaternion,

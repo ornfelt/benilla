@@ -29,7 +29,7 @@ impl Plugin for ColliderTreeOptimizationPlugin {
 
 /// Settings for optimizing each [`ColliderTree`].
 // TODO: Per-tree settings could be useful.
-#[derive(Resource, Debug, PartialEq, Reflect)]
+#[derive(Resource, Debug, PartialEq)]
 pub struct ColliderTreeOptimization {
     /// The optimization mode for the collider tree.
     ///
@@ -71,7 +71,7 @@ impl Default for ColliderTreeOptimization {
 }
 
 /// The optimization mode for a [`ColliderTree`].
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TreeOptimizationMode {
     /// The tree is optimized by reinserting proxies whose AABB in the tree has changed.
     ///

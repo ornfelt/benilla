@@ -3,10 +3,7 @@ use crate::{
     prelude::*,
 };
 use bevy::{
-    ecs::{
-        entity::{EntityMapper, MapEntities},
-        reflect::ReflectMapEntities,
-    },
+    ecs::entity::{EntityMapper, MapEntities},
     prelude::*,
 };
 
@@ -22,8 +19,7 @@ use bevy::{
 ///
 /// The joint can also include an [`AngularMotor`] for driving the rotation about the pivot point.
 /// Use this to create wheels, fans, servos, or other rotating mechanisms.
-#[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Debug, MapEntities, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 #[doc(alias = "HingeJoint")]
 pub struct RevoluteJoint {
     /// The first body constrained by the joint.

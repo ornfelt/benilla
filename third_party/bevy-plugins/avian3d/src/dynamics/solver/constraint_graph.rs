@@ -18,10 +18,7 @@
 //! [Box2D - SIMD Matters]: https://box2d.org/posts/2024/08/simd-matters/
 //! [Erin Catto]: https://github.com/erincatto
 
-use bevy::{
-    ecs::{entity::Entity, resource::Resource},
-    reflect::Reflect,
-};
+use bevy::ecs::{entity::Entity, resource::Resource};
 
 use crate::{
     collision::contact_types::{ContactEdge, ContactGraphInternal, ContactId},
@@ -57,8 +54,7 @@ pub const DYNAMIC_COLOR_COUNT: usize = GRAPH_COLOR_COUNT - 4;
 /// the body, they would still cause horrible cache stalls.
 ///
 /// [`SolverBody`]: crate::dynamics::solver::solver_body::SolverBody
-#[derive(Clone, Debug, Default, Reflect)]
-#[reflect(Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GraphColor {
     /// A bit vector representing the [`SolverBody`]s that are part of this color.
     ///
@@ -78,8 +74,7 @@ pub struct GraphColor {
 /// A handle to a contact manifold in the [`ContactGraph`].
 ///
 /// [`ContactGraph`]: crate::collision::contact_types::ContactGraph
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContactManifoldHandle {
     /// The stable identifier of the contact pair in the [`ContactGraph`].
     ///
@@ -91,8 +86,7 @@ pub struct ContactManifoldHandle {
 }
 
 /// A handle to a contact constraint in the [`ConstraintGraph`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContactConstraintHandle {
     /// The index of the [`GraphColor`] of the constraint in the [`ConstraintGraph`].
     pub color_index: u8,
@@ -114,8 +108,7 @@ pub struct ContactConstraintHandle {
 /// See the [module-level documentation](self) for more general information about graph coloring.
 ///
 /// [`ContactManifold`]: crate::collision::contact_types::ContactManifold
-#[derive(Resource, Clone, Debug, Reflect)]
-#[reflect(Debug)]
+#[derive(Resource, Clone, Debug)]
 pub struct ConstraintGraph {
     /// The colors in the graph.
     pub colors: Vec<GraphColor>,

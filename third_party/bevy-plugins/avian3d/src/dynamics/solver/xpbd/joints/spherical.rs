@@ -9,8 +9,7 @@ use crate::{
 use bevy::prelude::*;
 
 /// Constraint data required by the XPBD constraint solver for a [`SphericalJoint`].
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(Component, Debug, PartialEq)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct SphericalJointSolverData {
     pub(super) point_constraint: PointConstraintShared,
     pub(super) swing_axis1: Vector,

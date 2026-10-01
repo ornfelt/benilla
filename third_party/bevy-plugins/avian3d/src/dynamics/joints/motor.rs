@@ -1,13 +1,11 @@
 use crate::prelude::*;
-use bevy::prelude::*;
 
 /// Determines how the joint motor force/torque is computed.
 ///
 /// Different models offer trade-offs between ease of tuning and physical accuracy.
 /// The default is a [`SpringDamper`](MotorModel::SpringDamper) model that provides
 /// stable, predictable behavior across different configurations.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MotorModel {
     /// A spring-damper model using implicit Euler integration.
     ///
@@ -115,8 +113,7 @@ impl MotorModel {
 ///         .with_target_position(target_angle)
 ///     )
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AngularMotor {
     /// Whether the motor is enabled.
     pub enabled: bool,
@@ -182,8 +179,7 @@ impl AngularMotor {
 ///         .with_target_position(target_position)
 ///     )
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LinearMotor {
     /// Whether the motor is enabled.
     pub enabled: bool,

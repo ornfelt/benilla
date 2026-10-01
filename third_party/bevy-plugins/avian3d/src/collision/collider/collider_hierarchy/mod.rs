@@ -43,10 +43,9 @@ use bevy::{
 /// by inserting the [`ColliderOf`] component manually.
 ///
 /// [`Relationship`]: bevy::ecs::relationship::Relationship
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[component(immutable, on_insert = <ColliderOf as Relationship>::on_insert, on_replace = <ColliderOf as Relationship>::on_replace)]
 #[require(ColliderTransform)]
-#[reflect(Debug, Component, PartialEq)]
 pub struct ColliderOf {
     /// The [`Entity`] ID of the [`RigidBody`] that this collider is attached to.
     pub body: Entity,
@@ -205,9 +204,8 @@ impl Relationship for ColliderOf {
 /// Instead, modify the [`ColliderOf`] components on the colliders.
 ///
 /// [`Relationship`]: bevy::ecs::relationship::Relationship
-#[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
+#[derive(Component, Clone, Debug, Default, PartialEq)]
 #[relationship_target(relationship = ColliderOf, linked_spawn)]
-#[reflect(Debug, Component, Default, PartialEq)]
 pub struct RigidBodyColliders(Vec<Entity>);
 
 impl<'a> IntoIterator for &'a RigidBodyColliders {

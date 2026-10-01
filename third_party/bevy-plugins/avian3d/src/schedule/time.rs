@@ -77,8 +77,7 @@ use bevy::prelude::*;
 /// For systems using a fixed timestep, using delta time is not necessary for frame rate
 /// independence, but it's still recommended so that the physical units are more logical.
 
-#[derive(Reflect, Clone, Copy, Debug, PartialEq)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Physics {
     paused: bool,
     relative_speed: f64,
@@ -122,7 +121,7 @@ impl PhysicsTime for Time<Physics> {
 ///
 /// The clock is automatically set as the generic `Time` resource for
 /// the [`SubstepSchedule`].
-#[derive(Reflect, Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Substeps;
 
 pub(crate) trait TimePrecisionAdjusted {

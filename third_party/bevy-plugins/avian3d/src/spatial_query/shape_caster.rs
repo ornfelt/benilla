@@ -2,8 +2,7 @@ use crate::prelude::*;
 use bevy::prelude::*;
 
 /// Configuration for a shape cast.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ShapeCastConfig {
     /// The maximum distance the shape can travel.
     ///
@@ -60,8 +59,7 @@ impl ShapeCastConfig {
 }
 
 /// Data related to a hit during a [shapecast](spatial_query#shapecasting).
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ShapeHitData {
     /// The entity of the collider that was hit by the shape.
     pub entity: Entity,

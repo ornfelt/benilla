@@ -36,8 +36,7 @@ use derive_more::From;
 ///     ));
 /// }
 /// ```
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct Position(pub Vector);
 
 impl Position {
@@ -86,13 +85,11 @@ impl Ease for Position {
 }
 
 /// The translation accumulated before the XPBD position solve.
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct PreSolveDeltaPosition(pub Vector);
 
 /// The rotation accumulated before the XPBD position solve.
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct PreSolveDeltaRotation(pub Rotation);
 
 /// Quaternion
@@ -132,8 +129,7 @@ impl Ease for Rotation {
 ///     commands.spawn((RigidBody::Dynamic, Rotation(Quat::from_rotation_x(1.5))));
 /// }
 /// ```
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq)]
 pub struct Rotation(pub Quaternion);
 
 impl Rotation {

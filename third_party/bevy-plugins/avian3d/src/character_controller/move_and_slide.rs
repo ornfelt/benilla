@@ -80,8 +80,7 @@ pub struct MoveAndSlide<'w, 's> {
 }
 
 /// Configuration for the move and slide algorithm.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MoveAndSlideConfig {
     /// How many iterations to use when moving the character.
     ///
@@ -174,8 +173,7 @@ impl Default for MoveAndSlideConfig {
 }
 
 /// Configuration for depenetration.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DepenetrationConfig {
     /// How many iterations to use when performing depenetration.
     ///
@@ -239,8 +237,7 @@ impl From<&MoveAndSlideConfig> for DepenetrationConfig {
 }
 
 /// Output from the move and slide algorithm.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MoveAndSlideOutput {
     /// The final position of the character after move and slide.
     ///
@@ -315,8 +312,7 @@ pub enum MoveAndSlideHitResponse {
 }
 
 /// Data related to a hit during [`MoveAndSlide::cast_move`].
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MoveHitData {
     /// The entity of the collider that was hit by the shape.
     pub entity: Entity,

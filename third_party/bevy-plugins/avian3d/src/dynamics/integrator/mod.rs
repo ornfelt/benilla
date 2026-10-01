@@ -133,8 +133,7 @@ pub enum IntegrationSystems {
 /// ```
 ///
 /// You can also modify gravity while the app is running.
-#[derive(Reflect, Resource, Debug)]
-#[reflect(Debug, Resource)]
+#[derive(Resource, Debug)]
 pub struct Gravity(pub Vector);
 
 impl Default for Gravity {
@@ -161,8 +160,7 @@ impl Gravity {
 // -----------------------
 // 20 bytes in 2D with f32
 // 32 bytes in 3D with f32
-#[derive(Component, Debug, Default, PartialEq, Reflect)]
-#[reflect(Component, Debug, Default, PartialEq)]
+#[derive(Component, Debug, Default, PartialEq)]
 pub struct VelocityIntegrationData {
     /// The linear velocity increment to be applied to the body at each substep.
     ///

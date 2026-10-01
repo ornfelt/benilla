@@ -3,10 +3,7 @@ use crate::{
     prelude::*,
 };
 use bevy::{
-    ecs::{
-        entity::{EntityMapper, MapEntities},
-        reflect::ReflectMapEntities,
-    },
+    ecs::entity::{EntityMapper, MapEntities},
     prelude::*,
 };
 
@@ -26,8 +23,7 @@ use bevy::{
 /// of the allowed swing as a half-angle.
 ///
 #[doc = include_str!("./images/swing_twist_limit.svg")]
-#[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Debug, MapEntities, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct SphericalJoint {
     /// The first body constrained by the joint.
     pub body1: Entity,

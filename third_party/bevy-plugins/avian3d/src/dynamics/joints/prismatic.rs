@@ -3,10 +3,7 @@ use crate::{
     prelude::*,
 };
 use bevy::{
-    ecs::{
-        entity::{EntityMapper, MapEntities},
-        reflect::ReflectMapEntities,
-    },
+    ecs::entity::{EntityMapper, MapEntities},
     prelude::*,
 };
 
@@ -23,8 +20,7 @@ use bevy::{
 ///
 /// The joint can also include a [`LinearMotor`] for driving the translation along the [`slider_axis`](Self::slider_axis).
 /// Use this to create pistons, elevators, or other linear motion mechanisms.
-#[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Debug, MapEntities, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 #[doc(alias = "SliderJoint")]
 pub struct PrismaticJoint {
     /// The first body constrained by the joint.

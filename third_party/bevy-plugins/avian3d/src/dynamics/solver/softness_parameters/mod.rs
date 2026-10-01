@@ -6,13 +6,11 @@
 //!
 #![doc = include_str!("README.md")]
 
-use bevy::reflect::Reflect;
-
 use crate::{Scalar, TAU};
 
 /// Soft constraint tuning parameters used for dampening
 /// constraint response and controlling stiffness.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SoftnessParameters {
     /// 2x the damping ratio (zeta ζ). Controls the amount of oscillation.
     ///
@@ -59,8 +57,7 @@ impl SoftnessParameters {
 }
 
 /// Coefficients used by soft constraints.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SoftnessCoefficients {
     /// The bias coefficient used for scaling how strongly impulses
     /// are biased based on the separation distance.

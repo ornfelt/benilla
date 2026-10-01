@@ -189,8 +189,7 @@ where
 pub struct CollisionEventSystems;
 
 /// A resource for configuring the [narrow phase](NarrowPhasePlugin).
-#[derive(Resource, Reflect, Clone, Debug, PartialEq)]
-#[reflect(Debug, Resource, PartialEq)]
+#[derive(Resource, Clone, Debug, PartialEq)]
 pub struct NarrowPhaseConfig {
     /// The maximum speculative margin used for
     /// [speculative collisions](dynamics::ccd#speculative-collision).

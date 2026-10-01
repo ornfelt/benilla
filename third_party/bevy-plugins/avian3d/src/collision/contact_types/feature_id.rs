@@ -1,11 +1,8 @@
-use bevy::prelude::*;
-
 /// A feature ID indicating the type of a geometric feature: a vertex, an edge, or (in 3D) a face.
 ///
 /// This type packs the feature type into the same value as the feature index,
 /// which indicates the specific vertex/edge/face that this ID belongs to.
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, Reflect)]
-#[reflect(Debug, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct PackedFeatureId(pub u32);
 
 impl PackedFeatureId {

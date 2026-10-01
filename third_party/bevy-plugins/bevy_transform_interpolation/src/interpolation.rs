@@ -208,8 +208,7 @@ impl Plugin for TransformInterpolationPlugin {
 /// rotation, and scale in [`FixedUpdate`] appear smooth.
 ///
 /// See the [`TransformInterpolationPlugin`] for more information.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(TranslationInterpolation, RotationInterpolation, ScaleInterpolation)]
 pub struct TransformInterpolation;
 
@@ -217,8 +216,7 @@ pub struct TransformInterpolation;
 /// in [`FixedUpdate`] appear smooth.
 ///
 /// See the [`TransformInterpolationPlugin`] for more information.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(TranslationEasingState)]
 pub struct TranslationInterpolation;
 
@@ -226,8 +224,7 @@ pub struct TranslationInterpolation;
 /// in [`FixedUpdate`] appear smooth.
 ///
 /// See the [`TransformInterpolationPlugin`] for more information.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(RotationEasingState)]
 pub struct RotationInterpolation;
 
@@ -235,8 +232,7 @@ pub struct RotationInterpolation;
 /// in [`FixedUpdate`] appear smooth.
 ///
 /// See the [`TransformInterpolationPlugin`] for more information.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(ScaleEasingState)]
 pub struct ScaleInterpolation;
 

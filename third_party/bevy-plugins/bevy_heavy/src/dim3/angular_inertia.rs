@@ -1,8 +1,6 @@
 use core::ops::*;
 
 use bevy_math::{Mat3, Quat, Vec3};
-#[cfg(all(feature = "bevy_reflect", feature = "serialize"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 use glam_matrix_extras::{MatConversionError, SymmetricEigen3, SymmetricMat3};
 
 /// An error returned for an invalid [`AngularInertiaTensor`] in 3D.
@@ -32,13 +30,6 @@ pub enum AngularInertiaTensorError {
 /// [principal axes of inertia]: https://en.wikipedia.org/wiki/Moment_of_inertia#Principal_axes
 /// [`principal_angular_inertia_with_local_frame`]: AngularInertiaTensor::principal_angular_inertia_with_local_frame
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
-#[cfg_attr(feature = "bevy_reflect", reflect(Debug, PartialEq))]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "bevy_reflect", feature = "serialize"),
-    reflect(Serialize, Deserialize)
-)]
 #[doc(alias = "MomentOfInertiaTensor")]
 pub struct AngularInertiaTensor(SymmetricMat3);
 

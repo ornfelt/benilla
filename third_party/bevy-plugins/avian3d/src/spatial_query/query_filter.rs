@@ -17,8 +17,7 @@ use crate::prelude::*;
 ///     let query_filter = SpatialQueryFilter::from_mask(0b1011).with_excluded_entities([object]);
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SpatialQueryFilter {
     /// Specifies which [collision layers](CollisionLayers) will be included in the [spatial query](crate::spatial_query).
     pub mask: LayerMask,

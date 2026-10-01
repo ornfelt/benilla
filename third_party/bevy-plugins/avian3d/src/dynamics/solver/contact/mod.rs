@@ -15,7 +15,6 @@ use crate::{
 };
 use bevy::{
     ecs::entity::{Entity, EntityMapper, MapEntities},
-    reflect::Reflect,
     utils::default,
 };
 
@@ -23,8 +22,7 @@ use super::solver_body::{SolverBody, SolverBodyInertia};
 
 // TODO: One-body constraint version
 /// Data and logic for solving a single contact point for a [`ContactConstraint`].
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ContactConstraintPoint {
     /// The normal part of the contact constraint.
     pub normal_part: ContactNormalPart,
@@ -53,8 +51,7 @@ pub struct ContactConstraintPoint {
 ///
 /// Each constraint corresponds to a [`ContactManifold`] indicated by the `manifold_index`.
 /// The contact points are stored in `points`, and they all share the same `normal`.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ContactConstraint {
     /// The first rigid body entity in the contact.
     pub body1: Entity,

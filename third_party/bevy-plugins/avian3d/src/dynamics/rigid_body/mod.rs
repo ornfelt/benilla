@@ -196,8 +196,7 @@ use derive_more::From;
 /// - [`Transform` interpolation and extrapolation](PhysicsInterpolationPlugin)
 /// - [Temporarily disabling a rigid body](RigidBodyDisabled)
 /// - [Automatic deactivation with sleeping](Sleeping)
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq, Eq)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, PartialEq, Eq)]
 #[require(
     // TODO: Only dynamic and kinematic bodies need velocity,
     //       and only dynamic bodies need mass and angular inertia.
@@ -305,8 +304,7 @@ pub(crate) type RigidBodyActiveFilter = (Without<RigidBodyDisabled>, Without<Sle
 /// # Related Components
 ///
 /// - [`ColliderDisabled`]: Disables a collider.
-#[derive(Clone, Copy, Component, Reflect, Debug, Default)]
-#[reflect(Debug, Component, Default)]
+#[derive(Clone, Copy, Component, Debug, Default)]
 pub struct RigidBodyDisabled;
 
 /// The linear velocity of a [rigid body](RigidBody), typically in meters per second.
@@ -332,8 +330,7 @@ pub struct RigidBodyDisabled;
 /// # Related Components
 ///
 /// - [`AngularVelocity`]: The angular velocity of a body.
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct LinearVelocity(pub Vector);
 
 /// The angular velocity of a [rigid body](RigidBody), represented as a rotation axis
@@ -360,6 +357,5 @@ pub struct LinearVelocity(pub Vector);
 /// # Related Components
 ///
 /// - [`LinearVelocity`]: The linear velocity of a body.
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct AngularVelocity(pub Vector);

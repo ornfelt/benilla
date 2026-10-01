@@ -147,8 +147,7 @@ pub trait EntityConstraint<const ENTITY_COUNT: usize>: MapEntities {
 }
 
 /// A limit that indicates that the distance between two points should be between `min` and `max`.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DistanceLimit {
     /// The minimum distance between two points.
     pub min: Scalar,
@@ -230,8 +229,7 @@ impl DistanceLimit {
 }
 
 /// A limit that indicates that angles should be between `alpha` and `beta`.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AngleLimit {
     /// The minimum angle.
     pub min: Scalar,
@@ -358,8 +356,7 @@ impl AngleLimit {
 /// ));
 /// # }
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct JointFrame {
     /// The translation of the joint frame relative to the body transform.
     ///
@@ -421,8 +418,7 @@ impl JointFrame {
 /// but it is automatically converted to [`JointAnchor::Local`] during the next simulation step.
 ///
 /// By default, a local anchor of zero is used, and the anchor aligns with the body transform.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum JointAnchor {
     /// The anchor point is specified in local coordinates relative to the body transform.
     Local(Vector),
@@ -496,8 +492,7 @@ impl From<JointAnchor> for JointFrame {
 /// but it is automatically converted to [`JointBasis::Local`] during the next simulation step.
 ///
 /// By default, a local identity basis is used, and the basis aligns with the body transform.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum JointBasis {
     /// The basis is specified in local space relative to the body transform.
     Local(Rot),

@@ -241,8 +241,7 @@ impl<C: ScalableCollider> Plugin for ColliderBackendPlugin<C> {
 /// A marker component for colliders. Inserted and removed automatically.
 ///
 /// This is useful for filtering collider entities regardless of the [collider backend](ColliderBackendPlugin).
-#[derive(Reflect, Component, Clone, Copy, Debug, Default)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default)]
 pub struct ColliderMarker;
 
 // Stand-in for the system that built each `ColliderConstructor`'s collider; its `Commands` keeps

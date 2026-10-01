@@ -1,6 +1,6 @@
 use core::hint::unreachable_unchecked;
 
-use bevy::{ecs::component::Component, reflect::Reflect};
+use bevy::ecs::component::Component;
 
 use crate::prelude::RigidBody;
 
@@ -11,7 +11,7 @@ use crate::prelude::RigidBody;
 /// leaving 30 bits for the [`ProxyId`].
 ///
 /// [`ColliderTree`]: crate::collider_tree::ColliderTree
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ColliderTreeProxyKey(u32);
 
 impl ColliderTreeProxyKey {
@@ -48,7 +48,7 @@ impl ColliderTreeProxyKey {
 /// A stable identifier for a proxy in a [`ColliderTree`].
 ///
 /// [`ColliderTree`]: crate::collider_tree::ColliderTree
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ProxyId(u32);
 
 impl ProxyId {
@@ -107,7 +107,7 @@ impl Ord for ProxyId {
 }
 
 /// The type of a collider tree, corresponding to the rigid body type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ColliderTreeType {
     /// A tree for dynamic bodies.
     Dynamic = 0,

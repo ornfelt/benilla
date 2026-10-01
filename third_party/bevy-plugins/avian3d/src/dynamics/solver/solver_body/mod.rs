@@ -51,8 +51,7 @@ use crate::{math::Quaternion, prelude::ComputedAngularInertia};
 /// wide SIMD types via scatter/gather operations in the future when SIMD optimizations
 /// are implemented.
 // TODO: Is there a better layout for 3D?
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component, Debug)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct SolverBody {
     /// The linear velocity of the body.
     ///
@@ -104,8 +103,7 @@ impl SolverBody {
 
 /// Flags for [`SolverBody`].
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SolverBodyFlags(u32);
 
 bitflags::bitflags! {
@@ -158,12 +156,10 @@ The API abstracts over this difference in representation to reduce complexity.
 
 /// The inertial properties of a [`SolverBody`].
 ///
-/// This includes the effective inverse mass and angular inertia,
-/// and flags indicating whether the body is static or has locked axes.
+/// This includes the effective inverse mass and angular inertia, and the dominance.
 ///
 /// 16 bytes in 2D and 32 bytes in 3D with the `f32` feature.
-#[derive(Component, Clone, Debug, Reflect)]
-#[reflect(Component, Debug)]
+#[derive(Component, Clone, Debug)]
 pub struct SolverBodyInertia {
     /// The inverse mass of the body.
     ///
@@ -180,12 +176,6 @@ pub struct SolverBodyInertia {
     ///
     /// 2 bytes.
     dominance: i16,
-
-    /// Flags indicating the inertial properties of the body,
-    /// like locked axes and whether the body is static.
-    ///
-    /// 2 bytes.
-    flags: InertiaFlags,
 }
 
 impl SolverBodyInertia {
@@ -194,7 +184,6 @@ impl SolverBodyInertia {
         inv_mass: 0.0,
         effective_inv_angular_inertia: SymmetricTensor::ZERO,
         dominance: i8::MAX as i16 + 1,
-        flags: InertiaFlags::STATIC,
     };
 }
 
@@ -204,41 +193,14 @@ impl Default for SolverBodyInertia {
     }
 }
 
-/// Flags indicating the inertial properties of a body.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Debug, PartialEq)]
-pub struct InertiaFlags(u16);
-
-bitflags::bitflags! {
-    impl InertiaFlags: u16 {
-        /// Set if the body has infinite mass.
-        const INFINITE_MASS = 1 << 6;
-        /// Set if the body has infinite inertia.
-        const INFINITE_ANGULAR_INERTIA = 1 << 7;
-        /// Set if the body is static.
-        const STATIC = Self::INFINITE_MASS.bits() | Self::INFINITE_ANGULAR_INERTIA.bits();
-    }
-}
-
 impl SolverBodyInertia {
     /// Creates a new [`SolverBodyInertia`] with the given mass and angular inertia.
     #[inline]
     pub fn new(inv_mass: Scalar, inv_inertia: SymmetricTensor, is_dynamic: bool) -> Self {
-        let mut flags = InertiaFlags(0);
-
-        if inv_mass == 0.0 {
-            flags |= InertiaFlags::INFINITE_MASS;
-        }
-        if inv_inertia == SymmetricTensor::ZERO {
-            flags |= InertiaFlags::INFINITE_ANGULAR_INERTIA;
-        }
-
         Self {
             inv_mass,
             effective_inv_angular_inertia: inv_inertia,
             dominance: if is_dynamic { 0 } else { i8::MAX as i16 + 1 },
-            flags: InertiaFlags(flags.0),
         }
     }
 

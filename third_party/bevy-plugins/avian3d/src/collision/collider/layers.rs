@@ -76,8 +76,7 @@ where
 /// // Bitwise operations for `LayerMask` unfortunately can't be const, so we need to access the `u32` values.
 /// pub const COMBINED: LayerMask = LayerMask(FIRST_LAYER.0 | LAST_LAYER.0);
 /// ```
-#[derive(Reflect, Clone, Copy, Debug, Deref, DerefMut, Eq, PartialOrd, Ord)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deref, DerefMut, Eq, PartialOrd, Ord)]
 pub struct LayerMask(pub u32);
 
 impl From<u32> for LayerMask {
@@ -302,9 +301,8 @@ impl Not for LayerMask {
 /// assert!(layers.memberships.has_all(0b0011));
 /// assert!((layers.memberships & 0b0011) != 0);
 /// ```
-#[derive(Reflect, Clone, Copy, Component, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Component, Debug, PartialEq, Eq)]
 #[component(immutable)]
-#[reflect(Debug, Component, PartialEq)]
 pub struct CollisionLayers {
     /// The layers that an entity belongs to.
     #[doc(alias = "groups", alias = "layers")]

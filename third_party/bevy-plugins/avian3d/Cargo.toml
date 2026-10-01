@@ -291,7 +291,6 @@ version = "1.0"
 
 [dependencies.glam_matrix_extras]
 version = "0.2"
-features = ["bevy_reflect"]
 
 [dependencies.itertools]
 version = "0.14"

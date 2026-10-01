@@ -2,8 +2,7 @@ use crate::prelude::*;
 use bevy::prelude::*;
 
 /// Data related to a hit during a [raycast](spatial_query#raycasting).
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RayHitData {
     /// The entity of the collider that was hit by the ray.
     pub entity: Entity,

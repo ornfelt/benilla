@@ -194,8 +194,7 @@ impl Plugin for SolverPlugin {
 /// # #[cfg(not(feature = "2d"))]
 /// # fn main() {} // Doc test needs main
 /// ```
-#[derive(Resource, Clone, Debug, Deref, DerefMut, PartialEq, Reflect)]
-#[reflect(Resource)]
+#[derive(Resource, Clone, Debug, Deref, DerefMut, PartialEq)]
 pub struct PhysicsLengthUnit(pub Scalar);
 
 impl Default for PhysicsLengthUnit {
@@ -209,8 +208,7 @@ impl Default for PhysicsLengthUnit {
 ///
 /// These are tuned to give good results for most applications, but can
 /// be configured if more control over the simulation behavior is needed.
-#[derive(Resource, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Resource)]
+#[derive(Resource, Clone, Debug, PartialEq)]
 pub struct SolverConfig {
     /// The damping ratio used for contact stabilization.
     ///
@@ -303,8 +301,7 @@ impl Default for SolverConfig {
 ///
 /// **Note**: This resource is updated automatically and not intended to be modified manually.
 /// Use the [`SolverConfig`] resource instead for tuning contact behavior.
-#[derive(Resource, Clone, Copy, PartialEq, Reflect)]
-#[reflect(Resource)]
+#[derive(Resource, Clone, Copy, PartialEq)]
 pub struct ContactSoftnessCoefficients {
     /// The [`SoftnessCoefficients`] used for contacts against dynamic bodies.
     pub dynamic: SoftnessCoefficients,

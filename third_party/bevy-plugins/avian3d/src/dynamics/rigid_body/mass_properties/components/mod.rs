@@ -110,8 +110,7 @@ pub enum MassError {
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct Mass(pub f32);
 
 // TODO: Add errors for asymmetric and non-positive definite matrices in 3D.
@@ -270,8 +269,7 @@ pub enum AngularInertiaError {
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, PartialEq)]
 #[doc(alias = "MomentOfInertia")]
 pub struct AngularInertia {
     /// The principal angular inertia, representing resistance to angular acceleration
@@ -510,8 +508,7 @@ impl From<AngularInertia> for AngularInertiaTensor {
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct CenterOfMass(pub VectorF32);
 
 /// A marker component that forces the recomputation of [`ComputedMass`], [`ComputedAngularInertia`]
@@ -522,7 +519,7 @@ pub struct CenterOfMass(pub VectorF32);
 ///
 /// [rigid body]: RigidBody
 /// [`MassPropertySystems::UpdateComputedMassProperties`]: super::MassPropertySystems::UpdateComputedMassProperties
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, PartialEq)]
 #[component(storage = "SparseSet")]
 pub struct RecomputeMassProperties;
 

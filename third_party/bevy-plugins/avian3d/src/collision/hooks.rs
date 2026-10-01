@@ -194,9 +194,8 @@ impl CollisionHooks for () {}
 /// # }
 /// ```
 #[repr(transparent)]
-#[derive(Component, Hash, Clone, Copy, Default, PartialEq, Eq, Debug, Reflect)]
+#[derive(Component, Hash, Clone, Copy, Default, PartialEq, Eq, Debug)]
 #[component(immutable)]
-#[reflect(opaque, Hash, PartialEq, Debug, Default)]
 pub struct ActiveCollisionHooks(u8);
 
 bitflags::bitflags! {

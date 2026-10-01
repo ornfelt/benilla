@@ -248,8 +248,7 @@ impl<LinVel: VelocitySource, AngVel: VelocitySource> Plugin
 ///
 /// [`TransformInterpolation`]: crate::interpolation::TransformInterpolation
 /// [`TransformExtrapolation`]: crate::extrapolation::TransformExtrapolation
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(TranslationHermiteEasing, RotationHermiteEasing)]
 pub struct TransformHermiteEasing;
 
@@ -263,8 +262,7 @@ pub struct TransformHermiteEasing;
 ///
 /// [`TranslationInterpolation`]: crate::interpolation::TranslationInterpolation
 /// [`TranslationExtrapolation`]: crate::extrapolation::TranslationExtrapolation
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TranslationHermiteEasing;
 
 /// Enables [Hermite interpolation](TransformHermiteEasingPlugin) for the easing of the rotation of an entity.
@@ -277,8 +275,7 @@ pub struct TranslationHermiteEasing;
 ///
 /// [`RotationInterpolation`]: crate::interpolation::RotationInterpolation
 /// [`RotationExtrapolation`]: crate::extrapolation::RotationExtrapolation
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RotationHermiteEasing;
 
 /// Eases the translations of entities with Hermite interpolation.

@@ -5,11 +5,9 @@ use crate::{
     },
     prelude::*,
 };
-use bevy::prelude::*;
 
 /// Constraint data required by the XPBD constraint solver for a point constraint.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PointConstraintShared {
     /// The world-space anchor point relative to the center of mass of the first body.
     pub world_r1: Vector,

@@ -166,8 +166,7 @@ pub enum SubstepSolverSystems {
 ///         .run();
 /// }
 /// ```
-#[derive(Debug, Reflect, Resource, Clone, Copy, PartialEq, Eq)]
-#[reflect(Debug, Resource, PartialEq)]
+#[derive(Debug, Resource, Clone, Copy, PartialEq, Eq)]
 pub struct SubstepCount(pub u32);
 
 impl Default for SubstepCount {

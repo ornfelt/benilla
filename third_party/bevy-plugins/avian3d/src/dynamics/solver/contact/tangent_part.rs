@@ -1,12 +1,10 @@
 use crate::prelude::*;
-use bevy::reflect::Reflect;
 
 pub type TangentImpulse = Vector2;
 
 // TODO: One-body constraint version
 /// The tangential friction part of a [`ContactConstraintPoint`](super::ContactConstraintPoint).
-#[derive(Clone, Debug, Default, PartialEq, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ContactTangentPart {
     /// The contact impulse magnitude along the contact tangent.
     ///

@@ -825,7 +825,6 @@ dependencies = [
  "bevy_log",
  "bevy_math",
  "bevy_platform",
- "bevy_reflect",
  "bevy_render",
  "bevy_time",
  "bevy_utils",
@@ -878,7 +877,6 @@ name = "bevy_heavy"
 version = "0.4.0"
 dependencies = [
  "bevy_math",
- "bevy_reflect",
  "glam_matrix_extras",
 ]
 
@@ -2665,7 +2663,6 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4664468a60479272b880a8bfc00ad2915229b93d2b2d585556fb33f9ba80e72"
 dependencies = [
- "bevy_reflect",
  "glam 0.30.10",
 ]
 

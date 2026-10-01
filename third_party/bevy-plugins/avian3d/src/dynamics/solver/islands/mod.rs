@@ -174,8 +174,7 @@ fn split_island(
 }
 
 /// A stable identifier for a [`PhysicsIsland`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IslandId(pub u32);
 
 impl IslandId {
@@ -1029,7 +1028,7 @@ impl PhysicsIslands {
 }
 
 /// A node in a linked list in a [`PhysicsIsland`].
-#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IslandNode<Id> {
     /// The ID of the island that the node belongs to.
     pub(crate) island_id: IslandId,
@@ -1066,7 +1065,7 @@ impl<Id> Default for IslandNode<Id> {
 impl<Id: Copy> Copy for IslandNode<Id> {}
 
 /// A component that stores [`PhysicsIsland`] connectivity data for a rigid body.
-#[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq, Reflect)]
+#[derive(Component, Clone, Debug, Default, Deref, DerefMut, PartialEq, Eq)]
 #[component(on_add = BodyIslandNode::on_add, on_remove = BodyIslandNode::on_remove)]
 pub struct BodyIslandNode(IslandNode<Entity>);
 

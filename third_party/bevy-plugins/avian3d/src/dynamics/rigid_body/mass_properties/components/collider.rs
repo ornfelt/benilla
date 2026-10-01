@@ -25,8 +25,7 @@ use derive_more::derive::From;
 ///
 /// [`Collider`]: crate::prelude::Collider
 /// [`Mass`]: crate::prelude::Mass
-#[derive(Reflect, Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, PartialOrd, From)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, PartialOrd, From)]
 pub struct ColliderDensity(pub f32);
 
 impl Default for ColliderDensity {
@@ -66,8 +65,7 @@ impl Default for ColliderDensity {
 /// [`ComputedMass`]: crate::prelude::ComputedMass
 /// [`ComputedAngularInertia`]: crate::prelude::ComputedAngularInertia
 /// [`ComputedCenterOfMass`]: crate::prelude::ComputedCenterOfMass
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq, From)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, PartialEq, From)]
 pub struct ColliderMassProperties(MassProperties);
 
 impl ColliderMassProperties {

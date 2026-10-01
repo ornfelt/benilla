@@ -32,7 +32,7 @@ impl<T: Component + EntityConstraint<2>> Default for JointGraphPlugin<T> {
 /// A component that holds the [`ComponentId`] of the [joint] component on this entity, if any.
 ///
 /// [joint]: crate::dynamics::joints
-#[derive(Component, Clone, Debug, Default, PartialEq, Reflect)]
+#[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct JointComponentId(Option<ComponentId>);
 
 #[derive(Resource, Default)]

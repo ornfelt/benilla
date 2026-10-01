@@ -30,8 +30,7 @@ pub struct JointGraph {
 }
 
 /// A stable identifier for a [`JointGraphEdge`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Reflect)]
-#[reflect(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct JointId(pub u32);
 
 impl JointId {
@@ -58,8 +57,7 @@ impl core::fmt::Display for JointId {
 }
 
 /// An edge in the [`JointGraph`].
-#[derive(Clone, Debug, Reflect)]
-#[reflect(Debug)]
+#[derive(Clone, Debug)]
 pub struct JointGraphEdge {
     /// The stable identifier of this joint edge.
     pub id: JointId,

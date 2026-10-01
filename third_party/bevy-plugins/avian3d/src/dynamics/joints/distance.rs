@@ -3,10 +3,7 @@ use crate::{
     prelude::*,
 };
 use bevy::{
-    ecs::{
-        entity::{EntityMapper, MapEntities},
-        reflect::ReflectMapEntities,
-    },
+    ecs::entity::{EntityMapper, MapEntities},
     prelude::*,
 };
 
@@ -19,8 +16,7 @@ use bevy::{
 /// the distance between the two anchor points within the specified limits.
 ///
 #[doc = include_str!("./images/distance_joint.svg")]
-#[derive(Component, Clone, Debug, PartialEq, Reflect)]
-#[reflect(Component, Debug, MapEntities, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct DistanceJoint {
     /// The first body constrained by the joint.
     pub body1: Entity,

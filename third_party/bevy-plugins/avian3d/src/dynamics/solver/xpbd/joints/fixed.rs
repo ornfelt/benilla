@@ -9,8 +9,7 @@ use crate::{
 use bevy::prelude::*;
 
 /// Solver data for the [`FixedJoint`].
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(Component, Debug, PartialEq)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct FixedJointSolverData {
     pub(super) point_constraint: PointConstraintShared,
     pub(super) angle_constraint: FixedAngleConstraintShared,

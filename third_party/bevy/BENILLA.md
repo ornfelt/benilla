@@ -481,6 +481,16 @@ the same repository's.
   `bevy_sprite_render`, `bevy_ui_render`, avian3d, bevy_egui, `bevy_transform_interpolation`).
   `App::default` inserts the registry as stock does without the feature: the primitive types and `String`. The
   registration API stays; the derives stay for now.
+- **The plugins' `Reflect` derives** (avian3d, `bevy_transform_interpolation`, `bevy_heavy`,
+  bevy_egui). With the registry unfilled, a derive is read only through a bound, and none of
+  these types meets one: every `derive(Reflect)` and `#[reflect(..)]` goes (avian3d 114 and 103,
+  `bevy_transform_interpolation` 19 and 19, bevy_egui 3). `AncestorMarkerPlugin<C>` loses its
+  `C: TypePath` bound, which only its marker's derive needed, and `SolverBodyInertia` its
+  `InertiaFlags`, which only reflection read. `bevy_heavy`'s off features go the avian3d way
+  (`bevy_reflect`, which avian3d's defaults turned on, `serialize`, `libm`, `nostd-libm`; `approx`
+  stays for its tests), as does `bevy_transform_interpolation`'s `serialize` with its `serde`
+  dependency; avian3d stops asking `glam_matrix_extras` for `bevy_reflect` and bevy_egui drops its
+  `bevy_reflect` dependency.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

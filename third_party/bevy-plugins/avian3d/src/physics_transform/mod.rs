@@ -122,8 +122,7 @@ impl Plugin for PhysicsTransformPlugin {
 }
 
 /// Configures how physics transforms are managed and synchronized with [`Transform`].
-#[derive(Resource, Reflect, Clone, Debug, PartialEq, Eq)]
-#[reflect(Resource)]
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
 pub struct PhysicsTransformConfig {
     /// If true, [`Transform`] is propagated before stepping physics to ensure that
     /// [`GlobalTransform`] is up-to-date.

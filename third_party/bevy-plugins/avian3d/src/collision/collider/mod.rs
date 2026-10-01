@@ -303,8 +303,7 @@ pub trait ScalableCollider: AnyCollider {
 /// # Related Components
 ///
 /// - [`RigidBodyDisabled`]: Disables a rigid body.
-#[derive(Reflect, Clone, Copy, Component, Debug, Default)]
-#[reflect(Debug, Component, Default)]
+#[derive(Clone, Copy, Component, Debug, Default)]
 pub struct ColliderDisabled;
 
 /// A component that marks a [`Collider`] as a sensor, also known as a trigger.
@@ -327,15 +326,13 @@ pub struct ColliderDisabled;
 /// }
 /// ```
 #[doc(alias = "Trigger")]
-#[derive(Reflect, Clone, Component, Debug, Default, PartialEq, Eq)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Component, Debug, Default, PartialEq, Eq)]
 pub struct Sensor;
 
 /// The Axis-Aligned Bounding Box of a [collider](Collider) in world space.
 ///
 /// This is updated automatically.
-#[derive(Reflect, Clone, Copy, Component, Debug, PartialEq)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, PartialEq)]
 pub struct ColliderAabb {
     /// The minimum point of the AABB.
     pub min: Vector,
@@ -408,8 +405,7 @@ impl From<ColliderAabb> for obvhs::aabb::Aabb {
 ///
 /// The enlarged AABB is updated automatically whenever the [`ColliderAabb`]
 /// moves beyond the bounds of the current enlarged AABB.
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, PartialEq)]
 pub struct EnlargedAabb(ColliderAabb);
 
 impl EnlargedAabb {

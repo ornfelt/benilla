@@ -336,8 +336,7 @@ impl<LinVel: VelocitySource, AngVel: VelocitySource> Plugin
 ///
 /// [`TransformInterpolation`]: crate::interpolation::TransformInterpolation
 /// [`ScaleInterpolation`]: crate::interpolation::ScaleInterpolation
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(TranslationExtrapolation, RotationExtrapolation)]
 pub struct TransformExtrapolation;
 
@@ -348,8 +347,7 @@ pub struct TransformExtrapolation;
 /// [`TransformExtrapolationPlugin`] must be added to the app with the appropriate velocity sources.
 ///
 /// See the [`TransformExtrapolationPlugin`] for more information.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(TranslationEasingState)]
 pub struct TranslationExtrapolation;
 
@@ -360,8 +358,7 @@ pub struct TranslationExtrapolation;
 /// [`TransformExtrapolationPlugin`] must be added to the app with the appropriate velocity sources.
 ///
 /// See the [`TransformExtrapolationPlugin`] for more information.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[require(RotationEasingState)]
 pub struct RotationExtrapolation;
 

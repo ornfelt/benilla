@@ -41,8 +41,7 @@ use super::{AngularInertia, AngularInertiaError, CenterOfMass, Mass, MassError};
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, PartialEq)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, PartialEq)]
 pub struct ComputedMass {
     /// The inverse mass.
     ///
@@ -201,8 +200,7 @@ impl From<ComputedMass> for Mass {
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[derive(Reflect, Clone, Copy, Component, Debug, PartialEq)]
-#[reflect(Debug, Component, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, PartialEq)]
 #[doc(alias = "ComputedMomentOfInertia")]
 pub struct ComputedAngularInertia {
     // TODO: The matrix should be symmetric and positive definite.
@@ -444,8 +442,7 @@ impl core::ops::Mul<Vector> for ComputedAngularInertia {
 /// - [`MassPropertyHelper`] is a [`SystemParam`] with utilities for computing and updating mass properties.
 ///
 /// [`SystemParam`]: bevy::ecs::system::SystemParam
-#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
+#[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct ComputedCenterOfMass(pub Vector);
 
 impl From<CenterOfMass> for ComputedCenterOfMass {

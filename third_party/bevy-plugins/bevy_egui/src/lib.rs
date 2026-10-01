@@ -160,7 +160,6 @@ use bevy_log as log;
 #[cfg(feature = "render")]
 use bevy_platform::collections::HashMap;
 use bevy_platform::collections::HashSet;
-use bevy_reflect::Reflect;
 #[cfg(feature = "render")]
 use bevy_render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use output::process_output_system;
@@ -309,7 +308,7 @@ impl Default for EguiPlugin {
 }
 
 /// A resource for storing global plugin settings.
-#[derive(Clone, Debug, Resource, Reflect)]
+#[derive(Clone, Debug, Resource)]
 pub struct EguiGlobalSettings {
     /// Set this to `false` if you want to control the creation of [`EguiContext`] instances manually.
     ///
@@ -363,7 +362,7 @@ impl Default for EguiGlobalSettings {
 pub struct EnableMultipassForPrimaryContext;
 
 /// A component for storing Egui context settings.
-#[derive(Clone, Debug, Component, Reflect)]
+#[derive(Clone, Debug, Component)]
 pub struct EguiContextSettings {
     /// If set to `true`, a user is expected to call [`egui::Context::run`] or [`egui::Context::begin_pass`] and [`egui::Context::end_pass`] manually.
     pub run_manually: bool,
@@ -421,7 +420,7 @@ impl Default for EguiContextSettings {
     }
 }
 
-#[derive(Clone, Debug, Reflect, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// All the systems are enabled by default. These settings exist within both [`EguiGlobalSettings`] and [`EguiContextSettings`].
 pub struct EguiInputSystemSettings {
     /// Controls running of the [`write_modifiers_keys_state_system`] system.
