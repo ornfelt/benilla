@@ -17,7 +17,7 @@ pub use relationship_source_collection::*;
 
 use crate::{
     component::{Component, ComponentCloneBehavior, Mutable},
-    entity::{ComponentCloneCtx, Entity},
+    entity::Entity,
     error::CommandWithEntity,
     lifecycle::HookContext,
     world::{DeferredWorld, EntityWorldMut},
@@ -222,12 +222,12 @@ pub type SourceIter<'w, R> =
 /// A [`Component`] containing the collection of entities that relate to this [`Entity`] via the associated `Relationship` type.
 /// See the [`Relationship`] documentation for more information.
 pub trait RelationshipTarget: Component<Mutability = Mutable> + Sized {
-    /// If this is true, when despawning or cloning (when [linked cloning is enabled](crate::entity::EntityClonerBuilder::linked_cloning)), the related entities targeting this entity will also be despawned or cloned.
+    /// If this is true, when despawning, the related entities targeting this entity will also be despawned.
     ///
     /// For example, this is set to `true` for Bevy's built-in parent-child relation, defined by [`ChildOf`](crate::prelude::ChildOf) and [`Children`](crate::prelude::Children).
-    /// This means that when a parent is despawned, any children targeting that parent are also despawned (and the same applies to cloning).
+    /// This means that when a parent is despawned, any children targeting that parent are also despawned.
     ///
-    /// To get around this behavior, you can first break the relationship between entities, and *then* despawn or clone.
+    /// To get around this behavior, you can first break the relationship between entities, and *then* despawn.
     /// This defaults to false when derived.
     const LINKED_SPAWN: bool;
     /// The [`Relationship`] that populates this [`RelationshipTarget`] collection.
@@ -317,41 +317,6 @@ pub trait RelationshipTarget: Component<Mutability = Mutable> + Sized {
     }
 }
 
-/// The "clone behavior" for [`RelationshipTarget`]. The [`RelationshipTarget`] will be populated with the proper components
-/// when the corresponding [`Relationship`] sources of truth are inserted. Cloning the actual entities
-/// in the original [`RelationshipTarget`] would result in duplicates, so we don't do that!
-///
-/// This will also queue up clones of the relationship sources if the [`EntityCloner`](crate::entity::EntityCloner) is configured
-/// to spawn recursively.
-pub fn clone_relationship_target<T: RelationshipTarget>(
-    component: &T,
-    cloned: &mut T,
-    context: &mut ComponentCloneCtx,
-) {
-    if context.linked_cloning() && T::LINKED_SPAWN {
-        let collection = cloned.collection_mut_risky();
-        for entity in component.iter() {
-            collection.add(entity);
-            context.queue_entity_clone(entity);
-        }
-    } else if context.moving() {
-        let target = context.target();
-        let collection = cloned.collection_mut_risky();
-        for entity in component.iter() {
-            collection.add(entity);
-            context.queue_deferred(move |world, _mapper| {
-                // We don't want relationships hooks to run because we are manually constructing the collection here
-                _ = DeferredWorld::from(world)
-                    .modify_component_with_relationship_hook_mode::<T::Relationship, ()>(
-                        entity,
-                        RelationshipHookMode::Skip,
-                        |r| r.set_risky(target),
-                    );
-            });
-        }
-    }
-}
-
 /// Configures the conditions under which the Relationship insert/replace hooks will be run.
 #[derive(Copy, Clone, Debug)]
 pub enum RelationshipHookMode {
@@ -388,13 +353,6 @@ impl<C> RelationshipCloneBehaviorBase for RelationshipCloneBehaviorSpecializatio
 
 /// Specialized trait for relationship clone specialization using autoderef.
 #[doc(hidden)]
-// No impl: the `Reflect` one went with bevy_ecs's reflection; the `Component` derive still names it.
-pub trait RelationshipCloneBehaviorViaReflect {
-    fn default_clone_behavior(&self) -> ComponentCloneBehavior;
-}
-
-/// Specialized trait for relationship clone specialization using autoderef.
-#[doc(hidden)]
 pub trait RelationshipCloneBehaviorViaClone {
     fn default_clone_behavior(&self) -> ComponentCloneBehavior;
 }
@@ -403,15 +361,8 @@ impl<C: Relationship + Clone> RelationshipCloneBehaviorViaClone
     for &&RelationshipCloneBehaviorSpecialization<C>
 {
     fn default_clone_behavior(&self) -> ComponentCloneBehavior {
-        ComponentCloneBehavior::clone::<C>()
+        ComponentCloneBehavior::Default
     }
-}
-
-/// Specialized trait for relationship target clone specialization using autoderef.
-#[doc(hidden)]
-// No impl: the `Reflect` one went with bevy_ecs's reflection; the `Component` derive still names it.
-pub trait RelationshipTargetCloneBehaviorViaReflect {
-    fn default_clone_behavior(&self) -> ComponentCloneBehavior;
 }
 
 /// Specialized trait for relationship target clone specialization using autoderef.
@@ -424,18 +375,11 @@ impl<C: RelationshipTarget + Clone> RelationshipTargetCloneBehaviorViaClone
     for &&&&RelationshipCloneBehaviorSpecialization<C>
 {
     fn default_clone_behavior(&self) -> ComponentCloneBehavior {
-        ComponentCloneBehavior::Custom(|source, context| {
-            if let Some(component) = source.read::<C>() {
-                let mut cloned = component.clone();
-                cloned.collection_mut_risky().clear();
-                clone_relationship_target(component, &mut cloned, context);
-                context.write_target_component(cloned);
-            }
-        })
+        ComponentCloneBehavior::Default
     }
 }
 
-/// We know there's no additional data on Children, so this handler is an optimization to avoid cloning the entire Collection.
+/// `Children` is not `Clone`; it gets the behavior of the `Clone` relationship targets.
 #[doc(hidden)]
 pub trait RelationshipTargetCloneBehaviorHierarchy {
     fn default_clone_behavior(&self) -> ComponentCloneBehavior;
@@ -445,13 +389,7 @@ impl RelationshipTargetCloneBehaviorHierarchy
     for &&&&&RelationshipCloneBehaviorSpecialization<crate::hierarchy::Children>
 {
     fn default_clone_behavior(&self) -> ComponentCloneBehavior {
-        ComponentCloneBehavior::Custom(|source, context| {
-            if let Some(component) = source.read::<crate::hierarchy::Children>() {
-                let mut cloned = crate::hierarchy::Children::with_capacity(component.len());
-                clone_relationship_target(component, &mut cloned, context);
-                context.write_target_component(cloned);
-            }
-        })
+        ComponentCloneBehavior::Default
     }
 }
 

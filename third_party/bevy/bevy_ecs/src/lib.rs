@@ -1995,8 +1995,6 @@ mod tests {
 
     #[test]
     fn clone_entities() {
-        use crate::entity::{ComponentCloneCtx, SourceComponent};
-
         #[expect(
             dead_code,
             reason = "This struct is used as a compilation test to test the derive macros, and as such this field is intentionally never used."
@@ -2012,28 +2010,6 @@ mod tests {
         #[derive(Component)]
         #[component(clone_behavior = Default)]
         struct DefaultClone;
-
-        #[expect(
-            dead_code,
-            reason = "This struct is used as a compilation test to test the derive macros, and as such this field is intentionally never used."
-        )]
-        #[derive(Component)]
-        #[component(clone_behavior = Custom(custom_clone))]
-        struct CustomClone;
-
-        #[expect(
-            dead_code,
-            reason = "This struct is used as a compilation test to test the derive macros, and as such this field is intentionally never used."
-        )]
-        #[derive(Component, Clone)]
-        #[component(clone_behavior = clone::<Self>())]
-        struct CloneFunction;
-
-        #[expect(
-            dead_code,
-            reason = "This struct is used as a compilation test to test the derive macros, and as such this field is intentionally never used."
-        )]
-        fn custom_clone(_source: &SourceComponent, _ctx: &mut ComponentCloneCtx) {}
     }
 
     #[test]

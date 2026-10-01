@@ -9,11 +9,10 @@
 //!
 //! # In this Module
 //!
-//! This module contains four main things:
+//! This module contains three main things:
 //!
 //!  - Core ECS types like [`Entity`], [`Entities`], and [`EntityAllocator`].
 //!  - Utilities for [`Entity`] ids like [`MapEntities`], [`EntityHash`], and [`UniqueEntityEquivalentVec`].
-//!  - Helpers for entity tasks like [`EntityCloner`].
 //!  - Entity-related error types like [`EntityNotSpawnedError`].
 //!
 //! # Entity Life Cycle
@@ -81,15 +80,11 @@
 //! [`Component`]: crate::component::Component
 //! [`Commands`]: crate::system::Commands
 
-mod clone_entities;
 mod entity_set;
 mod map_entities;
 #[cfg(feature = "bevy_reflect")]
 use bevy_reflect::Reflect;
-#[cfg(all(feature = "bevy_reflect", feature = "serialize"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 
-pub use clone_entities::*;
 use derive_more::derive::Display;
 pub use entity_set::*;
 pub use map_entities::*;
@@ -127,9 +122,6 @@ use alloc::vec::Vec;
 use bevy_platform::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use core::{fmt, hash::Hash, mem, num::NonZero, panic::Location};
 use log::warn;
-
-#[cfg(feature = "serialize")]
-use serde::{Deserialize, Serialize};
 
 /// This represents the index of an [`Entity`] within the [`Entities`] array.
 /// This is a lighter weight version of [`Entity`].
@@ -406,10 +398,6 @@ impl EntityGeneration {
 #[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 #[cfg_attr(feature = "bevy_reflect", reflect(opaque))]
 #[cfg_attr(feature = "bevy_reflect", reflect(Hash, PartialEq, Debug, Clone))]
-#[cfg_attr(
-    all(feature = "bevy_reflect", feature = "serialize"),
-    reflect(Serialize, Deserialize)
-)]
 // Alignment repr necessary to allow LLVM to better output
 // optimized codegen for `to_bits`, `PartialEq` and `Ord`.
 #[repr(C, align(8))]
@@ -618,29 +606,6 @@ impl Entity {
     #[inline]
     pub const fn generation(self) -> EntityGeneration {
         self.generation
-    }
-}
-
-#[cfg(feature = "serialize")]
-impl Serialize for Entity {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_u64(self.to_bits())
-    }
-}
-
-#[cfg(feature = "serialize")]
-impl<'de> Deserialize<'de> for Entity {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::Error;
-        let id: u64 = Deserialize::deserialize(deserializer)?;
-        Entity::try_from_bits(id)
-            .ok_or_else(|| D::Error::custom("Attempting to deserialize an invalid entity."))
     }
 }
 

@@ -187,7 +187,6 @@ png = ["bevy_image/png"]
 reflect_auto_register = []
 serialize = [
     "bevy_color?/serialize",
-    "bevy_ecs/serialize",
     "bevy_input/serialize",
     "bevy_math/serialize",
     "bevy_scene?/serialize",

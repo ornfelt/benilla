@@ -12,7 +12,6 @@ use bevy_platform::collections::hash_map::{self, HashMap};
 use super::{Entity, EntityEquivalent, EntityHash};
 
 /// A [`HashMap`] pre-configured to use [`EntityHash`] hashing.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityHashMap<V>(pub(crate) HashMap<Entity, V, EntityHash>);
 

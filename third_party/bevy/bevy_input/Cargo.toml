@@ -52,7 +52,6 @@ mouse = []
 serialize = [
     "serde",
     "smol_str?/serde",
-    "bevy_ecs/serialize",
     "bevy_math/serialize",
     "bevy_platform/serialize",
 ]

@@ -19,8 +19,6 @@ use crate::{
     world::{DeferredWorld, EntityWorldMut, FromWorld, World},
 };
 use alloc::{format, vec::Vec};
-#[cfg(all(feature = "serialize", feature = "bevy_reflect"))]
-use bevy_reflect::{ReflectDeserialize, ReflectSerialize};
 use bevy_utils::prelude::DebugName;
 use core::ops::Deref;
 use core::slice;
@@ -97,11 +95,6 @@ use log::warn;
 #[cfg_attr(
     feature = "bevy_reflect",
     reflect(Component, PartialEq, Debug, FromWorld, Clone)
-)]
-#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    all(feature = "serialize", feature = "bevy_reflect"),
-    reflect(Serialize, Deserialize)
 )]
 #[relationship(relationship_target = Children)]
 #[doc(alias = "IsChild", alias = "Parent")]

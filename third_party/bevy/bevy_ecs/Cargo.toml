@@ -68,11 +68,6 @@ multi_threaded = [
     "bevy_tasks/multi_threaded",
     "dep:arrayvec",
 ]
-serialize = [
-    "dep:serde",
-    "bevy_platform/serialize",
-    "indexmap/serde",
-]
 std = [
     "bevy_reflect?/std",
     "bevy_utils/parallel",
@@ -81,7 +76,6 @@ std = [
     "concurrent-queue/std",
     "fixedbitset/std",
     "indexmap/std",
-    "serde?/std",
     "nonmax/std",
     "arrayvec?/std",
     "log/std",
@@ -145,9 +139,6 @@ default-features = false
 version = "2.3"
 default-features = false
 
-[dependencies.bumpalo]
-version = "3"
-
 [dependencies.concurrent-queue]
 version = "2.5.0"
 default-features = false
@@ -178,15 +169,6 @@ default-features = false
 version = "0.5"
 default-features = false
 
-[dependencies.serde]
-version = "1"
-features = [
-    "alloc",
-    "serde_derive",
-]
-optional = true
-default-features = false
-
 [dependencies.slotmap]
 version = "1.0.7"
 default-features = false
@@ -214,9 +196,6 @@ default-features = false
 
 [dev-dependencies.rand]
 version = "0.9"
-
-[dev-dependencies.serde_test]
-version = "1.0"
 
 [dev-dependencies.static_assertions]
 version = "1.1.0"

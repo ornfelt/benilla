@@ -43,7 +43,6 @@ default = ["std"]
 libm = ["bevy_math/libm"]
 serialize = [
     "serde",
-    "bevy_ecs/serialize",
     "bevy_input/serialize",
 ]
 std = [

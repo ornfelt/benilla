@@ -47,7 +47,6 @@ default = [
 dynamic_linking = []
 serialize = [
     "dep:serde",
-    "bevy_ecs/serialize",
     "bevy_platform/serialize",
 ]
 std = [

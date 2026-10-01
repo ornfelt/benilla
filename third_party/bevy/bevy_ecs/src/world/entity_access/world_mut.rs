@@ -4,15 +4,14 @@ use crate::{
         Bundle, BundleFromComponents, BundleInserter, BundleRemover, DynamicBundle, InsertMode,
     },
     change_detection::MaybeLocation,
-    component::{Component, ComponentId, Components, Mutable, StorageType},
-    entity::{Entity, EntityCloner, EntityClonerBuilder, EntityLocation, OptIn, OptOut},
+    component::{Component, ComponentId, Mutable, StorageType},
+    entity::{Entity, EntityLocation},
     event::{EntityComponentsTrigger, EntityEvent},
     lifecycle::{Despawn, Remove, Replace, DESPAWN, REMOVE, REPLACE},
     observer::Observer,
     query::{Access, DebugCheckedUnwrap, QueryAccessError, ReleaseStateQueryData},
     relationship::RelationshipHookMode,
     resource::Resource,
-    storage::{SparseSets, Table},
     system::IntoObserverSystem,
     world::{
         error::EntityComponentError, unsafe_world_cell::UnsafeEntityCell, ComponentEntry,
@@ -991,44 +990,6 @@ impl<'w> EntityWorldMut<'w> {
         self
     }
 
-    #[inline]
-    pub(crate) fn remove_by_ids_with_caller<T: 'static>(
-        &mut self,
-        component_ids: &[ComponentId],
-        caller: MaybeLocation,
-        relationship_hook_mode: RelationshipHookMode,
-        pre_remove: impl FnOnce(
-            &mut SparseSets,
-            Option<&mut Table>,
-            &Components,
-            &[ComponentId],
-        ) -> (bool, T),
-    ) -> &mut Self {
-        let location = self.location();
-        let components = &mut self.world.components;
-
-        let bundle_id = self.world.bundles.init_dynamic_info(
-            &mut self.world.storages,
-            components,
-            component_ids,
-        );
-
-        // SAFETY: We just created the bundle, and the archetype is valid, since we are in it.
-        let Some(mut remover) = (unsafe {
-            BundleRemover::new_with_id(self.world, location.archetype_id, bundle_id, false)
-        }) else {
-            return self;
-        };
-        remover.relationship_hook_mode = relationship_hook_mode;
-        // SAFETY: The remover archetype came from the passed location and the removal can not fail.
-        let new_location = unsafe { remover.remove(self.entity, location, caller, pre_remove) }.0;
-
-        self.location = Some(new_location);
-        self.world.flush();
-        self.update_location();
-        self
-    }
-
     /// Removes all components associated with the entity.
     ///
     /// # Panics
@@ -1433,144 +1394,6 @@ impl<'w> EntityWorldMut<'w> {
         let bundle = Observer::new(observer).with_entity(self.entity);
         move_as_ptr!(bundle);
         self.world.spawn_with_caller(bundle, caller);
-        self.world.flush();
-        self.update_location();
-        self
-    }
-
-    /// Clones parts of an entity (components, observers, etc.) onto another entity,
-    /// configured through [`EntityClonerBuilder`].
-    ///
-    /// The other entity will receive all the components of the original that implement
-    /// [`Clone`] except those that are
-    /// [denied](EntityClonerBuilder::deny) in the `config`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// # #[derive(Component, Clone, PartialEq, Debug)]
-    /// # struct ComponentA;
-    /// # #[derive(Component, Clone, PartialEq, Debug)]
-    /// # struct ComponentB;
-    /// # let mut world = World::new();
-    /// # let entity = world.spawn((ComponentA, ComponentB)).id();
-    /// # let target = world.spawn_empty().id();
-    /// // Clone all components except ComponentA onto the target.
-    /// world.entity_mut(entity).clone_with_opt_out(target, |builder| {
-    ///     builder.deny::<ComponentA>();
-    /// });
-    /// # assert_eq!(world.get::<ComponentA>(target), None);
-    /// # assert_eq!(world.get::<ComponentB>(target), Some(&ComponentB));
-    /// ```
-    ///
-    /// See [`EntityClonerBuilder<OptOut>`] for more options.
-    ///
-    /// # Panics
-    ///
-    /// - If this entity has been despawned while this `EntityWorldMut` is still alive.
-    /// - If the target entity does not exist.
-    pub fn clone_with_opt_out(
-        &mut self,
-        target: Entity,
-        config: impl FnOnce(&mut EntityClonerBuilder<OptOut>) + Send + Sync + 'static,
-    ) -> &mut Self {
-        self.assert_not_despawned();
-
-        let mut builder = EntityCloner::build_opt_out(self.world);
-        config(&mut builder);
-        builder.clone_entity(self.entity, target);
-
-        self.world.flush();
-        self.update_location();
-        self
-    }
-
-    /// Clones parts of an entity (components, observers, etc.) onto another entity,
-    /// configured through [`EntityClonerBuilder`].
-    ///
-    /// The other entity will receive only the components of the original that implement
-    /// [`Clone`] and are
-    /// [allowed](EntityClonerBuilder::allow) in the `config`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// # #[derive(Component, Clone, PartialEq, Debug)]
-    /// # struct ComponentA;
-    /// # #[derive(Component, Clone, PartialEq, Debug)]
-    /// # struct ComponentB;
-    /// # let mut world = World::new();
-    /// # let entity = world.spawn((ComponentA, ComponentB)).id();
-    /// # let target = world.spawn_empty().id();
-    /// // Clone only ComponentA onto the target.
-    /// world.entity_mut(entity).clone_with_opt_in(target, |builder| {
-    ///     builder.allow::<ComponentA>();
-    /// });
-    /// # assert_eq!(world.get::<ComponentA>(target), Some(&ComponentA));
-    /// # assert_eq!(world.get::<ComponentB>(target), None);
-    /// ```
-    ///
-    /// See [`EntityClonerBuilder<OptIn>`] for more options.
-    ///
-    /// # Panics
-    ///
-    /// - If this entity has been despawned while this `EntityWorldMut` is still alive.
-    /// - If the target entity does not exist.
-    pub fn clone_with_opt_in(
-        &mut self,
-        target: Entity,
-        config: impl FnOnce(&mut EntityClonerBuilder<OptIn>) + Send + Sync + 'static,
-    ) -> &mut Self {
-        self.assert_not_despawned();
-
-        let mut builder = EntityCloner::build_opt_in(self.world);
-        config(&mut builder);
-        builder.clone_entity(self.entity, target);
-
-        self.world.flush();
-        self.update_location();
-        self
-    }
-
-    /// Clones the specified components of this entity and inserts them into another entity.
-    ///
-    /// Components can only be cloned if they implement [`Clone`].
-    ///
-    /// # Panics
-    ///
-    /// - If this entity has been despawned while this `EntityWorldMut` is still alive.
-    /// - If the target entity does not exist.
-    pub fn clone_components<B: Bundle>(&mut self, target: Entity) -> &mut Self {
-        self.assert_not_despawned();
-
-        EntityCloner::build_opt_in(self.world)
-            .allow::<B>()
-            .clone_entity(self.entity, target);
-
-        self.world.flush();
-        self.update_location();
-        self
-    }
-
-    /// Clones the specified components of this entity and inserts them into another entity,
-    /// then removes the components from this entity.
-    ///
-    /// Components can only be cloned if they implement [`Clone`].
-    ///
-    /// # Panics
-    ///
-    /// - If this entity has been despawned while this `EntityWorldMut` is still alive.
-    /// - If the target entity does not exist.
-    pub fn move_components<B: Bundle>(&mut self, target: Entity) -> &mut Self {
-        self.assert_not_despawned();
-
-        EntityCloner::build_opt_in(self.world)
-            .allow::<B>()
-            .move_components(true)
-            .clone_entity(self.entity, target);
-
         self.world.flush();
         self.update_location();
         self

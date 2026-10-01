@@ -17,7 +17,6 @@ use bevy_platform::collections::hash_set::{self, HashSet};
 use super::{Entity, EntityHash, EntitySetIterator};
 
 /// A [`HashSet`] pre-configured to use [`EntityHash`] hashing.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EntityHashSet(pub(crate) HashSet<Entity, EntityHash>);
 

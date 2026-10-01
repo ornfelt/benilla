@@ -740,6 +740,26 @@ the same repository's.
   `ReflectFromWorld` and `from_reflect_with_fallback` (`bevy_scene`'s spawn path), and the
   `Reflect` derives of `Entity` and `ChildOf` (`bevy_scene`'s kept tests reflect them). Types
   only: no plugin's build changed (only tests call `register_type`).
+- **`bevy_ecs`'s `serialize` feature and the entity cloner.** Only `bevy_scene`'s `serialize` asked
+  for bevy_ecs's `serialize`, and since its RON format went that feature gates nothing but
+  `ScenePlugin`'s build: it stays, asking for nothing (`uuid`'s `serde` and `bevy_platform`'s
+  `serialize` stay on, other crates ask). bevy_ecs loses the feature with the serde impls of
+  `Entity`, `Name`, `ChildOf` and the entity maps and sets, their `reflect(Serialize,
+  Deserialize)` type data, `Name`'s serde test and the `serde`/`serde_test` dependencies; the
+  off `serialize` features of `bevy_input`, `bevy_window`, `bevy_diagnostic` and `bevy_internal`
+  stop naming it. No crate's resolved features change. The entity cloner had no caller outside
+  tests: `entity/clone_entities.rs` (`EntityCloner`, its builder and filters, `SourceComponent`,
+  `ComponentCloneCtx`) and `observer/entity_cloning.rs` are deleted, with `EntityWorldMut`'s
+  `clone_with_opt_out`/`clone_with_opt_in`/`clone_components`/`move_components`, the
+  `remove_by_ids_with_caller` only the move path called, `clone_relationship_target`, the
+  `bumpalo` dependency and their tests (bevy_camera's `test_add_visibility_class_hook` cloned
+  too). `ComponentCloneBehavior` keeps `Default` and `Ignore` (`Custom`, `ComponentCloneFn`,
+  `clone::<C>()`, `global_default_fn` and the clone handlers go): its one reader left is
+  `bevy_scene`'s scene writing, which skips `Ignore` components, and every component answers
+  that as before. The `Component` derive emits `Default` where the default specialization chose
+  between `Default` and the `Clone` handler; the relationship specialization stays (a
+  non-`Clone` relationship is still `Ignore`; `Clone` relationships and targets and `Children`
+  get `Default` where they got their handlers), without the two empty `ViaReflect` traits.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

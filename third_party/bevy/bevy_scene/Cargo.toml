@@ -36,11 +36,7 @@ all-features = true
 
 [features]
 default = ["serialize"]
-serialize = [
-    "uuid/serde",
-    "bevy_ecs/serialize",
-    "bevy_platform/serialize",
-]
+serialize = []
 
 [lib]
 name = "bevy_scene"

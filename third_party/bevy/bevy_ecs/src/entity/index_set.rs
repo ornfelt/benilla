@@ -23,7 +23,6 @@ use super::{Entity, EntityHash, EntitySetIterator};
 use bevy_platform::prelude::Box;
 
 /// An [`IndexSet`] pre-configured to use [`EntityHash`] hashing.
-#[cfg_attr(feature = "serialize", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Default)]
 pub struct EntityIndexSet(pub(crate) IndexSet<Entity, EntityHash>);
 

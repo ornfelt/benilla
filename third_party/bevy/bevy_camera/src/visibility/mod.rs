@@ -971,28 +971,6 @@ mod test {
         assert_eq!(1, size_of::<Option<Visibility>>());
     }
 
-    #[derive(Component, Default, Clone)]
-    #[require(VisibilityClass)]
-    #[component(on_add = add_visibility_class::<Self>)]
-    struct TestVisibilityClassHook;
-
-    #[test]
-    fn test_add_visibility_class_hook() {
-        let mut world = World::new();
-        let entity = world.spawn(TestVisibilityClassHook).id();
-        let entity_clone = world.spawn_empty().id();
-        world
-            .entity_mut(entity)
-            .clone_with_opt_out(entity_clone, |_| {});
-
-        let entity_visibility_class = world.entity(entity).get::<VisibilityClass>().unwrap();
-        assert_eq!(entity_visibility_class.len(), 1);
-
-        let entity_clone_visibility_class =
-            world.entity(entity_clone).get::<VisibilityClass>().unwrap();
-        assert_eq!(entity_clone_visibility_class.len(), 1);
-    }
-
     #[test]
     fn view_visibility_lifecycle() {
         let mut app = App::new();

@@ -12,15 +12,6 @@ use core::{
     ops::Deref,
 };
 
-#[cfg(feature = "serialize")]
-use {
-    alloc::string::ToString,
-    serde::{
-        de::{Error, Visitor},
-        Deserialize, Deserializer, Serialize, Serializer,
-    },
-};
-
 /// Component used to identify an entity. Stores a hash for faster comparisons.
 ///
 /// The hash is eagerly re-computed upon each update to the name.
@@ -211,40 +202,6 @@ impl Deref for Name {
     }
 }
 
-#[cfg(feature = "serialize")]
-impl Serialize for Name {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-#[cfg(feature = "serialize")]
-impl<'de> Deserialize<'de> for Name {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_str(NameVisitor)
-    }
-}
-
-#[cfg(feature = "serialize")]
-struct NameVisitor;
-
-#[cfg(feature = "serialize")]
-impl<'de> Visitor<'de> for NameVisitor {
-    type Value = Name;
-
-    fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
-        formatter.write_str(core::any::type_name::<Name>())
-    }
-
-    fn visit_str<E: Error>(self, v: &str) -> Result<Self::Value, E> {
-        Ok(Name::new(v.to_string()))
-    }
-
-    fn visit_string<E: Error>(self, v: String) -> Result<Self::Value, E> {
-        Ok(Name::new(v))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,18 +221,5 @@ mod tests {
         let d2 = query.get(&world, e2).unwrap();
         // NameOrEntity Display for entities with a Name should be the Name
         assert_eq!(d2.to_string(), "MyName");
-    }
-}
-
-#[cfg(all(test, feature = "serialize"))]
-mod serde_tests {
-    use super::Name;
-
-    use serde_test::{assert_tokens, Token};
-
-    #[test]
-    fn test_serde_name() {
-        let name = Name::new("MyComponent");
-        assert_tokens(&name, &[Token::String("MyComponent")]);
     }
 }
