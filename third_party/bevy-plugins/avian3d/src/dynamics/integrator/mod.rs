@@ -115,9 +115,6 @@ pub enum IntegrationSystems {
 /// acceleration near Earth's surface. Note that if you are using pixels as length units in 2D,
 /// this gravity will be tiny. You should modify the gravity to fit your application.
 ///
-/// You can also control how gravity affects a specific [rigid body](RigidBody) using the [`GravityScale`]
-/// component. The magnitude of the gravity will be multiplied by this scaling factor.
-///
 /// # Example
 ///
 /// ```no_run
@@ -151,35 +148,11 @@ impl Gravity {
     pub const ZERO: Gravity = Gravity(Vector::ZERO);
 }
 
-/// A marker component for bodies that use custom velocity integration.
-///
-/// This means that gravity, damping, and external forces will not be applied automatically.
-/// You are responsible for applying all forces and updating velocities manually.
-///
-/// Exceptions include:
-///
-/// - Contact impulses and joint impulses for dynamic bodies
-#[derive(Component, Debug, Default, Reflect)]
-#[reflect(Component, Debug, Default)]
-pub struct CustomVelocityIntegration;
-
-/// A marker component for bodies that use custom position integration.
-///
-/// This means that the body's position and rotation will not be updated automatically
-/// based on velocity. You are responsible for updating the position and rotation manually.
-///
-/// This can be useful for implementing kinematic bodies that are moved according to custom logic,
-/// such as with [`MoveAndSlide`].
-#[derive(Component, Debug, Default, Reflect)]
-#[reflect(Component, Debug, Default)]
-pub struct CustomPositionIntegration;
-
 /// Pre-computed data for speeding up velocity integration.
 ///
 /// This includes:
 ///
 /// - Velocity increments for [`Gravity`].
-/// - Velocity increments for [`ConstantForce`], [`ConstantTorque`], [`ConstantLinearAcceleration`], and [`ConstantAngularAcceleration`].
 /// - Cached operands for applying linear and angular velocity damping.
 ///
 /// The values are computed once per time step, and applied to the body at each substep
@@ -228,9 +201,6 @@ pub fn pre_process_velocity_increments(
     mut bodies: Query<(
         &RigidBody,
         &mut VelocityIntegrationData,
-        Option<&LinearDamping>,
-        Option<&AngularDamping>,
-        Option<&GravityScale>,
         Option<&LockedAxes>,
     )>,
     gravity: Res<Gravity>,
@@ -239,8 +209,9 @@ pub fn pre_process_velocity_increments(
     let delta_secs = time.delta_secs_f64() as Scalar;
 
     // TODO: Do we want to skip kinematic bodies here?
-    bodies.par_iter_mut().for_each(
-        |(rb, mut integration, lin_damping, ang_damping, gravity_scale, locked_axes)| {
+    bodies
+        .par_iter_mut()
+        .for_each(|(rb, mut integration, locked_axes)| {
             if !rb.is_dynamic() {
                 // Skip non-dynamic bodies.
                 return;
@@ -249,17 +220,15 @@ pub fn pre_process_velocity_increments(
             let locked_axes = locked_axes.map_or(LockedAxes::default(), |locked_axes| *locked_axes);
 
             // Update the cached right-hand side of the velocity damping equation,
-            // `1 / (1 + dt * c)`, where `c` is the damping coefficient.
-            let lin_damping = lin_damping.map_or(0.0, |damping| damping.0);
-            let ang_damping = ang_damping.map_or(0.0, |damping| damping.0);
-            integration.update_linear_damping_rhs(lin_damping, delta_secs);
-            integration.update_angular_damping_rhs(ang_damping, delta_secs);
+            // `1 / (1 + dt * c)`, where `c` is the damping coefficient: `0.0`, no body is damped.
+            integration.update_linear_damping_rhs(0.0, delta_secs);
+            integration.update_angular_damping_rhs(0.0, delta_secs);
 
             // NOTE: The `ForcePlugin` handles the application of external forces and torques.
             // NOTE: The velocity increments are treated as accelerations at this point.
 
             // Apply gravity.
-            integration.linear_increment += gravity.0 * gravity_scale.map_or(1.0, |scale| scale.0);
+            integration.linear_increment += gravity.0;
 
             // Apply locked axes.
             integration.linear_increment = locked_axes.apply_to_vec(integration.linear_increment);
@@ -270,8 +239,7 @@ pub fn pre_process_velocity_increments(
             // Multiply by the time step to get the final velocity increments.
             integration.linear_increment *= delta_secs;
             integration.angular_increment *= delta_secs;
-        },
-    );
+        });
 }
 
 /// Clears the velocity increments of bodies after the substepping loop.
@@ -294,10 +262,7 @@ pub struct VelocityIntegrationQuery {
 
 /// Integrates the velocities of bodies by applying velocity increments and damping.
 pub fn integrate_velocities(
-    mut bodies: Query<
-        VelocityIntegrationQuery,
-        (RigidBodyActiveFilter, Without<CustomVelocityIntegration>),
-    >,
+    mut bodies: Query<VelocityIntegrationQuery, RigidBodyActiveFilter>,
     time: Res<Time>,
 ) {
     let delta_secs = time.delta_secs_f64() as Scalar;
@@ -404,39 +369,12 @@ pub fn solve_gyroscopic_torque(
     *ang_vel = rotation * (local_inverse_inertia * new_local_momentum);
 }
 
-// NOTE: If the majority of bodies have clamped velocities, it would be more efficient
-//       to do this in `integrate_velocities` rather than in a separate system.
-//       By doing this in a separate system, we're optimizing for the assumption
-//       that only some bodies have clamped velocities.
-/// Clamps the velocities of bodies to [`MaxLinearSpeed`] and [`MaxAngularSpeed`].
-fn clamp_velocities(
-    mut bodies: ParamSet<(
-        Query<(&mut SolverBody, &MaxLinearSpeed)>,
-        Query<(&mut SolverBody, &MaxAngularSpeed)>,
-    )>,
-) {
-    // Clamp linear velocity.
-    bodies.p0().iter_mut().for_each(|(mut body, max_speed)| {
-        let linear_speed_squared = body.linear_velocity.length_squared();
-        if linear_speed_squared > max_speed.0 * max_speed.0 {
-            body.linear_velocity *= max_speed.0 / linear_speed_squared.sqrt();
-        }
-    });
-
-    // Clamp angular velocity.
-    bodies.p1().iter_mut().for_each(|(mut body, max_speed)| {
-        let angular_speed_squared = body.angular_velocity.length_squared();
-        if angular_speed_squared > max_speed.0 * max_speed.0 {
-            body.angular_velocity *= max_speed.0 / angular_speed_squared.sqrt();
-        }
-    });
-}
+// Stand-in for the system that clamped each body's velocities to its `MaxLinearSpeed` and
+// `MaxAngularSpeed`.
+fn clamp_velocities() {}
 
 /// Integrates the positions of bodies based on their velocities and the time step.
-pub fn integrate_positions(
-    mut solver_bodies: Query<&mut SolverBody, Without<CustomPositionIntegration>>,
-    time: Res<Time>,
-) {
+pub fn integrate_positions(mut solver_bodies: Query<&mut SolverBody>, time: Res<Time>) {
     let delta_secs = time.delta_seconds_adjusted();
 
     solver_bodies.par_iter_mut().for_each(|body| {

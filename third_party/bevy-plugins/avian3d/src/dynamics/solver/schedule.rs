@@ -140,7 +140,7 @@ pub enum SubstepSolverSystems {
     /// Solves velocity constraints without a position bias to relax the biased velocities
     /// and impulses. This reduces overshooting caused by [warm starting](SubstepSolverSystems::WarmStart).
     Relax,
-    /// Applies velocity-based constraint damping, such as [`JointDamping`].
+    /// Holds the stand-ins of the joint damping systems.
     Damping,
 }
 

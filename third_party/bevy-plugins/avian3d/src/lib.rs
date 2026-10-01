@@ -115,11 +115,9 @@
 //! - [Movement](RigidBody#movement)
 //!     - [Linear](LinearVelocity) and [angular](AngularVelocity) velocity
 //!     - [External forces, impulses, and acceleration](dynamics::rigid_body::forces)
-//! - [Gravity] and [gravity scale](GravityScale)
+//! - [Gravity]
 //! - [Mass properties](dynamics::rigid_body::mass_properties)
-//! - [Linear](LinearDamping) and [angular](AngularDamping) velocity damping
 //! - [Lock translational and rotational axes](LockedAxes)
-//! - [Dominance]
 //! - [Continuous Collision Detection (CCD)](dynamics::ccd)
 //!     - [Speculative collision](dynamics::ccd#speculative-collision)
 //!     - [Swept CCD](dynamics::ccd#swept-ccd)
@@ -153,7 +151,6 @@
 //!     - [Prismatic joint](PrismaticJoint)
 //!     - [Revolute joint](RevoluteJoint)
 //!     - [Spherical joint](SphericalJoint)
-//! - [Temporarily disabling a joint](JointDisabled)
 //! - [Custom XPBD constraints](dynamics::solver::xpbd#constraints) (advanced)
 //!
 //! Joint motors and articulations are not supported yet, but they will be implemented in a future release.

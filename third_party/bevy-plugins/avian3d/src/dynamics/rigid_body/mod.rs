@@ -219,11 +219,9 @@ use derive_more::From;
 /// # See More
 ///
 /// - [Colliders](Collider)
-/// - [Gravity] and [gravity scale](GravityScale)
-/// - [Linear](LinearDamping) and [angular](AngularDamping) velocity damping
+/// - [Gravity]
 /// - [Friction] and [restitution](Restitution) (bounciness)
 /// - [Lock translational and rotational axes](LockedAxes)
-/// - [Dominance]
 /// - [Continuous Collision Detection](dynamics::ccd)
 ///     - [Speculative collision](dynamics::ccd#speculative-collision)
 ///     - [Swept CCD](dynamics::ccd#swept-ccd)
@@ -339,7 +337,6 @@ pub(crate) type RigidBodyActiveFilter = (Without<RigidBodyDisabled>, Without<Sle
 /// # Related Components
 ///
 /// - [`ColliderDisabled`]: Disables a collider.
-/// - [`JointDisabled`]: Disables a joint constraint.
 #[derive(Clone, Copy, Component, Reflect, Debug, Default)]
 #[reflect(Debug, Component, Default)]
 pub struct RigidBodyDisabled;
@@ -367,65 +364,9 @@ pub struct RigidBodyDisabled;
 /// # Related Components
 ///
 /// - [`AngularVelocity`]: The angular velocity of a body.
-/// - [`LinearDamping`]: Reduces the linear velocity of a body over time, similar to air resistance.
-/// - [`MaxLinearSpeed`]: Clamps the linear velocity of a body.
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct LinearVelocity(pub Vector);
-
-/// The maximum linear speed of a [rigid body](RigidBody), clamping the [`LinearVelocity`],
-/// typically in meters per second.
-///
-/// This can be useful for limiting how fast bodies can move, and can help control behavior and prevent instability.
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// // Spawn a dynamic body with linear velocity clamped to `100.0` units per second.
-/// fn setup(mut commands: Commands) {
-///     commands.spawn((RigidBody::Dynamic, MaxLinearSpeed(100.0)));
-/// }
-/// ```
-#[derive(Reflect, Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
-#[doc(alias = "MaxLinearVelocity")]
-pub struct MaxLinearSpeed(pub Scalar);
-
-impl Default for MaxLinearSpeed {
-    fn default() -> Self {
-        Self(Scalar::INFINITY)
-    }
-}
-
-/// The maximum angular speed of a [rigid body](RigidBody), clamping the [`AngularVelocity`],
-/// in radians per second.
-///
-/// This can be useful for limiting how fast bodies can rotate, and can help control behavior and prevent instability.
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// // Spawn a dynamic body with angular velocity clamped to `20.0` radians per second.
-/// fn setup(mut commands: Commands) {
-///     commands.spawn((RigidBody::Dynamic, MaxAngularSpeed(20.0)));
-/// }
-/// ```
-#[derive(Reflect, Clone, Copy, Component, Debug, Deref, DerefMut, PartialEq, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
-#[doc(alias = "MaxAngularVelocity")]
-pub struct MaxAngularSpeed(pub Scalar);
-
-impl Default for MaxAngularSpeed {
-    fn default() -> Self {
-        Self(Scalar::INFINITY)
-    }
-}
 
 /// The angular velocity of a [rigid body](RigidBody), represented as a rotation axis
 /// multiplied by the angular speed in radians per second.
@@ -451,106 +392,6 @@ impl Default for MaxAngularSpeed {
 /// # Related Components
 ///
 /// - [`LinearVelocity`]: The linear velocity of a body.
-/// - [`AngularDamping`]: Reduces the angular velocity of a body over time, similar to air resistance.
-/// - [`MaxAngularSpeed`]: Clamps the angular velocity of a body.
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 #[reflect(Debug, Component, Default, PartialEq)]
 pub struct AngularVelocity(pub Vector);
-
-/// Controls how [gravity](Gravity) affects a specific [rigid body](RigidBody).
-///
-/// A gravity scale of `0.0` will disable gravity, while `2.0` will double the gravity.
-/// Using a negative value will flip the direction of the gravity.
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// // Spawn a dynamic body with `1.5` times the normal gravity.
-/// fn setup(mut commands: Commands) {
-///     commands.spawn((RigidBody::Dynamic, GravityScale(1.5)));
-/// }
-/// ```
-#[derive(Component, Reflect, Debug, Clone, Copy, PartialEq, PartialOrd, Deref, DerefMut, From)]
-#[reflect(Debug, Component, Default, PartialEq)]
-pub struct GravityScale(pub Scalar);
-
-impl Default for GravityScale {
-    fn default() -> Self {
-        Self(1.0)
-    }
-}
-
-/// Automatically slows down a dynamic [rigid body](RigidBody), decreasing its
-/// [linear velocity](LinearVelocity) each frame. This can be used to simulate air resistance.
-///
-/// The default linear damping coefficient is `0.0`, which corresponds to no damping.
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// fn setup(mut commands: Commands) {
-///     commands.spawn((RigidBody::Dynamic, LinearDamping(0.8)));
-/// }
-/// ```
-#[derive(
-    Component, Reflect, Debug, Clone, Copy, PartialEq, PartialOrd, Default, Deref, DerefMut, From,
-)]
-#[reflect(Debug, Component, Default, PartialEq)]
-pub struct LinearDamping(pub Scalar);
-
-/// Automatically slows down a dynamic [rigid body](RigidBody), decreasing its
-/// [angular velocity](AngularVelocity) each frame. This can be used to simulate air resistance.
-///
-/// The default angular damping coefficient is `0.0`, which corresponds to no damping.
-///
-/// # Example
-///
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// fn setup(mut commands: Commands) {
-///     commands.spawn((RigidBody::Dynamic, AngularDamping(1.6)));
-/// }
-/// ```
-#[derive(
-    Component, Reflect, Debug, Clone, Copy, PartialEq, PartialOrd, Default, Deref, DerefMut, From,
-)]
-#[reflect(Debug, Component, Default, PartialEq)]
-pub struct AngularDamping(pub Scalar);
-
-/// **Dominance** allows [dynamic rigid bodies](RigidBody::Dynamic) to dominate
-/// each other during physical interactions.
-/// 
-/// The body with a higher dominance acts as if it had infinite mass, and will be unaffected during
-/// collisions and other interactions, while the other body will be affected normally.
-/// 
-/// The dominance must be between `-127` and `127`, and the default value is `0`.
-/// Note that static and kinematic bodies will always have a higher dominance value
-/// than dynamic bodies regardless of the value of this component.
-/// 
-/// # Example
-/// 
-/// ```
-/// use avian3d::prelude::*;
-/// use bevy::prelude::*;
-///
-/// // Player dominates all dynamic bodies with a dominance lower than `5`.
-/// fn spawn_player(mut commands: Commands) {
-///     commands.spawn((
-///         RigidBody::Dynamic,
-///         Collider::capsule(0.4, 1.0),
-///         Dominance(5),
-///     ));
-/// }
-/// ```
-#[rustfmt::skip]
-#[derive(Component, Reflect, Debug, Clone, Copy, Default, Deref, DerefMut, From, PartialEq, PartialOrd, Eq, Ord)]
-#[reflect(Debug, Component, Default, PartialEq)]
-pub struct Dominance(pub i8);

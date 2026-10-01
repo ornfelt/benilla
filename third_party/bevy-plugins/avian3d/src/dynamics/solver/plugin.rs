@@ -719,53 +719,6 @@ fn store_contact_impulses(
     }
 }
 
-/// Applies velocity corrections caused by joint damping.
-#[allow(clippy::type_complexity)]
-pub fn joint_damping<T: Component + EntityConstraint<2>>(
-    bodies: Query<(&mut SolverBody, &SolverBodyInertia)>,
-    joints: Query<(&T, &JointDamping)>,
-    time: Res<Time>,
-) {
-    let delta_secs = time.delta_seconds_adjusted();
-
-    let mut dummy_body1 = SolverBody::DUMMY;
-    let mut dummy_body2 = SolverBody::DUMMY;
-
-    for (joint, damping) in &joints {
-        let entities = joint.entities();
-
-        let (mut body1, mut inertia1) = (&mut dummy_body1, &SolverBodyInertia::DUMMY);
-        let (mut body2, mut inertia2) = (&mut dummy_body2, &SolverBodyInertia::DUMMY);
-
-        // Get the solver bodies for the two jointed entities.
-        if let Ok((body, inertia)) = unsafe { bodies.get_unchecked(entities[0]) } {
-            body1 = body.into_inner();
-            inertia1 = inertia;
-        }
-        if let Ok((body, inertia)) = unsafe { bodies.get_unchecked(entities[1]) } {
-            body2 = body.into_inner();
-            inertia2 = inertia;
-        }
-
-        let delta_omega = (body2.angular_velocity - body1.angular_velocity)
-            * (damping.angular * delta_secs).min(1.0);
-
-        if !body1.flags.is_kinematic() {
-            body1.angular_velocity += delta_omega;
-        }
-        if !body2.flags.is_kinematic() {
-            body2.angular_velocity -= delta_omega;
-        }
-
-        let delta_v = (body2.linear_velocity - body1.linear_velocity)
-            * (damping.linear * delta_secs).min(1.0);
-
-        let w1 = inertia1.effective_inv_mass();
-        let w2 = inertia2.effective_inv_mass();
-
-        let p = delta_v * (w1 + w2).recip_or_zero();
-
-        body1.linear_velocity += p * w1;
-        body2.linear_velocity -= p * w2;
-    }
-}
+/// Stand-in for the system that damped the relative velocities of the bodies of each joint with a
+/// `JointDamping`.
+pub fn joint_damping<T: Component + EntityConstraint<2>>() {}

@@ -305,7 +305,6 @@ pub trait ScalableCollider: AnyCollider {
 /// # Related Components
 ///
 /// - [`RigidBodyDisabled`]: Disables a rigid body.
-/// - [`JointDisabled`]: Disables a joint constraint.
 #[derive(Reflect, Clone, Copy, Component, Debug, Default)]
 #[reflect(Debug, Component, Default)]
 pub struct ColliderDisabled;

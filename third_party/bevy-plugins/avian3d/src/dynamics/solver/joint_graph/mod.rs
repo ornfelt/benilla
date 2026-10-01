@@ -78,10 +78,7 @@ pub struct JointGraphEdge {
     pub body2: Entity,
 
     /// If `true`, collisions are disabled between the bodies connected by this joint.
-    ///
-    /// This is controlled by the [`JointCollisionDisabled`] component.
-    ///
-    /// [`JointCollisionDisabled`]: crate::dynamics::joints::JointCollisionDisabled
+    /// Joints are added with `false`.
     pub collision_disabled: bool,
 
     /// The [`IslandNode`] associated with this joint.

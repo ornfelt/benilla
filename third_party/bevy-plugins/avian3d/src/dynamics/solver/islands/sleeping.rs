@@ -17,7 +17,7 @@ use bevy::{
             common_conditions::{resource_changed, resource_exists},
         },
         system::{
-            Command, Commands, Local, ParamSet, Query, Res, ResMut, SystemChangeTick, SystemState,
+            Command, Commands, Local, Query, Res, ResMut, SystemChangeTick, SystemState,
             lifetimeless::{SQuery, SResMut},
         },
         world::{DeferredWorld, Mut, Ref, World},
@@ -165,14 +165,10 @@ fn wake_islands_with_sleeping_disabled(
     mut awake_island_bit_vec: ResMut<AwakeIslandBitVec>,
     mut query: Query<
         (&BodyIslandNode, &mut SleepTimer),
-        Or<(
-            With<SleepingDisabled>,
-            With<Disabled>,
-            With<RigidBodyDisabled>,
-        )>,
+        Or<(With<Disabled>, With<RigidBodyDisabled>)>,
     >,
 ) {
-    // Wake up all islands that have a body with `SleepingDisabled`.
+    // Wake up all islands that have a disabled body.
     for (body_island, mut sleep_timer) in &mut query {
         awake_island_bit_vec.set_and_grow(body_island.island_id.0 as usize);
 
@@ -191,7 +187,7 @@ fn update_sleeping_states(
             &SolverBody,
             &BodyIslandNode,
         ),
-        (Without<Sleeping>, Without<SleepingDisabled>),
+        Without<Sleeping>,
     >,
     length_unit: Res<PhysicsLengthUnit>,
     time_to_sleep: Res<TimeToSleep>,
@@ -533,54 +529,38 @@ impl Command for WakeIslands {
     }
 }
 
-type ConstantForceChanges = Or<(
-    Changed<ConstantForce>,
-    Changed<ConstantTorque>,
-    Changed<ConstantLinearAcceleration>,
-    Changed<ConstantAngularAcceleration>,
-    Changed<ConstantLocalForce>,
-    Changed<ConstantLocalTorque>,
-    Changed<ConstantLocalLinearAcceleration>,
-    Changed<ConstantLocalAngularAcceleration>,
-)>;
-
 /// Removes the [`Sleeping`] component from sleeping bodies when properties like
-/// position, rotation, velocity and external forces are changed by the user.
+/// position, rotation and velocity are changed by the user.
 fn wake_on_changed(
-    mut query: ParamSet<(
-        // These could've been changed by physics too.
-        // We need to ignore non-user changes.
-        Query<
-            (
-                Ref<Position>,
-                Ref<Rotation>,
-                Ref<LinearVelocity>,
-                Ref<AngularVelocity>,
-                Ref<SleepTimer>,
-                &BodyIslandNode,
-            ),
-            (
-                With<Sleeping>,
-                Or<(
-                    Changed<Position>,
-                    Changed<Rotation>,
-                    Changed<LinearVelocity>,
-                    Changed<AngularVelocity>,
-                    Changed<SleepTimer>,
-                )>,
-            ),
-        >,
-        // These are not modified by the physics engine
-        // and don't need special handling.
-        Query<&BodyIslandNode, Or<(ConstantForceChanges, Changed<GravityScale>)>>,
-    )>,
+    // These could've been changed by physics too.
+    // We need to ignore non-user changes.
+    query: Query<
+        (
+            Ref<Position>,
+            Ref<Rotation>,
+            Ref<LinearVelocity>,
+            Ref<AngularVelocity>,
+            Ref<SleepTimer>,
+            &BodyIslandNode,
+        ),
+        (
+            With<Sleeping>,
+            Or<(
+                Changed<Position>,
+                Changed<Rotation>,
+                Changed<LinearVelocity>,
+                Changed<AngularVelocity>,
+                Changed<SleepTimer>,
+            )>,
+        ),
+    >,
     mut awake_island_bit_vec: ResMut<AwakeIslandBitVec>,
     last_physics_tick: Res<LastPhysicsTick>,
     system_tick: SystemChangeTick,
 ) {
     let this_run = system_tick.this_run();
 
-    for (pos, rot, lin_vel, ang_vel, sleep_timer, body_island) in &query.p0() {
+    for (pos, rot, lin_vel, ang_vel, sleep_timer, body_island) in &query {
         if is_changed_after_tick(pos, last_physics_tick.0, this_run)
             || is_changed_after_tick(rot, last_physics_tick.0, this_run)
             || is_changed_after_tick(lin_vel, last_physics_tick.0, this_run)
@@ -589,10 +569,6 @@ fn wake_on_changed(
         {
             awake_island_bit_vec.set_and_grow(body_island.island_id.0 as usize);
         }
-    }
-
-    for body_island in &query.p1() {
-        awake_island_bit_vec.set_and_grow(body_island.island_id.0 as usize);
     }
 }
 

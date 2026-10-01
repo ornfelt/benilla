@@ -155,7 +155,7 @@
 //!
 //! If the constraint is a [joint](crate::dynamics::joints), it is recommended to also add an instance
 //! of [`JointGraphPlugin`](crate::dynamics::solver::joint_graph::JointGraphPlugin) for the constraint type.
-//! This is required for sleeping and the `JointCollisionDisabled` component to work.
+//! This is required for sleeping to work.
 //!
 //! You can find a working example of a custom constraint
 //! [here](https://github.com/avianphysics/avian/blob/main/crates/avian3d/examples/custom_constraint.rs).

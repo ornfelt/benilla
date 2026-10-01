@@ -1,9 +1,7 @@
 use crate::{
     dynamics::{
-        integrator::{
-            self, CustomVelocityIntegration, IntegrationSystems, VelocityIntegrationData,
-        },
-        solver::solver_body::{SolverBody, SolverBodyInertia},
+        integrator::{self, IntegrationSystems},
+        solver::solver_body::SolverBody,
     },
     prelude::*,
 };
@@ -70,9 +68,9 @@ impl Plugin for ForcePlugin {
 /// System sets for managing and applying forces, torques, and accelerations for [rigid bodies](RigidBody).
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ForceSystems {
-    /// Adds [`ConstantForce`], [`ConstantTorque`], [`ConstantLinearAcceleration`], and [`ConstantAngularAcceleration`]
-    /// to [`VelocityIntegrationData`], and [`ConstantLocalForce`], [`ConstantLocalTorque`], [`ConstantLocalLinearAcceleration`], and [`ConstantLocalAngularAcceleration`]
-    /// to [`AccumulatedLocalAcceleration`].
+    /// Holds the stand-ins of the constant force systems, which accumulated constant forces and
+    /// accelerations into [`VelocityIntegrationData`](integrator::VelocityIntegrationData) and
+    /// [`AccumulatedLocalAcceleration`].
     ApplyConstantForces,
     /// Applies [`AccumulatedLocalAcceleration`] to the linear and angular velocities of bodies.
     ApplyLocalAcceleration,
@@ -80,121 +78,35 @@ pub enum ForceSystems {
     Clear,
 }
 
-/// Applies [`ConstantForce`] to the accumulated forces.
-fn apply_constant_forces(
-    mut bodies: Query<(&mut VelocityIntegrationData, &ComputedMass, &ConstantForce)>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut integration, mass, constant_force)| {
-            integration.linear_increment += mass.inverse() * constant_force.0;
-        })
-}
+// Stand-in for the system that added each `ConstantForce` to its body's linear velocity increment.
+fn apply_constant_forces() {}
 
-/// Applies [`ConstantTorque`] to the accumulated torques.
-fn apply_constant_torques(
-    mut bodies: Query<(
-        &mut VelocityIntegrationData,
-        &SolverBodyInertia,
-        &ConstantTorque,
-    )>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut integration, inertia, constant_torque)| {
-            integration.angular_increment +=
-                inertia.effective_inv_angular_inertia() * constant_torque.0;
-        })
-}
+// Stand-in for the system that added each `ConstantTorque` to its body's angular velocity increment.
+fn apply_constant_torques() {}
 
-/// Applies [`ConstantLinearAcceleration`] to the linear velocity increments.
-fn apply_constant_linear_acceleration(
-    mut bodies: Query<(&mut VelocityIntegrationData, &ConstantLinearAcceleration)>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut integration, constant_acceleration)| {
-            integration.linear_increment += constant_acceleration.0;
-        })
-}
+// Stand-in for the system that added each `ConstantLinearAcceleration` to its body's linear velocity increment.
+fn apply_constant_linear_acceleration() {}
 
-/// Applies [`ConstantAngularAcceleration`] to the angular velocity increments.
-fn apply_constant_angular_acceleration(
-    mut bodies: Query<(&mut VelocityIntegrationData, &ConstantAngularAcceleration)>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut integration, constant_acceleration)| {
-            integration.angular_increment += constant_acceleration.0;
-        })
-}
+// Stand-in for the system that added each `ConstantAngularAcceleration` to its body's angular velocity increment.
+fn apply_constant_angular_acceleration() {}
 
-/// Applies [`ConstantLocalForce`] to the accumulated forces.
-fn apply_constant_local_forces(
-    mut bodies: Query<(
-        &mut AccumulatedLocalAcceleration,
-        &ComputedMass,
-        &ConstantLocalForce,
-    )>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut acceleration, mass, constant_force)| {
-            acceleration.linear += mass.inverse() * constant_force.0;
-        })
-}
+// Stand-in for the system that added each `ConstantLocalForce` to its body's accumulated local acceleration.
+fn apply_constant_local_forces() {}
 
-/// Applies [`ConstantLocalTorque`] to the accumulated torques.
-fn apply_constant_local_torques(
-    mut bodies: Query<(
-        &mut AccumulatedLocalAcceleration,
-        &ComputedAngularInertia,
-        &ConstantLocalTorque,
-    )>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut acceleration, angular_inertia, constant_torque)| {
-            acceleration.angular += angular_inertia.inverse() * constant_torque.0;
-        })
-}
+// Stand-in for the system that added each `ConstantLocalTorque` to its body's accumulated local acceleration.
+fn apply_constant_local_torques() {}
 
-/// Applies [`ConstantLocalLinearAcceleration`] to the accumulated local acceleration.
-fn apply_constant_local_linear_acceleration(
-    mut bodies: Query<(
-        &mut AccumulatedLocalAcceleration,
-        &ConstantLocalLinearAcceleration,
-    )>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut acceleration, constant_acceleration)| {
-            acceleration.linear += constant_acceleration.0;
-        })
-}
+// Stand-in for the system that added each `ConstantLocalLinearAcceleration` to its body's accumulated local acceleration.
+fn apply_constant_local_linear_acceleration() {}
 
-/// Applies [`ConstantLocalAngularAcceleration`] to the accumulated local acceleration.
-fn apply_constant_local_angular_acceleration(
-    mut bodies: Query<(
-        &mut AccumulatedLocalAcceleration,
-        &ConstantLocalAngularAcceleration,
-    )>,
-) {
-    bodies
-        .iter_mut()
-        .for_each(|(mut acceleration, constant_acceleration)| {
-            acceleration.angular += constant_acceleration.0;
-        })
-}
+// Stand-in for the system that added each `ConstantLocalAngularAcceleration` to its body's accumulated local acceleration.
+fn apply_constant_local_angular_acceleration() {}
 
 /// Applies [`AccumulatedLocalAcceleration`] to the linear and angular velocity of bodies.
 ///
 /// This should run in the substepping loop, just before [`IntegrationSystems::Velocity`].
 fn apply_local_acceleration(
-    mut bodies: Query<
-        (&mut SolverBody, &AccumulatedLocalAcceleration, &Rotation),
-        Without<CustomVelocityIntegration>,
-    >,
+    mut bodies: Query<(&mut SolverBody, &AccumulatedLocalAcceleration, &Rotation)>,
     time: Res<Time<Substeps>>,
 ) {
     let delta_secs = time.delta_secs_f64() as Scalar;

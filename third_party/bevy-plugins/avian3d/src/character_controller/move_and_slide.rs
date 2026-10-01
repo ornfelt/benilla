@@ -255,10 +255,6 @@ pub struct MoveAndSlideOutput {
     ///
     /// It is useful to store this value or apply it to [`LinearVelocity`] and use it as the input velocity
     /// for the next frame's call to the move and slide algorithm.
-    ///
-    /// Note that if you apply this to [`LinearVelocity`], it is recommended to use [`CustomPositionIntegration`].
-    /// This ways, the character's position is only updated via the move and slide algorithm,
-    /// and not also by the physics integrator.
     pub projected_velocity: Vector,
 }
 

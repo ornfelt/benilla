@@ -1,20 +1,14 @@
 use core::marker::PhantomData;
 
 use crate::{
-    collision::contact_types::ContactId,
-    data_structures::pair_key::PairKey,
     dynamics::{
         joints::EntityConstraint,
         solver::{
-            constraint_graph::ConstraintGraph,
             islands::{BodyIslandNode, IslandId, PhysicsIslands},
             joint_graph::{JointGraph, JointGraphEdge},
         },
     },
-    prelude::{
-        ContactGraph, JointCollisionDisabled, JointDisabled, PhysicsSchedule, PhysicsStepSystems,
-        RigidBodyColliders, WakeIslands,
-    },
+    prelude::{ContactGraph, PhysicsSchedule, PhysicsStepSystems, WakeIslands},
 };
 use bevy::{
     ecs::{
@@ -62,20 +56,15 @@ impl<T: Component + EntityConstraint<2>> Plugin for JointGraphPlugin<T> {
             .on_add(on_add_joint)
             .on_remove(on_remove_joint);
 
-        // Add the joint to the joint graph when it is added and the joint is not disabled.
-        app.add_observer(
-            add_joint_to_graph::<T, Add, T, (With<JointComponentId>, Without<JointDisabled>)>,
-        );
+        // Add the joint to the joint graph when it is added.
+        app.add_observer(add_joint_to_graph::<T, Add, T, With<JointComponentId>>);
 
         // Remove the joint from the joint graph when it is removed.
         app.add_observer(remove_joint_from_graph::<Remove, T>);
 
         if !already_initialized {
             // Remove the joint from the joint graph when it is disabled.
-            app.add_observer(remove_joint_from_graph::<Add, (Disabled, JointDisabled)>);
-
-            // Remove contacts between bodies when the `JointCollisionDisabled` component is added.
-            app.add_observer(on_disable_joint_collision);
+            app.add_observer(remove_joint_from_graph::<Add, Disabled>);
         }
 
         // Add the joint back to the joint graph when `Disabled` is removed.
@@ -87,13 +76,9 @@ impl<T: Component + EntityConstraint<2>> Plugin for JointGraphPlugin<T> {
                 (
                     With<JointComponentId>,
                     Or<(With<Disabled>, Without<Disabled>)>,
-                    Without<JointDisabled>,
                 ),
             >,
         );
-
-        // Add the joint back to the joint graph when `JointDisabled` is removed.
-        app.add_observer(add_joint_to_graph::<T, Remove, JointDisabled, With<JointComponentId>>);
 
         app.add_systems(
             PhysicsSchedule,
@@ -111,7 +96,7 @@ fn add_joint_to_graph<
     F: QueryFilter,
 >(
     trigger: On<E, B>,
-    query: Query<(&T, Has<JointCollisionDisabled>), F>,
+    query: Query<&T, F>,
     mut commands: Commands,
     mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
     mut contact_graph: ResMut<ContactGraph>,
@@ -120,14 +105,14 @@ fn add_joint_to_graph<
 ) {
     let entity = trigger.event_target();
 
-    let Ok((joint, collision_disabled)) = query.get(entity) else {
+    let Ok(joint) = query.get(entity) else {
         return;
     };
 
     let [body1, body2] = joint.entities();
 
     // Add the joint to the joint graph.
-    let joint_edge = JointGraphEdge::new(entity, body1, body2, collision_disabled);
+    let joint_edge = JointGraphEdge::new(entity, body1, body2, false);
     let joint_id = joint_graph.add_joint(body1, body2, joint_edge);
 
     // Link the joint to an island.
@@ -213,57 +198,6 @@ fn on_remove_joint(mut world: DeferredWorld, ctx: HookContext) {
             .commands()
             .entity(entity)
             .try_remove::<JointComponentId>();
-    }
-}
-
-fn on_disable_joint_collision(
-    trigger: On<Add, JointCollisionDisabled>,
-    query: Query<&RigidBodyColliders>,
-    joint_graph: Res<JointGraph>,
-    mut contact_graph: ResMut<ContactGraph>,
-    mut constraint_graph: ResMut<ConstraintGraph>,
-) {
-    let entity = trigger.entity;
-
-    // Iterate through each collider of the body with fewer colliders,
-    // find contacts with the other body, and remove them.
-    let Some([body1, body2]) = joint_graph.bodies_of(entity) else {
-        return;
-    };
-    let Ok([colliders1, colliders2]) = query.get_many([body1, body2]) else {
-        return;
-    };
-
-    let (colliders, other_body) = if colliders1.len() < colliders2.len() {
-        (colliders1, body2)
-    } else {
-        (colliders2, body1)
-    };
-
-    let contacts_to_remove: Vec<(ContactId, usize)> = colliders
-        .iter()
-        .flat_map(|collider| {
-            contact_graph
-                .contact_edges_with(collider)
-                .filter_map(|edge| {
-                    if edge.body1 == Some(other_body) || edge.body2 == Some(other_body) {
-                        Some((edge.id, edge.constraint_handles.len()))
-                    } else {
-                        None
-                    }
-                })
-        })
-        .collect();
-
-    for (contact_id, num_constraints) in contacts_to_remove {
-        // Remove the contact from the constraint graph.
-        for _ in 0..num_constraints {
-            constraint_graph.pop_manifold(&mut contact_graph.edges, contact_id, body1, body2);
-        }
-
-        // Remove the contact from the contact graph.
-        let pair_key = PairKey::new(body1.index_u32(), body2.index_u32());
-        contact_graph.remove_edge_by_id(&pair_key, contact_id);
     }
 }
 

@@ -9,8 +9,7 @@ use crate::{
     RigidBodyDisabled, Rotation, Sleeping, SolverSystems, Vector,
     dynamics::solver::{SolverDiagnostics, solver_body::SolverBodyFlags},
     prelude::{
-        AppDiagnosticsExt, ComputedAngularInertia, ComputedCenterOfMass, ComputedMass, Dominance,
-        LockedAxes,
+        AppDiagnosticsExt, ComputedAngularInertia, ComputedCenterOfMass, ComputedMass, LockedAxes,
     },
 };
 use crate::{
@@ -187,7 +186,6 @@ fn prepare_solver_bodies(
         &ComputedMass,
         &ComputedAngularInertia,
         Option<&LockedAxes>,
-        Option<&Dominance>,
     )>,
 ) {
     #[allow(unused_variables)]
@@ -202,7 +200,6 @@ fn prepare_solver_bodies(
             mass,
             angular_inertia,
             locked_axes,
-            dominance,
         )| {
             solver_body.linear_velocity = linear_velocity.0;
             solver_body.angular_velocity = angular_velocity.0;
@@ -214,7 +211,7 @@ fn prepare_solver_bodies(
                 mass.inverse(),
                 angular_inertia.rotated(rotation.0).inverse(),
                 locked_axes,
-                dominance.map_or(0, |dominance| dominance.0),
+                0,
                 rb.is_dynamic(),
             );
             solver_body.flags = SolverBodyFlags(locked_axes.to_bits() as u32);

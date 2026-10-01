@@ -138,7 +138,7 @@ pub fn prepare_xpbd_joint<
     C: Component<Mutability = Mutable> + EntityConstraint<2> + XpbdConstraint<2>,
 >(
     bodies: Query<RigidBodyQueryReadOnly, Without<RigidBodyDisabled>>,
-    mut joints: Query<(&mut C, &mut C::SolverData), (Without<RigidBody>, Without<JointDisabled>)>,
+    mut joints: Query<(&mut C, &mut C::SolverData), Without<RigidBody>>,
 ) where
     C::SolverData: Component<Mutability = Mutable>,
 {
@@ -158,7 +158,7 @@ pub fn solve_xpbd_joint<
     C: Component<Mutability = Mutable> + EntityConstraint<2> + XpbdConstraint<2>,
 >(
     bodies: Query<(&mut SolverBody, &SolverBodyInertia), Without<RigidBodyDisabled>>,
-    mut joints: Query<(&mut C, &mut C::SolverData), (Without<RigidBody>, Without<JointDisabled>)>,
+    mut joints: Query<(&mut C, &mut C::SolverData), Without<RigidBody>>,
     time: Res<Time>,
 ) where
     C::SolverData: Component<Mutability = Mutable>,
@@ -208,7 +208,7 @@ pub fn warm_start_xpbd_motors<
     C: Component<Mutability = Mutable> + EntityConstraint<2> + XpbdConstraint<2>,
 >(
     bodies: Query<(&mut SolverBody, &SolverBodyInertia), Without<RigidBodyDisabled>>,
-    mut joints: Query<(&C, &mut C::SolverData), (Without<RigidBody>, Without<JointDisabled>)>,
+    mut joints: Query<(&C, &mut C::SolverData), Without<RigidBody>>,
     time: Res<Time>,
     solver_config: Res<SolverConfig>,
 ) where
@@ -287,23 +287,6 @@ fn project_angular_velocity(
     }
 }
 
-fn writeback_joint_forces<C: Component + EntityConstraint<2> + XpbdConstraint<2>>(
-    mut joints: Query<(&C::SolverData, &mut JointForces)>,
-    time: Res<Time>,
-    substep_count: Res<SubstepCount>,
-) where
-    C::SolverData: Component<Mutability = Mutable>,
-{
-    let delta_secs = time.delta_seconds_adjusted();
-
-    // Detailed Rigid Body Simulation with Extended Position Based Dynamics by Müller et al.
-    // states that  `f = λ * n / h²`. However, with substepping, it seems that we need to accumulate
-    // Lagrange multipliers across substeps, and use the formula `f = λ * n / dt^2 * substep_count`.
-    let rhs = (delta_secs * delta_secs).recip_or_zero() * substep_count.0 as Scalar;
-
-    for (solver_data, mut forces) in &mut joints {
-        forces.set_force(solver_data.total_position_lagrange() * rhs);
-        forces.set_torque(solver_data.total_rotation_lagrange() * rhs);
-        forces.set_motor_force(solver_data.total_motor_lagrange() * rhs);
-    }
-}
+// Stand-in for the system that wrote each joint's force, torque and motor force into its
+// `JointForces`.
+fn writeback_joint_forces<C: Component + EntityConstraint<2> + XpbdConstraint<2>>() {}

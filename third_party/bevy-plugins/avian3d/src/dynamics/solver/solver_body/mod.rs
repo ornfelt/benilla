@@ -198,15 +198,10 @@ pub struct SolverBodyInertia {
     /// 32 bytes with the `f32` feature.
     effective_inv_angular_inertia: SymmetricTensor,
 
-    /// The [dominance] of the body.
-    ///
-    /// If the [`Dominance`] component is not specified, the default of `0` is returned for dynamic bodies.
-    /// For static and kinematic bodies, `i8::MAX + 1` (`128`) is always returned instead.
+    /// The dominance of the body: `0` for dynamic bodies,
+    /// `i8::MAX + 1` (`128`) for static and kinematic bodies.
     ///
     /// 2 bytes.
-    ///
-    /// [dominance]: crate::dynamics::rigid_body::Dominance
-    /// [`Dominance`]: crate::dynamics::rigid_body::Dominance
     dominance: i16,
 
     /// Flags indicating the inertial properties of the body,
@@ -384,13 +379,8 @@ impl SolverBodyInertia {
         self.effective_inv_angular_inertia = effective_inv_angular_inertia;
     }
 
-    /// Returns the [dominance] of the body.
-    ///
-    /// If the [`Dominance`] component is not specified, the default of `0` is returned for dynamic bodies.
-    /// For static and kinematic bodies, `i8::MAX + 1` (`128`) is always returned instead.
-    ///
-    /// [dominance]: crate::dynamics::rigid_body::Dominance
-    /// [`Dominance`]: crate::dynamics::rigid_body::Dominance
+    /// Returns the dominance of the body: `0` for dynamic bodies,
+    /// `i8::MAX + 1` (`128`) for static and kinematic bodies.
     #[inline]
     pub fn dominance(&self) -> i16 {
         self.dominance

@@ -22,20 +22,16 @@ use bevy::prelude::*;
 /// - A joint or contact is removed from a sleeping body.
 /// - The [`Transform`], [`LinearVelocity`], or [`AngularVelocity`] of a sleeping body is modified.
 /// - The [`RigidBody`] type of a body is changed.
-/// - A [constant force component](super::forces#constant-forces) of a sleeping body is modified.
-/// - The [`Gravity`] resource or [`GravityScale`] component is modified.
+/// - The [`Gravity`] resource is modified.
 ///
 /// A body and all bodies connected to it can also be forced to sleep or wake up
 /// by manually adding or removing the [`Sleeping`] component, or by using
 /// the [`SleepBody`] and [`WakeBody`] commands.
 ///
-/// Sleeping can be disabled for an entity by adding the [`SleepingDisabled`] component.
-///
 /// [`RigidBody`]: super::RigidBody
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity
 /// [`Gravity`]: super::Gravity
-/// [`GravityScale`]: super::GravityScale
 /// [`SleepBody`]: crate::dynamics::solver::islands::SleepBody
 /// [`WakeBody`]: crate::dynamics::solver::islands::WakeBody
 ///
@@ -55,18 +51,10 @@ use bevy::prelude::*;
 #[reflect(Component, Debug, Default)]
 pub struct Sleeping;
 
-/// A marker component indicating that [`Sleeping`] is disabled for a [`RigidBody`].
-///
-/// [`RigidBody`]: super::RigidBody
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component, Debug, Default)]
-pub struct SleepingDisabled;
-
 /// A component for the maximum [`LinearVelocity`] and [`AngularVelocity`]
 /// for a body to be allowed to be [`Sleeping`].
 ///
-/// Setting a negative sleeping threshold disables sleeping entirely,
-/// similar to [`SleepingDisabled`].
+/// Setting a negative sleeping threshold disables sleeping entirely.
 ///
 /// [`LinearVelocity`]: super::LinearVelocity
 /// [`AngularVelocity`]: super::AngularVelocity

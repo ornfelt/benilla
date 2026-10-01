@@ -422,6 +422,20 @@ the same repository's.
   `ContactManifoldContext` lose their entities, which the one `AnyCollider` (parry's `Collider`)
   never reads; their doc example reads `Time` only, and `update_moved_collider_aabbs`'s collider
   query no longer fetches the `Entity` it passed.
+- **avian3d's per-body and per-joint options.** Components only a user inserts, which nothing in
+  benilla (or avian3d's kept tests) inserts: the eight constant forces and accelerations,
+  `GravityScale`, `LinearDamping`, `AngularDamping`, `MaxLinearSpeed`, `MaxAngularSpeed`,
+  `Dominance`, `CustomVelocityIntegration`, `CustomPositionIntegration`, `SleepingDisabled`,
+  `JointDisabled`, `JointCollisionDisabled` (with its hooks and its contact-removing observer),
+  `JointDamping` and `JointForces`. Each read becomes its absent result: the integrator damps with
+  a coefficient of `0.0` and adds gravity unscaled (`x * 1.0` is `x`), the solver body gets
+  dominance `0`, a joint enters the graph with collisions enabled, and the `With`/`Without`
+  filters on the markers go. The systems that only served them stay as empty stand-ins in their
+  sets (avian3d runs `PhysicsSchedule` and `SubstepSchedule` single-threaded): the eight
+  `apply_constant_*` systems, `clamp_velocities`, `joint_damping::<T>` and
+  `writeback_joint_forces::<T>`. `wake_on_changed` loses its query of changed constant forces and
+  gravity scales; the observers that re-added a joint when `JointDisabled` was removed go, and
+  the one removing a joint on `Disabled` no longer also fires on `JointDisabled`.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

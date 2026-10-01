@@ -69,24 +69,19 @@ pub mod solver;
 
 /// Re-exports common types related to the rigid body dynamics functionality.
 pub mod prelude {
+    pub use super::joints::SphericalJoint;
     pub(crate) use super::rigid_body::mass_properties::{ComputeMassProperties, MassProperties};
     pub use super::solver::xpbd::XpbdSolverPlugin;
     pub use super::{
         ccd::{CcdPlugin, SpeculativeMargin, SweepMode, SweptCcd},
-        integrator::{
-            CustomPositionIntegration, CustomVelocityIntegration, Gravity, IntegratorPlugin,
-        },
+        integrator::{Gravity, IntegratorPlugin},
         joints::{
             AngleLimit, AngularMotor, DistanceJoint, DistanceLimit, FixedJoint, JointAnchor,
-            JointBasis, JointCollisionDisabled, JointDamping, JointDisabled, JointForces,
-            JointFrame, JointPlugin, LinearMotor, MotorModel, PrismaticJoint, RevoluteJoint,
+            JointBasis, JointFrame, JointPlugin, LinearMotor, MotorModel, PrismaticJoint,
+            RevoluteJoint,
         },
         rigid_body::{
-            forces::{
-                ConstantAngularAcceleration, ConstantForce, ConstantLinearAcceleration,
-                ConstantLocalForce, ConstantLocalLinearAcceleration, ConstantTorque, ForcePlugin,
-                ForceSystems,
-            },
+            forces::{ForcePlugin, ForceSystems},
             mass_properties::{
                 MassPropertiesExt, MassPropertyHelper, MassPropertyPlugin,
                 bevy_heavy::{
@@ -99,7 +94,7 @@ pub mod prelude {
                     MassPropertiesBundle, NoAutoAngularInertia, NoAutoCenterOfMass, NoAutoMass,
                 },
             },
-            sleeping::{SleepThreshold, SleepTimer, Sleeping, SleepingDisabled, TimeToSleep},
+            sleeping::{SleepThreshold, SleepTimer, Sleeping, TimeToSleep},
             *,
         },
         solver::{
@@ -110,10 +105,6 @@ pub mod prelude {
             schedule::{SolverSchedulePlugin, SolverSystems, SubstepCount, SubstepSchedule},
             solver_body::SolverBodyPlugin,
         },
-    };
-    pub use super::{
-        joints::SphericalJoint,
-        rigid_body::forces::{ConstantLocalAngularAcceleration, ConstantLocalTorque},
     };
 }
 

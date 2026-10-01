@@ -34,7 +34,6 @@
 //!
 //! - [`CollisionLayers`]
 //! - [`CollisionHooks`]
-//! - [`JointCollisionDisabled`]
 //! - Skip collisions with parent rigid body
 //! - Skip non-dynamic vs non-dynamic pairs
 //!
