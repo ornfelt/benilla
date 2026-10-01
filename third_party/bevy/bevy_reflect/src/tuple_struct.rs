@@ -2,13 +2,11 @@ use bevy_reflect_derive::impl_type_path;
 
 use crate::generics::impl_generic_info_methods;
 use crate::{
-    attributes::{impl_custom_attribute_methods, CustomAttributes},
-    type_info::impl_type_methods,
-    ApplyError, DynamicTuple, Generics, PartialReflect, Reflect, ReflectKind, ReflectMut,
-    ReflectOwned, ReflectRef, Tuple, Type, TypeInfo, TypePath, UnnamedField,
+    type_info::impl_type_methods, ApplyError, DynamicTuple, Generics, PartialReflect, Reflect,
+    ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Tuple, Type, TypeInfo, TypePath,
+    UnnamedField,
 };
 use alloc::{boxed::Box, vec::Vec};
-use bevy_platform::sync::Arc;
 use core::{
     fmt::{Debug, Formatter},
     slice::Iter,
@@ -75,7 +73,6 @@ pub struct TupleStructInfo {
     ty: Type,
     generics: Generics,
     fields: Box<[UnnamedField]>,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl TupleStructInfo {
@@ -89,15 +86,6 @@ impl TupleStructInfo {
             ty: Type::of::<T>(),
             generics: Generics::new(),
             fields: fields.to_vec().into_boxed_slice(),
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this struct.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
         }
     }
 
@@ -117,8 +105,6 @@ impl TupleStructInfo {
     }
 
     impl_type_methods!(ty);
-
-    impl_custom_attribute_methods!(self.custom_attributes, "struct");
 
     impl_generic_info_methods!(generics);
 }

@@ -1,10 +1,5 @@
-use crate::{
-    attributes::{impl_custom_attribute_methods, CustomAttributes},
-    type_info::impl_type_methods,
-    MaybeTyped, PartialReflect, Type, TypeInfo, TypePath,
-};
+use crate::{type_info::impl_type_methods, MaybeTyped, PartialReflect, Type, TypeInfo, TypePath};
 use alloc::borrow::Cow;
-use bevy_platform::sync::Arc;
 use core::fmt::{Display, Formatter};
 
 /// The named field of a reflected struct.
@@ -13,7 +8,6 @@ pub struct NamedField {
     name: &'static str,
     type_info: fn() -> Option<&'static TypeInfo>,
     ty: Type,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl NamedField {
@@ -23,15 +17,6 @@ impl NamedField {
             name,
             type_info: T::maybe_type_info,
             ty: Type::of::<T>(),
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this field.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
         }
     }
 
@@ -50,8 +35,6 @@ impl NamedField {
     }
 
     impl_type_methods!(ty);
-
-    impl_custom_attribute_methods!(self.custom_attributes, "field");
 }
 
 /// The unnamed field of a reflected tuple or tuple struct.
@@ -60,7 +43,6 @@ pub struct UnnamedField {
     index: usize,
     type_info: fn() -> Option<&'static TypeInfo>,
     ty: Type,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl UnnamedField {
@@ -70,15 +52,6 @@ impl UnnamedField {
             index,
             type_info: T::maybe_type_info,
             ty: Type::of::<T>(),
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this field.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
         }
     }
 
@@ -97,8 +70,6 @@ impl UnnamedField {
     }
 
     impl_type_methods!(ty);
-
-    impl_custom_attribute_methods!(self.custom_attributes, "field");
 }
 
 /// A representation of a field's accessor.

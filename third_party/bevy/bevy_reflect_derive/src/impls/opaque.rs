@@ -27,20 +27,10 @@ pub(crate) fn impl_opaque(meta: &ReflectMeta) -> proc_macro2::TokenStream {
     let common_methods = common_partial_reflect_methods(meta, || None, || None);
     let clone_fn = meta.attrs().get_clone_impl(bevy_reflect_path);
 
-    let apply_impl = if let Some(remote_ty) = meta.remote_ty() {
-        let ty = remote_ty.type_path();
-        quote! {
-            if let #FQOption::Some(value) = <dyn #bevy_reflect_path::PartialReflect>::try_downcast_ref::<#ty>(value) {
-                *self = Self(#FQClone::clone(value));
-                return #FQResult::Ok(());
-            }
-        }
-    } else {
-        quote! {
-            if let #FQOption::Some(value) = <dyn #bevy_reflect_path::PartialReflect>::try_downcast_ref::<Self>(value) {
-                *self = #FQClone::clone(value);
-                return #FQResult::Ok(());
-            }
+    let apply_impl = quote! {
+        if let #FQOption::Some(value) = <dyn #bevy_reflect_path::PartialReflect>::try_downcast_ref::<Self>(value) {
+            *self = #FQClone::clone(value);
+            return #FQResult::Ok(());
         }
     };
 

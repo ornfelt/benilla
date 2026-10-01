@@ -1,13 +1,10 @@
 use crate::generics::impl_generic_info_methods;
 use crate::{
-    attributes::{impl_custom_attribute_methods, CustomAttributes},
-    type_info::impl_type_methods,
-    ApplyError, Generics, NamedField, PartialReflect, Reflect, ReflectKind, ReflectMut,
-    ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
+    type_info::impl_type_methods, ApplyError, Generics, NamedField, PartialReflect, Reflect,
+    ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
 };
 use alloc::{borrow::Cow, boxed::Box, vec::Vec};
 use bevy_platform::collections::HashMap;
-use bevy_platform::sync::Arc;
 use bevy_reflect_derive::impl_type_path;
 use core::{
     fmt::{Debug, Formatter},
@@ -95,7 +92,6 @@ pub struct StructInfo {
     fields: Box<[NamedField]>,
     field_names: Box<[&'static str]>,
     field_indices: HashMap<&'static str, usize>,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl StructInfo {
@@ -119,15 +115,6 @@ impl StructInfo {
             fields: fields.to_vec().into_boxed_slice(),
             field_names,
             field_indices,
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this struct.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
         }
     }
 
@@ -164,8 +151,6 @@ impl StructInfo {
     }
 
     impl_type_methods!(ty);
-
-    impl_custom_attribute_methods!(self.custom_attributes, "struct");
 
     impl_generic_info_methods!(generics);
 }

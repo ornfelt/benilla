@@ -12,39 +12,20 @@ pub fn impl_full_reflect(where_clause_options: &WhereClauseOptions) -> proc_macr
     let (impl_generics, ty_generics, where_clause) = type_path.generics().split_for_impl();
     let where_reflect_clause = where_clause_options.extend_where_clause(where_clause);
 
-    let any_impls = if meta.is_remote_wrapper() {
-        quote! {
-            #[inline]
-            fn into_any(self: #bevy_reflect_path::__macro_exports::alloc_utils::Box<Self>) -> #bevy_reflect_path::__macro_exports::alloc_utils::Box<dyn #FQAny> {
-                #bevy_reflect_path::__macro_exports::alloc_utils::Box::new(self.0)
-            }
-
-            #[inline]
-            fn as_any(&self) -> &dyn #FQAny {
-                &self.0
-            }
-
-            #[inline]
-            fn as_any_mut(&mut self) -> &mut dyn #FQAny {
-                &mut self.0
-            }
+    let any_impls = quote! {
+        #[inline]
+        fn into_any(self: #bevy_reflect_path::__macro_exports::alloc_utils::Box<Self>) -> #bevy_reflect_path::__macro_exports::alloc_utils::Box<dyn #FQAny> {
+            self
         }
-    } else {
-        quote! {
-            #[inline]
-            fn into_any(self: #bevy_reflect_path::__macro_exports::alloc_utils::Box<Self>) -> #bevy_reflect_path::__macro_exports::alloc_utils::Box<dyn #FQAny> {
-                self
-            }
 
-            #[inline]
-            fn as_any(&self) -> &dyn #FQAny {
-                self
-            }
+        #[inline]
+        fn as_any(&self) -> &dyn #FQAny {
+            self
+        }
 
-            #[inline]
-            fn as_any_mut(&mut self) -> &mut dyn #FQAny {
-                self
-            }
+        #[inline]
+        fn as_any_mut(&mut self) -> &mut dyn #FQAny {
+            self
         }
     };
 

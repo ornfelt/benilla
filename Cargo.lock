@@ -1098,7 +1098,6 @@ dependencies = [
  "disqualified",
  "downcast-rs 2.0.2",
  "erased-serde",
- "foldhash 0.2.0",
  "glam 0.30.10",
  "indexmap",
  "serde",

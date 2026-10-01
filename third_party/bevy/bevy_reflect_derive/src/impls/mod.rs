@@ -1,4 +1,3 @@
-mod assertions;
 mod common;
 mod enums;
 mod opaque;
@@ -6,7 +5,6 @@ mod structs;
 mod tuple_structs;
 mod typed;
 
-pub(crate) use assertions::impl_assertions;
 pub(crate) use common::{common_partial_reflect_methods, impl_full_reflect};
 pub(crate) use enums::impl_enum;
 pub(crate) use opaque::impl_opaque;

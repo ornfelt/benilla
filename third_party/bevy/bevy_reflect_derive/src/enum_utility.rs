@@ -80,14 +80,12 @@ pub(crate) trait VariantBuilder: Sized {
     /// * `this`: The identifier of the enum
     /// * `field`: The field to access
     fn on_active_field(&self, this: &Ident, field: VariantField) -> TokenStream {
-        let bevy_reflect_path = self.reflect_enum().meta().bevy_reflect_path();
         let field_accessor = self.access_field(this, field);
 
         let alias = field.alias;
-        let field_ty = field.field.reflected_type();
         let field_constructor = self.construct_field(field);
 
-        let construction = match &field.field.attrs.default {
+        match &field.field.attrs.default {
             DefaultBehavior::Func(path) => quote! {
                 if let #FQOption::Some(#alias) = #field_accessor {
                     #field_constructor
@@ -112,14 +110,6 @@ pub(crate) trait VariantBuilder: Sized {
                     #field_constructor
                 }}
             }
-        };
-
-        if field.field.attrs().remote.is_some() {
-            quote! {
-                <#field_ty as #bevy_reflect_path::ReflectRemote>::into_remote(#construction)
-            }
-        } else {
-            construction
         }
     }
 
@@ -317,15 +307,7 @@ impl<'a> VariantBuilder for ReflectCloneVariantBuilder<'a> {
     fn construct_field(&self, field: VariantField) -> TokenStream {
         let bevy_reflect_path = self.reflect_enum.meta().bevy_reflect_path();
         let field_ty = field.field.reflected_type();
-        let alias = field.alias;
-        let alias = match &field.field.attrs.remote {
-            Some(wrapper_ty) => {
-                quote! {
-                    <#wrapper_ty as #bevy_reflect_path::ReflectRemote>::as_wrapper(#alias)
-                }
-            }
-            None => alias.to_token_stream(),
-        };
+        let alias = field.alias.to_token_stream();
 
         match &field.field.attrs.clone {
             CloneBehavior::Default => {

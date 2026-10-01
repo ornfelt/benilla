@@ -5,7 +5,6 @@ use proc_macro2::Span;
 use crate::{
     container_attributes::{ContainerAttributes, FromReflectAttrs, TypePathAttrs},
     field_attributes::FieldAttributes,
-    remote::RemoteType,
     serialization::SerializationDataDef,
     string_expr::StringExpr,
     type_path::parse_path_no_leading_colon,
@@ -13,7 +12,7 @@ use crate::{
     REFLECT_ATTRIBUTE_NAME, TYPE_NAME_ATTRIBUTE_NAME, TYPE_PATH_ATTRIBUTE_NAME,
 };
 use bevy_macro_utils::ResultSifter;
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use syn::{token::Comma, MacroDelimiter};
 
 use crate::enum_utility::{EnumVariantOutputData, ReflectCloneVariantBuilder, VariantBuilder};
@@ -52,8 +51,6 @@ pub(crate) struct ReflectMeta<'a> {
     attrs: ContainerAttributes,
     /// The path to this type.
     type_path: ReflectTypePath<'a>,
-    /// The optional remote type to use instead of the actual type.
-    remote_ty: Option<RemoteType<'a>>,
     /// A cached instance of the path to the `bevy_reflect` crate.
     bevy_reflect_path: Path,
 }
@@ -119,8 +116,6 @@ pub(crate) struct EnumVariant<'a> {
     pub data: &'a Variant,
     /// The fields within this variant.
     pub fields: EnumVariantFields<'a>,
-    /// The reflection-based attributes on the variant.
-    pub attrs: FieldAttributes,
 }
 
 pub(crate) enum EnumVariantFields<'a> {
@@ -136,8 +131,6 @@ pub(crate) enum ReflectImplSource {
     ImplRemoteType,
     /// Using `#[derive(...)]`.
     DeriveLocalType,
-    /// Using `#[reflect_remote]`.
-    RemoteReflect,
 }
 
 /// Which trait the macro explicitly implements.
@@ -163,9 +156,7 @@ impl fmt::Display for ReflectProvenance {
             (S::DeriveLocalType, T::Reflect) => "`#[derive(Reflect)]`",
             (S::DeriveLocalType, T::FromReflect) => "`#[derive(FromReflect)]`",
             (S::DeriveLocalType, T::TypePath) => "`#[derive(TypePath)]`",
-            (S::RemoteReflect, T::Reflect) => "`#[reflect_remote]`",
-            (S::RemoteReflect, T::FromReflect | T::TypePath)
-            | (S::ImplRemoteType, T::FromReflect | T::TypePath) => unreachable!(),
+            (S::ImplRemoteType, T::FromReflect | T::TypePath) => unreachable!(),
         };
         f.write_str(str)
     }
@@ -296,52 +287,12 @@ impl<'a> ReflectDerive<'a> {
         }
     }
 
-    /// Set the remote type for this derived type.
-    ///
-    /// # Panics
-    ///
-    /// Panics when called on [`ReflectDerive::Opaque`].
-    pub fn set_remote(&mut self, remote_ty: Option<RemoteType<'a>>) {
-        match self {
-            Self::Struct(data) | Self::TupleStruct(data) | Self::UnitStruct(data) => {
-                data.meta.remote_ty = remote_ty;
-            }
-            Self::Enum(data) => {
-                data.meta.remote_ty = remote_ty;
-            }
-            Self::Opaque(meta) => {
-                meta.remote_ty = remote_ty;
-            }
-        }
-    }
-
-    /// Get the remote type path, if any.
-    pub fn remote_ty(&self) -> Option<RemoteType<'_>> {
-        match self {
-            Self::Struct(data) | Self::TupleStruct(data) | Self::UnitStruct(data) => {
-                data.meta.remote_ty()
-            }
-            Self::Enum(data) => data.meta.remote_ty(),
-            Self::Opaque(meta) => meta.remote_ty(),
-        }
-    }
-
     /// Get the [`ReflectMeta`] for this derived type.
     pub fn meta(&self) -> &ReflectMeta<'_> {
         match self {
             Self::Struct(data) | Self::TupleStruct(data) | Self::UnitStruct(data) => data.meta(),
             Self::Enum(data) => data.meta(),
             Self::Opaque(meta) => meta,
-        }
-    }
-
-    pub fn where_clause_options(&self) -> WhereClauseOptions<'_, '_> {
-        match self {
-            Self::Struct(data) | Self::TupleStruct(data) | Self::UnitStruct(data) => {
-                data.where_clause_options()
-            }
-            Self::Enum(data) => data.where_clause_options(),
-            Self::Opaque(meta) => WhereClauseOptions::new(meta),
         }
     }
 
@@ -387,9 +338,10 @@ impl<'a> ReflectDerive<'a> {
                     Fields::Unnamed(..) => EnumVariantFields::Unnamed(fields),
                     Fields::Unit => EnumVariantFields::Unit,
                 };
+                // The variant's `#[reflect(..)]` attributes are parsed only to reject bad input.
+                FieldAttributes::parse_attributes(&variant.attrs)?;
                 Ok(EnumVariant {
                     fields,
-                    attrs: FieldAttributes::parse_attributes(&variant.attrs)?,
                     data: variant,
                 })
             })
@@ -404,7 +356,6 @@ impl<'a> ReflectMeta<'a> {
         Self {
             attrs,
             type_path,
-            remote_ty: None,
             bevy_reflect_path: crate::meta::get_bevy_reflect_path(),
         }
     }
@@ -431,16 +382,6 @@ impl<'a> ReflectMeta<'a> {
     /// The path to this type.
     pub fn type_path(&self) -> &ReflectTypePath<'a> {
         &self.type_path
-    }
-
-    /// Get the remote type path, if any.
-    pub fn remote_ty(&self) -> Option<RemoteType<'_>> {
-        self.remote_ty
-    }
-
-    /// Whether this reflected type represents a remote type or not.
-    pub fn is_remote_wrapper(&self) -> bool {
-        self.remote_ty.is_some()
     }
 
     /// The cached `bevy_reflect` path.
@@ -481,32 +422,14 @@ impl<'a> StructField<'a> {
 
         let ty = self.reflected_type();
 
-        let mut info = quote! {
+        quote! {
             #field_info::new::<#ty>(#name)
-        };
-
-        let custom_attributes = &self.attrs.custom_attributes;
-        if !custom_attributes.is_empty() {
-            let custom_attributes = custom_attributes.to_tokens(bevy_reflect_path);
-            info.extend(quote! {
-                .with_custom_attributes(#custom_attributes)
-            });
         }
-
-        info
     }
 
-    /// Returns the reflected type of this field.
-    ///
-    /// Normally this is just the field's defined type.
-    /// However, this can be adjusted to use a different type, like for representing remote types.
-    /// In those cases, the returned value is the remote wrapper type.
+    /// Returns the reflected type of this field: the field's defined type.
     pub fn reflected_type(&self) -> &Type {
-        self.attrs.remote.as_ref().unwrap_or(&self.data.ty)
-    }
-
-    pub fn attrs(&self) -> &FieldAttributes {
-        &self.attrs
+        &self.data.ty
     }
 
     /// Generates a [`Member`] based on this field.
@@ -617,14 +540,6 @@ impl<'a> ReflectStruct<'a> {
             ])
         };
 
-        let custom_attributes = self.meta.attrs.custom_attributes();
-        if !custom_attributes.is_empty() {
-            let custom_attributes = custom_attributes.to_tokens(bevy_reflect_path);
-            info.extend(quote! {
-                .with_custom_attributes(#custom_attributes)
-            });
-        }
-
         if let Some(generics) = generate_generics(self.meta()) {
             info.extend(quote! {
                 .with_generics(#generics)
@@ -687,21 +602,9 @@ impl<'a> ReflectStruct<'a> {
             }
         }
 
-        let ctor = match self.meta.remote_ty() {
-            Some(ty) => {
-                let ty = ty.as_expr_path().ok()?.to_token_stream();
-                quote! {
-                    Self(#ty {
-                        #tokens
-                    })
-                }
-            }
-            None => {
-                quote! {
-                    Self {
-                        #tokens
-                    }
-                }
+        let ctor = quote! {
+            Self {
+                #tokens
             }
         };
 
@@ -718,40 +621,17 @@ impl<'a> ReflectStruct<'a> {
     ///
     /// The mutability of the access can be controlled by the `is_mut` parameter.
     ///
-    /// Generally, this just returns something like `&self.field`.
-    /// However, if the struct is a remote wrapper, this then becomes `&self.0.field` in order to access the field on the inner type.
-    ///
-    /// If the field itself is a remote type, the above accessor is further wrapped in a call to `ReflectRemote::as_wrapper[_mut]`.
+    /// This returns something like `&self.field`.
     pub fn access_for_field(
         &self,
         field: &StructField<'a>,
         is_mutable: bool,
     ) -> proc_macro2::TokenStream {
-        let bevy_reflect_path = self.meta().bevy_reflect_path();
         let member = field.to_member();
 
         let prefix_tokens = if is_mutable { quote!(&mut) } else { quote!(&) };
 
-        let accessor = if self.meta.is_remote_wrapper() {
-            quote!(self.0.#member)
-        } else {
-            quote!(self.#member)
-        };
-
-        match &field.attrs.remote {
-            Some(wrapper_ty) => {
-                let method = if is_mutable {
-                    format_ident!("as_wrapper_mut")
-                } else {
-                    format_ident!("as_wrapper")
-                };
-
-                quote! {
-                    <#wrapper_ty as #bevy_reflect_path::ReflectRemote>::#method(#prefix_tokens #accessor)
-                }
-            }
-            None => quote!(#prefix_tokens #accessor),
-        }
+        quote!(#prefix_tokens self.#member)
     }
 }
 
@@ -762,17 +642,8 @@ impl<'a> ReflectEnum<'a> {
     }
 
     /// Returns the given ident as a qualified unit variant of this enum.
-    ///
-    /// This takes into account the remote type, if any.
     pub fn get_unit(&self, variant: &Ident) -> proc_macro2::TokenStream {
-        let name = self
-            .meta
-            .remote_ty
-            .map(|path| match path.as_expr_path() {
-                Ok(path) => path.to_token_stream(),
-                Err(err) => err.into_compile_error(),
-            })
-            .unwrap_or_else(|| self.meta.type_path().to_token_stream());
+        let name = self.meta.type_path().to_token_stream();
 
         quote! {
             #name::#variant
@@ -830,14 +701,6 @@ impl<'a> ReflectEnum<'a> {
             ])
         };
 
-        let custom_attributes = self.meta.attrs.custom_attributes();
-        if !custom_attributes.is_empty() {
-            let custom_attributes = custom_attributes.to_tokens(bevy_reflect_path);
-            info.extend(quote! {
-                .with_custom_attributes(#custom_attributes)
-            });
-        }
-
         if let Some(generics) = generate_generics(self.meta()) {
             info.extend(quote! {
                 .with_generics(#generics)
@@ -873,11 +736,6 @@ impl<'a> ReflectEnum<'a> {
         let body = if variant_patterns.is_empty() {
             // enum variant is empty, so &self will never exist
             quote!(unreachable!())
-        } else if self.meta.is_remote_wrapper() {
-            quote! {
-                let #this = <Self as #bevy_reflect_path::ReflectRemote>::as_remote(self);
-                #FQResult::Ok(#bevy_reflect_path::__macro_exports::alloc_utils::Box::new(<Self as #bevy_reflect_path::ReflectRemote>::into_wrapper(#inner)))
-            }
         } else {
             quote! {
                 let #this = self;
@@ -941,17 +799,9 @@ impl<'a> EnumVariant<'a> {
             }
         };
 
-        let mut info = quote! {
+        let info = quote! {
             #bevy_reflect_path::#info_struct::new(#args)
         };
-
-        let custom_attributes = &self.attrs.custom_attributes;
-        if !custom_attributes.is_empty() {
-            let custom_attributes = custom_attributes.to_tokens(bevy_reflect_path);
-            info.extend(quote! {
-                .with_custom_attributes(#custom_attributes)
-            });
-        }
 
         quote! {
             #bevy_reflect_path::VariantInfo::#info_variant(#info)

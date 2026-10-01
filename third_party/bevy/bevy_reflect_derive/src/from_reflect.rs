@@ -28,22 +28,10 @@ pub(crate) fn impl_opaque(meta: &ReflectMeta) -> proc_macro2::TokenStream {
     let (impl_generics, ty_generics, where_clause) = type_path.generics().split_for_impl();
     let where_from_reflect_clause = WhereClauseOptions::new(meta).extend_where_clause(where_clause);
 
-    let downcast = match meta.remote_ty() {
-        Some(remote) => {
-            let remote_ty = remote.type_path();
-            quote! {
-                <Self as #bevy_reflect_path::ReflectRemote>::into_wrapper(
-                    #FQClone::clone(
-                        <dyn #bevy_reflect_path::PartialReflect>::try_downcast_ref::<#remote_ty>(reflect)?
-                    )
-                )
-            }
-        }
-        None => quote! {
-            #FQClone::clone(
-                <dyn #bevy_reflect_path::PartialReflect>::try_downcast_ref::<#type_path #ty_generics>(reflect)?
-            )
-        },
+    let downcast = quote! {
+        #FQClone::clone(
+            <dyn #bevy_reflect_path::PartialReflect>::try_downcast_ref::<#type_path #ty_generics>(reflect)?
+        )
     };
 
     quote! {
@@ -70,14 +58,8 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> proc_macro2::TokenStream 
         ..
     } = FromReflectVariantBuilder::new(reflect_enum).build(&ref_value);
 
-    let match_branches = if reflect_enum.meta().is_remote_wrapper() {
-        quote! {
-            #(#variant_names => #fqoption::Some(Self(#variant_constructors)),)*
-        }
-    } else {
-        quote! {
-            #(#variant_names => #fqoption::Some(#variant_constructors),)*
-        }
+    let match_branches = quote! {
+        #(#variant_names => #fqoption::Some(#variant_constructors),)*
     };
 
     let (impl_generics, ty_generics, where_clause) = enum_path.generics().split_for_impl();
@@ -122,7 +104,6 @@ fn impl_struct_internal(
     let fqoption = FQOption.into_token_stream();
 
     let struct_path = reflect_struct.meta().type_path();
-    let remote_ty = reflect_struct.meta().remote_ty();
     let bevy_reflect_path = reflect_struct.meta().bevy_reflect_path();
 
     let ref_struct = Ident::new("__ref_struct", Span::call_site());
@@ -140,22 +121,7 @@ fn impl_struct_internal(
     // The constructed "Self" ident
     let __this = Ident::new("__this", Span::call_site());
 
-    // The reflected type: either `Self` or a remote type
-    let (reflect_ty, constructor, retval) = if let Some(remote_ty) = remote_ty {
-        let constructor = match remote_ty.as_expr_path() {
-            Ok(path) => path,
-            Err(err) => return err.into_compile_error(),
-        };
-        let remote_ty = remote_ty.type_path();
-
-        (
-            quote!(#remote_ty),
-            quote!(#constructor),
-            quote!(Self(#__this)),
-        )
-    } else {
-        (quote!(Self), quote!(Self), quote!(#__this))
-    };
+    let (reflect_ty, constructor, retval) = (quote!(Self), quote!(Self), quote!(#__this));
 
     let constructor = if is_defaultable {
         quote! {
@@ -252,43 +218,16 @@ fn get_active_fields(
                     is_tuple,
                 );
                 let ty = field.reflected_type().clone();
-                let real_ty = &field.data.ty;
 
                 let get_field = quote! {
                     #bevy_reflect_path::#struct_type::field(#dyn_struct_name, #accessor)
                 };
 
-                let into_remote = |value: proc_macro2::TokenStream| {
-                    if field.attrs.is_remote_generic().unwrap_or_default() {
-                        quote! {
-                            #FQOption::Some(
-                                // SAFETY: The remote type should always be a `#[repr(transparent)]` for the actual field type
-                                unsafe {
-                                    ::core::mem::transmute_copy::<#ty, #real_ty>(
-                                        &::core::mem::ManuallyDrop::new(#value?)
-                                    )
-                                }
-                            )
-                        }
-                    } else if field.attrs().remote.is_some() {
-                        quote! {
-                            #FQOption::Some(
-                                // SAFETY: The remote type should always be a `#[repr(transparent)]` for the actual field type
-                                unsafe {
-                                    ::core::mem::transmute::<#ty, #real_ty>(#value?)
-                                }
-                            )
-                        }
-                    } else {
-                        value
-                    }
-                };
-
                 let value = match &field.attrs.default {
                     DefaultBehavior::Func(path) => {
-                        let value = into_remote(quote! {
+                        let value = quote! {
                             <#ty as #bevy_reflect_path::FromReflect>::from_reflect(field)
-                        });
+                        };
                         quote! {
                             if let #FQOption::Some(field) = #get_field {
                                 #value
@@ -298,9 +237,9 @@ fn get_active_fields(
                         }
                     }
                     DefaultBehavior::Default => {
-                        let value = into_remote(quote! {
+                        let value = quote! {
                             <#ty as #bevy_reflect_path::FromReflect>::from_reflect(field)
-                        });
+                        };
                         quote! {
                             if let #FQOption::Some(field) = #get_field {
                                 #value
@@ -310,9 +249,9 @@ fn get_active_fields(
                         }
                     }
                     DefaultBehavior::Required => {
-                        let value = into_remote(quote! {
+                        let value = quote! {
                             <#ty as #bevy_reflect_path::FromReflect>::from_reflect(#get_field?)
-                        });
+                        };
                         quote! {
                             #value
                         }

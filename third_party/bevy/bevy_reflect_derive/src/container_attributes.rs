@@ -5,7 +5,7 @@
 //! the derive helper attribute for `Reflect`, which looks like:
 //! `#[reflect(PartialEq, Default, ...)]`.
 
-use crate::{custom_attributes::CustomAttributes, derive_data::ReflectTraitToImpl};
+use crate::derive_data::ReflectTraitToImpl;
 use bevy_macro_utils::{
     fq_std::{FQAny, FQClone, FQOption, FQResult},
     terminated_parser,
@@ -184,7 +184,6 @@ pub(crate) struct ContainerAttributes {
     type_path_attrs: TypePathAttrs,
     custom_where: Option<WhereClause>,
     no_field_bounds: bool,
-    custom_attributes: CustomAttributes,
     is_opaque: bool,
     idents: Vec<Ident>,
 }
@@ -226,9 +225,7 @@ impl ContainerAttributes {
         trait_: ReflectTraitToImpl,
     ) -> syn::Result<()> {
         let lookahead = input.lookahead1();
-        if lookahead.peek(Token![@]) {
-            self.custom_attributes.parse_custom_attribute(input)
-        } else if lookahead.peek(Token![where]) {
+        if lookahead.peek(Token![where]) {
             self.parse_custom_where(input)
         } else if lookahead.peek(kw::from_reflect) {
             self.parse_from_reflect(input, trait_)
@@ -567,10 +564,6 @@ impl ContainerAttributes {
             }),
             TraitImpl::NotImplemented => None,
         }
-    }
-
-    pub fn custom_attributes(&self) -> &CustomAttributes {
-        &self.custom_attributes
     }
 
     /// The custom where configuration found within `#[reflect(...)]` attributes on this type.

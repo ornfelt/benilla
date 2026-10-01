@@ -552,6 +552,20 @@ the same repository's.
   `Serializable` and `SerializationData`, which the derive's and the opaque impls' output name.
   The tests of the removed code and the dev-dependencies only they used (`ron`, `bincode`,
   `rmp-serde`, `serde_json`, `serde`'s `derive`) go with it.
+- **`bevy_reflect`'s remote reflection, custom attributes and unreached foreign impls**, which
+  nothing outside the crate uses: `ReflectRemote` with the derive's `#[reflect_remote]` macro,
+  its `remote = ..` field attribute, the compile-time assertions only remote fields produced and
+  every remote-wrapper branch of the derive's output; the `#[reflect(@..)]` custom attributes
+  (`attributes.rs` with `CustomAttributes` and the `custom_attributes`/`get_attribute`/
+  `has_attribute` methods on the struct, tuple-struct, enum, variant and field infos; a variant's
+  `#[reflect(..)]` attributes are still parsed, so bad input is still rejected); and the reflection
+  impls of `TypeId`, `BuildHasherDefault`, `SocketAddr`, the ranges, `Result`, the atomics,
+  `Duration`, `BinaryHeap`, `BTreeMap`/`BTreeSet`, `VecDeque`, bevy_platform's `Arc` and
+  `Instant`, foldhash's hashers (with the `foldhash` dependency), `OsString`, `Path`/`PathBuf`
+  and std's `HashMap`/`HashSet`/`RandomState`, which no kept derive or call reaches (the
+  registry's defaults register only the primitives and `String`). Two kept tests move from std's
+  `HashSet` and `RandomState` to bevy_platform's `HashSet` and `FixedHasher`. Every kept derive
+  expands to the same tokens.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

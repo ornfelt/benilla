@@ -1,10 +1,6 @@
-use crate::{
-    attributes::{impl_custom_attribute_methods, CustomAttributes},
-    NamedField, UnnamedField,
-};
+use crate::{NamedField, UnnamedField};
 use alloc::boxed::Box;
 use bevy_platform::collections::HashMap;
-use bevy_platform::sync::Arc;
 use core::slice::Iter;
 use thiserror::Error;
 
@@ -105,16 +101,6 @@ impl VariantInfo {
             Self::Unit(_) => VariantType::Unit,
         }
     }
-
-    impl_custom_attribute_methods!(
-        self,
-        match self {
-            Self::Struct(info) => info.custom_attributes(),
-            Self::Tuple(info) => info.custom_attributes(),
-            Self::Unit(info) => info.custom_attributes(),
-        },
-        "variant"
-    );
 }
 
 macro_rules! impl_cast_method {
@@ -147,7 +133,6 @@ pub struct StructVariantInfo {
     fields: Box<[NamedField]>,
     field_names: Box<[&'static str]>,
     field_indices: HashMap<&'static str, usize>,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl StructVariantInfo {
@@ -160,15 +145,6 @@ impl StructVariantInfo {
             fields: fields.to_vec().into_boxed_slice(),
             field_names,
             field_indices,
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this variant.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
         }
     }
 
@@ -216,8 +192,6 @@ impl StructVariantInfo {
             .map(|(index, field)| (field.name(), index))
             .collect()
     }
-
-    impl_custom_attribute_methods!(self.custom_attributes, "variant");
 }
 
 /// Type info for tuple variants.
@@ -225,7 +199,6 @@ impl StructVariantInfo {
 pub struct TupleVariantInfo {
     name: &'static str,
     fields: Box<[UnnamedField]>,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl TupleVariantInfo {
@@ -234,15 +207,6 @@ impl TupleVariantInfo {
         Self {
             name,
             fields: fields.to_vec().into_boxed_slice(),
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this variant.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
         }
     }
 
@@ -265,40 +229,24 @@ impl TupleVariantInfo {
     pub fn field_len(&self) -> usize {
         self.fields.len()
     }
-
-    impl_custom_attribute_methods!(self.custom_attributes, "variant");
 }
 
 /// Type info for unit variants.
 #[derive(Clone, Debug)]
 pub struct UnitVariantInfo {
     name: &'static str,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl UnitVariantInfo {
     /// Create a new [`UnitVariantInfo`].
     pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this variant.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
-        }
+        Self { name }
     }
 
     /// The name of this variant.
     pub fn name(&self) -> &'static str {
         self.name
     }
-
-    impl_custom_attribute_methods!(self.custom_attributes, "variant");
 }
 
 #[cfg(test)]

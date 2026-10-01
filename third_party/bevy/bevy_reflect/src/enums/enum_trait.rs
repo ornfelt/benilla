@@ -1,12 +1,10 @@
 use crate::generics::impl_generic_info_methods;
 use crate::{
-    attributes::{impl_custom_attribute_methods, CustomAttributes},
-    type_info::impl_type_methods,
-    DynamicEnum, Generics, PartialReflect, Type, TypePath, VariantInfo, VariantType,
+    type_info::impl_type_methods, DynamicEnum, Generics, PartialReflect, Type, TypePath,
+    VariantInfo, VariantType,
 };
 use alloc::{boxed::Box, format, string::String};
 use bevy_platform::collections::HashMap;
-use bevy_platform::sync::Arc;
 use core::slice::Iter;
 
 /// A trait used to power [enum-like] operations via [reflection].
@@ -153,7 +151,6 @@ pub struct EnumInfo {
     variants: Box<[VariantInfo]>,
     variant_names: Box<[&'static str]>,
     variant_indices: HashMap<&'static str, usize>,
-    custom_attributes: Arc<CustomAttributes>,
 }
 
 impl EnumInfo {
@@ -177,15 +174,6 @@ impl EnumInfo {
             variants: variants.to_vec().into_boxed_slice(),
             variant_names,
             variant_indices,
-            custom_attributes: Arc::new(CustomAttributes::default()),
-        }
-    }
-
-    /// Sets the custom attributes for this enum.
-    pub fn with_custom_attributes(self, custom_attributes: CustomAttributes) -> Self {
-        Self {
-            custom_attributes: Arc::new(custom_attributes),
-            ..self
         }
     }
 
@@ -234,8 +222,6 @@ impl EnumInfo {
     }
 
     impl_type_methods!(ty);
-
-    impl_custom_attribute_methods!(self.custom_attributes, "enum");
 
     impl_generic_info_methods!(generics);
 }

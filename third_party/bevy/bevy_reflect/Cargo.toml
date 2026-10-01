@@ -96,10 +96,6 @@ version = "0.4"
 features = ["alloc"]
 default-features = false
 
-[dependencies.foldhash]
-version = "0.2.0"
-default-features = false
-
 [dependencies.glam]
 version = "0.30.7"
 features = ["serde"]

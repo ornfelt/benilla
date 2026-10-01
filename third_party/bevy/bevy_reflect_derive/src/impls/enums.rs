@@ -6,31 +6,18 @@ use crate::{
 use bevy_macro_utils::fq_std::{FQOption, FQResult};
 use proc_macro2::{Ident, Span};
 use quote::quote;
-use syn::{Fields, Path};
+use syn::Fields;
 
 pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> proc_macro2::TokenStream {
     let bevy_reflect_path = reflect_enum.meta().bevy_reflect_path();
     let enum_path = reflect_enum.meta().type_path();
-    let is_remote = reflect_enum.meta().is_remote_wrapper();
 
     // For `match self` expressions where self is a reference
-    let match_this = if is_remote {
-        quote!(&self.0)
-    } else {
-        quote!(self)
-    };
+    let match_this = quote!(self);
     // For `match self` expressions where self is a mutable reference
-    let match_this_mut = if is_remote {
-        quote!(&mut self.0)
-    } else {
-        quote!(self)
-    };
+    let match_this_mut = quote!(self);
     // For `*self` assignments
-    let deref_this = if is_remote {
-        quote!(self.0)
-    } else {
-        quote!(*self)
-    };
+    let deref_this = quote!(*self);
 
     let ref_name = Ident::new("__name_param", Span::call_site());
     let ref_index = Ident::new("__index_param", Span::call_site());
@@ -322,29 +309,6 @@ fn generate_impls(reflect_enum: &ReflectEnum, ref_index: &Ident, ref_name: &Iden
             field_len
         }
 
-        /// Process the field value to account for remote types.
-        ///
-        /// If the field is a remote type, then the value will be transmuted accordingly.
-        fn process_field_value(
-            ident: &Ident,
-            field: &StructField,
-            is_mutable: bool,
-            bevy_reflect_path: &Path,
-        ) -> proc_macro2::TokenStream {
-            let method = if is_mutable {
-                quote!(as_wrapper_mut)
-            } else {
-                quote!(as_wrapper)
-            };
-
-            field
-                .attrs
-                .remote
-                .as_ref()
-                .map(|ty| quote!(<#ty as #bevy_reflect_path::ReflectRemote>::#method(#ident)))
-                .unwrap_or_else(|| quote!(#ident))
-        }
-
         match &variant.fields {
             EnumVariantFields::Unit => {
                 let field_len = process_fields(&[], |_| {});
@@ -362,14 +326,12 @@ fn generate_impls(reflect_enum: &ReflectEnum, ref_index: &Ident, ref_name: &Iden
                     let declare_field = syn::Index::from(field.declaration_index);
 
                     let __value = Ident::new("__value", Span::call_site());
-                    let value_ref = process_field_value(&__value, field, false, bevy_reflect_path);
-                    let value_mut = process_field_value(&__value, field, true, bevy_reflect_path);
 
                     enum_field_at.push(quote! {
-                        #unit { #declare_field : #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#value_ref)
+                        #unit { #declare_field : #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#__value)
                     });
                     enum_field_at_mut.push(quote! {
-                        #unit { #declare_field : #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#value_mut)
+                        #unit { #declare_field : #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#__value)
                     });
                 });
 
@@ -386,20 +348,18 @@ fn generate_impls(reflect_enum: &ReflectEnum, ref_index: &Ident, ref_name: &Iden
                         .expect("reflection index should exist for active field");
 
                     let __value = Ident::new("__value", Span::call_site());
-                    let value_ref = process_field_value(&__value, field, false, bevy_reflect_path);
-                    let value_mut = process_field_value(&__value, field, true, bevy_reflect_path);
 
                     enum_field.push(quote! {
-                        #unit{ #field_ident: #__value, .. } if #ref_name == #field_name => #FQOption::Some(#value_ref)
+                        #unit{ #field_ident: #__value, .. } if #ref_name == #field_name => #FQOption::Some(#__value)
                     });
                     enum_field_mut.push(quote! {
-                        #unit{ #field_ident: #__value, .. } if #ref_name == #field_name => #FQOption::Some(#value_mut)
+                        #unit{ #field_ident: #__value, .. } if #ref_name == #field_name => #FQOption::Some(#__value)
                     });
                     enum_field_at.push(quote! {
-                        #unit{ #field_ident: #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#value_ref)
+                        #unit{ #field_ident: #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#__value)
                     });
                     enum_field_at_mut.push(quote! {
-                        #unit{ #field_ident: #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#value_mut)
+                        #unit{ #field_ident: #__value, .. } if #ref_index == #reflection_index => #FQOption::Some(#__value)
                     });
                     enum_index_of.push(quote! {
                         #unit{ .. } if #ref_name == #field_name => #FQOption::Some(#reflection_index)
