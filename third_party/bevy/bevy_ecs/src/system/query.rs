@@ -290,76 +290,6 @@ use core::{
 /// [`Without`]: crate::query::Without
 /// [`ParamSet`]: crate::system::ParamSet
 ///
-/// ## Whole Entity Access
-///
-/// [`EntityRef`] can be used in a query to gain read-only access to all components of an entity.
-/// This is useful when dynamically fetching components instead of baking them into the query type.
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #
-/// # #[derive(Component)]
-/// # struct ComponentA;
-/// #
-/// fn all_components_query(query: Query<(EntityRef, &ComponentA)>) {
-///     // ...
-/// }
-/// #
-/// # bevy_ecs::system::assert_is_system(all_components_query);
-/// ```
-///
-/// As [`EntityRef`] can read any component on an entity, a query using it will conflict with *any*
-/// mutable component access.
-///
-/// ```should_panic
-/// # use bevy_ecs::prelude::*;
-/// #
-/// # #[derive(Component)]
-/// # struct ComponentA;
-/// #
-/// // `EntityRef` provides read access to *all* components on an entity. When combined with
-/// // `&mut ComponentA` in the same query, it creates a conflict because `EntityRef` could read
-/// // `&ComponentA` while `&mut ComponentA` attempts to modify it - violating Rust's borrowing
-/// // rules.
-/// fn invalid_query(query: Query<(EntityRef, &mut ComponentA)>) {
-///     // ...
-/// }
-/// #
-/// # bevy_ecs::system::assert_system_does_not_conflict(invalid_query);
-/// ```
-///
-/// It is strongly advised to couple [`EntityRef`] queries with the use of either [`With`] /
-/// [`Without`] filters or [`ParamSet`]s. Not only does this improve the performance and
-/// parallelization of the system, but it enables systems to gain mutable access to other
-/// components:
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #
-/// # #[derive(Component)]
-/// # struct ComponentA;
-/// #
-/// # #[derive(Component)]
-/// # struct ComponentB;
-/// #
-/// // The first query only reads entities that have `ComponentA`, while the second query only
-/// // modifies entities that *don't* have `ComponentA`. Because neither query will access the same
-/// // entity, this system does not conflict.
-/// fn disjoint_query(
-///     query_a: Query<EntityRef, With<ComponentA>>,
-///     query_b: Query<&mut ComponentB, Without<ComponentA>>,
-/// ) {
-///     // ...
-/// }
-/// #
-/// # bevy_ecs::system::assert_system_does_not_conflict(disjoint_query);
-/// ```
-///
-/// The fundamental rule: [`EntityRef`]'s ability to read all components means it can never
-/// coexist with mutable access. [`With`] / [`Without`] filters can guarantee this by keeping the
-/// queries on completely separate entities.
-///
-/// [`EntityRef`]: crate::world::EntityRef
 /// [`With`]: crate::query::With
 ///
 /// # Accessing query items
@@ -409,10 +339,10 @@ use core::{
 /// entities that can be fetched. Systems that access fewer kinds of entities are more likely to be
 /// parallelized by the scheduler.
 ///
-/// On the other hand, be careful using optional components (`Option<&ComponentA>`) and
-/// [`EntityRef`] because they broaden the amount of entities kinds that can be accessed. This is
-/// especially true of a query that _only_ fetches optional components or [`EntityRef`], as the
-/// query would iterate over all entities in the world.
+/// On the other hand, be careful using optional components (`Option<&ComponentA>`) because they
+/// broaden the amount of entities kinds that can be accessed. This is especially true of a query
+/// that _only_ fetches optional components, as the query would iterate over all entities in the
+/// world.
 ///
 /// There are two types of [component storage types]: [`Table`] and [`SparseSet`]. [`Table`] offers
 /// fast iteration speeds, but slower insertion and removal speeds. [`SparseSet`] is the opposite:

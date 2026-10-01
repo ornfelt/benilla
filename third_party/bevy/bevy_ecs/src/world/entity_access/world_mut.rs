@@ -9,14 +9,14 @@ use crate::{
     event::{EntityComponentsTrigger, EntityEvent},
     lifecycle::{Despawn, Remove, Replace, DESPAWN, REMOVE, REPLACE},
     observer::Observer,
-    query::{Access, DebugCheckedUnwrap, QueryAccessError, ReleaseStateQueryData},
+    query::{DebugCheckedUnwrap, QueryAccessError, ReleaseStateQueryData},
     relationship::RelationshipHookMode,
     resource::Resource,
     system::IntoObserverSystem,
     world::{
         error::EntityComponentError, unsafe_world_cell::UnsafeEntityCell, ComponentEntry,
-        DynamicComponentFetch, EntityMut, EntityRef, FilteredEntityRef, Mut,
-        OccupiedComponentEntry, VacantComponentEntry, World,
+        DynamicComponentFetch, EntityMut, EntityRef, Mut, OccupiedComponentEntry,
+        VacantComponentEntry, World,
     },
 };
 
@@ -139,12 +139,6 @@ impl<'w> EntityWorldMut<'w> {
     #[inline]
     pub fn as_readonly(&self) -> EntityRef<'_> {
         EntityRef::from(self)
-    }
-
-    /// Consumes `self` and returns non-structural mutable access to all of the
-    /// entity's components, with the world `'w` lifetime.
-    pub fn into_mutable(self) -> EntityMut<'w> {
-        EntityMut::from(self)
     }
 
     /// Gets non-structural mutable access to all of the entity's components.
@@ -474,39 +468,6 @@ impl<'w> EntityWorldMut<'w> {
         component_ids: F,
     ) -> Result<F::Mut<'_>, EntityComponentError> {
         self.as_mutable().into_mut_by_id(component_ids)
-    }
-
-    /// Consumes `self` and returns [untyped mutable reference(s)](crate::change_detection::MutUntyped)
-    /// to component(s) with lifetime `'w` for the current entity, based on the
-    /// given [`ComponentId`]s.
-    ///
-    /// **You should prefer to use the typed API [`EntityWorldMut::into_mut`] where
-    /// possible and only use this in cases where the actual component types
-    /// are not known at compile time.**
-    ///
-    /// Unlike [`EntityWorldMut::into_mut`], this returns untyped reference(s) to
-    /// component(s), and it's the job of the caller to ensure the correct
-    /// type(s) are dereferenced (if necessary).
-    ///
-    /// # Errors
-    ///
-    /// - Returns [`EntityComponentError::MissingComponent`] if the entity does
-    ///   not have a component.
-    /// - Returns [`EntityComponentError::AliasedMutability`] if a component
-    ///   is requested multiple times.
-    ///
-    /// # Examples
-    ///
-    ///
-    /// # Panics
-    ///
-    /// If the entity has been despawned while this `EntityWorldMut` is still alive.
-    #[inline]
-    pub fn into_mut_by_id<F: DynamicComponentFetch>(
-        self,
-        component_ids: F,
-    ) -> Result<F::Mut<'w>, EntityComponentError> {
-        self.into_mutable().into_mut_by_id(component_ids)
     }
 
     /// Adds a [`Bundle`] of components to the entity.
@@ -1463,32 +1424,6 @@ impl<'a> From<&'a mut EntityWorldMut<'_>> for EntityMut<'a> {
     fn from(entity: &'a mut EntityWorldMut<'_>) -> Self {
         // SAFETY: `EntityWorldMut` guarantees exclusive access to the entire world.
         unsafe { EntityMut::new(entity.as_unsafe_entity_cell()) }
-    }
-}
-
-impl<'a> From<EntityWorldMut<'a>> for FilteredEntityRef<'a, 'static> {
-    fn from(entity: EntityWorldMut<'a>) -> Self {
-        // SAFETY:
-        // - `EntityWorldMut` guarantees exclusive access to the entire world.
-        unsafe {
-            FilteredEntityRef::new(
-                entity.into_unsafe_entity_cell(),
-                const { &Access::new_read_all() },
-            )
-        }
-    }
-}
-
-impl<'a> From<&'a EntityWorldMut<'_>> for FilteredEntityRef<'a, 'static> {
-    fn from(entity: &'a EntityWorldMut<'_>) -> Self {
-        // SAFETY:
-        // - `EntityWorldMut` guarantees exclusive access to the entire world.
-        unsafe {
-            FilteredEntityRef::new(
-                entity.as_unsafe_entity_cell_readonly(),
-                const { &Access::new_read_all() },
-            )
-        }
     }
 }
 

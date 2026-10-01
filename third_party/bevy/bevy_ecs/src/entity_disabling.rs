@@ -224,7 +224,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        prelude::{EntityMut, EntityRef, World},
+        prelude::World,
         query::{Has, With},
     };
     use alloc::{vec, vec::Vec};
@@ -307,12 +307,6 @@ mod tests {
         world.spawn_batch((0..8).map(|_| (Dummy, Disabled, CustomDisabled)));
 
         let mut query = world.query::<&Dummy>();
-        assert_eq!(1, query.iter(&world).count());
-
-        let mut query = world.query_filtered::<EntityRef, With<Dummy>>();
-        assert_eq!(1, query.iter(&world).count());
-
-        let mut query = world.query_filtered::<EntityMut, With<Dummy>>();
         assert_eq!(1, query.iter(&world).count());
 
         let mut query = world.query_filtered::<&Dummy, With<Disabled>>();

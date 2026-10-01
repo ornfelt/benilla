@@ -127,7 +127,7 @@ mod tests {
         prelude::Or,
         query::{Added, Changed, FilteredAccess, QueryFilter, With, Without},
         resource::Resource,
-        world::{error::EntityDespawnError, EntityMut, EntityRef, Mut, World},
+        world::{error::EntityDespawnError, Mut, World},
     };
     use alloc::{string::String, sync::Arc, vec, vec::Vec};
     use bevy_platform::collections::HashSet;
@@ -1444,43 +1444,9 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn entity_ref_and_mut_query_panic() {
-        let mut world = World::new();
-        world.query::<(EntityRef, &mut A)>();
-    }
-
-    #[test]
-    #[should_panic]
     fn mut_and_ref_query_panic() {
         let mut world = World::new();
         world.query::<(&mut A, &A)>();
-    }
-
-    #[test]
-    #[should_panic]
-    fn mut_and_entity_ref_query_panic() {
-        let mut world = World::new();
-        world.query::<(&mut A, EntityRef)>();
-    }
-
-    #[test]
-    #[should_panic]
-    fn entity_ref_and_entity_mut_query_panic() {
-        let mut world = World::new();
-        world.query::<(EntityRef, EntityMut)>();
-    }
-
-    #[test]
-    #[should_panic]
-    fn entity_mut_and_entity_mut_query_panic() {
-        let mut world = World::new();
-        world.query::<(EntityMut, EntityMut)>();
-    }
-
-    #[test]
-    fn entity_ref_and_entity_ref_query_no_panic() {
-        let mut world = World::new();
-        world.query::<(EntityRef, EntityRef)>();
     }
 
     #[test]

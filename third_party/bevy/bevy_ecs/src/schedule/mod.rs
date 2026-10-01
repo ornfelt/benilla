@@ -827,8 +827,6 @@ mod tests {
         fn write_component_system(_query: Query<&mut A>) {}
         fn with_filtered_component_system(_query: Query<&mut A, With<B>>) {}
         fn without_filtered_component_system(_query: Query<&mut A, Without<B>>) {}
-        fn entity_ref_system(_query: Query<EntityRef>) {}
-        fn entity_mut_system(_query: Query<EntityMut>) {}
         fn message_reader_system(_reader: MessageReader<E>) {}
         fn message_writer_system(_writer: MessageWriter<E>) {}
         fn message_resource_system(_events: ResMut<Messages<E>>) {}
@@ -871,8 +869,6 @@ mod tests {
                 nonsend_system,
                 read_component_system,
                 read_component_system,
-                entity_ref_system,
-                entity_ref_system,
                 message_reader_system,
                 message_reader_system,
                 read_world_system,
@@ -975,58 +971,6 @@ mod tests {
             let _ = schedule.initialize(&mut world);
 
             assert_eq!(schedule.graph().conflicting_systems().len(), 3);
-        }
-
-        #[test]
-        fn resource_mut_and_entity_ref() {
-            let mut world = World::new();
-            world.insert_resource(R);
-
-            let mut schedule = Schedule::default();
-            schedule.add_systems((resmut_system, entity_ref_system));
-
-            let _ = schedule.initialize(&mut world);
-
-            assert_eq!(schedule.graph().conflicting_systems().len(), 0);
-        }
-
-        #[test]
-        fn resource_and_entity_mut() {
-            let mut world = World::new();
-            world.insert_resource(R);
-
-            let mut schedule = Schedule::default();
-            schedule.add_systems((res_system, nonsend_system, entity_mut_system));
-
-            let _ = schedule.initialize(&mut world);
-
-            assert_eq!(schedule.graph().conflicting_systems().len(), 0);
-        }
-
-        #[test]
-        fn write_component_and_entity_ref() {
-            let mut world = World::new();
-            world.insert_resource(R);
-
-            let mut schedule = Schedule::default();
-            schedule.add_systems((write_component_system, entity_ref_system));
-
-            let _ = schedule.initialize(&mut world);
-
-            assert_eq!(schedule.graph().conflicting_systems().len(), 1);
-        }
-
-        #[test]
-        fn read_component_and_entity_mut() {
-            let mut world = World::new();
-            world.insert_resource(R);
-
-            let mut schedule = Schedule::default();
-            schedule.add_systems((read_component_system, entity_mut_system));
-
-            let _ = schedule.initialize(&mut world);
-
-            assert_eq!(schedule.graph().conflicting_systems().len(), 1);
         }
 
         #[test]

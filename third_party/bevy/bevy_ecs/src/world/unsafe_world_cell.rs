@@ -5,8 +5,7 @@ use crate::{
     archetype::{Archetype, Archetypes},
     bundle::Bundles,
     change_detection::{
-        ComponentTickCells, ComponentTicks, ComponentTicksMut, ComponentTicksRef, MaybeLocation,
-        MutUntyped, Tick,
+        ComponentTickCells, ComponentTicksMut, ComponentTicksRef, MaybeLocation, MutUntyped, Tick,
     },
     component::{ComponentId, Components, Mutable, StorageType},
     entity::{
@@ -40,7 +39,7 @@ use thiserror::Error;
 /// These methods use lifetimes to check at compile time that no aliasing rules are being broken.
 ///
 /// This alone is not enough to implement bevy systems where multiple systems can access *disjoint* parts of the world concurrently. For this, bevy stores all values of
-/// resources and components (and [`ComponentTicks`]) in [`UnsafeCell`]s, and carefully validates disjoint access patterns using
+/// resources and components (and [`ComponentTicks`](crate::change_detection::ComponentTicks)) in [`UnsafeCell`]s, and carefully validates disjoint access patterns using
 /// APIs like [`System::initialize`](crate::system::System::initialize).
 ///
 /// A system then can be executed using [`System::run_unsafe`](crate::system::System::run_unsafe) with a `&World` and use methods with interior mutability to access resource values.
@@ -844,63 +843,6 @@ impl<'w> UnsafeEntityCell<'w> {
         }
     }
 
-    /// Retrieves the change ticks for the given component. This can be useful for implementing change
-    /// detection in custom runtimes.
-    ///
-    /// # Safety
-    /// It is the caller's responsibility to ensure that
-    /// - the [`UnsafeEntityCell`] has permission to access the component
-    /// - no other mutable references to the component exist at the same time
-    #[inline]
-    pub unsafe fn get_change_ticks<T: Component>(self) -> Option<ComponentTicks> {
-        let component_id = self.world.components().get_valid_id(TypeId::of::<T>())?;
-
-        // SAFETY:
-        // - entity location is valid
-        // - proper world access is promised by caller
-        unsafe {
-            get_ticks(
-                self.world,
-                component_id,
-                T::STORAGE_TYPE,
-                self.entity,
-                self.location,
-            )
-        }
-    }
-
-    /// Retrieves the change ticks for the given [`ComponentId`]. This can be useful for implementing change
-    /// detection in custom runtimes.
-    ///
-    /// **You should prefer to use the typed API [`UnsafeEntityCell::get_change_ticks`] where possible and only
-    /// use this in cases where the actual component types are not known at
-    /// compile time.**
-    ///
-    /// # Safety
-    /// It is the caller's responsibility to ensure that
-    /// - the [`UnsafeEntityCell`] has permission to access the component
-    /// - no other mutable references to the component exist at the same time
-    #[inline]
-    pub unsafe fn get_change_ticks_by_id(
-        &self,
-        component_id: ComponentId,
-    ) -> Option<ComponentTicks> {
-        let info = self.world.components().get_info(component_id)?;
-        // SAFETY:
-        // - entity location and entity is valid
-        // - world access is immutable, lifetime tied to `&self`
-        // - the storage type provided is correct for T
-        unsafe {
-            get_ticks(
-                self.world,
-                component_id,
-                info.storage_type(),
-                self.entity,
-                self.location,
-            )
-        }
-    }
-
     /// # Safety
     /// It is the caller's responsibility to ensure that
     /// - the [`UnsafeEntityCell`] has permission to access the component mutably
@@ -1235,32 +1177,6 @@ unsafe fn get_component_and_ticks(
             ))
         }
         StorageType::SparseSet => world.fetch_sparse_set(component_id)?.get_with_ticks(entity),
-    }
-}
-
-/// Get an untyped pointer to the [`ComponentTicks`] on a particular [`Entity`]
-///
-/// # Safety
-/// - `location` must refer to an archetype that contains `entity`
-///   the archetype
-/// - `component_id` must be valid
-/// - `storage_type` must accurately reflect where the components for `component_id` are stored.
-/// - the caller must ensure that no aliasing rules are violated
-#[inline]
-unsafe fn get_ticks(
-    world: UnsafeWorldCell<'_>,
-    component_id: ComponentId,
-    storage_type: StorageType,
-    entity: Entity,
-    location: EntityLocation,
-) -> Option<ComponentTicks> {
-    match storage_type {
-        StorageType::Table => {
-            let table = world.fetch_table(location)?;
-            // SAFETY: archetypes only store valid table_rows and caller ensure aliasing rules
-            table.get_ticks_unchecked(component_id, location.table_row)
-        }
-        StorageType::SparseSet => world.fetch_sparse_set(component_id)?.get_ticks(entity),
     }
 }
 

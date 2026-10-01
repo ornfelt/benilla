@@ -2,10 +2,10 @@ use crate::{
     archetype::Archetype,
     component::{Component, ComponentId, Mutable},
     entity::{ContainsEntity, Entity, EntityEquivalent},
-    query::{has_conflicts, Access, QueryAccessError, ReleaseStateQueryData},
+    query::{has_conflicts, QueryAccessError, ReleaseStateQueryData},
     world::{
         error::EntityComponentError, unsafe_world_cell::UnsafeEntityCell, DynamicComponentFetch,
-        EntityRef, FilteredEntityRef, Mut,
+        EntityRef, Mut,
     },
 };
 
@@ -219,20 +219,6 @@ impl<'w> EntityMut<'w> {
         unsafe { self.cell.get_mut() }
     }
 
-    /// Gets mutable access to the component of type `T` for the current entity.
-    /// Returns `None` if the entity does not have a component of type `T`.
-    ///
-    /// # Safety
-    ///
-    /// - `T` must be a mutable component
-    #[inline]
-    pub unsafe fn get_mut_assume_mutable<T: Component>(&mut self) -> Option<Mut<'_, T>> {
-        // SAFETY:
-        // - &mut self implies exclusive access for duration of returned value
-        // - Caller ensures `T` is a mutable component
-        unsafe { self.cell.get_mut_assume_mutable() }
-    }
-
     /// Consumes self and gets mutable access to the component of type `T`
     /// with the world `'w` lifetime for the current entity.
     /// Returns `None` if the entity does not have a component of type `T`.
@@ -260,11 +246,11 @@ impl<'w> EntityMut<'w> {
     /// the current entity, based on the given [`ComponentId`]s.
     /// Assumes the given [`ComponentId`]s refer to mutable components.
     ///
-    /// **You should prefer to use the typed API [`EntityMut::get_mut_assume_mutable`] where
+    /// **You should prefer to use the typed API [`EntityMut::into_mut_assume_mutable`] where
     /// possible and only use this in cases where the actual component types
     /// are not known at compile time.**
     ///
-    /// Unlike [`EntityMut::get_mut_assume_mutable`], this returns untyped reference(s) to
+    /// Unlike [`EntityMut::into_mut_assume_mutable`], this returns untyped reference(s) to
     /// component(s), and it's the job of the caller to ensure the correct
     /// type(s) are dereferenced (if necessary).
     ///
@@ -370,22 +356,6 @@ impl<'a> From<&'a EntityMut<'_>> for EntityRef<'a> {
 impl<'w> From<&'w mut EntityMut<'_>> for EntityMut<'w> {
     fn from(entity: &'w mut EntityMut<'_>) -> Self {
         entity.reborrow()
-    }
-}
-
-impl<'a> From<EntityMut<'a>> for FilteredEntityRef<'a, 'static> {
-    fn from(entity: EntityMut<'a>) -> Self {
-        // SAFETY:
-        // - `EntityMut` guarantees exclusive access to all components in the new `FilteredEntityRef`.
-        unsafe { FilteredEntityRef::new(entity.cell, const { &Access::new_read_all() }) }
-    }
-}
-
-impl<'a> From<&'a EntityMut<'_>> for FilteredEntityRef<'a, 'static> {
-    fn from(entity: &'a EntityMut<'_>) -> Self {
-        // SAFETY:
-        // - `EntityMut` guarantees exclusive access to all components in the new `FilteredEntityRef`.
-        unsafe { FilteredEntityRef::new(entity.cell, const { &Access::new_read_all() }) }
     }
 }
 

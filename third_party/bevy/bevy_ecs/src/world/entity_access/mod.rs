@@ -28,8 +28,8 @@ mod tests {
         change_detection::{MaybeLocation, MutUntyped},
         component::ComponentId,
         prelude::*,
-        system::{assert_is_system, RunSystemOnce as _},
-        world::{error::EntityComponentError, DeferredWorld, FilteredEntityRef},
+        system::RunSystemOnce as _,
+        world::{error::EntityComponentError, DeferredWorld},
     };
 
     use super::{EntityMutExcept, EntityRefExcept};
@@ -645,137 +645,6 @@ mod tests {
         fn system2(_: Query<&mut TestComponent>, _query: Query<EntityMutExcept<TestComponent>>) {}
         let mut world = World::new();
         world.run_system_once(system2).unwrap();
-    }
-
-    #[derive(Component)]
-    struct A;
-
-    #[test]
-    fn disjoint_access() {
-        fn disjoint_readonly(_: Query<EntityMut, With<A>>, _: Query<EntityRef, Without<A>>) {}
-
-        fn disjoint_mutable(_: Query<EntityMut, With<A>>, _: Query<EntityMut, Without<A>>) {}
-
-        assert_is_system(disjoint_readonly);
-        assert_is_system(disjoint_mutable);
-    }
-
-    #[test]
-    fn ref_compatible() {
-        fn borrow_system(_: Query<(EntityRef, &A)>, _: Query<&A>) {}
-
-        assert_is_system(borrow_system);
-    }
-
-    #[test]
-    fn ref_compatible_with_resource() {
-        fn borrow_system(_: Query<EntityRef>, _: Res<R>) {}
-
-        assert_is_system(borrow_system);
-    }
-
-    #[test]
-    fn ref_compatible_with_resource_mut() {
-        fn borrow_system(_: Query<EntityRef>, _: ResMut<R>) {}
-
-        assert_is_system(borrow_system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn ref_incompatible_with_mutable_component() {
-        fn incompatible_system(_: Query<(EntityRef, &mut A)>) {}
-
-        assert_is_system(incompatible_system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn ref_incompatible_with_mutable_query() {
-        fn incompatible_system(_: Query<EntityRef>, _: Query<&mut A>) {}
-
-        assert_is_system(incompatible_system);
-    }
-
-    #[test]
-    fn mut_compatible_with_entity() {
-        fn borrow_mut_system(_: Query<(Entity, EntityMut)>) {}
-
-        assert_is_system(borrow_mut_system);
-    }
-
-    #[test]
-    fn mut_compatible_with_resource() {
-        fn borrow_mut_system(_: Res<R>, _: Query<EntityMut>) {}
-
-        assert_is_system(borrow_mut_system);
-    }
-
-    #[test]
-    fn mut_compatible_with_resource_mut() {
-        fn borrow_mut_system(_: ResMut<R>, _: Query<EntityMut>) {}
-
-        assert_is_system(borrow_mut_system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn mut_incompatible_with_read_only_component() {
-        fn incompatible_system(_: Query<(EntityMut, &A)>) {}
-
-        assert_is_system(incompatible_system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn mut_incompatible_with_mutable_component() {
-        fn incompatible_system(_: Query<(EntityMut, &mut A)>) {}
-
-        assert_is_system(incompatible_system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn mut_incompatible_with_read_only_query() {
-        fn incompatible_system(_: Query<EntityMut>, _: Query<&A>) {}
-
-        assert_is_system(incompatible_system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn mut_incompatible_with_mutable_query() {
-        fn incompatible_system(_: Query<EntityMut>, _: Query<&mut A>) {}
-
-        assert_is_system(incompatible_system);
-    }
-
-    #[test]
-    fn filtered_entity_ref_normal() {
-        let mut world = World::new();
-        let a_id = world.register_component::<A>();
-
-        let e: FilteredEntityRef = world.spawn(A).into();
-
-        assert!(e.get::<A>().is_some());
-        assert!(e.get_ref::<A>().is_some());
-        assert!(e.get_change_ticks::<A>().is_some());
-        assert!(e.get_by_id(a_id).is_some());
-        assert!(e.get_change_ticks_by_id(a_id).is_some());
-    }
-
-    #[test]
-    fn filtered_entity_ref_missing() {
-        let mut world = World::new();
-        let a_id = world.register_component::<A>();
-
-        let e: FilteredEntityRef = world.spawn(()).into();
-
-        assert!(e.get::<A>().is_none());
-        assert!(e.get_ref::<A>().is_none());
-        assert!(e.get_change_ticks::<A>().is_none());
-        assert!(e.get_by_id(a_id).is_none());
-        assert!(e.get_change_ticks_by_id(a_id).is_none());
     }
 
     #[derive(Component, PartialEq, Eq, Debug)]

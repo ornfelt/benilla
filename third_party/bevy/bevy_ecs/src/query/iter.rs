@@ -1,14 +1,11 @@
 use super::{QueryData, QueryFilter, ReadOnlyQueryData};
 use crate::{
     archetype::{Archetype, ArchetypeEntity, Archetypes},
-    bundle::Bundle,
     change_detection::Tick,
     entity::{ContainsEntity, Entities, Entity, EntityEquivalent, EntitySet, EntitySetIterator},
     query::{ArchetypeFilter, ArchetypeQueryData, DebugCheckedUnwrap, QueryState, StorageId},
     storage::{Table, TableRow, Tables},
-    world::{
-        unsafe_world_cell::UnsafeWorldCell, EntityMut, EntityMutExcept, EntityRef, EntityRefExcept,
-    },
+    world::unsafe_world_cell::UnsafeWorldCell,
 };
 use core::{
     fmt::{self, Debug, Formatter},
@@ -406,24 +403,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter> FusedIterator for QueryIter<'w, 's, D
 
 // SAFETY: [`QueryIter`] is guaranteed to return every matching entity once and only once.
 unsafe impl<'w, 's, F: QueryFilter> EntitySetIterator for QueryIter<'w, 's, Entity, F> {}
-
-// SAFETY: [`QueryIter`] is guaranteed to return every matching entity once and only once.
-unsafe impl<'w, 's, F: QueryFilter> EntitySetIterator for QueryIter<'w, 's, EntityRef<'_>, F> {}
-
-// SAFETY: [`QueryIter`] is guaranteed to return every matching entity once and only once.
-unsafe impl<'w, 's, F: QueryFilter> EntitySetIterator for QueryIter<'w, 's, EntityMut<'_>, F> {}
-
-// SAFETY: [`QueryIter`] is guaranteed to return every matching entity once and only once.
-unsafe impl<'w, 's, F: QueryFilter, B: Bundle> EntitySetIterator
-    for QueryIter<'w, 's, EntityRefExcept<'_, '_, B>, F>
-{
-}
-
-// SAFETY: [`QueryIter`] is guaranteed to return every matching entity once and only once.
-unsafe impl<'w, 's, F: QueryFilter, B: Bundle> EntitySetIterator
-    for QueryIter<'w, 's, EntityMutExcept<'_, '_, B>, F>
-{
-}
 
 impl<'w, 's, D: QueryData, F: QueryFilter> Debug for QueryIter<'w, 's, D, F> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

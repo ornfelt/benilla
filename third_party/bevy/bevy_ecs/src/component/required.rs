@@ -286,11 +286,6 @@ impl RequiredComponents {
         // SAFETY: the caller guarantees that `required_component` is valid for the component with ID `required_id`.
         all.insert(required_id, required_component);
     }
-
-    /// Iterates the ids of all required components. This includes recursive required components.
-    pub fn iter_ids(&self) -> impl Iterator<Item = ComponentId> + '_ {
-        self.all.keys().copied()
-    }
 }
 
 impl Components {

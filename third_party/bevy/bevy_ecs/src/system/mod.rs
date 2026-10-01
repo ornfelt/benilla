@@ -397,7 +397,7 @@ mod tests {
         error::Result,
         lifecycle::RemovedComponents,
         name::Name,
-        prelude::{Add, AnyOf, EntityRef, On},
+        prelude::{Add, AnyOf, On},
         query::{Added, Changed, Or, Spawned, With, Without},
         resource::Resource,
         schedule::{
@@ -408,7 +408,7 @@ mod tests {
             Commands, ExclusiveMarker, In, InMut, IntoSystem, Local, NonSend, NonSendMut, ParamSet,
             Query, Res, ResMut, Single, StaticSystemParam, System, SystemState,
         },
-        world::{DeferredWorld, EntityMut, FromWorld, World},
+        world::{DeferredWorld, FromWorld, World},
     };
 
     use super::ScheduleSystem;
@@ -1628,48 +1628,6 @@ mod tests {
     #[should_panic]
     fn assert_system_does_not_conflict() {
         fn system(_query: Query<(&mut W<u32>, &mut W<u32>)>) {}
-        super::assert_system_does_not_conflict(system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn assert_world_and_entity_mut_system_does_conflict_first() {
-        fn system(_query: &World, _q2: Query<EntityMut>) {}
-        super::assert_system_does_not_conflict(system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn assert_world_and_entity_mut_system_does_conflict_second() {
-        fn system(_: Query<EntityMut>, _: &World) {}
-        super::assert_system_does_not_conflict(system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn assert_entity_ref_and_entity_mut_system_does_conflict() {
-        fn system(_query: Query<EntityRef>, _q2: Query<EntityMut>) {}
-        super::assert_system_does_not_conflict(system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn assert_entity_mut_system_does_conflict() {
-        fn system(_query: Query<EntityMut>, _q2: Query<EntityMut>) {}
-        super::assert_system_does_not_conflict(system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn assert_deferred_world_and_entity_ref_system_does_conflict_first() {
-        fn system(_world: DeferredWorld, _query: Query<EntityRef>) {}
-        super::assert_system_does_not_conflict(system);
-    }
-
-    #[test]
-    #[should_panic]
-    fn assert_deferred_world_and_entity_ref_system_does_conflict_second() {
-        fn system(_query: Query<EntityRef>, _world: DeferredWorld) {}
         super::assert_system_does_not_conflict(system);
     }
 

@@ -150,8 +150,7 @@ impl ComponentInfo {
 /// [`World`](crate::world::World).
 ///
 /// Each time a new `Component` type is registered within a `World` using
-/// e.g. [`World::register_component`](crate::world::World::register_component) or
-/// [`World::register_component_with_descriptor`](crate::world::World::register_component_with_descriptor)
+/// e.g. [`World::register_component`](crate::world::World::register_component)
 /// or a Resource with e.g. [`World::init_resource`](crate::world::World::init_resource),
 /// a corresponding `ComponentId` is created to track it.
 ///
@@ -516,42 +515,16 @@ impl Components {
     /// # See also
     ///
     /// * [`Components::get_valid_id()`]
-    /// * [`Components::valid_resource_id()`]
     /// * [`World::component_id()`](crate::world::World::component_id)
     #[inline]
     pub fn valid_component_id<T: Component>(&self) -> Option<ComponentId> {
         self.get_valid_id(TypeId::of::<T>())
     }
 
-    /// Type-erased equivalent of [`Components::valid_resource_id()`].
+    /// Returns the [`ComponentId`] of the resource with the given [`TypeId`], if it is registered.
     #[inline]
     pub fn get_valid_resource_id(&self, type_id: TypeId) -> Option<ComponentId> {
         self.resource_indices.get(&type_id).copied()
-    }
-
-    /// Returns the [`ComponentId`] of the given [`Resource`] type `T` if it is fully registered.
-    /// If you want to include queued registration, see [`Components::resource_id()`].
-    ///
-    /// ```
-    /// use bevy_ecs::prelude::*;
-    ///
-    /// let mut world = World::new();
-    ///
-    /// #[derive(Resource, Default)]
-    /// struct ResourceA;
-    ///
-    /// let resource_a_id = world.init_resource::<ResourceA>();
-    ///
-    /// assert_eq!(resource_a_id, world.components().valid_resource_id::<ResourceA>().unwrap())
-    /// ```
-    ///
-    /// # See also
-    ///
-    /// * [`Components::valid_component_id()`]
-    /// * [`Components::get_resource_id()`]
-    #[inline]
-    pub fn valid_resource_id<T: Resource>(&self) -> Option<ComponentId> {
-        self.get_valid_resource_id(TypeId::of::<T>())
     }
 
     /// Type-erased equivalent of [`Components::component_id()`].

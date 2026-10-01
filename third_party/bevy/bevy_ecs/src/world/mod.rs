@@ -18,8 +18,7 @@ pub use bevy_ecs_macros::FromWorld;
 pub use deferred_world::DeferredWorld;
 pub use entity_access::{
     ComponentEntry, DynamicComponentFetch, EntityMut, EntityMutExcept, EntityRef, EntityRefExcept,
-    EntityWorldMut, FilteredEntityRef, OccupiedComponentEntry, TryFromFilteredError,
-    VacantComponentEntry,
+    EntityWorldMut, FilteredEntityRef, OccupiedComponentEntry, VacantComponentEntry,
 };
 pub use entity_fetch::{EntityFetcher, WorldEntityFetch};
 pub use identifier::WorldId;
@@ -28,8 +27,7 @@ pub use spawn_batch::*;
 use crate::{
     archetype::{ArchetypeId, Archetypes},
     bundle::{
-        Bundle, BundleId, BundleInfo, BundleInserter, BundleSpawner, Bundles, InsertMode,
-        NoBundleEffect,
+        Bundle, BundleId, BundleInserter, BundleSpawner, Bundles, InsertMode, NoBundleEffect,
     },
     change_detection::{
         CheckChangeTicks, ComponentTicks, ComponentTicksMut, MaybeLocation, MutUntyped, Tick,
@@ -239,12 +237,6 @@ impl World {
     #[inline]
     pub fn storages(&self) -> &Storages {
         &self.storages
-    }
-
-    /// Retrieves this world's [`Bundles`] collection.
-    #[inline]
-    pub fn bundles(&self) -> &Bundles {
-        &self.bundles
     }
 
     /// Creates a new [`Commands`] instance that writes to the world's command queue
@@ -513,23 +505,6 @@ impl World {
             self.components
                 .register_required_components::<R>(requiree, required, constructor)
         }
-    }
-
-    /// Registers a new [`Component`] type and returns the [`ComponentId`] created for it.
-    ///
-    /// This method differs from [`World::register_component`] in that it uses a [`ComponentDescriptor`]
-    /// to register the new component type instead of statically available type information. This
-    /// enables the dynamic registration of new component definitions at runtime for advanced use cases.
-    ///
-    /// While the option to register a component from a descriptor is useful in type-erased
-    /// contexts, the standard [`World::register_component`] function should always be used instead
-    /// when type information is available at compile time.
-    pub fn register_component_with_descriptor(
-        &mut self,
-        descriptor: ComponentDescriptor,
-    ) -> ComponentId {
-        self.components_registrator()
-            .register_component_with_descriptor(descriptor)
     }
 
     /// Returns the [`ComponentId`] of the given [`Component`] type `T`.
@@ -1032,12 +1007,6 @@ impl World {
         // - `bundle` had it's `get_components` function called exactly once inside `spawn_non_existent`.
         unsafe { B::apply_effect(bundle, &mut entity) };
         entity
-    }
-
-    /// A faster version of [`spawn_at`](Self::spawn_at) for the empty bundle.
-    #[track_caller]
-    pub fn spawn_empty_at(&mut self, entity: Entity) -> Result<EntityWorldMut<'_>, SpawnError> {
-        self.spawn_empty_at_with_caller(entity, MaybeLocation::caller())
     }
 
     pub(crate) fn spawn_empty_at_with_caller(
@@ -2919,19 +2888,6 @@ impl World {
         self.storages.non_send_resources.clear();
     }
 
-    /// Registers all of the components in the given [`Bundle`] and returns both the component
-    /// ids and the bundle id.
-    ///
-    /// This is largely equivalent to calling [`register_component`](Self::register_component) on each
-    /// component in the bundle.
-    #[inline]
-    pub fn register_bundle<B: Bundle>(&mut self) -> &BundleInfo {
-        let id = self.register_bundle_info::<B>();
-
-        // SAFETY: We just initialized the bundle so its id should definitely be valid.
-        unsafe { self.bundles.get(id).debug_checked_unwrap() }
-    }
-
     pub(crate) fn register_bundle_info<B: Bundle>(&mut self) -> BundleId {
         // SAFETY: These come from the same world. `Self.components_registrator` can't be used since we borrow other fields too.
         let mut registrator =
@@ -3229,23 +3185,6 @@ impl World {
     #[inline]
     pub fn get_by_id(&self, entity: Entity, component_id: ComponentId) -> Option<Ptr<'_>> {
         self.get_entity(entity).ok()?.get_by_id(component_id).ok()
-    }
-
-    /// Retrieves a mutable untyped reference to the given `entity`'s [`Component`] of the given [`ComponentId`].
-    /// Returns `None` if the `entity` does not have a [`Component`] of the given type.
-    ///
-    /// **You should prefer to use the typed API [`World::get_mut`] where possible and only
-    /// use this in cases where the actual types are not known at compile time.**
-    #[inline]
-    pub fn get_mut_by_id(
-        &mut self,
-        entity: Entity,
-        component_id: ComponentId,
-    ) -> Option<MutUntyped<'_>> {
-        self.get_entity_mut(entity)
-            .ok()?
-            .into_mut_by_id(component_id)
-            .ok()
     }
 }
 

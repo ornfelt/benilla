@@ -42,24 +42,6 @@ impl Name {
         name
     }
 
-    /// Sets the entity's name.
-    ///
-    /// The internal hash will be re-computed.
-    #[inline(always)]
-    pub fn set(&mut self, name: impl Into<Cow<'static, str>>) {
-        *self = Name::new(name);
-    }
-
-    /// Updates the name of the entity in place.
-    ///
-    /// This will allocate a new string if the name was previously
-    /// created from a borrow.
-    #[inline(always)]
-    pub fn mutate<F: FnOnce(&mut String)>(&mut self, f: F) {
-        f(self.name.to_mut());
-        self.update_hash();
-    }
-
     /// Gets the name of the entity as a `&str`.
     #[inline(always)]
     pub fn as_str(&self) -> &str {

@@ -868,26 +868,6 @@ impl Entities {
         }
     }
 
-    /// Get the [`Entity`] for the given [`EntityIndex`].
-    /// Note that this entity may not be spawned yet.
-    ///
-    /// See the module [docs](crate::entity) for a full explanation of these ids, entity life cycles, and the meaning of this result.
-    #[inline]
-    pub fn resolve_from_index(&self, index: EntityIndex) -> Entity {
-        self.meta
-            .get(index.index() as usize)
-            .map(|meta| Entity::from_index_and_generation(index, meta.generation))
-            .unwrap_or(Entity::from_index(index))
-    }
-
-    /// Returns true if the entity is valid.
-    /// This will return true for entities that are valid but have not been spawned.
-    ///
-    /// See the module [docs](crate::entity) for a full explanation of these ids, entity life cycles, and the meaning of this result.
-    pub fn contains(&self, entity: Entity) -> bool {
-        self.resolve_from_index(entity.index()).generation() == entity.generation()
-    }
-
     /// Provides information regarding if `entity` may be safely spawned.
     /// This can error if the entity is invalid or is already spawned.
     ///

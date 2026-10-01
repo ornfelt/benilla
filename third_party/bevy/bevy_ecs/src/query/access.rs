@@ -344,23 +344,6 @@ impl Access {
         self.write_all_resources();
     }
 
-    /// Returns `true` if this has access to all components (i.e. `EntityRef`).
-    #[inline]
-    pub fn has_read_all_components(&self) -> bool {
-        self.component_read_and_writes_inverted && self.component_read_and_writes.is_clear()
-    }
-
-    /// Returns `true` if this has access to all resources (i.e. `EntityRef`).
-    #[inline]
-    pub fn has_read_all_resources(&self) -> bool {
-        self.reads_all_resources
-    }
-
-    /// Returns `true` if this has access to all indexed elements (i.e. `&World`).
-    pub fn has_read_all(&self) -> bool {
-        self.has_read_all_components() && self.has_read_all_resources()
-    }
-
     /// Adds all access from `other`.
     pub fn extend(&mut self, other: &Access) {
         invertible_union_with(
@@ -959,16 +942,6 @@ impl FilteredAccess {
     /// Sets the underlying unfiltered access as having mutable access to all indexed elements.
     pub fn write_all(&mut self) {
         self.access.write_all();
-    }
-
-    /// Sets the underlying unfiltered access as having access to all components.
-    pub fn read_all_components(&mut self) {
-        self.access.read_all_components();
-    }
-
-    /// Sets the underlying unfiltered access as having mutable access to all components.
-    pub fn write_all_components(&mut self) {
-        self.access.write_all_components();
     }
 
     /// Returns the indices of the elements that this access filters for.

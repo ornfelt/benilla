@@ -289,13 +289,6 @@ pub struct Ref<'w, T: ?Sized> {
     pub(crate) ticks: ComponentTicksRef<'w>,
 }
 
-impl<'w, T: ?Sized> Ref<'w, T> {
-    /// Returns the reference wrapped by this type. The reference is allowed to outlive `self`, which makes this method more flexible than simply borrowing `self`.
-    pub fn into_inner(self) -> &'w T {
-        self.value
-    }
-}
-
 impl<'w, 'a, T> IntoIterator for &'a Ref<'w, T>
 where
     &'a T: IntoIterator,

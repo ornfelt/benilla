@@ -251,14 +251,6 @@ impl<'a> From<EntityRef<'a>> for FilteredEntityRef<'a, 'static> {
     }
 }
 
-impl<'a> From<&'a EntityRef<'_>> for FilteredEntityRef<'a, 'static> {
-    fn from(entity: &'a EntityRef<'_>) -> Self {
-        // SAFETY:
-        // - `EntityRef` guarantees exclusive access to all components in the new `FilteredEntityRef`.
-        unsafe { FilteredEntityRef::new(entity.cell, const { &Access::new_read_all() }) }
-    }
-}
-
 impl PartialEq for EntityRef<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.entity() == other.entity()

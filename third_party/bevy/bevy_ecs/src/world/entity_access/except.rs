@@ -1,16 +1,11 @@
 use crate::{
     bundle::Bundle,
     component::{Component, ComponentId, Components, Mutable},
-    entity::{ContainsEntity, Entity, EntityEquivalent},
-    query::Access,
-    world::{unsafe_world_cell::UnsafeEntityCell, FilteredEntityRef, Mut, Ref},
+    entity::Entity,
+    world::{unsafe_world_cell::UnsafeEntityCell, Mut, Ref},
 };
 
-use core::{
-    cmp::Ordering,
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-};
+use core::marker::PhantomData;
 
 /// Provides read-only access to a single entity and all its components, save
 /// for an explicitly-enumerated set.
@@ -19,8 +14,7 @@ where
     B: Bundle,
 {
     entity: UnsafeEntityCell<'w>,
-    access: &'s Access,
-    phantom: PhantomData<B>,
+    phantom: PhantomData<(&'s (), B)>,
 }
 
 impl<'w, 's, B> EntityRefExcept<'w, 's, B>
@@ -29,19 +23,11 @@ where
 {
     /// # Safety
     /// Other users of `UnsafeEntityCell` must only have mutable access to the components in `B`.
-    pub(crate) unsafe fn new(entity: UnsafeEntityCell<'w>, access: &'s Access) -> Self {
+    pub(crate) unsafe fn new(entity: UnsafeEntityCell<'w>) -> Self {
         Self {
             entity,
-            access,
             phantom: PhantomData,
         }
-    }
-
-    /// Returns the [ID](Entity) of the current entity.
-    #[inline]
-    #[must_use = "Omit the .id() call if you do not need to store the `Entity` identifier."]
-    pub fn id(&self) -> Entity {
-        self.entity.id()
     }
 
     /// Gets access to the component of type `C` for the current entity. Returns
@@ -84,14 +70,6 @@ where
     }
 }
 
-impl<'w, 's, B: Bundle> From<&'w EntityRefExcept<'_, 's, B>> for FilteredEntityRef<'w, 's> {
-    fn from(value: &'w EntityRefExcept<'_, 's, B>) -> Self {
-        // SAFETY:
-        // - The FilteredEntityRef has the same component access as the given EntityRefExcept.
-        unsafe { FilteredEntityRef::new(value.entity, value.access) }
-    }
-}
-
 impl<B: Bundle> Clone for EntityRefExcept<'_, '_, B> {
     fn clone(&self) -> Self {
         *self
@@ -99,43 +77,6 @@ impl<B: Bundle> Clone for EntityRefExcept<'_, '_, B> {
 }
 
 impl<B: Bundle> Copy for EntityRefExcept<'_, '_, B> {}
-
-impl<B: Bundle> PartialEq for EntityRefExcept<'_, '_, B> {
-    fn eq(&self, other: &Self) -> bool {
-        self.entity() == other.entity()
-    }
-}
-
-impl<B: Bundle> Eq for EntityRefExcept<'_, '_, B> {}
-
-impl<B: Bundle> PartialOrd for EntityRefExcept<'_, '_, B> {
-    /// [`EntityRefExcept`]'s comparison trait implementations match the underlying [`Entity`],
-    /// and cannot discern between different worlds.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<B: Bundle> Ord for EntityRefExcept<'_, '_, B> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.entity().cmp(&other.entity())
-    }
-}
-
-impl<B: Bundle> Hash for EntityRefExcept<'_, '_, B> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.entity().hash(state);
-    }
-}
-
-impl<B: Bundle> ContainsEntity for EntityRefExcept<'_, '_, B> {
-    fn entity(&self) -> Entity {
-        self.id()
-    }
-}
-
-// SAFETY: This type represents one Entity. We implement the comparison traits based on that Entity.
-unsafe impl<B: Bundle> EntityEquivalent for EntityRefExcept<'_, '_, B> {}
 
 /// Provides mutable access to all components of an entity, with the exception
 /// of an explicit set.
@@ -150,8 +91,7 @@ where
     B: Bundle,
 {
     entity: UnsafeEntityCell<'w>,
-    access: &'s Access,
-    phantom: PhantomData<B>,
+    phantom: PhantomData<(&'s (), B)>,
 }
 
 impl<'w, 's, B> EntityMutExcept<'w, 's, B>
@@ -160,10 +100,9 @@ where
 {
     /// # Safety
     /// Other users of `UnsafeEntityCell` must not have access to any components not in `B`.
-    pub(crate) unsafe fn new(entity: UnsafeEntityCell<'w>, access: &'s Access) -> Self {
+    pub(crate) unsafe fn new(entity: UnsafeEntityCell<'w>) -> Self {
         Self {
             entity,
-            access,
             phantom: PhantomData,
         }
     }
@@ -182,7 +121,7 @@ where
     pub fn reborrow(&mut self) -> EntityMutExcept<'_, 's, B> {
         // SAFETY: We have exclusive access to the entire entity and the
         // applicable components.
-        unsafe { Self::new(self.entity, self.access) }
+        unsafe { Self::new(self.entity) }
     }
 
     /// Gets read-only access to all of the entity's components, except for the
@@ -242,46 +181,9 @@ where
     fn from(entity: &'w EntityMutExcept<'_, 's, B>) -> Self {
         // SAFETY: All accesses that `EntityRefExcept` provides are also
         // accesses that `EntityMutExcept` provides.
-        unsafe { EntityRefExcept::new(entity.entity, entity.access) }
+        unsafe { EntityRefExcept::new(entity.entity) }
     }
 }
-
-impl<B: Bundle> PartialEq for EntityMutExcept<'_, '_, B> {
-    fn eq(&self, other: &Self) -> bool {
-        self.entity() == other.entity()
-    }
-}
-
-impl<B: Bundle> Eq for EntityMutExcept<'_, '_, B> {}
-
-impl<B: Bundle> PartialOrd for EntityMutExcept<'_, '_, B> {
-    /// [`EntityMutExcept`]'s comparison trait implementations match the underlying [`Entity`],
-    /// and cannot discern between different worlds.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<B: Bundle> Ord for EntityMutExcept<'_, '_, B> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.entity().cmp(&other.entity())
-    }
-}
-
-impl<B: Bundle> Hash for EntityMutExcept<'_, '_, B> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.entity().hash(state);
-    }
-}
-
-impl<B: Bundle> ContainsEntity for EntityMutExcept<'_, '_, B> {
-    fn entity(&self) -> Entity {
-        self.id()
-    }
-}
-
-// SAFETY: This type represents one Entity. We implement the comparison traits based on that Entity.
-unsafe impl<B: Bundle> EntityEquivalent for EntityMutExcept<'_, '_, B> {}
 
 fn bundle_contains_component<B>(components: &Components, query_id: ComponentId) -> bool
 where

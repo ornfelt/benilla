@@ -142,7 +142,6 @@ impl<'w> ComponentsRegistrator<'w> {
     /// # See also
     ///
     /// * [`Components::component_id()`]
-    /// * [`ComponentsRegistrator::register_component_with_descriptor()`]
     #[inline]
     pub fn register_component<T: Component>(&mut self) -> ComponentId {
         self.register_component_checked::<T>()
@@ -222,30 +221,6 @@ impl<'w> ComponentsRegistrator<'w> {
         info.hooks.update_from_component::<T>();
 
         info.required_components = required_components;
-    }
-
-    /// Registers a component described by `descriptor`.
-    ///
-    /// # Note
-    ///
-    /// If this method is called multiple times with identical descriptors, a distinct [`ComponentId`]
-    /// will be created for each one.
-    ///
-    /// # See also
-    ///
-    /// * [`Components::component_id()`]
-    /// * [`ComponentsRegistrator::register_component()`]
-    #[inline]
-    pub fn register_component_with_descriptor(
-        &mut self,
-        descriptor: ComponentDescriptor,
-    ) -> ComponentId {
-        let id = self.ids.next_mut();
-        // SAFETY: The id is fresh.
-        unsafe {
-            self.components.register_component_inner(id, descriptor);
-        }
-        id
     }
 
     /// Registers a [`Resource`] of type `T` with this instance.

@@ -789,6 +789,31 @@ the same repository's.
   `is_subset*`, `resource_reads*`/`resource_writes`, `add_unfiltered_*_all_resources`,
   `new_write_all`, `invertible_difference_with`) go too. No system, schedule or run-time path
   changed.
+- **`bevy_ecs`'s whole-entity queries and the functions the last cuts left uncalled.** The
+  function analysis once more (every `pub fn` of bevy_ecs and bevy_app crate-private, put back
+  where a build names it, then rustc's dead-code lint in all five builds, and a `#[deprecated]`
+  proof on what it found): `Ref::into_inner`, `Components::valid_resource_id`, both
+  `register_component_with_descriptor`s (`ComponentsRegistrator`'s and `World`'s),
+  `RequiredComponents::iter_ids`, `Entities::resolve_from_index` and `contains`, the unique
+  slice's two `cast_slice_of_*` helpers, `Name::set` and `mutate`,
+  `Schedules::configure_schedules`, `EntityMut::get_mut_assume_mutable`,
+  `EntityWorldMut::into_mutable` and `into_mut_by_id`, and `World::bundles`, `spawn_empty_at`,
+  `register_bundle` and `get_mut_by_id`. `EntityHashSet::is_empty` stays (benilla-app calls it;
+  without it the call would resolve to the `HashSet` behind the `Deref`). `FilteredEntityRef`
+  keeps `new`, `get` and `From<EntityRef>`, what `ReflectComponent::reflect` uses: its other
+  accessors with the two tests that called them, its other six `From` impls, both `TryFrom`s
+  with `TryFromFilteredError`, and its comparison, `Hash`, `ContainsEntity` and
+  `EntityEquivalent` impls go. Nothing outside bevy_ecs's tests queries `EntityRef` or
+  `EntityMut` (none of benilla's or the other vendored crates names either type), so their
+  `WorldQuery`/`QueryData` impls, their `EntitySetIterator` impls on `QueryIter` and the 38
+  tests and two test queries built on them go, with `Query`'s "Whole Entity Access" doc section.
+  `EntityRefExcept` and `EntityMutExcept` stay (bevy_animation's `AnimationEntityMut`) without
+  their comparison, `Hash`, `ContainsEntity`, `EntityEquivalent` and `EntitySetIterator` impls
+  and without their `access` field, which nothing read once the `FilteredEntityRef` conversion
+  went (their `get`s check the excluded bundle themselves). The `Access`/`FilteredAccess` and
+  `UnsafeEntityCell` methods this left uncalled go too (`has_read_all*`,
+  `FilteredAccess::read_all_components`/`write_all_components`, `get_change_ticks(_by_id)` with
+  the private `get_ticks`). No system, schedule or run-time path changed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

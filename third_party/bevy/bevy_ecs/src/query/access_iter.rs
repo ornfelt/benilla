@@ -244,7 +244,7 @@ mod tests {
     use super::*;
     use crate::{
         prelude::Component,
-        world::{EntityMut, EntityMutExcept, EntityRef, EntityRefExcept, World},
+        world::{EntityMutExcept, EntityRefExcept, World},
     };
 
     #[derive(Component)]
@@ -288,65 +288,6 @@ mod tests {
     #[should_panic(expected = "conflicts")]
     fn conflict_component_write_conflicts_write() {
         let _ = has_conflicts::<(&mut C1, &mut C1)>(setup_world().components());
-    }
-
-    #[test]
-    fn entity_ref_compatible() {
-        let world = setup_world();
-        let c = world.components();
-
-        // Compatible
-        assert!(has_conflicts::<(EntityRef, &C1)>(c).is_ok());
-        assert!(has_conflicts::<(&C1, EntityRef)>(c).is_ok());
-        assert!(has_conflicts::<(EntityRef, EntityRef)>(c).is_ok());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn entity_ref_conflicts_component_write() {
-        let _ = has_conflicts::<(EntityRef, &mut C1)>(setup_world().components());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn component_write_conflicts_entity_ref() {
-        let _ = has_conflicts::<(&mut C1, EntityRef)>(setup_world().components());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn entity_mut_conflicts_component_read() {
-        let _ = has_conflicts::<(EntityMut, &C1)>(setup_world().components());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn component_read_conflicts_entity_mut() {
-        let _ = has_conflicts::<(&C1, EntityMut)>(setup_world().components());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn entity_mut_conflicts_component_write() {
-        let _ = has_conflicts::<(EntityMut, &mut C1)>(setup_world().components());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn component_write_conflicts_entity_mut() {
-        let _ = has_conflicts::<(&mut C1, EntityMut)>(setup_world().components());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn entity_mut_conflicts_entity_ref() {
-        let _ = has_conflicts::<(EntityMut, EntityRef)>(setup_world().components());
-    }
-
-    #[test]
-    #[should_panic(expected = "conflicts")]
-    fn entity_ref_conflicts_entity_mut() {
-        let _ = has_conflicts::<(EntityRef, EntityMut)>(setup_world().components());
     }
 
     #[test]

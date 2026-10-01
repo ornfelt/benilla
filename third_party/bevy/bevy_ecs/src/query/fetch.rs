@@ -10,8 +10,7 @@ use crate::{
     },
     storage::{ComponentSparseSet, Table, TableRow},
     world::{
-        unsafe_world_cell::UnsafeWorldCell, EntityMut, EntityMutExcept, EntityRef, EntityRefExcept,
-        Mut, Ref, World,
+        unsafe_world_cell::UnsafeWorldCell, EntityMutExcept, EntityRefExcept, Mut, Ref, World,
     },
 };
 use bevy_ptr::{ThinSlicePtr, UnsafeCellDeref};
@@ -34,10 +33,6 @@ use variadics_please::all_tuples;
 ///   Gets the identifier of the queried entity.
 /// - **[`EntityLocation`].**
 ///   Gets the location metadata of the queried entity.
-/// - **[`EntityRef`].**
-///   Read-only access to arbitrary components on the queried entity.
-/// - **[`EntityMut`].**
-///   Mutable access to arbitrary components on the queried entity.
 /// - **[`&Archetype`](Archetype).**
 ///   Read-only access to the archetype-level metadata of the queried entity.
 /// - **[`Option`].**
@@ -351,7 +346,6 @@ pub type ROQueryItem<'w, 's, D> = QueryItem<'w, 's, <D as QueryData>::ReadOnly>;
 /// This is implemented by most `QueryData` types.
 /// The main exceptions are [`EntityRefExcept`] and [`EntityMutExcept`],
 /// which borrow an access list from their query state.
-/// Consider using a full [`EntityRef`] or [`EntityMut`] if you would need those.
 pub trait ReleaseStateQueryData: QueryData {
     /// Releases the borrow from the query state by converting an item to have a `'static` state lifetime.
     fn release_state<'w>(item: Self::Item<'w, '_>) -> Self::Item<'w, 'static>;
@@ -555,7 +549,7 @@ impl ReleaseStateQueryData for EntityLocation {
 impl ArchetypeQueryData for EntityLocation {}
 
 /// The [`WorldQuery::Fetch`] type for WorldQueries that can fetch multiple components from an entity
-/// ([`EntityRef`], [`EntityMut`], etc.)
+/// ([`EntityRefExcept`], [`EntityMutExcept`])
 #[derive(Copy, Clone)]
 #[doc(hidden)]
 pub struct EntityFetch<'w> {
@@ -563,226 +557,6 @@ pub struct EntityFetch<'w> {
     last_run: Tick,
     this_run: Tick,
 }
-
-/// SAFETY:
-/// `fetch` accesses all components in a readonly way.
-/// This is sound because `update_component_access` sets read access for all components and panic when appropriate.
-/// Filters are unchanged.
-unsafe impl<'a> WorldQuery for EntityRef<'a> {
-    type Fetch<'w> = EntityFetch<'w>;
-    type State = ();
-
-    fn shrink_fetch<'wlong: 'wshort, 'wshort>(fetch: Self::Fetch<'wlong>) -> Self::Fetch<'wshort> {
-        fetch
-    }
-
-    unsafe fn init_fetch<'w, 's>(
-        world: UnsafeWorldCell<'w>,
-        _state: &'s Self::State,
-        last_run: Tick,
-        this_run: Tick,
-    ) -> Self::Fetch<'w> {
-        EntityFetch {
-            world,
-            last_run,
-            this_run,
-        }
-    }
-
-    const IS_DENSE: bool = true;
-
-    #[inline]
-    unsafe fn set_archetype<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _archetype: &'w Archetype,
-        _table: &Table,
-    ) {
-    }
-
-    #[inline]
-    unsafe fn set_table<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _table: &'w Table,
-    ) {
-    }
-
-    fn update_component_access(_state: &Self::State, access: &mut FilteredAccess) {
-        assert!(
-            !access.access().has_any_component_write(),
-            "EntityRef conflicts with a previous access in this query. Shared access cannot coincide with exclusive access.",
-        );
-        access.read_all_components();
-    }
-
-    fn init_state(_world: &mut World) {}
-
-    fn get_state(_components: &Components) -> Option<()> {
-        Some(())
-    }
-
-    fn matches_component_set(
-        _state: &Self::State,
-        _set_contains_id: &impl Fn(ComponentId) -> bool,
-    ) -> bool {
-        true
-    }
-}
-
-/// SAFETY: `Self` is the same as `Self::ReadOnly`
-unsafe impl<'a> QueryData for EntityRef<'a> {
-    const IS_READ_ONLY: bool = true;
-    const IS_ARCHETYPAL: bool = true;
-    type ReadOnly = Self;
-    type Item<'w, 's> = EntityRef<'w>;
-
-    fn shrink<'wlong: 'wshort, 'wshort, 's>(
-        item: Self::Item<'wlong, 's>,
-    ) -> Self::Item<'wshort, 's> {
-        item
-    }
-
-    #[inline(always)]
-    unsafe fn fetch<'w, 's>(
-        _state: &'s Self::State,
-        fetch: &mut Self::Fetch<'w>,
-        entity: Entity,
-        _table_row: TableRow,
-    ) -> Option<Self::Item<'w, 's>> {
-        // SAFETY: `fetch` must be called with an entity that exists in the world
-        let cell = unsafe {
-            fetch
-                .world
-                .get_entity_with_ticks(entity, fetch.last_run, fetch.this_run)
-                .debug_checked_unwrap()
-        };
-        // SAFETY: Read-only access to every component has been registered.
-        Some(unsafe { EntityRef::new(cell) })
-    }
-
-    fn iter_access(_state: &Self::State) -> impl Iterator<Item = EcsAccessType<'_>> {
-        iter::once(EcsAccessType::Component(EcsAccessLevel::ReadAll))
-    }
-}
-
-/// SAFETY: access is read only
-unsafe impl ReadOnlyQueryData for EntityRef<'_> {}
-
-impl ReleaseStateQueryData for EntityRef<'_> {
-    fn release_state<'w>(item: Self::Item<'w, '_>) -> Self::Item<'w, 'static> {
-        item
-    }
-}
-
-impl ArchetypeQueryData for EntityRef<'_> {}
-
-/// SAFETY: The accesses of `Self::ReadOnly` are a subset of the accesses of `Self`
-unsafe impl<'a> WorldQuery for EntityMut<'a> {
-    type Fetch<'w> = EntityFetch<'w>;
-    type State = ();
-
-    fn shrink_fetch<'wlong: 'wshort, 'wshort>(fetch: Self::Fetch<'wlong>) -> Self::Fetch<'wshort> {
-        fetch
-    }
-
-    unsafe fn init_fetch<'w, 's>(
-        world: UnsafeWorldCell<'w>,
-        _state: &'s Self::State,
-        last_run: Tick,
-        this_run: Tick,
-    ) -> Self::Fetch<'w> {
-        EntityFetch {
-            world,
-            last_run,
-            this_run,
-        }
-    }
-
-    const IS_DENSE: bool = true;
-
-    #[inline]
-    unsafe fn set_archetype<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _archetype: &'w Archetype,
-        _table: &Table,
-    ) {
-    }
-
-    #[inline]
-    unsafe fn set_table<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _table: &'w Table,
-    ) {
-    }
-
-    fn update_component_access(_state: &Self::State, access: &mut FilteredAccess) {
-        assert!(
-            !access.access().has_any_component_read(),
-            "EntityMut conflicts with a previous access in this query. Exclusive access cannot coincide with any other accesses.",
-        );
-        access.write_all_components();
-    }
-
-    fn init_state(_world: &mut World) {}
-
-    fn get_state(_components: &Components) -> Option<()> {
-        Some(())
-    }
-
-    fn matches_component_set(
-        _state: &Self::State,
-        _set_contains_id: &impl Fn(ComponentId) -> bool,
-    ) -> bool {
-        true
-    }
-}
-
-/// SAFETY: access of `EntityRef` is a subset of `EntityMut`
-unsafe impl<'a> QueryData for EntityMut<'a> {
-    const IS_READ_ONLY: bool = false;
-    const IS_ARCHETYPAL: bool = true;
-    type ReadOnly = EntityRef<'a>;
-    type Item<'w, 's> = EntityMut<'w>;
-
-    fn shrink<'wlong: 'wshort, 'wshort, 's>(
-        item: Self::Item<'wlong, 's>,
-    ) -> Self::Item<'wshort, 's> {
-        item
-    }
-
-    #[inline(always)]
-    unsafe fn fetch<'w, 's>(
-        _state: &'s Self::State,
-        fetch: &mut Self::Fetch<'w>,
-        entity: Entity,
-        _table_row: TableRow,
-    ) -> Option<Self::Item<'w, 's>> {
-        // SAFETY: `fetch` must be called with an entity that exists in the world
-        let cell = unsafe {
-            fetch
-                .world
-                .get_entity_with_ticks(entity, fetch.last_run, fetch.this_run)
-                .debug_checked_unwrap()
-        };
-        // SAFETY: mutable access to every component has been registered.
-        Some(unsafe { EntityMut::new(cell) })
-    }
-
-    fn iter_access(_state: &Self::State) -> impl Iterator<Item = EcsAccessType<'_>> {
-        iter::once(EcsAccessType::Component(EcsAccessLevel::WriteAll))
-    }
-}
-
-impl ReleaseStateQueryData for EntityMut<'_> {
-    fn release_state<'w>(item: Self::Item<'w, '_>) -> Self::Item<'w, 'static> {
-        item
-    }
-}
-
-impl ArchetypeQueryData for EntityMut<'_> {}
 
 /// SAFETY: `EntityRefExcept` guards access to all components in the bundle `B`
 /// and populates `Access` values so that queries that conflict with this access
@@ -879,7 +653,7 @@ where
     }
 
     unsafe fn fetch<'w, 's>(
-        access: &'s Self::State,
+        _: &'s Self::State,
         fetch: &mut Self::Fetch<'w>,
         entity: Entity,
         _: TableRow,
@@ -888,7 +662,7 @@ where
             .world
             .get_entity_with_ticks(entity, fetch.last_run, fetch.this_run)
             .unwrap();
-        Some(EntityRefExcept::new(cell, access))
+        Some(EntityRefExcept::new(cell))
     }
 
     fn iter_access(state: &Self::State) -> impl Iterator<Item = EcsAccessType<'_>> {
@@ -998,7 +772,7 @@ where
     }
 
     unsafe fn fetch<'w, 's>(
-        access: &'s Self::State,
+        _: &'s Self::State,
         fetch: &mut Self::Fetch<'w>,
         entity: Entity,
         _: TableRow,
@@ -1007,7 +781,7 @@ where
             .world
             .get_entity_with_ticks(entity, fetch.last_run, fetch.this_run)
             .unwrap();
-        Some(EntityMutExcept::new(cell, access))
+        Some(EntityMutExcept::new(cell))
     }
 
     fn iter_access(state: &Self::State) -> impl Iterator<Item = EcsAccessType<'_>> {
@@ -2730,9 +2504,9 @@ impl<C: Component, T: Copy, S: Copy> Copy for StorageSwitch<C, T, S> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::change_detection::DetectChanges;
+
     use crate::system::{assert_is_system, Query};
-    use bevy_ecs::prelude::Schedule;
+
     use bevy_ecs_macros::QueryData;
 
     #[derive(Component)]
@@ -2948,35 +2722,5 @@ mod tests {
         fn client_system(_: Query<Client<C>>) {}
 
         assert_is_system(client_system);
-    }
-
-    // Test that EntityRef::get_ref::<T>() returns a Ref<T> value with the correct
-    // ticks when the EntityRef was retrieved from a Query.
-    // See: https://github.com/bevyengine/bevy/issues/13735
-    #[test]
-    fn test_entity_ref_query_with_ticks() {
-        #[derive(Component)]
-        pub struct C;
-
-        fn system(query: Query<EntityRef>) {
-            for entity_ref in &query {
-                if let Some(c) = entity_ref.get_ref::<C>()
-                    && !c.is_added()
-                {
-                    panic!("Expected C to be added");
-                }
-            }
-        }
-
-        let mut world = World::new();
-        let mut schedule = Schedule::default();
-        schedule.add_systems(system);
-        world.spawn(C);
-
-        // reset the change ticks
-        world.clear_trackers();
-
-        // we want EntityRef to use the change ticks of the system
-        schedule.run(&mut world);
     }
 }

@@ -119,30 +119,6 @@ impl<T: EntityEquivalent> UniqueEntityEquivalentSlice<T> {
     }
 }
 
-/// Casts a slice of entity slices to a slice of [`UniqueEntityEquivalentSlice`]s.
-///
-/// # Safety
-///
-/// All elements in each of the cast slices must be unique.
-pub unsafe fn cast_slice_of_unique_entity_slice<'a, 'b, T: EntityEquivalent + 'a>(
-    slice: &'b [&'a [T]],
-) -> &'b [&'a UniqueEntityEquivalentSlice<T>] {
-    // SAFETY: All elements in the original iterator are unique slices.
-    unsafe { &*(ptr::from_ref(slice) as *const [&UniqueEntityEquivalentSlice<T>]) }
-}
-
-/// Casts a mutable slice of mutable entity slices to a slice of mutable [`UniqueEntityEquivalentSlice`]s.
-///
-/// # Safety
-///
-/// All elements in each of the cast slices must be unique.
-pub unsafe fn cast_slice_of_mut_unique_entity_slice_mut<'a, 'b, T: EntityEquivalent + 'a>(
-    slice: &'b mut [&'a mut [T]],
-) -> &'b mut [&'a mut UniqueEntityEquivalentSlice<T>] {
-    // SAFETY: All elements in the original iterator are unique slices.
-    unsafe { &mut *(ptr::from_mut(slice) as *mut [&mut UniqueEntityEquivalentSlice<T>]) }
-}
-
 impl<'a, T: EntityEquivalent> IntoIterator for &'a UniqueEntityEquivalentSlice<T> {
     type Item = &'a T;
 
