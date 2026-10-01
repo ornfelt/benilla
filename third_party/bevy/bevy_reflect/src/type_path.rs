@@ -72,7 +72,7 @@ use core::fmt;
 /// ```
 ///
 /// [utility]: crate::utility
-/// [(de)serialization]: crate::serde::ReflectDeserializer
+/// [(de)serialization]: crate::serde
 /// [`Reflect`]: crate::Reflect
 /// [`type_path`]: TypePath::type_path
 /// [`short_type_path`]: TypePath::short_type_path

@@ -541,6 +541,17 @@ the same repository's.
   `petgraph`'s `serde-1` and `smol_str`'s `serde` for the build (serde impls nothing names).
   `smallvec` and `indexmap` leave `bevy_reflect`'s defaults and `bevy_internal`'s request but stay
   on: `bevy_ecs`'s own derives (`DefaultQueryFilters`, `EntityIndexSet`) still need them.
+- **`bevy_reflect`'s serializers and path access**, which nothing outside the crate calls
+  (`bevy_scene`'s RON format, their one user, went earlier): the reflection (de)serializers
+  (`serde::ser` and `serde::de` with `ReflectSerializer`, `TypedReflectSerializer`,
+  `ReflectDeserializer`, `TypedReflectDeserializer`, their processors, the
+  `SerializeWithRegistry`/`DeserializeWithRegistry` traits and type data, and the
+  `debug_stack` type stack only their errors printed; the feature stays, enabling only `std`),
+  and the `path` module (`GetPath`, `ParsedPath`, `ReflectPath` and the access errors, with
+  their prelude entries). Kept: the `ReflectSerialize`/`ReflectDeserialize` type data with
+  `Serializable` and `SerializationData`, which the derive's and the opaque impls' output name.
+  The tests of the removed code and the dev-dependencies only they used (`ron`, `bincode`,
+  `rmp-serde`, `serde_json`, `serde`'s `derive`) go with it.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

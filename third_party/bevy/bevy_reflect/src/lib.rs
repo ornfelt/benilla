@@ -290,29 +290,6 @@
 //!
 //! All primitives and simple types implement `FromReflect` by relying on their [`Default`] implementation.
 //!
-//! # Path navigation
-//!
-//! The [`GetPath`] trait allows accessing arbitrary nested fields of an [`PartialReflect`] type.
-//!
-//! Using `GetPath`, it is possible to use a path string to access a specific field
-//! of a reflected type.
-//!
-//! ```
-//! # use bevy_reflect::{Reflect, GetPath};
-//! #[derive(Reflect)]
-//! struct MyStruct {
-//!   value: Vec<Option<u32>>
-//! }
-//!
-//! let my_struct = MyStruct {
-//!   value: vec![None, None, Some(123)],
-//! };
-//! assert_eq!(
-//!   my_struct.path::<u32>(".value[2].0").unwrap(),
-//!   &123,
-//! );
-//! ```
-//!
 //! # Type Registration
 //!
 //! This crate also comes with a [`TypeRegistry`] that can be used to store and retrieve additional type metadata at runtime,
@@ -379,70 +356,6 @@
 //! See the [dynamic types example](https://github.com/bevyengine/bevy/blob/latest/examples/reflection/dynamic_types.rs)
 //! for more information and usage details.
 //!
-//! # Serialization
-//!
-//! By using reflection, we are also able to get serialization capabilities for free.
-//! In fact, using [`bevy_reflect`] can result in faster compile times and reduced code generation over
-//! directly deriving the [`serde`] traits.
-//!
-//! The way it works is by moving the serialization logic into common serializers and deserializers:
-//! * [`ReflectSerializer`]
-//! * [`TypedReflectSerializer`]
-//! * [`ReflectDeserializer`]
-//! * [`TypedReflectDeserializer`]
-//!
-//! All of these structs require a reference to the [registry] so that [type information] can be retrieved,
-//! as well as registered type data, such as [`ReflectSerialize`] and [`ReflectDeserialize`].
-//!
-//! The general entry point are the "untyped" versions of these structs.
-//! These will automatically extract the type information and pass them into their respective "typed" version.
-//!
-//! The output of the `ReflectSerializer` will be a map, where the key is the [type path]
-//! and the value is the serialized data.
-//! The `TypedReflectSerializer` will simply output the serialized data.
-//!
-//! The `ReflectDeserializer` can be used to deserialize this map and return a `Box<dyn Reflect>`,
-//! where the underlying type will be a dynamic type representing some concrete type (except for opaque types).
-//!
-//! Again, it's important to remember that dynamic types may need to be converted to their concrete counterparts
-//! in order to be used in certain cases.
-//! This can be achieved using [`FromReflect`].
-//!
-//! ```
-//! # use serde::de::DeserializeSeed;
-//! # use bevy_reflect::{
-//! #     serde::{ReflectSerializer, ReflectDeserializer},
-//! #     Reflect, PartialReflect, FromReflect, TypeRegistry
-//! # };
-//! #[derive(Reflect, PartialEq, Debug)]
-//! struct MyStruct {
-//!   foo: i32
-//! }
-//!
-//! let original_value = MyStruct {
-//!   foo: 123
-//! };
-//!
-//! // Register
-//! let mut registry = TypeRegistry::new();
-//! registry.register::<MyStruct>();
-//!
-//! // Serialize
-//! let reflect_serializer = ReflectSerializer::new(original_value.as_partial_reflect(), &registry);
-//! let serialized_value: String = ron::to_string(&reflect_serializer).unwrap();
-//!
-//! // Deserialize
-//! let reflect_deserializer = ReflectDeserializer::new(&registry);
-//! let deserialized_value: Box<dyn PartialReflect> = reflect_deserializer.deserialize(
-//!   &mut ron::Deserializer::from_str(&serialized_value).unwrap()
-//! ).unwrap();
-//!
-//! // Convert
-//! let converted_value = <MyStruct as FromReflect>::from_reflect(&*deserialized_value).unwrap();
-//!
-//! assert_eq!(original_value, converted_value);
-//! ```
-//!
 //! # Limitations
 //!
 //! While this crate offers a lot in terms of adding reflection to Rust,
@@ -484,9 +397,7 @@
 //!
 //! This feature enables useful debug features for reflection.
 //!
-//! This includes the `debug_stack` feature,
-//! which enables capturing the type stack when serializing or deserializing a type
-//! and displaying it in error messages.
+//! It includes the `debug_stack` feature, which no longer enables anything in this copy.
 //!
 //! [Reflection]: https://en.wikipedia.org/wiki/Reflective_programming
 //! [Bevy]: https://bevy.org/
@@ -504,14 +415,6 @@
 //! [type data]: TypeData
 //! [`ReflectDefault`]: std_traits::ReflectDefault
 //! [object-safe]: https://doc.rust-lang.org/reference/items/traits.html#object-safety
-//! [`serde`]: ::serde
-//! [`ReflectSerializer`]: serde::ReflectSerializer
-//! [`TypedReflectSerializer`]: serde::TypedReflectSerializer
-//! [`ReflectDeserializer`]: serde::ReflectDeserializer
-//! [`TypedReflectDeserializer`]: serde::TypedReflectDeserializer
-//! [registry]: TypeRegistry
-//! [type information]: TypeInfo
-//! [type path]: TypePath
 //! [type registry]: TypeRegistry
 //! [`bevy_math`]: https://docs.rs/bevy_math/latest/bevy_math/
 //! [`glam`]: https://docs.rs/glam/latest/glam/
@@ -537,7 +440,6 @@ mod is;
 mod kind;
 mod list;
 mod map;
-mod path;
 mod reflect;
 mod reflectable;
 mod remote;
@@ -571,8 +473,6 @@ mod enums;
 mod generics;
 pub mod serde;
 pub mod std_traits;
-#[cfg(feature = "debug_stack")]
-mod type_info_stack;
 pub mod utility;
 
 /// The reflect prelude.
@@ -583,9 +483,8 @@ pub mod prelude {
 
     #[doc(hidden)]
     pub use crate::{
-        reflect_trait, FromReflect, GetField, GetPath, GetTupleStructField, PartialReflect,
-        Reflect, ReflectDeserialize, ReflectFromReflect, ReflectPath, ReflectSerialize, Struct,
-        TupleStruct, TypePath,
+        reflect_trait, FromReflect, GetField, GetTupleStructField, PartialReflect, Reflect,
+        ReflectDeserialize, ReflectFromReflect, ReflectSerialize, Struct, TupleStruct, TypePath,
     };
 }
 
@@ -599,7 +498,6 @@ pub use is::*;
 pub use kind::*;
 pub use list::*;
 pub use map::*;
-pub use path::*;
 pub use reflect::*;
 pub use reflectable::*;
 pub use remote::*;
@@ -683,7 +581,6 @@ pub mod __macro_exports {
     reason = "We don't need the exact value of Pi here."
 )]
 mod tests {
-    use ::serde::{de::DeserializeSeed, Deserialize, Serialize};
     use alloc::{
         borrow::Cow,
         boxed::Box,
@@ -700,17 +597,10 @@ mod tests {
         marker::PhantomData,
     };
     use disqualified::ShortName;
-    use ron::{
-        ser::{to_string_pretty, PrettyConfig},
-        Deserializer,
-    };
     use static_assertions::{assert_impl_all, assert_not_impl_all};
 
     use super::{prelude::*, *};
-    use crate::{
-        serde::{ReflectDeserializer, ReflectSerializer},
-        utility::GenericTypePathCell,
-    };
+    use crate::utility::GenericTypePathCell;
 
     #[test]
     fn try_apply_should_detect_kinds() {
@@ -1708,66 +1598,6 @@ mod tests {
                 .is_some(),
             "registry should contain existing registration for `Bar`"
         );
-    }
-
-    #[test]
-    fn reflect_serialize() {
-        #[derive(Reflect)]
-        struct Foo {
-            a: u32,
-            #[reflect(ignore)]
-            _b: u32,
-            c: Vec<isize>,
-            d: HashMap<usize, i8>,
-            e: Bar,
-            f: String,
-            g: (i32, Vec<isize>, Bar),
-            h: [u32; 2],
-        }
-
-        #[derive(Reflect, Serialize, Deserialize)]
-        #[reflect(Serialize, Deserialize)]
-        struct Bar {
-            x: u32,
-        }
-
-        let mut hash_map = <HashMap<_, _>>::default();
-        hash_map.insert(1, 1);
-        hash_map.insert(2, 2);
-        let foo = Foo {
-            a: 1,
-            _b: 1,
-            c: vec![1, 2],
-            d: hash_map,
-            e: Bar { x: 1 },
-            f: "hi".to_string(),
-            g: (1, vec![1, 2], Bar { x: 1 }),
-            h: [2; 2],
-        };
-
-        let mut registry = TypeRegistry::default();
-        registry.register::<u32>();
-        registry.register::<i8>();
-        registry.register::<i32>();
-        registry.register::<usize>();
-        registry.register::<isize>();
-        registry.register::<Foo>();
-        registry.register::<Bar>();
-        registry.register::<String>();
-        registry.register::<Vec<isize>>();
-        registry.register::<HashMap<usize, i8>>();
-        registry.register::<(i32, Vec<isize>, Bar)>();
-        registry.register::<[u32; 2]>();
-
-        let serializer = ReflectSerializer::new(&foo, &registry);
-        let serialized = to_string_pretty(&serializer, PrettyConfig::default()).unwrap();
-
-        let mut deserializer = Deserializer::from_str(&serialized).unwrap();
-        let reflect_deserializer = ReflectDeserializer::new(&registry);
-        let value = reflect_deserializer.deserialize(&mut deserializer).unwrap();
-        let roundtrip_foo = Foo::from_reflect(value.as_partial_reflect()).unwrap();
-
-        assert!(foo.reflect_partial_eq(&roundtrip_foo).unwrap());
     }
 
     #[test]
@@ -3235,143 +3065,10 @@ bevy_reflect::tests::Test {
         );
     }
 
-    // https://github.com/bevyengine/bevy/issues/19017
-    #[test]
-    fn should_serialize_opaque_remote_type() {
-        mod external_crate {
-            use serde::{Deserialize, Serialize};
-            #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-            pub struct Vector2<T>(pub [T; 2]);
-        }
-
-        #[reflect_remote(external_crate::Vector2<i32>)]
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[reflect(Serialize, Deserialize)]
-        #[reflect(opaque)]
-        struct Vector2Wrapper([i32; 2]);
-
-        #[derive(Reflect, Debug, PartialEq)]
-        struct Point(#[reflect(remote = Vector2Wrapper)] external_crate::Vector2<i32>);
-
-        let point = Point(external_crate::Vector2([1, 2]));
-
-        let mut registry = TypeRegistry::new();
-        registry.register::<Point>();
-        registry.register::<Vector2Wrapper>();
-
-        let serializer = ReflectSerializer::new(&point, &registry);
-        let serialized = ron::to_string(&serializer).unwrap();
-        assert_eq!(serialized, r#"{"bevy_reflect::tests::Point":((((1,2))))}"#);
-
-        let mut deserializer = Deserializer::from_str(&serialized).unwrap();
-        let reflect_deserializer = ReflectDeserializer::new(&registry);
-        let deserialized = reflect_deserializer.deserialize(&mut deserializer).unwrap();
-        let point = <Point as FromReflect>::from_reflect(&*deserialized).unwrap();
-        assert_eq!(point, Point(external_crate::Vector2([1, 2])));
-    }
-
     #[cfg(feature = "glam")]
     mod glam {
         use super::*;
-        use ::glam::{quat, vec3, Quat, Vec3};
-
-        #[test]
-        fn quat_serialization() {
-            let q = quat(1.0, 2.0, 3.0, 4.0);
-
-            let mut registry = TypeRegistry::default();
-            registry.register::<f32>();
-            registry.register::<Quat>();
-
-            let ser = ReflectSerializer::new(&q, &registry);
-
-            let config = PrettyConfig::default()
-                .new_line(String::from("\n"))
-                .indentor(String::from("    "));
-            let output = to_string_pretty(&ser, config).unwrap();
-            let expected = r#"
-{
-    "glam::Quat": (1.0, 2.0, 3.0, 4.0),
-}"#;
-
-            assert_eq!(expected, format!("\n{output}"));
-        }
-
-        #[test]
-        fn quat_deserialization() {
-            let data = r#"
-{
-    "glam::Quat": (1.0, 2.0, 3.0, 4.0),
-}"#;
-
-            let mut registry = TypeRegistry::default();
-            registry.register::<Quat>();
-            registry.register::<f32>();
-
-            let de = ReflectDeserializer::new(&registry);
-
-            let mut deserializer =
-                Deserializer::from_str(data).expect("Failed to acquire deserializer");
-
-            let dynamic_struct = de
-                .deserialize(&mut deserializer)
-                .expect("Failed to deserialize");
-
-            let mut result = Quat::default();
-
-            result.apply(dynamic_struct.as_partial_reflect());
-
-            assert_eq!(result, quat(1.0, 2.0, 3.0, 4.0));
-        }
-
-        #[test]
-        fn vec3_serialization() {
-            let v = vec3(12.0, 3.0, -6.9);
-
-            let mut registry = TypeRegistry::default();
-            registry.register::<f32>();
-            registry.register::<Vec3>();
-
-            let ser = ReflectSerializer::new(&v, &registry);
-
-            let config = PrettyConfig::default()
-                .new_line(String::from("\n"))
-                .indentor(String::from("    "));
-            let output = to_string_pretty(&ser, config).unwrap();
-            let expected = r#"
-{
-    "glam::Vec3": (12.0, 3.0, -6.9),
-}"#;
-
-            assert_eq!(expected, format!("\n{output}"));
-        }
-
-        #[test]
-        fn vec3_deserialization() {
-            let data = r#"
-{
-    "glam::Vec3": (12.0, 3.0, -6.9),
-}"#;
-
-            let mut registry = TypeRegistry::default();
-            registry.add_registration(Vec3::get_type_registration());
-            registry.add_registration(f32::get_type_registration());
-
-            let de = ReflectDeserializer::new(&registry);
-
-            let mut deserializer =
-                Deserializer::from_str(data).expect("Failed to acquire deserializer");
-
-            let dynamic_struct = de
-                .deserialize(&mut deserializer)
-                .expect("Failed to deserialize");
-
-            let mut result = Vec3::default();
-
-            result.apply(dynamic_struct.as_partial_reflect());
-
-            assert_eq!(result, vec3(12.0, 3.0, -6.9));
-        }
+        use ::glam::vec3;
 
         #[test]
         fn vec3_field_access() {
@@ -3380,26 +3077,6 @@ bevy_reflect::tests::Test {
             assert_eq!(*v.get_field::<f32>("x").unwrap(), 1.0);
 
             *v.get_field_mut::<f32>("y").unwrap() = 6.0;
-
-            assert_eq!(v.y, 6.0);
-        }
-
-        #[test]
-        fn vec3_path_access() {
-            let mut v = vec3(1.0, 2.0, 3.0);
-
-            assert_eq!(
-                *v.reflect_path("x")
-                    .unwrap()
-                    .try_downcast_ref::<f32>()
-                    .unwrap(),
-                1.0
-            );
-
-            *v.reflect_path_mut("y")
-                .unwrap()
-                .try_downcast_mut::<f32>()
-                .unwrap() = 6.0;
 
             assert_eq!(v.y, 6.0);
         }

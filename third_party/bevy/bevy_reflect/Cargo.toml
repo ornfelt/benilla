@@ -128,23 +128,6 @@ default-features = false
 [dependencies.variadics_please]
 version = "1.1"
 
-[dev-dependencies.bincode]
-version = "2.0"
-features = ["serde"]
-
-[dev-dependencies.rmp-serde]
-version = "1.1"
-
-[dev-dependencies.ron]
-version = "0.12"
-
-[dev-dependencies.serde]
-version = "1"
-features = ["derive"]
-
-[dev-dependencies.serde_json]
-version = "1.0.140"
-
 [dev-dependencies.static_assertions]
 version = "1.1.0"
 
