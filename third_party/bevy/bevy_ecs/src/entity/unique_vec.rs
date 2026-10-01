@@ -20,8 +20,7 @@ use bevy_platform::sync::Arc;
 
 use super::{
     unique_slice::{self, UniqueEntityEquivalentSlice},
-    Entity, EntityEquivalent, EntitySet, FromEntitySetIterator, UniqueEntityEquivalentArray,
-    UniqueEntityIter,
+    Entity, EntityEquivalent, UniqueEntityEquivalentArray, UniqueEntityIter,
 };
 
 /// A `Vec` that contains only unique entities.
@@ -29,20 +28,10 @@ use super::{
 /// "Unique" means that `x != y` holds for any 2 entities in this collection.
 /// This is always true when less than 2 entities are present.
 ///
-/// This type is best obtained by its `FromEntitySetIterator` impl, via either
-/// `EntityIterator::collect_set` or `UniqueEntityEquivalentVec::from_entity_iter`.
-///
 /// While this type can be constructed via `Iterator::collect`, doing so is inefficient,
 /// and not recommended.
-///
-/// When `T` is [`Entity`], use the [`UniqueEntityVec`] alias.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UniqueEntityEquivalentVec<T: EntityEquivalent>(Vec<T>);
-
-/// A `Vec` that contains only unique [`Entity`].
-///
-/// This is the default case of a [`UniqueEntityEquivalentVec`].
-pub type UniqueEntityVec = UniqueEntityEquivalentVec<Entity>;
 
 impl<T: EntityEquivalent> UniqueEntityEquivalentVec<T> {
     /// Constructs a new, empty `UniqueEntityEquivalentVec<T>` with at least the specified capacity.
@@ -550,7 +539,6 @@ impl<T: EntityEquivalent> From<BTreeSet<T>> for UniqueEntityEquivalentVec<T> {
 impl<T: EntityEquivalent> FromIterator<T> for UniqueEntityEquivalentVec<T> {
     /// This impl only uses `Eq` to validate uniqueness, resulting in O(n^2) complexity.
     /// It can make sense for very low N, or if `T` implements neither `Ord` nor `Hash`.
-    /// When possible, use `FromEntitySetIterator::from_entity_iter` instead.
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         // Matches the `HashSet::from_iter` reservation logic.
         let iter = iter.into_iter();
@@ -563,13 +551,6 @@ impl<T: EntityEquivalent> FromIterator<T> for UniqueEntityEquivalentVec<T> {
             }
             unique_vec
         })
-    }
-}
-
-impl<T: EntityEquivalent> FromEntitySetIterator<T> for UniqueEntityEquivalentVec<T> {
-    fn from_entity_set_iter<I: EntitySet<Item = T>>(iter: I) -> Self {
-        // SAFETY: `iter` is an `EntitySet`.
-        unsafe { Self::from_vec_unchecked(Vec::from_iter(iter)) }
     }
 }
 
@@ -744,11 +725,3 @@ impl<T: EntityEquivalent> IndexMut<RangeToInclusive<usize>> for UniqueEntityEqui
 /// This `struct` is created by the [`IntoIterator::into_iter`] trait
 /// method on [`UniqueEntityEquivalentVec`].
 pub type IntoIter<T = Entity> = UniqueEntityIter<vec::IntoIter<T>>;
-
-/// A draining iterator for [`UniqueEntityEquivalentVec<T>`].
-/// See its documentation for more.
-pub type Drain<'a, T = Entity> = UniqueEntityIter<vec::Drain<'a, T>>;
-
-/// A splicing iterator for [`UniqueEntityEquivalentVec`].
-/// See its documentation for more.
-pub type Splice<'a, I> = UniqueEntityIter<vec::Splice<'a, I>>;

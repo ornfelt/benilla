@@ -1774,7 +1774,7 @@ impl<'w, 's, D: QueryData, F: QueryFilter> Query<'w, 's, D, F> {
     ///
     /// |`QueryData` parameter type|Access required|
     /// |----|----|
-    /// |[`Entity`], [`EntityLocation`], [`SpawnDetails`], [`&Archetype`], [`Has<T>`], [`PhantomData<T>`]|No access|
+    /// |[`Entity`], [`EntityLocation`], [`&Archetype`], [`Has<T>`], [`PhantomData<T>`]|No access|
     /// |[`EntityMut`]|Read and write access to all components, but no required access|
     /// |[`EntityRef`]|Read access to all components, but no required access|
     /// |`&T`, [`Ref<T>`]|Read and required access to `T`|
@@ -1809,7 +1809,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter> Query<'w, 's, D, F> {
     /// [`Or<(T, ...)>`]: crate::query::Or
     /// [`QueryBuilder`]: crate::query::QueryBuilder
     /// [`Ref<T>`]: crate::world::Ref
-    /// [`SpawnDetails`]: crate::query::SpawnDetails
     /// [`Spawned`]: crate::query::Spawned
     /// [`With<T>`]: crate::query::With
     /// [`Without<T>`]: crate::query::Without

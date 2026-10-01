@@ -3,9 +3,7 @@
 //! This module is a lightweight wrapper around Bevy's [`HashMap`] that is more performant for [`Entity`] keys.
 
 use core::{
-    fmt::{self, Debug, Formatter},
-    iter::FusedIterator,
-    marker::PhantomData,
+    fmt::Debug,
     ops::{Deref, DerefMut, Index},
 };
 
@@ -13,7 +11,7 @@ use bevy_platform::collections::hash_map::{self, HashMap};
 #[cfg(feature = "bevy_reflect")]
 use bevy_reflect::Reflect;
 
-use super::{Entity, EntityEquivalent, EntityHash, EntitySetIterator};
+use super::{Entity, EntityEquivalent, EntityHash};
 
 /// A [`HashMap`] pre-configured to use [`EntityHash`] hashing.
 #[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
@@ -124,101 +122,6 @@ impl<V> IntoIterator for EntityHashMap<V> {
         self.0.into_iter()
     }
 }
-
-/// An iterator over the keys of a [`EntityHashMap`] in arbitrary order.
-/// The iterator element type is `&'a Entity`.
-pub struct Keys<'a, V, S = EntityHash>(hash_map::Keys<'a, Entity, V>, PhantomData<S>);
-
-impl<'a, V> Deref for Keys<'a, V> {
-    type Target = hash_map::Keys<'a, Entity, V>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'a, V> Iterator for Keys<'a, V> {
-    type Item = &'a Entity;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
-    }
-}
-
-impl<V> ExactSizeIterator for Keys<'_, V> {}
-
-impl<V> FusedIterator for Keys<'_, V> {}
-
-impl<V> Clone for Keys<'_, V> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData)
-    }
-}
-
-impl<V: Debug> Debug for Keys<'_, V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Keys").field(&self.0).field(&self.1).finish()
-    }
-}
-
-impl<V> Default for Keys<'_, V> {
-    fn default() -> Self {
-        Self(Default::default(), PhantomData)
-    }
-}
-
-// SAFETY: Keys stems from a correctly behaving `HashMap<Entity, V, EntityHash>`.
-unsafe impl<V> EntitySetIterator for Keys<'_, V> {}
-
-/// An owning iterator over the keys of a [`EntityHashMap`] in arbitrary order.
-/// The iterator element type is [`Entity`].
-pub struct IntoKeys<V, S = EntityHash>(hash_map::IntoKeys<Entity, V>, PhantomData<S>);
-
-impl<V> Deref for IntoKeys<V> {
-    type Target = hash_map::IntoKeys<Entity, V>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<V> Iterator for IntoKeys<V> {
-    type Item = Entity;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
-    }
-}
-
-impl<V> ExactSizeIterator for IntoKeys<V> {}
-
-impl<V> FusedIterator for IntoKeys<V> {}
-
-impl<V: Debug> Debug for IntoKeys<V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("IntoKeys")
-            .field(&self.0)
-            .field(&self.1)
-            .finish()
-    }
-}
-
-impl<V> Default for IntoKeys<V> {
-    fn default() -> Self {
-        Self(Default::default(), PhantomData)
-    }
-}
-
-// SAFETY: IntoKeys stems from a correctly behaving `HashMap<Entity, V, EntityHash>`.
-unsafe impl<V> EntitySetIterator for IntoKeys<V> {}
 
 #[cfg(test)]
 mod tests {

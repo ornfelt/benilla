@@ -12,7 +12,7 @@
 //! This module contains four main things:
 //!
 //!  - Core ECS types like [`Entity`], [`Entities`], and [`EntityAllocator`].
-//!  - Utilities for [`Entity`] ids like [`MapEntities`], [`EntityHash`], and [`UniqueEntityVec`].
+//!  - Utilities for [`Entity`] ids like [`MapEntities`], [`EntityHash`], and [`UniqueEntityEquivalentVec`].
 //!  - Helpers for entity tasks like [`EntityCloner`].
 //!  - Entity-related error types like [`EntityNotSpawnedError`].
 //!
@@ -114,9 +114,9 @@ pub mod unique_slice;
 pub mod unique_vec;
 
 use nonmax::NonMaxU32;
-pub use unique_array::{UniqueEntityArray, UniqueEntityEquivalentArray};
-pub use unique_slice::{UniqueEntityEquivalentSlice, UniqueEntitySlice};
-pub use unique_vec::{UniqueEntityEquivalentVec, UniqueEntityVec};
+pub use unique_array::UniqueEntityEquivalentArray;
+pub use unique_slice::UniqueEntityEquivalentSlice;
+pub use unique_vec::UniqueEntityEquivalentVec;
 
 use crate::{
     archetype::{ArchetypeId, ArchetypeRow},

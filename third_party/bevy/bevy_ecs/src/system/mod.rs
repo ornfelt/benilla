@@ -411,7 +411,7 @@ mod tests {
         lifecycle::RemovedComponents,
         name::Name,
         prelude::{Add, AnyOf, EntityRef, On},
-        query::{Added, Changed, Or, SpawnDetails, Spawned, With, Without},
+        query::{Added, Changed, Or, Spawned, With, Without},
         resource::Resource,
         schedule::{
             common_conditions::resource_exists, ApplyDeferred, IntoScheduleConfigs, Schedule,
@@ -1358,25 +1358,6 @@ mod tests {
     }
 
     #[test]
-    fn system_state_spawned() {
-        let mut world = World::default();
-        world.spawn(A);
-        let spawn_tick = world.change_tick();
-
-        let mut system_state: SystemState<Option<Single<(&A, SpawnDetails), Spawned>>> =
-            SystemState::new(&mut world);
-        {
-            let query = system_state.get(&world);
-            assert_eq!(query.unwrap().1.spawn_tick(), spawn_tick);
-        }
-
-        {
-            let query = system_state.get(&world);
-            assert!(query.is_none());
-        }
-    }
-
-    #[test]
     #[should_panic]
     fn system_state_invalid_world() {
         let mut world = World::default();
@@ -1609,13 +1590,13 @@ mod tests {
         {
             let mut world = World::new();
 
-            fn mutable_query(mut query: Query<(&mut A, &mut B, SpawnDetails), Spawned>) {
+            fn mutable_query(mut query: Query<(&mut A, &mut B), Spawned>) {
                 for _ in &mut query {}
 
                 immutable_query(query.as_readonly());
             }
 
-            fn immutable_query(_: Query<(&A, &B, SpawnDetails), Spawned>) {}
+            fn immutable_query(_: Query<(&A, &B), Spawned>) {}
 
             let mut sys = IntoSystem::into_system(mutable_query);
             sys.initialize(&mut world);

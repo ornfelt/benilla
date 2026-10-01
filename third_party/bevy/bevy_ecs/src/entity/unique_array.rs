@@ -26,15 +26,8 @@ use super::{
 ///
 /// It can be obtained through certain methods on [`UniqueEntityEquivalentSlice`],
 /// and some [`TryFrom`] implementations.
-///
-/// When `T` is [`Entity`], use [`UniqueEntityArray`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UniqueEntityEquivalentArray<T: EntityEquivalent, const N: usize>([T; N]);
-
-/// An array that contains only unique [`Entity`].
-///
-/// This is the default case of a [`UniqueEntityEquivalentArray`].
-pub type UniqueEntityArray<const N: usize> = UniqueEntityEquivalentArray<Entity, N>;
 
 impl<T: EntityEquivalent, const N: usize> UniqueEntityEquivalentArray<T, N> {
     /// Constructs a `UniqueEntityEquivalentArray` from a [`[T; N]`] unsafely.

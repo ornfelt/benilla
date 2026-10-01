@@ -16,7 +16,7 @@ use bevy_platform::collections::hash_set::{self, HashSet};
 #[cfg(feature = "bevy_reflect")]
 use bevy_reflect::Reflect;
 
-use super::{Entity, EntityHash, EntitySet, EntitySetIterator, FromEntitySetIterator};
+use super::{Entity, EntityHash, EntitySetIterator};
 
 /// A [`HashSet`] pre-configured to use [`EntityHash`] hashing.
 #[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
@@ -176,20 +176,6 @@ impl FromIterator<Entity> for EntityHashSet {
     }
 }
 
-impl FromEntitySetIterator<Entity> for EntityHashSet {
-    fn from_entity_set_iter<I: EntitySet<Item = Entity>>(set_iter: I) -> Self {
-        let iter = set_iter.into_iter();
-        let set = EntityHashSet::with_capacity(iter.size_hint().0);
-        iter.fold(set, |mut set, e| {
-            // SAFETY: Every element in self is unique.
-            unsafe {
-                set.insert_unique_unchecked(e);
-            }
-            set
-        })
-    }
-}
-
 /// An iterator over the items of an [`EntityHashSet`].
 ///
 /// This struct is created by the [`iter`] method on [`EntityHashSet`]. See its documentation for more.
@@ -290,82 +276,6 @@ impl Default for IntoIter {
 
 // SAFETY: IntoIter stems from a correctly behaving `HashSet<Entity, EntityHash>`.
 unsafe impl EntitySetIterator for IntoIter {}
-
-/// A draining iterator over the items of an [`EntityHashSet`].
-pub struct Drain<'a, S = EntityHash>(hash_set::Drain<'a, Entity>, PhantomData<S>);
-
-impl<'a> Deref for Drain<'a> {
-    type Target = hash_set::Drain<'a, Entity>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'a> Iterator for Drain<'a> {
-    type Item = Entity;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
-    }
-}
-
-impl ExactSizeIterator for Drain<'_> {}
-
-impl FusedIterator for Drain<'_> {}
-
-impl Debug for Drain<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Drain")
-            .field(&self.0)
-            .field(&self.1)
-            .finish()
-    }
-}
-
-// SAFETY: Drain stems from a correctly behaving `HashSet<Entity, EntityHash>`.
-unsafe impl EntitySetIterator for Drain<'_> {}
-
-/// A draining iterator over entries of a [`EntityHashSet`] which don't satisfy the predicate `f`.
-pub struct ExtractIf<'a, F: FnMut(&Entity) -> bool, S = EntityHash>(
-    hash_set::ExtractIf<'a, Entity, F>,
-    PhantomData<S>,
-);
-
-impl<'a, F: FnMut(&Entity) -> bool> Deref for ExtractIf<'a, F> {
-    type Target = hash_set::ExtractIf<'a, Entity, F>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'a, F: FnMut(&Entity) -> bool> Iterator for ExtractIf<'a, F> {
-    type Item = Entity;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
-    }
-}
-
-impl<F: FnMut(&Entity) -> bool> FusedIterator for ExtractIf<'_, F> {}
-
-impl<F: FnMut(&Entity) -> bool> Debug for ExtractIf<'_, F> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ExtractIf").finish()
-    }
-}
-
-// SAFETY: ExtractIf stems from a correctly behaving `HashSet<Entity, EntityHash>`.
-unsafe impl<F: FnMut(&Entity) -> bool> EntitySetIterator for ExtractIf<'_, F> {}
 
 // SAFETY: Difference stems from two correctly behaving `HashSet<Entity, EntityHash>`s.
 unsafe impl EntitySetIterator for hash_set::Difference<'_, Entity, EntityHash> {}

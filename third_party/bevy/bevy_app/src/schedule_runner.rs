@@ -17,8 +17,6 @@ pub enum RunMode {
         /// has completed before repeating. A value of [`None`] will not wait.
         wait: Option<Duration>,
     },
-    /// Indicates that the [`App`]'s schedule should run only once.
-    Once,
 }
 
 impl Default for RunMode {
@@ -59,15 +57,6 @@ impl Plugin for ScheduleRunnerPlugin {
             }
 
             match run_mode {
-                RunMode::Once => {
-                    app.update();
-
-                    if let Some(exit) = app.should_exit() {
-                        return exit;
-                    }
-
-                    AppExit::Success
-                }
                 RunMode::Loop { wait } => {
                     let tick = move |app: &mut App,
                                      _wait: Option<Duration>|

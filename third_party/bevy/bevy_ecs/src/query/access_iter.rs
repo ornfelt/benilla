@@ -45,8 +45,6 @@ pub fn has_conflicts<Q: QueryData>(components: &Components) -> Result<(), QueryA
 pub enum EcsAccessType<'a> {
     /// Accesses [`Component`](crate::prelude::Component) data
     Component(EcsAccessLevel),
-    /// Accesses [`Resource`](crate::prelude::Resource) data
-    Resource(ResourceAccessLevel),
     /// borrowed access from [`WorldQuery::State`](crate::query::WorldQuery)
     Access(&'a Access),
     /// Does not access any data that can conflict.
@@ -68,32 +66,17 @@ impl<'a> EcsAccessType<'a> {
 
             (Empty, _)
             | (_, Empty)
-            | (Component(_), Resource(_))
-            | (Resource(_), Component(_))
             // read only access doesn't conflict
             | (Component(Read(_)), Component(Read(_)))
             | (Component(ReadAll), Component(Read(_)))
             | (Component(Read(_)), Component(ReadAll))
-            | (Component(ReadAll), Component(ReadAll))
-            | (Resource(ResourceAccessLevel::Read(_)), Resource(ResourceAccessLevel::Read(_))) => {
+            | (Component(ReadAll), Component(ReadAll)) => {
                 Ok(())
             }
 
             (Component(Read(id)), Component(Write(id_other)))
             | (Component(Write(id)), Component(Read(id_other)))
-            | (Component(Write(id)), Component(Write(id_other)))
-            | (
-                Resource(ResourceAccessLevel::Read(id)),
-                Resource(ResourceAccessLevel::Write(id_other)),
-            )
-            | (
-                Resource(ResourceAccessLevel::Write(id)),
-                Resource(ResourceAccessLevel::Read(id_other)),
-            )
-            | (
-                Resource(ResourceAccessLevel::Write(id)),
-                Resource(ResourceAccessLevel::Write(id_other)),
-            ) => if id == id_other {
+            | (Component(Write(id)), Component(Write(id_other))) => if id == id_other {
                 Err(AccessConflictError(*self, other))
             } else {
                 Ok(())
@@ -128,19 +111,6 @@ impl<'a> EcsAccessType<'a> {
                 Ok(())
             },
 
-            (Resource(ResourceAccessLevel::Read(component_id)), Access(access))
-            | (Access(access), Resource(ResourceAccessLevel::Read(component_id))) => if access.has_resource_write(component_id) {
-                Err(AccessConflictError(*self, other))
-            } else {
-                Ok(())
-            },
-            (Resource(ResourceAccessLevel::Write(component_id)), Access(access))
-            | (Access(access), Resource(ResourceAccessLevel::Write(component_id))) => if access.has_resource_read(component_id) {
-                Err(AccessConflictError(*self, other))
-            } else {
-                Ok(())
-            },
-
             (Access(access), Access(other_access)) => if access.is_compatible(other_access) {
                 Ok(())
             } else {
@@ -162,15 +132,6 @@ pub enum EcsAccessLevel {
     ReadAll,
     /// Potentially writes all [`Component`](crate::prelude::Component)'s in the [`World`](crate::prelude::World)
     WriteAll,
-}
-
-/// Access level needed by [`QueryData`] fetch to the resource.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ResourceAccessLevel {
-    /// Reads the resource with [`ComponentId`]
-    Read(ComponentId),
-    /// Writes the resource with [`ComponentId`]
-    Write(ComponentId),
 }
 
 /// Error returned from [`EcsAccessType::is_compatible`]
@@ -240,16 +201,6 @@ impl Display for AccessConflictError<'_> {
             (Access(_), Component(WriteAll)) | (Component(WriteAll), Access(_)) => write!(
                 f,
                 "Access has a read that conflicts with component write all"
-            ),
-            (Access(_), Resource(ResourceAccessLevel::Read(id)))
-            | (Resource(ResourceAccessLevel::Read(id)), Access(_)) => write!(
-                f,
-                "Access has a write that conflicts with resource {id:?} read."
-            ),
-            (Access(_), Resource(ResourceAccessLevel::Write(id)))
-            | (Resource(ResourceAccessLevel::Write(id)), Access(_)) => write!(
-                f,
-                "Access has a read that conflicts with resource {id:?} write."
             ),
             (Access(_), Access(_)) => write!(f, "Access conflicts with other Access"),
 

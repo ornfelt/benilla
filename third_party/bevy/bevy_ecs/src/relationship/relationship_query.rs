@@ -5,9 +5,6 @@ use crate::{
     system::Query,
 };
 use alloc::collections::VecDeque;
-use smallvec::SmallVec;
-
-use super::SourceIter;
 
 impl<'w, 's, D: QueryData, F: QueryFilter> Query<'w, 's, D, F> {
     /// Iterates all descendant entities as defined by the given `entity`'s [`RelationshipTarget`] and their recursive
@@ -84,36 +81,6 @@ where
 
         if let Ok(children) = self.children_query.get(entity) {
             self.vecdeque.extend(children.iter());
-        }
-
-        Some(entity)
-    }
-}
-
-/// An [`Iterator`] of [`Entity`]s over the descendants of an [`Entity`].
-///
-/// Traverses the hierarchy depth-first.
-pub struct DescendantDepthFirstIter<'w, 's, D: QueryData, F: QueryFilter, S: RelationshipTarget>
-where
-    D::ReadOnly: QueryData<Item<'w, 's> = &'w S>,
-{
-    children_query: &'w Query<'w, 's, D, F>,
-    stack: SmallVec<[Entity; 8]>,
-}
-
-impl<'w, 's, D: QueryData, F: QueryFilter, S: RelationshipTarget> Iterator
-    for DescendantDepthFirstIter<'w, 's, D, F, S>
-where
-    D::ReadOnly: QueryData<Item<'w, 's> = &'w S>,
-    SourceIter<'w, S>: DoubleEndedIterator,
-{
-    type Item = Entity;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let entity = self.stack.pop()?;
-
-        if let Ok(children) = self.children_query.get(entity) {
-            self.stack.extend(children.iter().rev());
         }
 
         Some(entity)

@@ -359,7 +359,7 @@ impl Schedule {
     /// let mut world = World::default();
     ///
     /// // remove the system
-    /// schedule.remove_systems_in_set(my_system, &mut world, ScheduleCleanupPolicy::RemoveSystemsOnly);
+    /// schedule.remove_systems_in_set(my_system, &mut world, ScheduleCleanupPolicy::RemoveSetAndSystems);
     /// ```
     pub fn remove_systems_in_set<M>(
         &mut self,
@@ -874,11 +874,6 @@ impl ScheduleGraph {
 
                 Ok(keys.len())
             }
-            ScheduleCleanupPolicy::RemoveSystemsOnlyAllowBreakages => {
-                self.remove_systems_by_keys(&keys);
-
-                Ok(keys.len())
-            }
             ScheduleCleanupPolicy::RemoveSetAndSystems => {
                 let Some(set_key) = self.system_sets.get_key(interned) else {
                     return Err(ScheduleError::SetNotFound);
@@ -892,15 +887,6 @@ impl ScheduleGraph {
 
                 self.remove_systems_by_keys(&keys);
                 self.remove_set_by_key(set_key);
-
-                Ok(keys.len())
-            }
-            ScheduleCleanupPolicy::RemoveSystemsOnly => {
-                for &key in &keys {
-                    self.add_edges_for_transitive_dependencies(key.into());
-                }
-
-                self.remove_systems_by_keys(&keys);
 
                 Ok(keys.len())
             }
@@ -1307,19 +1293,11 @@ pub enum ScheduleCleanupPolicy {
     /// This does not remove sets that might sub sets of the set.
     #[default]
     RemoveSetAndSystems,
-    /// Remove only the systems in the set. The set
-    /// Attempts to maintain the order between the transitive dependencies by adding new edges
-    /// between the existing before and after dependencies on the systems.
-    RemoveSystemsOnly,
     /// Remove the set and any systems in the set.
     /// Note that this will not add new edges and
     /// so will break any transitive dependencies on that set or systems.
     /// This does not remove sets that might sub sets of the set.
     RemoveSetAndSystemsAllowBreakages,
-    /// Remove only the systems in the set.
-    /// Note that this will not add new edges and
-    /// so will break any transitive dependencies on that set or systems.
-    RemoveSystemsOnlyAllowBreakages,
 }
 
 // methods for reporting errors

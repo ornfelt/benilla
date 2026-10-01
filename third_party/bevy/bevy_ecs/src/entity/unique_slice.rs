@@ -4,7 +4,6 @@ use core::{
     array::TryFromSliceError,
     borrow::Borrow,
     fmt::Debug,
-    iter::FusedIterator,
     ops::{
         Bound, Deref, Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
         RangeToInclusive,
@@ -24,23 +23,15 @@ use bevy_platform::sync::Arc;
 
 use super::{
     unique_vec::{self, UniqueEntityEquivalentVec},
-    Entity, EntityEquivalent, EntitySet, EntitySetIterator, FromEntitySetIterator,
-    UniqueEntityEquivalentArray, UniqueEntityIter,
+    EntityEquivalent, UniqueEntityEquivalentArray, UniqueEntityIter,
 };
 
 /// A slice that contains only unique entities.
 ///
 /// This can be obtained by slicing [`UniqueEntityEquivalentVec`].
-///
-/// When `T` is [`Entity`], use [`UniqueEntitySlice`].
 #[repr(transparent)]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UniqueEntityEquivalentSlice<T: EntityEquivalent>([T]);
-
-/// A slice that contains only unique [`Entity`].
-///
-/// This is the default case of a [`UniqueEntityEquivalentSlice`].
-pub type UniqueEntitySlice = UniqueEntityEquivalentSlice<Entity>;
 
 impl<T: EntityEquivalent> UniqueEntityEquivalentSlice<T> {
     /// Constructs a `UniqueEntityEquivalentSlice` from a [`&[T]`] unsafely.
@@ -310,14 +301,6 @@ impl<T: EntityEquivalent> FromIterator<T> for Box<UniqueEntityEquivalentSlice<T>
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         iter.into_iter()
             .collect::<UniqueEntityEquivalentVec<T>>()
-            .into_boxed_slice()
-    }
-}
-
-impl<T: EntityEquivalent> FromEntitySetIterator<T> for Box<UniqueEntityEquivalentSlice<T>> {
-    fn from_entity_set_iter<I: EntitySet<Item = T>>(iter: I) -> Self {
-        iter.into_iter()
-            .collect_set::<UniqueEntityEquivalentVec<T>>()
             .into_boxed_slice()
     }
 }
@@ -687,230 +670,3 @@ impl<T: EntityEquivalent> IndexMut<RangeToInclusive<usize>> for UniqueEntityEqui
 ///
 /// [`iter`]: `UniqueEntityEquivalentSlice::iter`
 pub type Iter<'a, T> = UniqueEntityIter<slice::Iter<'a, T>>;
-
-/// Mutable slice iterator.
-pub type IterMut<'a, T> = UniqueEntityIter<slice::IterMut<'a, T>>;
-
-/// An iterator that yields `&UniqueEntityEquivalentSlice`. Note that an entity may appear
-/// in multiple slices, depending on the wrapped iterator.
-#[derive(Debug)]
-pub struct UniqueEntityEquivalentSliceIter<
-    'a,
-    T: EntityEquivalent + 'a,
-    I: Iterator<Item = &'a [T]>,
-> {
-    pub(crate) iter: I,
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: Iterator<Item = &'a [T]>> Iterator
-    for UniqueEntityEquivalentSliceIter<'a, T, I>
-{
-    type Item = &'a UniqueEntityEquivalentSlice<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|slice|
-        // SAFETY: All elements in the original iterator are unique slices.
-        unsafe { UniqueEntityEquivalentSlice::from_slice_unchecked(slice) })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: ExactSizeIterator<Item = &'a [T]>> ExactSizeIterator
-    for UniqueEntityEquivalentSliceIter<'a, T, I>
-{
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: DoubleEndedIterator<Item = &'a [T]>> DoubleEndedIterator
-    for UniqueEntityEquivalentSliceIter<'a, T, I>
-{
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|slice|
-            // SAFETY: All elements in the original iterator are unique slices.
-            unsafe { UniqueEntityEquivalentSlice::from_slice_unchecked(slice) })
-    }
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: FusedIterator<Item = &'a [T]>> FusedIterator
-    for UniqueEntityEquivalentSliceIter<'a, T, I>
-{
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: Iterator<Item = &'a [T]> + AsRef<[&'a [T]]>>
-    AsRef<[&'a UniqueEntityEquivalentSlice<T>]> for UniqueEntityEquivalentSliceIter<'a, T, I>
-{
-    fn as_ref(&self) -> &[&'a UniqueEntityEquivalentSlice<T>] {
-        // SAFETY:
-        unsafe { cast_slice_of_unique_entity_slice(self.iter.as_ref()) }
-    }
-}
-
-/// An iterator over overlapping subslices of length `size`.
-pub type Windows<'a, T = Entity> = UniqueEntityEquivalentSliceIter<'a, T, slice::Windows<'a, T>>;
-
-/// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
-/// time), starting at the beginning of the slice.
-pub type Chunks<'a, T = Entity> = UniqueEntityEquivalentSliceIter<'a, T, slice::Chunks<'a, T>>;
-
-/// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
-/// time), starting at the beginning of the slice.
-pub type ChunksExact<'a, T = Entity> =
-    UniqueEntityEquivalentSliceIter<'a, T, slice::ChunksExact<'a, T>>;
-
-/// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
-/// time), starting at the end of the slice.
-pub type RChunks<'a, T = Entity> = UniqueEntityEquivalentSliceIter<'a, T, slice::RChunks<'a, T>>;
-
-/// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
-/// time), starting at the end of the slice.
-pub type RChunksExact<'a, T = Entity> =
-    UniqueEntityEquivalentSliceIter<'a, T, slice::RChunksExact<'a, T>>;
-
-/// An iterator over slice in (non-overlapping) chunks separated by a predicate.
-pub type ChunkBy<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIter<'a, T, slice::ChunkBy<'a, T, P>>;
-
-/// An iterator over subslices separated by elements that match a predicate
-/// function.
-pub type Split<'a, P, T = Entity> = UniqueEntityEquivalentSliceIter<'a, T, slice::Split<'a, T, P>>;
-
-/// An iterator over subslices separated by elements that match a predicate
-/// function.
-pub type SplitInclusive<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIter<'a, T, slice::SplitInclusive<'a, T, P>>;
-
-/// An iterator over subslices separated by elements that match a predicate
-/// function, starting from the end of the slice.
-pub type RSplit<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIter<'a, T, slice::RSplit<'a, T, P>>;
-
-/// An iterator over subslices separated by elements that match a predicate
-/// function, limited to a given number of splits.
-pub type SplitN<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIter<'a, T, slice::SplitN<'a, T, P>>;
-
-/// An iterator over subslices separated by elements that match a
-/// predicate function, limited to a given number of splits, starting
-/// from the end of the slice.
-pub type RSplitN<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIter<'a, T, slice::RSplitN<'a, T, P>>;
-
-/// An iterator that yields `&mut UniqueEntityEquivalentSlice`. Note that an entity may appear
-/// in multiple slices, depending on the wrapped iterator.
-#[derive(Debug)]
-pub struct UniqueEntityEquivalentSliceIterMut<
-    'a,
-    T: EntityEquivalent + 'a,
-    I: Iterator<Item = &'a mut [T]>,
-> {
-    pub(crate) iter: I,
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: Iterator<Item = &'a mut [T]>> Iterator
-    for UniqueEntityEquivalentSliceIterMut<'a, T, I>
-{
-    type Item = &'a mut UniqueEntityEquivalentSlice<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|slice|
-            // SAFETY: All elements in the original iterator are unique slices.
-            unsafe { UniqueEntityEquivalentSlice::from_slice_unchecked_mut(slice) })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: ExactSizeIterator<Item = &'a mut [T]>> ExactSizeIterator
-    for UniqueEntityEquivalentSliceIterMut<'a, T, I>
-{
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: DoubleEndedIterator<Item = &'a mut [T]>> DoubleEndedIterator
-    for UniqueEntityEquivalentSliceIterMut<'a, T, I>
-{
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter.next_back().map(|slice|
-            // SAFETY: All elements in the original iterator are unique slices.
-            unsafe { UniqueEntityEquivalentSlice::from_slice_unchecked_mut(slice) })
-    }
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: FusedIterator<Item = &'a mut [T]>> FusedIterator
-    for UniqueEntityEquivalentSliceIterMut<'a, T, I>
-{
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: Iterator<Item = &'a mut [T]> + AsRef<[&'a [T]]>>
-    AsRef<[&'a UniqueEntityEquivalentSlice<T>]> for UniqueEntityEquivalentSliceIterMut<'a, T, I>
-{
-    fn as_ref(&self) -> &[&'a UniqueEntityEquivalentSlice<T>] {
-        // SAFETY: All elements in the original iterator are unique slices.
-        unsafe { cast_slice_of_unique_entity_slice(self.iter.as_ref()) }
-    }
-}
-
-impl<'a, T: EntityEquivalent + 'a, I: Iterator<Item = &'a mut [T]> + AsMut<[&'a mut [T]]>>
-    AsMut<[&'a mut UniqueEntityEquivalentSlice<T>]>
-    for UniqueEntityEquivalentSliceIterMut<'a, T, I>
-{
-    fn as_mut(&mut self) -> &mut [&'a mut UniqueEntityEquivalentSlice<T>] {
-        // SAFETY: All elements in the original iterator are unique slices.
-        unsafe { cast_slice_of_mut_unique_entity_slice_mut(self.iter.as_mut()) }
-    }
-}
-
-/// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
-/// elements at a time), starting at the beginning of the slice.
-pub type ChunksMut<'a, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::ChunksMut<'a, T>>;
-
-/// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
-/// elements at a time), starting at the beginning of the slice.
-pub type ChunksExactMut<'a, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::ChunksExactMut<'a, T>>;
-
-/// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
-/// elements at a time), starting at the end of the slice.
-pub type RChunksMut<'a, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::RChunksMut<'a, T>>;
-
-/// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
-/// elements at a time), starting at the end of the slice.
-pub type RChunksExactMut<'a, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::RChunksExactMut<'a, T>>;
-
-/// An iterator over slice in (non-overlapping) mutable chunks separated
-/// by a predicate.
-pub type ChunkByMut<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::ChunkByMut<'a, T, P>>;
-
-/// An iterator over the mutable subslices of the vector which are separated
-/// by elements that match `pred`.
-pub type SplitMut<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::SplitMut<'a, T, P>>;
-
-/// An iterator over the mutable subslices of the vector which are separated
-/// by elements that match `pred`. Unlike `SplitMut`, it contains the matched
-/// parts in the ends of the subslices.
-pub type SplitInclusiveMut<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::SplitInclusiveMut<'a, T, P>>;
-
-/// An iterator over the subslices of the vector which are separated
-/// by elements that match `pred`, starting from the end of the slice.
-pub type RSplitMut<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::RSplitMut<'a, T, P>>;
-
-/// An iterator over subslices separated by elements that match a predicate
-/// function, limited to a given number of splits.
-pub type SplitNMut<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::SplitNMut<'a, T, P>>;
-
-/// An iterator over subslices separated by elements that match a
-/// predicate function, limited to a given number of splits, starting
-/// from the end of the slice.
-pub type RSplitNMut<'a, P, T = Entity> =
-    UniqueEntityEquivalentSliceIterMut<'a, T, slice::RSplitNMut<'a, T, P>>;

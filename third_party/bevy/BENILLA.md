@@ -690,6 +690,31 @@ the same repository's.
   bevy_ecs's type-inference test calls, and the readers of `On`'s `observer`, `ReflectEvent`'s function table, `SystemChangeTick`'s
   `last_run` and `RemovedSystem`'s fields stay with their types. Doc sentences that pointed at a
   removed function went with it or lost the link.
+- **`bevy_ecs`'s and `bevy_app`'s unused types**, found like the functions: every `pub` struct,
+  enum, trait, type alias, const and static of both crates made crate-private, put back where the
+  workspace (also with `trace_chrome`) or the tests of bevy_ecs, bevy_app and every other vendored
+  crate whose tests compile still name it, and where the derive macros' or exported macros'
+  output names it; then only what rustc's dead-code lint names in every one of those builds. Gone:
+  the entity maps' and sets' `Keys`, `IntoKeys`, `Drain` and `ExtractIf` iterators,
+  `FromEntitySetIterator` with `EntitySetIterator::collect_set` (the trait is now a marker), the
+  `UniqueEntityArray`/`UniqueEntitySlice`/`UniqueEntityVec` aliases, the unique slice's chunk,
+  window and split iterators (`UniqueEntityEquivalentSliceIter(Mut)` and their 21 aliases), its
+  `IterMut` alias and the unique vec's `Drain`/`Splice` aliases; `SpawnDetails` with its fetch (bevy_ecs's
+  `system_state_spawned` test went with it; the readonly test keeps `Spawned` without it);
+  `DescendantDepthFirstIter`; `RemovedIterWithId`, `BoxedReadOnlySystem`, `SCommands`;
+  `OptionBuilder`, `ResultBuilder`, `IfBuilder`; `ResourceAccessLevel` with
+  `EcsAccessType::Resource` and its arms in `is_compatible` and the conflict message (nothing built
+  it but a test `QueryData` reading a resource, which went with it);
+  `OrderedRelationshipSourceCollection`'s ten unused methods (`insert`, `remove_at`, the stable and
+  sorted variants, `sort`, the push/pop pairs; `place` and `place_most_recent` stay, and their
+  `self.insert` calls were the inherent `Vec`/`SmallVec` ones); `ScheduleError::ScheduleNotFound`;
+  `ScheduleCleanupPolicy`'s `RemoveSystemsOnly` and `RemoveSystemsOnlyAllowBreakages` with their
+  arms; `RunMode::Once` with its runner arm; and `RemovedSystem`, so `unregister_system(_cached)`
+  return `Result<(), _>` and drop the removed system themselves (the missing-system error stays).
+  Kept: `TriggerContext`'s unread `event_key` (the observers' safety contracts are written in its
+  terms), `ComponentRelationshipAccessor`'s unread fields (the `Component` derive writes them),
+  `DynSystemParam`'s downcasts (a test calls them) and the reflect type data's unread function
+  pointers (bevy_ecs's reflection goes in its own step).
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

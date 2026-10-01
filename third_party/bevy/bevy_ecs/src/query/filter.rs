@@ -1101,9 +1101,6 @@ unsafe impl<T: Component> QueryFilter for Changed<T> {
 ///
 /// A common use for this filter is one-time initialization.
 ///
-/// To retain all results without filtering but still check whether they were spawned after the
-/// system last ran, use [`SpawnDetails`](crate::query::SpawnDetails) instead.
-///
 /// **Note** that this includes entities that spawned before the first time this Query was run.
 ///
 /// # Deferred
@@ -1116,25 +1113,6 @@ unsafe impl<T: Component> QueryFilter for Changed<T> {
 ///
 /// `Spawned` is not [`ArchetypeFilter`], which practically means that if query matches million
 /// entities, `Spawned` filter will iterate over all of them even if none of them were spawned.
-///
-/// For example, these two systems are roughly equivalent in terms of performance:
-///
-/// ```
-/// # use bevy_ecs::entity::Entity;
-/// # use bevy_ecs::system::Query;
-/// # use bevy_ecs::query::Spawned;
-/// # use bevy_ecs::query::SpawnDetails;
-///
-/// fn system1(query: Query<Entity, Spawned>) {
-///     for entity in &query { /* entity spawned */ }
-/// }
-///
-/// fn system2(query: Query<(Entity, SpawnDetails)>) {
-///     for (entity, spawned) in &query {
-///         if spawned.is_spawned() { /* entity spawned */ }
-///     }
-/// }
-/// ```
 ///
 /// # Examples
 ///

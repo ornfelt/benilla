@@ -288,9 +288,6 @@ pub enum ScheduleError {
     /// Method could not find set
     #[error("Set not found")]
     SetNotFound,
-    /// Schedule not found
-    #[error("Schedule not found.")]
-    ScheduleNotFound,
     /// Error initializing schedule
     #[error("{0}")]
     ScheduleBuildError(ScheduleBuildError),

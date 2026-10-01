@@ -54,9 +54,7 @@ use crate::{
     component::{Component, ComponentId, ComponentIdFor},
     entity::Entity,
     event::{EntityComponentsTrigger, EntityEvent, EventKey},
-    message::{
-        Message, MessageCursor, MessageId, MessageIterator, MessageIteratorWithId, Messages,
-    },
+    message::{Message, MessageCursor, MessageIterator, Messages},
     query::FilteredAccessSet,
     relationship::RelationshipHookMode,
     storage::SparseSet,
@@ -507,16 +505,6 @@ pub struct RemovedComponents<'w, 's, T: Component> {
 pub type RemovedIter<'a> = iter::Map<
     iter::Flatten<option::IntoIter<iter::Cloned<MessageIterator<'a, RemovedComponentEntity>>>>,
     fn(RemovedComponentEntity) -> Entity,
->;
-
-/// Iterator over entities that had a specific component removed.
-///
-/// See [`RemovedComponents`].
-pub type RemovedIterWithId<'a> = iter::Map<
-    iter::Flatten<option::IntoIter<MessageIteratorWithId<'a, RemovedComponentEntity>>>,
-    fn(
-        (&RemovedComponentEntity, MessageId<RemovedComponentEntity>),
-    ) -> (Entity, MessageId<RemovedComponentEntity>),
 >;
 
 // For all practical purposes, the api surface of `RemovedComponents<T>`

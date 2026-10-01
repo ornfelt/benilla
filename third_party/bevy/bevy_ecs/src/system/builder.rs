@@ -6,10 +6,7 @@ use crate::{
     prelude::QueryBuilder,
     query::{QueryData, QueryFilter, QueryState},
     resource::Resource,
-    system::{
-        DynSystemParam, DynSystemParamState, If, Local, ParamSet, Query, SystemParam,
-        SystemParamValidationError,
-    },
+    system::{DynSystemParam, DynSystemParamState, Local, ParamSet, Query, SystemParam},
     world::{
         FilteredResources, FilteredResourcesBuilder, FilteredResourcesMut,
         FilteredResourcesMutBuilder, FromWorld, World,
@@ -540,46 +537,6 @@ unsafe impl<'w, 's, T: FnOnce(&mut FilteredResourcesMutBuilder)>
         let mut builder = FilteredResourcesMutBuilder::new(world);
         (self.0)(&mut builder);
         builder.build()
-    }
-}
-
-/// A [`SystemParamBuilder`] for an [`Option`].
-#[derive(Clone)]
-pub struct OptionBuilder<T>(T);
-
-// SAFETY: `OptionBuilder<B>` builds a state that is valid for `P`, and any state valid for `P` is valid for `Option<P>`
-unsafe impl<P: SystemParam, B: SystemParamBuilder<P>> SystemParamBuilder<Option<P>>
-    for OptionBuilder<B>
-{
-    fn build(self, world: &mut World) -> <Option<P> as SystemParam>::State {
-        self.0.build(world)
-    }
-}
-
-/// A [`SystemParamBuilder`] for a [`Result`] of [`SystemParamValidationError`].
-#[derive(Clone)]
-pub struct ResultBuilder<T>(T);
-
-// SAFETY: `ResultBuilder<B>` builds a state that is valid for `P`, and any state valid for `P` is valid for `Result<P, SystemParamValidationError>`
-unsafe impl<P: SystemParam, B: SystemParamBuilder<P>>
-    SystemParamBuilder<Result<P, SystemParamValidationError>> for ResultBuilder<B>
-{
-    fn build(
-        self,
-        world: &mut World,
-    ) -> <Result<P, SystemParamValidationError> as SystemParam>::State {
-        self.0.build(world)
-    }
-}
-
-/// A [`SystemParamBuilder`] for a [`If`].
-#[derive(Clone)]
-pub struct IfBuilder<T>(T);
-
-// SAFETY: `IfBuilder<B>` builds a state that is valid for `P`, and any state valid for `P` is valid for `If<P>`
-unsafe impl<P: SystemParam, B: SystemParamBuilder<P>> SystemParamBuilder<If<P>> for IfBuilder<B> {
-    fn build(self, world: &mut World) -> <If<P> as SystemParam>::State {
-        self.0.build(world)
     }
 }
 
