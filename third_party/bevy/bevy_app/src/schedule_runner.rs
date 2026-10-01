@@ -45,24 +45,6 @@ pub struct ScheduleRunnerPlugin {
     pub run_mode: RunMode,
 }
 
-impl ScheduleRunnerPlugin {
-    /// See [`RunMode::Once`].
-    pub fn run_once() -> Self {
-        ScheduleRunnerPlugin {
-            run_mode: RunMode::Once,
-        }
-    }
-
-    /// See [`RunMode::Loop`].
-    pub fn run_loop(wait_duration: Duration) -> Self {
-        ScheduleRunnerPlugin {
-            run_mode: RunMode::Loop {
-                wait: Some(wait_duration),
-            },
-        }
-    }
-}
-
 impl Plugin for ScheduleRunnerPlugin {
     fn build(&self, app: &mut App) {
         let run_mode = self.run_mode;

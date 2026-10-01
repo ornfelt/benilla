@@ -9,7 +9,7 @@ pub type ComponentCloneFn = fn(&SourceComponent, &mut ComponentCloneCtx);
 /// The clone behavior to use when cloning or moving a [`Component`].
 #[derive(Clone, Debug, Default)]
 pub enum ComponentCloneBehavior {
-    /// Uses the default behavior (which is passed to [`ComponentCloneBehavior::resolve`])
+    /// Uses the default behavior.
     #[default]
     Default,
     /// Do not clone/move this component.
@@ -38,16 +38,6 @@ impl ComponentCloneBehavior {
         return component_clone_via_reflect;
         #[cfg(not(feature = "bevy_reflect"))]
         return component_clone_ignore;
-    }
-
-    /// Resolves the [`ComponentCloneBehavior`] to a [`ComponentCloneFn`]. If [`ComponentCloneBehavior::Default`] is
-    /// specified, the given `default` function will be used.
-    pub fn resolve(&self, default: ComponentCloneFn) -> ComponentCloneFn {
-        match self {
-            ComponentCloneBehavior::Default => default,
-            ComponentCloneBehavior::Ignore => component_clone_ignore,
-            ComponentCloneBehavior::Custom(custom) => *custom,
-        }
     }
 }
 
@@ -176,11 +166,6 @@ pub fn component_clone_via_reflect(source: &SourceComponent, ctx: &mut Component
         });
     }
 }
-
-/// Noop implementation of component clone handler function.
-///
-/// See [`EntityClonerBuilder`](crate::entity::EntityClonerBuilder) for details.
-pub fn component_clone_ignore(_source: &SourceComponent, _ctx: &mut ComponentCloneCtx) {}
 
 /// Wrapper for components clone specialization using autoderef.
 #[doc(hidden)]

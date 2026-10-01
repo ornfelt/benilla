@@ -116,9 +116,6 @@ pub trait SystemCondition<Marker, In: SystemInput = ()>:
     /// # app.run(&mut world);
     /// ```
     ///
-    /// Note that in this case, it's better to just use the run condition [`resource_exists_and_equals`].
-    ///
-    /// [`resource_exists_and_equals`]: common_conditions::resource_exists_and_equals
     fn and<M, C: SystemCondition<M, In>>(self, and: C) -> And<Self::System, C::System> {
         let a = IntoSystem::into_system(self);
         let b = IntoSystem::into_system(and);
@@ -379,19 +376,18 @@ impl<Marker, In: SystemInput, F> SystemCondition<Marker, In> for F where
 
 /// A collection of [run conditions](SystemCondition) that may be useful in any bevy app.
 pub mod common_conditions {
-    use super::{NotSystem, SystemCondition};
+    use super::NotSystem;
     use crate::{
         change_detection::DetectChanges,
-        lifecycle::RemovedComponents,
         message::{Message, MessageReader},
         prelude::{Component, Query, With},
         query::QueryFilter,
         resource::Resource,
-        system::{In, IntoSystem, Local, Res, System, SystemInput},
+        system::{IntoSystem, Local, Res, System},
     };
     use alloc::format;
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// on the first time the condition is run and false every time after.
     ///
     /// # Example
@@ -429,7 +425,7 @@ pub mod common_conditions {
         }
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if the resource exists.
     ///
     /// # Example
@@ -464,92 +460,7 @@ pub mod common_conditions {
         res.is_some()
     }
 
-    /// Generates a [`SystemCondition`]-satisfying closure that returns `true`
-    /// if the resource is equal to `value`.
-    ///
-    /// # Panics
-    ///
-    /// The condition will panic if the resource does not exist.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// # #[derive(Resource, Default, PartialEq)]
-    /// # struct Counter(u8);
-    /// # let mut app = Schedule::default();
-    /// # let mut world = World::new();
-    /// # world.init_resource::<Counter>();
-    /// app.add_systems(
-    ///     // `resource_equals` will only return true if the given resource equals the given value
-    ///     my_system.run_if(resource_equals(Counter(0))),
-    /// );
-    ///
-    /// fn my_system(mut counter: ResMut<Counter>) {
-    ///     counter.0 += 1;
-    /// }
-    ///
-    /// // `Counter` is `0` so `my_system` can run
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    ///
-    /// // `Counter` is no longer `0` so `my_system` won't run
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    /// ```
-    pub fn resource_equals<T>(value: T) -> impl FnMut(Res<T>) -> bool
-    where
-        T: Resource + PartialEq,
-    {
-        move |res: Res<T>| *res == value
-    }
-
-    /// Generates a [`SystemCondition`]-satisfying closure that returns `true`
-    /// if the resource exists and is equal to `value`.
-    ///
-    /// The condition will return `false` if the resource does not exist.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// # #[derive(Resource, Default, PartialEq)]
-    /// # struct Counter(u8);
-    /// # let mut app = Schedule::default();
-    /// # let mut world = World::new();
-    /// app.add_systems(
-    ///     // `resource_exists_and_equals` will only return true
-    ///     // if the given resource exists and equals the given value
-    ///     my_system.run_if(resource_exists_and_equals(Counter(0))),
-    /// );
-    ///
-    /// fn my_system(mut counter: ResMut<Counter>) {
-    ///     counter.0 += 1;
-    /// }
-    ///
-    /// // `Counter` hasn't been added so `my_system` can't run
-    /// app.run(&mut world);
-    /// world.init_resource::<Counter>();
-    ///
-    /// // `Counter` is `0` so `my_system` can run
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    ///
-    /// // `Counter` is no longer `0` so `my_system` won't run
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    /// ```
-    pub fn resource_exists_and_equals<T>(value: T) -> impl FnMut(Option<Res<T>>) -> bool
-    where
-        T: Resource + PartialEq,
-    {
-        move |res: Option<Res<T>>| match res {
-            Some(res) => *res == value,
-            None => false,
-        }
-    }
-
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if the resource of the given type has been added since the condition was last checked.
     ///
     /// # Example
@@ -590,7 +501,7 @@ pub mod common_conditions {
         }
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if the resource of the given type has been added or mutably dereferenced
     /// since the condition was last checked.
     ///
@@ -643,7 +554,7 @@ pub mod common_conditions {
         res.is_changed()
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if the resource of the given type has been added or mutably dereferenced since the condition
     /// was last checked.
     ///
@@ -700,7 +611,7 @@ pub mod common_conditions {
         }
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if the resource of the given type has been added, removed or mutably dereferenced since the condition
     /// was last checked.
     ///
@@ -773,7 +684,7 @@ pub mod common_conditions {
         }
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if the resource of the given type has been removed since the condition was last checked.
     ///
     /// # Example
@@ -825,7 +736,7 @@ pub mod common_conditions {
         }
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if there are any new events of the given type since it was last called.
     ///
     /// # Example
@@ -869,7 +780,7 @@ pub mod common_conditions {
         reader.read().count() > 0
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if there are any entities with the given component type.
     ///
     /// # Example
@@ -906,24 +817,13 @@ pub mod common_conditions {
         !query.is_empty()
     }
 
-    /// A [`SystemCondition`]-satisfying system that returns `true`
-    /// if there are any entity with a component of the given type removed.
-    pub fn any_component_removed<T: Component>(mut removals: RemovedComponents<T>) -> bool {
-        // `RemovedComponents` based on events and therefore events need to be consumed,
-        // so that there are no false positives on subsequent calls of the run condition.
-        // Simply checking `is_empty` would not be enough.
-        // PERF: note that `count` is efficient (not actually looping/iterating),
-        // due to Bevy having a specialized implementation for events.
-        removals.read().count() > 0
-    }
-
-    /// A [`SystemCondition`]-satisfying system that returns `true`
+    /// A [`SystemCondition`](super::SystemCondition)-satisfying system that returns `true`
     /// if there are any entities that match the given [`QueryFilter`].
     pub fn any_match_filter<F: QueryFilter>(query: Query<(), F>) -> bool {
         !query.is_empty()
     }
 
-    /// Generates a [`SystemCondition`] that inverses the result of passed one.
+    /// Generates a [`SystemCondition`](super::SystemCondition) that inverses the result of passed one.
     ///
     /// # Example
     ///
@@ -960,117 +860,6 @@ pub mod common_conditions {
         let condition = IntoSystem::into_system(condition);
         let name = format!("!{}", condition.name());
         NotSystem::new(super::NotMarker, condition, name.into())
-    }
-
-    /// Generates a [`SystemCondition`] that returns true when the passed one changes.
-    ///
-    /// The first time this is called, the passed condition is assumed to have been previously false.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// # #[derive(Resource, Default)]
-    /// # struct Counter(u8);
-    /// # let mut app = Schedule::default();
-    /// # let mut world = World::new();
-    /// # world.init_resource::<Counter>();
-    /// app.add_systems(
-    ///     my_system.run_if(condition_changed(resource_exists::<MyResource>)),
-    /// );
-    ///
-    /// #[derive(Resource)]
-    /// struct MyResource;
-    ///
-    /// fn my_system(mut counter: ResMut<Counter>) {
-    ///     counter.0 += 1;
-    /// }
-    ///
-    /// // `MyResource` is initially there, the inner condition is true, the system runs once
-    /// world.insert_resource(MyResource);
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    ///
-    /// // We remove `MyResource`, the inner condition is now false, the system runs one more time.
-    /// world.remove_resource::<MyResource>();
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 2);
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 2);
-    /// ```
-    pub fn condition_changed<Marker, CIn, C>(condition: C) -> impl SystemCondition<(), CIn>
-    where
-        CIn: SystemInput,
-        C: SystemCondition<Marker, CIn>,
-    {
-        IntoSystem::into_system(condition.pipe(|In(new): In<bool>, mut prev: Local<bool>| {
-            let changed = *prev != new;
-            *prev = new;
-            changed
-        }))
-    }
-
-    /// Generates a [`SystemCondition`] that returns true when the result of
-    /// the passed one went from false to true since the last time this was called.
-    ///
-    /// The first time this is called, the passed condition is assumed to have been previously false.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// # #[derive(Resource, Default)]
-    /// # struct Counter(u8);
-    /// # let mut app = Schedule::default();
-    /// # let mut world = World::new();
-    /// # world.init_resource::<Counter>();
-    /// app.add_systems(
-    ///     my_system.run_if(condition_changed_to(true, resource_exists::<MyResource>)),
-    /// );
-    ///
-    /// #[derive(Resource)]
-    /// struct MyResource;
-    ///
-    /// fn my_system(mut counter: ResMut<Counter>) {
-    ///     counter.0 += 1;
-    /// }
-    ///
-    /// // `MyResource` is initially there, the inner condition is true, the system runs once
-    /// world.insert_resource(MyResource);
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    ///
-    /// // We remove `MyResource`, the inner condition is now false, the system doesn't run.
-    /// world.remove_resource::<MyResource>();
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 1);
-    ///
-    /// // We reinsert `MyResource` again, so the system will run one more time
-    /// world.insert_resource(MyResource);
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 2);
-    /// app.run(&mut world);
-    /// assert_eq!(world.resource::<Counter>().0, 2);
-    /// ```
-    pub fn condition_changed_to<Marker, CIn, C>(
-        to: bool,
-        condition: C,
-    ) -> impl SystemCondition<(), CIn>
-    where
-        CIn: SystemInput,
-        C: SystemCondition<Marker, CIn>,
-    {
-        IntoSystem::into_system(condition.pipe(
-            move |In(new): In<bool>, mut prev: Local<bool>| -> bool {
-                let now_true = *prev != new && new == to;
-                *prev = new;
-                now_true
-            },
-        ))
     }
 }
 

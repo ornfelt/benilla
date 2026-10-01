@@ -84,7 +84,7 @@ impl<E: Message> MessageCursor<E> {
         self.read_mut_with_id(messages).without_id()
     }
 
-    /// See [`MessageReader::read_with_id`](super::MessageReader::read_with_id)
+    /// Iterates over the messages this cursor has not read, with their ids.
     pub fn read_with_id<'a>(
         &'a mut self,
         messages: &'a Messages<E>,
@@ -92,7 +92,7 @@ impl<E: Message> MessageCursor<E> {
         MessageIteratorWithId::new(self, messages)
     }
 
-    /// See [`MessageMutator::read_with_id`](super::MessageMutator::read_with_id)
+    /// Mutably iterates over the messages this cursor has not read, with their ids.
     pub fn read_mut_with_id<'a>(
         &'a mut self,
         messages: &'a mut Messages<E>,
@@ -100,12 +100,12 @@ impl<E: Message> MessageCursor<E> {
         MessageMutIteratorWithId::new(self, messages)
     }
 
-    /// See [`MessageReader::par_read`](super::MessageReader::par_read)
+    /// Iterates over the messages this cursor has not read, in parallel.
     pub fn par_read<'a>(&'a mut self, messages: &'a Messages<E>) -> MessageParIter<'a, E> {
         MessageParIter::new(self, messages)
     }
 
-    /// See [`MessageMutator::par_read`](super::MessageMutator::par_read)
+    /// Mutably iterates over the messages this cursor has not read, in parallel.
     pub fn par_read_mut<'a>(
         &'a mut self,
         messages: &'a mut Messages<E>,
@@ -113,7 +113,7 @@ impl<E: Message> MessageCursor<E> {
         MessageMutParIter::new(self, messages)
     }
 
-    /// See [`MessageReader::len`](super::MessageReader::len)
+    /// Returns the number of messages this cursor has not read.
     pub fn len(&self, messages: &Messages<E>) -> usize {
         // The number of messages in this reader is the difference between the most recent message
         // and the last message seen by it. This will be at most the number of messages contained
@@ -123,13 +123,6 @@ impl<E: Message> MessageCursor<E> {
             .message_count
             .saturating_sub(self.last_message_count)
             .min(messages.len())
-    }
-
-    /// Amount of messages we missed.
-    pub fn missed_messages(&self, messages: &Messages<E>) -> usize {
-        messages
-            .oldest_message_count()
-            .saturating_sub(self.last_message_count)
     }
 
     /// See [`MessageReader::is_empty()`](super::MessageReader::is_empty)

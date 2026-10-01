@@ -65,12 +65,6 @@ impl ArchetypeRow {
     pub const fn index(self) -> usize {
         self.0.get() as usize
     }
-
-    /// Gets the index of the row.
-    #[inline]
-    pub const fn index_u32(self) -> u32 {
-        self.0.get()
-    }
 }
 
 /// An opaque unique ID for a single [`Archetype`] within a [`World`].
@@ -476,27 +470,6 @@ impl Archetype {
         &self.entities
     }
 
-    /// Fetches the entities contained in this archetype.
-    #[inline]
-    pub fn entities_with_location(&self) -> impl Iterator<Item = (Entity, EntityLocation)> {
-        self.entities.iter().enumerate().map(
-            |(archetype_row, &ArchetypeEntity { entity, table_row })| {
-                (
-                    entity,
-                    EntityLocation {
-                        archetype_id: self.id,
-                        // SAFETY: The entities in the archetype must be unique and there are never more than u32::MAX entities.
-                        archetype_row: unsafe {
-                            ArchetypeRow::new(NonMaxU32::new_unchecked(archetype_row as u32))
-                        },
-                        table_id: self.table_id,
-                        table_row,
-                    },
-                )
-            },
-        )
-    }
-
     /// Gets an iterator of all of the components stored in [`Table`]s.
     ///
     /// All of the IDs are unique.
@@ -557,23 +530,6 @@ impl Archetype {
     #[inline]
     pub(crate) fn edges_mut(&mut self) -> &mut Edges {
         &mut self.edges
-    }
-
-    /// Fetches the row in the [`Table`] where the components for the entity at `index`
-    /// is stored.
-    ///
-    /// An entity's archetype row can be fetched from [`EntityLocation::archetype_row`], which
-    /// can be retrieved from [`Entities::get`].
-    ///
-    /// # Panics
-    /// This function will panic if `index >= self.len()`.
-    ///
-    /// [`Table`]: crate::storage::Table
-    /// [`EntityLocation::archetype_row`]: crate::entity::EntityLocation::archetype_row
-    /// [`Entities::get`]: crate::entity::Entities::get
-    #[inline]
-    pub fn entity_table_row(&self, row: ArchetypeRow) -> TableRow {
-        self.entities[row.index()].table_row
     }
 
     /// Updates if the components for the entity at `index` can be found
@@ -828,15 +784,6 @@ impl Archetypes {
     )]
     pub fn len(&self) -> usize {
         self.archetypes.len()
-    }
-
-    /// Fetches an immutable reference to the archetype without any components.
-    ///
-    /// Shorthand for `archetypes.get(ArchetypeId::EMPTY).unwrap()`
-    #[inline]
-    pub fn empty(&self) -> &Archetype {
-        // SAFETY: empty archetype always exists
-        unsafe { self.archetypes.get_unchecked(ArchetypeId::EMPTY.index()) }
     }
 
     /// Fetches a mutable reference to the archetype without any components.

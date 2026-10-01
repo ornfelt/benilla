@@ -30,11 +30,6 @@ pub struct BevyError {
 }
 
 impl BevyError {
-    /// Attempts to downcast the internal error to the given type.
-    pub fn downcast_ref<E: Error + 'static>(&self) -> Option<&E> {
-        self.inner.error.downcast_ref::<E>()
-    }
-
     fn format_backtrace(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         #[cfg(feature = "backtrace")]
         {

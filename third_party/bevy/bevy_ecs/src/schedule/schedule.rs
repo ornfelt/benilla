@@ -17,11 +17,11 @@ use bevy_platform::{
 use bevy_utils::{default, TypeIdMap};
 use core::{
     any::{Any, TypeId},
-    fmt::{Debug, Write},
+    fmt::Debug,
 };
 use fixedbitset::FixedBitSet;
 use indexmap::{IndexMap, IndexSet};
-use log::{info, warn};
+use log::warn;
 use pass::ScheduleBuildPassObj;
 use thiserror::Error;
 #[cfg(feature = "trace")]
@@ -29,12 +29,8 @@ use tracing::info_span;
 
 use crate::{change_detection::CheckChangeTicks, system::System};
 use crate::{
-    component::{ComponentId, Components},
-    prelude::Component,
-    resource::Resource,
-    schedule::*,
-    system::ScheduleSystem,
-    world::World,
+    component::ComponentId, prelude::Component, resource::Resource, schedule::*,
+    system::ScheduleSystem, world::World,
 };
 
 use Direction::{Incoming, Outgoing};
@@ -48,11 +44,6 @@ pub struct Schedules {
 }
 
 impl Schedules {
-    /// Constructs an empty `Schedules` with zero initial capacity.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Inserts a labeled schedule into the map.
     ///
     /// If the map already had an entry for `label`, `schedule` is inserted,
@@ -64,14 +55,6 @@ impl Schedules {
     /// Removes the schedule corresponding to the `label` from the map, returning it if it existed.
     pub fn remove(&mut self, label: impl ScheduleLabel) -> Option<Schedule> {
         self.inner.remove(&label.intern())
-    }
-
-    /// Removes the (schedule, label) pair corresponding to the `label` from the map, returning it if it existed.
-    pub fn remove_entry(
-        &mut self,
-        label: impl ScheduleLabel,
-    ) -> Option<(InternedScheduleLabel, Schedule)> {
-        self.inner.remove_entry(&label.intern())
     }
 
     /// Does a schedule with the provided label already exist?
@@ -100,12 +83,6 @@ impl Schedules {
     pub fn iter(&self) -> impl Iterator<Item = (&dyn ScheduleLabel, &Schedule)> {
         self.inner
             .iter()
-            .map(|(label, schedule)| (&**label, schedule))
-    }
-    /// Returns an iterator over mutable references to all schedules. Iteration order is undefined.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&dyn ScheduleLabel, &mut Schedule)> {
-        self.inner
-            .iter_mut()
             .map(|(label, schedule)| (&**label, schedule))
     }
 
@@ -153,26 +130,6 @@ impl Schedules {
             .insert(world.components_registrator().register_resource::<T>());
     }
 
-    /// Iterate through the [`ComponentId`]'s that will be ignored.
-    pub fn iter_ignored_ambiguities(&self) -> impl Iterator<Item = &ComponentId> + '_ {
-        self.ignored_scheduling_ambiguities.iter()
-    }
-
-    /// Prints the names of the components and resources with [`info`]
-    ///
-    /// May panic or retrieve incorrect names if [`Components`] is not from the same
-    /// world
-    pub fn print_ignored_ambiguities(&self, components: &Components) {
-        let mut message =
-            "System order ambiguities caused by conflicts on the following types are ignored:\n"
-                .to_string();
-        for id in self.iter_ignored_ambiguities() {
-            writeln!(message, "{}", components.get_name(*id).unwrap()).unwrap();
-        }
-
-        info!("{message}");
-    }
-
     /// Adds one or more systems to the [`Schedule`] matching the provided [`ScheduleLabel`].
     pub fn add_systems<M>(
         &mut self,
@@ -182,21 +139,6 @@ impl Schedules {
         self.entry(schedule).add_systems(systems);
 
         self
-    }
-
-    /// Removes all systems in a [`SystemSet`]. This will cause the schedule to be rebuilt when
-    /// the schedule is run again. A [`ScheduleError`] is returned if the schedule needs to be
-    /// [`Schedule::initialize`]'d or the `set` is not found.
-    pub fn remove_systems_in_set<M>(
-        &mut self,
-        schedule: impl ScheduleLabel,
-        set: impl IntoSystemSet<M>,
-        world: &mut World,
-        policy: ScheduleCleanupPolicy,
-    ) -> Result<usize, ScheduleError> {
-        self.get_mut(schedule)
-            .ok_or(ScheduleError::ScheduleNotFound)?
-            .remove_systems_in_set(set, world, policy)
     }
 
     /// Configures a collection of system sets in the provided schedule, adding any sets that do not exist.
@@ -496,31 +438,12 @@ impl Schedule {
         self
     }
 
-    /// Returns the schedule's current `ScheduleBuildSettings`.
-    pub fn get_build_settings(&self) -> ScheduleBuildSettings {
-        self.graph.settings.clone()
-    }
-
-    /// Returns the schedule's current execution strategy.
-    pub fn get_executor_kind(&self) -> ExecutorKind {
-        self.executor.kind()
-    }
-
     /// Sets the schedule's execution strategy.
     pub fn set_executor_kind(&mut self, executor: ExecutorKind) -> &mut Self {
         if executor != self.executor.kind() {
             self.executor = make_executor(executor);
             self.executor_initialized = false;
         }
-        self
-    }
-
-    /// Set whether the schedule applies deferred system buffers on final time or not. This is a catch-all
-    /// in case a system uses commands but was not explicitly ordered before an instance of
-    /// [`ApplyDeferred`]. By default this
-    /// setting is true, but may be disabled if needed.
-    pub fn set_apply_final_deferred(&mut self, apply_final_deferred: bool) -> &mut Self {
-        self.executor.set_apply_final_deferred(apply_final_deferred);
         self
     }
 
@@ -603,20 +526,6 @@ impl Schedule {
             for condition in conditions {
                 condition.check_change_tick(check);
             }
-        }
-    }
-
-    /// Directly applies any accumulated [`Deferred`](crate::system::Deferred) system parameters (like [`Commands`](crate::prelude::Commands)) to the `world`.
-    ///
-    /// Like always, deferred system parameters are applied in the "topological sort order" of the schedule graph.
-    /// As a result, buffers from one system are only guaranteed to be applied before those of other systems
-    /// if there is an explicit system ordering between the two systems.
-    ///
-    /// This is used in rendering to extract data from the main world, storing the data in system buffers,
-    /// before applying their buffers in a different world.
-    pub fn apply_deferred(&mut self, world: &mut World) {
-        for SystemWithAccess { system, .. } in &mut self.executable.systems {
-            system.apply_deferred(world);
         }
     }
 

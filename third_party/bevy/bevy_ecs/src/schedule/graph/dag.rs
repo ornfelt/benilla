@@ -63,12 +63,6 @@ impl<N: GraphNodeId, S: BuildHasher> Dag<N, S> {
         self.dirty
     }
 
-    /// Returns whether the graph is topologically sorted (i.e., not dirty).
-    #[must_use]
-    pub fn is_toposorted(&self) -> bool {
-        !self.dirty
-    }
-
     /// Ensures the graph is topologically sorted, recomputing the toposort if
     /// the graph is dirty.
     ///
@@ -399,16 +393,6 @@ impl<N: GraphNodeId, S: BuildHasher> DagAnalysis<N, S> {
         &self.transitive_edges
     }
 
-    /// Returns the transitive reduction of the graph.
-    pub fn transitive_reduction(&self) -> &DiGraph<N, S> {
-        &self.transitive_reduction
-    }
-
-    /// Returns the transitive closure of the graph.
-    pub fn transitive_closure(&self) -> &DiGraph<N, S> {
-        &self.transitive_closure
-    }
-
     /// Checks if the graph has any redundant (transitive) edges.
     ///
     /// # Errors
@@ -506,18 +490,6 @@ impl<N: GraphNodeId, S: BuildHasher> Debug for DagAnalysis<N, S> {
 pub struct DagGroups<K, V, S = FixedHasher>(HashMap<K, IndexSet<V, S>, S>);
 
 impl<K: Eq + Hash, V: Clone + Eq + Hash, S: BuildHasher + Default> DagGroups<K, V, S> {
-    /// Groups nodes in this DAG by a key type `K`, collecting value nodes `V`
-    /// under all of their ancestor key nodes.
-    ///
-    /// The node type `N` must be convertible into either a key type `K` or
-    /// a value type `V` via the [`TryInto`] trait.
-    pub fn new<N>(graph: &DiGraph<N, S>, toposort: &[N]) -> Self
-    where
-        N: GraphNodeId + TryInto<K, Error = V>,
-    {
-        Self::with_capacity(0, graph, toposort)
-    }
-
     /// Groups nodes in this DAG by a key type `K`, collecting value nodes `V`
     /// under all of their ancestor key nodes. `capacity` hints at the
     /// expected number of groups, for memory allocation optimization.

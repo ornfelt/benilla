@@ -321,15 +321,6 @@ impl<const SEND: bool> Resources<SEND> {
         self.resources.iter().map(|(id, data)| (*id, data))
     }
 
-    /// Returns true if there are no resources stored in the [`World`],
-    /// false otherwise.
-    ///
-    /// [`World`]: crate::world::World
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.resources.is_empty()
-    }
-
     /// Gets read-only access to a resource, if it exists.
     #[inline]
     pub fn get(&self, component_id: ComponentId) -> Option<&ResourceData<SEND>> {

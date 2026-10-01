@@ -176,15 +176,6 @@ impl<'a, E: Message> MessageMutParIter<'a, E> {
         }
     }
 
-    /// Changes the batching strategy used when iterating.
-    ///
-    /// For more information on how this affects the resultant iteration, see
-    /// [`BatchingStrategy`].
-    pub fn batching_strategy(mut self, strategy: BatchingStrategy) -> Self {
-        self.batching_strategy = strategy;
-        self
-    }
-
     /// Runs the provided closure for each unread message in parallel.
     ///
     /// Unlike normal iteration, the message order is not guaranteed in any form.
@@ -242,11 +233,6 @@ impl<'a, E: Message> MessageMutParIter<'a, E> {
     /// Returns the number of [`Message`]s to be iterated.
     pub fn len(&self) -> usize {
         self.slices.iter().map(|s| s.len()).sum()
-    }
-
-    /// Returns [`true`] if there are no messages remaining in this iterator.
-    pub fn is_empty(&self) -> bool {
-        self.slices.iter().all(|x| x.is_empty())
     }
 }
 

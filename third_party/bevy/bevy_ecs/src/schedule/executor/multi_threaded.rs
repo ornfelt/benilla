@@ -299,10 +299,6 @@ impl SystemExecutor for MultiThreadedExecutor {
         state.skipped_systems.clear();
         state.completed_systems.clear();
     }
-
-    fn set_apply_final_deferred(&mut self, value: bool) {
-        self.apply_final_deferred = value;
-    }
 }
 
 impl<'scope, 'env: 'scope, 'sys> Context<'scope, 'env, 'sys> {

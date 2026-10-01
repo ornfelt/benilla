@@ -659,6 +659,37 @@ the same repository's.
   `is_spawned` and `spawned_by` (the query type stays for now, and they are its fields' only
   readers). The deprecation proof is part one's. Doc sentences that pointed at a removed function
   went with it; links to `ComponentId` and `MutUntyped`, whose imports went, are written as paths.
+- **`bevy_ecs`'s and `bevy_app`'s uncalled functions, third part: the rest**, found the same way
+  (the analysis re-run: 232 dead functions were left, three of them kept by the second part).
+  Gone: `App`'s and `SubApp`'s unused builders and accessors (`sub_app(_mut)`, `get_sub_app`,
+  `sub_apps(_mut)`, `remove_sub_app`, `update_sub_app_by_label`, `init_schedule`,
+  `configure_schedules`, `register_system`, `register_type_data`, `remove_systems_in_set`,
+  `allow_ambiguous_component`, `register_disabling_component`, `get_error_handler`,
+  `SubApp::add_plugins`, `take_extract`), `PluginGroupBuilder`'s `enable`/`try_add`,
+  `FixedMainScheduleOrder`'s inserts, `ScheduleRunnerPlugin`'s `run_once`/`run_loop`,
+  `TaskPoolOptions::with_num_threads`, `AppExit::is_success`; `Query`'s unused methods
+  (`iter_combinations_mut`, the `_unsafe` iterators, `get_many_unique(_mut)(_inner)`, the lens
+  conversions `as_query_lens`/`into_query_lens`, `transmute_lens_inner`, `join_inner`),
+  `QueryLens::query_inner`; `Schedules`' and `Schedule`'s unused methods (with
+  `set_apply_final_deferred` down to the `SystemExecutor` trait and both executors' impls, which
+  nothing called), the DAG helpers' (`transitive_closure`/`reduction`, `is_toposorted`,
+  `reserve_nodes`); the run conditions nothing adds (`resource_equals`,
+  `resource_exists_and_equals`, `condition_changed(_to)`, `any_component_removed`); `On`'s event
+  accessors, `Observer`'s and `ObserverDescriptor`'s unused builders and getters (and
+  `AnyNamedSystem::system_name`, leaving the trait a marker); `MessageReader`'s and
+  `MessageMutator`'s `len`, `par_read`, `read_with_id` and `clear`, `MessageWriter::write_default`,
+  `RemovedComponents`' readers; the component registry's unused queueing and lookup methods;
+  `SystemState`'s and `SystemMeta`'s accessors, `ParamBuilder`'s constructors, the function
+  systems' `with_name`; `Ref::new`, `Ref::map`, `set_ticks`, `Tick::set`; the reflect type data's
+  constructors and wrapper methods (`ReflectComponent`, `ReflectResource`, `ReflectBundle`,
+  `ReflectEvent`, `ReflectFromWorld`; their function-pointer fields stay); the `error`, `info`,
+  `debug` and `trace` error handlers (`panic`, `warn` and `ignore` stay); storage, archetype and
+  batching getters and constructors nothing calls, and `SparseSet::values` with the sparse-set
+  test's check of it: 225 functions (three of them the impls of two removed trait methods), 16
+  inherent impls left empty. Kept: `DynSystemParam::downcast` and `downcast_mut_inner`, which
+  bevy_ecs's type-inference test calls, and the readers of `On`'s `observer`, `ReflectEvent`'s function table, `SystemChangeTick`'s
+  `last_run` and `RemovedSystem`'s fields stay with their types. Doc sentences that pointed at a
+  removed function went with it or lost the link.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

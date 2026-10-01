@@ -575,59 +575,6 @@ impl<'a, 'w> RequiredComponentsRegistrator<'a, 'w> {
                 .register(self.components, constructor);
         }
     }
-
-    /// Registers the [`Component`] with the given `component_id` ID as an explicitly required component.
-    ///
-    /// If the component was not already registered as an explicit required component then it is added
-    /// as one, potentially overriding the constructor of a inherited required component, otherwise panics.
-    ///
-    /// # Safety
-    ///
-    /// `component_id` must be a valid [`ComponentId`] for `C` in the [`Components`] instance of `self`.
-    pub unsafe fn register_required_by_id<C: Component>(
-        &mut self,
-        component_id: ComponentId,
-        constructor: fn() -> C,
-    ) {
-        // SAFETY:
-        // - the caller guarantees `component_id` is a valid component in `components` for `C`;
-        // - we internally guarantee all other components in `required_components` are registered in `components`.
-        unsafe {
-            self.required_components.register_by_id::<C>(
-                component_id,
-                self.components,
-                constructor,
-            );
-        }
-    }
-
-    /// Registers the [`Component`] with the given `component_id` ID as an explicitly required component.
-    ///
-    /// If the component was not already registered as an explicit required component then it is added
-    /// as one, potentially overriding the constructor of a inherited required component, otherwise panics.
-    ///
-    /// # Safety
-    ///
-    /// - `component_id` must be valid in the [`Components`] instance of `self`;
-    /// - `constructor` must return a [`RequiredComponentConstructor`] that constructs a valid instance for the
-    ///   component with ID `component_id`.
-    pub unsafe fn register_required_dynamic_with(
-        &mut self,
-        component_id: ComponentId,
-        constructor: impl FnOnce() -> RequiredComponentConstructor,
-    ) {
-        // SAFETY:
-        // - the caller guarantees `component_id` is valid in `components`;
-        // - the caller guarantees `constructor` returns a valid constructor for `component_id`;
-        // - we internally guarantee all other components in `required_components` are registered in `components`.
-        unsafe {
-            self.required_components.register_dynamic_with(
-                component_id,
-                self.components,
-                constructor,
-            );
-        }
-    }
 }
 
 #[cfg(test)]

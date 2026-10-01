@@ -80,17 +80,4 @@ impl<'w, E: Message> MessageWriter<'w, E> {
     pub fn write_batch(&mut self, messages: impl IntoIterator<Item = E>) -> WriteBatchIds<E> {
         self.messages.write_batch(messages)
     }
-
-    /// Writes the default value of the message. Useful when the message is an empty struct.
-    /// This method returns the [ID](`MessageId`) of the written `message`.
-    ///
-    /// See [`Messages`] for details.
-    #[doc(alias = "send_default")]
-    #[track_caller]
-    pub fn write_default(&mut self) -> MessageId<E>
-    where
-        E: Default,
-    {
-        self.messages.write_default()
-    }
 }

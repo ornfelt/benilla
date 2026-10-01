@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::{boxed::Box, vec::Vec};
 use bevy_ptr::{OwningPtr, Ptr};
-use core::{cell::UnsafeCell, hash::Hash, marker::PhantomData, num::NonZero, panic::Location};
+use core::{cell::UnsafeCell, hash::Hash, marker::PhantomData, num::NonZero};
 use nonmax::{NonMaxU32, NonMaxUsize};
 
 #[derive(Debug)]
@@ -157,12 +157,6 @@ impl ComponentSparseSet {
         self.entities.len()
     }
 
-    /// Returns `true` if the sparse set contains no component values.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.entities.is_empty()
-    }
-
     /// Inserts the `entity` key and component `value` pair into this sparse
     /// set.
     ///
@@ -216,23 +210,6 @@ impl ComponentSparseSet {
 
             core::mem::forget(_guard);
         }
-    }
-
-    /// Returns `true` if the sparse set has a component value for the provided `entity`.
-    #[inline]
-    pub fn contains(&self, entity: Entity) -> bool {
-        #[cfg(debug_assertions)]
-        {
-            if let Some(&dense_index) = self.sparse.get(entity.index()) {
-                #[cfg(debug_assertions)]
-                assert_eq!(entity, self.entities[dense_index.index()]);
-                true
-            } else {
-                false
-            }
-        }
-        #[cfg(not(debug_assertions))]
-        self.sparse.contains(entity.index())
     }
 
     /// Returns a reference to the entity's component value.
@@ -303,23 +280,6 @@ impl ComponentSparseSet {
         assert_eq!(entity, self.entities[dense_index.index()]);
         // SAFETY: if the sparse index points to something in the dense vec, it exists
         unsafe { Some(self.dense.get_ticks_unchecked(dense_index)) }
-    }
-
-    /// Returns a reference to the calling location that last changed the entity's component value.
-    ///
-    /// Returns `None` if `entity` does not have a component in the sparse set.
-    #[inline]
-    pub fn get_changed_by(
-        &self,
-        entity: Entity,
-    ) -> MaybeLocation<Option<&UnsafeCell<&'static Location<'static>>>> {
-        MaybeLocation::new_with_flattened(|| {
-            let dense_index = *self.sparse.get(entity.index())?;
-            #[cfg(debug_assertions)]
-            assert_eq!(entity, self.entities[dense_index.index()]);
-            // SAFETY: if the sparse index points to something in the dense vec, it exists
-            unsafe { Some(self.dense.get_changed_by_unchecked(dense_index)) }
-        })
     }
 
     /// Returns the drop function for the component type stored in the sparse set,
@@ -505,11 +465,6 @@ macro_rules! impl_sparse_set {
                 &self.indices
             }
 
-            /// Returns an iterator visiting all values in arbitrary order.
-            pub fn values(&self) -> impl Iterator<Item = &V> {
-                self.dense.iter()
-            }
-
             /// Returns an iterator visiting all values mutably in arbitrary order.
             pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
                 self.dense.iter_mut()
@@ -560,12 +515,6 @@ impl<I: SparseSetIndex, V> SparseSet<I, V> {
             indices: Vec::with_capacity(capacity),
             sparse: Default::default(),
         }
-    }
-
-    /// Returns the total number of elements the [`SparseSet`] can hold without needing to reallocate.
-    #[inline]
-    pub fn capacity(&self) -> usize {
-        self.dense.capacity()
     }
 
     /// Inserts `value` at `index`.
@@ -790,11 +739,6 @@ mod tests {
         assert_eq!(set.get(e2), Some(&Foo(2)));
         assert_eq!(set.get(e3), Some(&Foo(3)));
         assert_eq!(set.get(e4), None);
-
-        {
-            let iter_results = set.values().collect::<Vec<_>>();
-            assert_eq!(iter_results, vec![&Foo(1), &Foo(2), &Foo(3)]);
-        }
 
         assert_eq!(set.remove(e2), Some(Foo(2)));
         assert_eq!(set.remove(e2), None);

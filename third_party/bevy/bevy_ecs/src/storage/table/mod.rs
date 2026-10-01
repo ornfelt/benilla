@@ -37,17 +37,6 @@ pub struct TableId(u32);
 impl TableId {
     /// Creates a new [`TableId`].
     ///
-    /// `index` *must* be retrieved from calling [`TableId::as_u32`] on a `TableId` you got
-    /// from a table of a given [`World`] or the created ID may be invalid.
-    ///
-    /// [`World`]: crate::world::World
-    #[inline]
-    pub const fn from_u32(index: u32) -> Self {
-        Self(index)
-    }
-
-    /// Creates a new [`TableId`].
-    ///
     /// `index` *must* be retrieved from calling [`TableId::as_usize`] on a `TableId` you got
     /// from a table of a given [`World`] or the created ID may be invalid.
     ///
@@ -60,12 +49,6 @@ impl TableId {
     pub const fn from_usize(index: usize) -> Self {
         debug_assert!(index as u32 as usize == index);
         Self(index as u32)
-    }
-
-    /// Gets the underlying table index from the ID.
-    #[inline]
-    pub const fn as_u32(self) -> u32 {
-        self.0
     }
 
     /// Gets the underlying table index from the ID.
@@ -84,8 +67,7 @@ impl TableId {
 
 /// An opaque newtype for rows in [`Table`]s. Specifies a single row in a specific table.
 ///
-/// Values of this type are retrievable from [`Archetype::entity_table_row`] and can be
-/// used alongside [`Archetype::table_id`] to fetch the exact table and row where an
+/// Values of this type can be used alongside [`Archetype::table_id`] to fetch the exact table and row where an
 /// [`Entity`]'s components are stored.
 ///
 /// Values of this type are only valid so long as entities have not moved around.
@@ -95,7 +77,6 @@ impl TableId {
 /// fetching the entity's components.
 ///
 /// [`Archetype`]: crate::archetype::Archetype
-/// [`Archetype::entity_table_row`]: crate::archetype::Archetype::entity_table_row
 /// [`Archetype::table_id`]: crate::archetype::Archetype::table_id
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -404,18 +385,6 @@ impl Table {
             .map(|col| unsafe { col.get_changed_ticks_slice(self.entity_count() as usize) })
     }
 
-    /// Fetches the calling locations that last changed the each component
-    pub fn get_changed_by_slice_for(
-        &self,
-        component_id: ComponentId,
-    ) -> MaybeLocation<Option<&[UnsafeCell<&'static Location<'static>>]>> {
-        MaybeLocation::new_with_flattened(|| {
-            self.get_column(component_id)
-                // SAFETY: `self.len()` is guaranteed to be the len of the locations array
-                .map(|col| unsafe { col.get_changed_by_slice(self.entity_count() as usize) })
-        })
-    }
-
     /// Get the specific [`change tick`](Tick) of the component matching `component_id` in `row`.
     pub fn get_changed_tick(
         &self,
@@ -640,12 +609,6 @@ impl Table {
         self.get_column(component_id)?.data.drop
     }
 
-    /// Gets the number of components being stored in the table.
-    #[inline]
-    pub fn component_count(&self) -> usize {
-        self.columns.len()
-    }
-
     /// Gets the maximum number of entities the table can currently store
     /// without reallocating the underlying memory.
     #[inline]
@@ -668,11 +631,6 @@ impl Table {
             // SAFETY: `len` is the actual length of the column
             unsafe { col.check_change_ticks(len, check) };
         }
-    }
-
-    /// Iterates over the [`Column`]s of the [`Table`].
-    pub fn iter_columns(&self) -> impl Iterator<Item = &Column> {
-        self.columns.values()
     }
 
     /// Clears all of the stored components in the [`Table`].
@@ -750,18 +708,6 @@ pub(crate) struct TableMoveResult {
 }
 
 impl Tables {
-    /// Returns the number of [`Table`]s this collection contains
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.tables.len()
-    }
-
-    /// Returns true if this collection contains no [`Table`]s
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.tables.is_empty()
-    }
-
     /// Fetches a [`Table`] by its [`TableId`].
     ///
     /// Returns `None` if `id` is invalid.
@@ -815,11 +761,6 @@ impl Tables {
             });
 
         *value
-    }
-
-    /// Iterates through all of the tables stored within in [`TableId`] order.
-    pub fn iter(&self) -> core::slice::Iter<'_, Table> {
-        self.tables.iter()
     }
 
     /// Clears all data from all [`Table`]s stored within.

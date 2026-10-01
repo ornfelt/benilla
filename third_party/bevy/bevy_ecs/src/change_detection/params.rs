@@ -3,7 +3,7 @@ use crate::{
     ptr::PtrMut,
     resource::Resource,
 };
-use bevy_ptr::{Ptr, UnsafeCellDeref};
+use bevy_ptr::UnsafeCellDeref;
 use core::{
     ops::{Deref, DerefMut},
     panic::Location,
@@ -102,21 +102,6 @@ pub struct Res<'w, T: ?Sized + Resource> {
 }
 
 impl<'w, T: Resource> Res<'w, T> {
-    /// Copies a reference to a resource.
-    ///
-    /// Note that unless you actually need an instance of `Res<T>`, you should
-    /// prefer to just convert it to `&T` which can be freely copied.
-    #[expect(
-        clippy::should_implement_trait,
-        reason = "As this struct derefs to the inner resource, a `Clone` trait implementation would interfere with the common case of cloning the inner content. (A similar case of this happening can be found with `std::cell::Ref::clone()`.)"
-    )]
-    pub fn clone(this: &Self) -> Self {
-        Self {
-            value: this.value,
-            ticks: this.ticks.clone(),
-        }
-    }
-
     /// Due to lifetime limitations of the `Deref` trait, this method can be used to obtain a
     /// reference of the [`Resource`] with a lifetime bound to `'w` instead of the lifetime of the
     /// struct itself.
@@ -309,57 +294,6 @@ impl<'w, T: ?Sized> Ref<'w, T> {
     pub fn into_inner(self) -> &'w T {
         self.value
     }
-
-    /// Map `Ref` to a different type using `f`.
-    ///
-    /// This doesn't do anything else than call `f` on the wrapped value.
-    /// This is equivalent to [`Mut::map_unchanged`].
-    pub fn map<U: ?Sized>(self, f: impl FnOnce(&T) -> &U) -> Ref<'w, U> {
-        Ref {
-            value: f(self.value),
-            ticks: self.ticks,
-        }
-    }
-
-    /// Create a new `Ref` using provided values.
-    ///
-    /// This is an advanced feature, `Ref`s are designed to be _created_ by
-    /// engine-internal code and _consumed_ by end-user code.
-    ///
-    /// - `value` - The value wrapped by `Ref`.
-    /// - `added` - A [`Tick`] that stores the tick when the wrapped value was created.
-    /// - `changed` - A [`Tick`] that stores the last time the wrapped value was changed.
-    /// - `last_run` - A [`Tick`], occurring before `this_run`, which is used
-    ///   as a reference to determine whether the wrapped value is newly added or changed.
-    /// - `this_run` - A [`Tick`] corresponding to the current point in time -- "now".
-    pub fn new(
-        value: &'w T,
-        added: &'w Tick,
-        changed: &'w Tick,
-        last_run: Tick,
-        this_run: Tick,
-        caller: MaybeLocation<&'w &'static Location<'static>>,
-    ) -> Ref<'w, T> {
-        Ref {
-            value,
-            ticks: ComponentTicksRef {
-                added,
-                changed,
-                changed_by: caller,
-                last_run,
-                this_run,
-            },
-        }
-    }
-
-    /// Overwrite the `last_run` and `this_run` tick that are used for change detection.
-    ///
-    /// This is an advanced feature. `Ref`s are usually _created_ by engine-internal code and
-    /// _consumed_ by end-user code.
-    pub fn set_ticks(&mut self, last_run: Tick, this_run: Tick) {
-        self.ticks.last_run = last_run;
-        self.ticks.this_run = this_run;
-    }
 }
 
 impl<'w, 'a, T> IntoIterator for &'a Ref<'w, T>
@@ -451,15 +385,6 @@ impl<'w, T: ?Sized> Mut<'w, T> {
                 this_run,
             },
         }
-    }
-
-    /// Overwrite the `last_run` and `this_run` tick that are used for change detection.
-    ///
-    /// This is an advanced feature. `Mut`s are usually _created_ by engine-internal code and
-    /// _consumed_ by end-user code.
-    pub fn set_ticks(&mut self, last_run: Tick, this_run: Tick) {
-        self.ticks.last_run = last_run;
-        self.ticks.this_run = this_run;
     }
 }
 
@@ -554,12 +479,6 @@ impl<'w> MutUntyped<'w> {
     pub fn as_mut(&mut self) -> PtrMut<'_> {
         self.set_changed();
         self.value.reborrow()
-    }
-
-    /// Returns an immutable pointer to the value without taking ownership.
-    #[inline]
-    pub fn as_ref(&self) -> Ptr<'_> {
-        self.value.as_ref()
     }
 
     /// Turn this [`MutUntyped`] into a [`Mut`] by mapping the inner [`PtrMut`] to another value,

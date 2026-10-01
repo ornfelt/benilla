@@ -347,17 +347,6 @@ impl PluginGroupBuilder {
         self
     }
 
-    /// Attempts to add the plugin [`Plugin`] at the end of this [`PluginGroupBuilder`].
-    ///
-    /// If the plugin was already in the group the addition fails.
-    pub fn try_add<T: Plugin>(self, plugin: T) -> Result<Self, (Self, T)> {
-        if self.contains::<T>() {
-            return Err((self, plugin));
-        }
-
-        Ok(self.add(plugin))
-    }
-
     /// Adds a [`PluginGroup`] at the end of this [`PluginGroupBuilder`]. If the plugin was
     /// already in the group, it is removed from its previous place.
     pub fn add_group(mut self, group: impl PluginGroup) -> Self {
@@ -480,24 +469,10 @@ impl PluginGroupBuilder {
         Ok(self)
     }
 
-    /// Enables a [`Plugin`].
-    ///
-    /// [`Plugin`]s within a [`PluginGroup`] are enabled by default. This function is used to
-    /// opt back in to a [`Plugin`] after [disabling](Self::disable) it. If there are no plugins
-    /// of type `T` in this group, it will panic.
-    pub fn enable<T: Plugin>(mut self) -> Self {
-        let plugin_entry = self
-            .plugins
-            .get_mut(&TypeId::of::<T>())
-            .expect("Cannot enable a plugin that does not exist.");
-        plugin_entry.enabled = true;
-        self
-    }
-
     /// Disables a [`Plugin`], preventing it from being added to the [`App`] with the rest of the
     /// [`PluginGroup`]. The disabled [`Plugin`] keeps its place in the [`PluginGroup`], so it can
     /// still be used for ordering with [`add_before`](Self::add_before) or
-    /// [`add_after`](Self::add_after), or it can be [re-enabled](Self::enable). If there are no
+    /// [`add_after`](Self::add_after). If there are no
     /// plugins of type `T` in this group, it will panic.
     pub fn disable<T: Plugin>(mut self) -> Self {
         let plugin_entry = self

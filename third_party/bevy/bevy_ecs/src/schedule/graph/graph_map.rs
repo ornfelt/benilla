@@ -208,12 +208,6 @@ impl<const DIRECTED: bool, N: GraphNodeId, S: BuildHasher> Graph<DIRECTED, N, S>
         self.edges.contains(&Self::edge_key(a, b))
     }
 
-    /// Reserve capacity for at least `additional` more nodes to be inserted
-    /// in the graph.
-    pub fn reserve_nodes(&mut self, additional: usize) {
-        self.nodes.reserve(additional);
-    }
-
     /// Reserve capacity for at least `additional` more edges to be inserted
     /// in the graph.
     pub fn reserve_edges(&mut self, additional: usize) {

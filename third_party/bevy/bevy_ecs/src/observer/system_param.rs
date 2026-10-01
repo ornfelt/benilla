@@ -7,7 +7,6 @@ use crate::{
     prelude::*,
     traversal::Traversal,
 };
-use bevy_ptr::Ptr;
 use core::{
     fmt::Debug,
     marker::PhantomData,
@@ -63,34 +62,9 @@ impl<'w, 't, E: Event, B: Bundle> On<'w, 't, E, B> {
         }
     }
 
-    /// Returns the event type of this [`On`] instance.
-    pub fn event_key(&self) -> EventKey {
-        self.trigger_context.event_key
-    }
-
     /// Returns a reference to the triggered event.
     pub fn event(&self) -> &E {
         self.event
-    }
-
-    /// Returns a mutable reference to the triggered event.
-    pub fn event_mut(&mut self) -> &mut E {
-        self.event
-    }
-
-    /// Returns a pointer to the triggered event.
-    pub fn event_ptr(&self) -> Ptr<'_> {
-        Ptr::from(&self.event)
-    }
-
-    /// Returns the [`Trigger`](crate::event::Trigger) context for this event.
-    pub fn trigger(&self) -> &E::Trigger<'t> {
-        self.trigger
-    }
-
-    /// Returns the mutable [`Trigger`](crate::event::Trigger) context for this event.
-    pub fn trigger_mut(&mut self) -> &mut E::Trigger<'t> {
-        self.trigger
     }
 
     /// Returns the [`Entity`] of the [`Observer`] of the triggered event.
@@ -155,13 +129,6 @@ impl<
     /// [`Traversal`]: crate::traversal::Traversal
     pub fn propagate(&mut self, should_propagate: bool) {
         self.trigger.propagate = should_propagate;
-    }
-
-    /// Returns the value of the flag that controls event propagation. See [`propagate`] for more information.
-    ///
-    /// [`propagate`]: On::propagate
-    pub fn get_propagate(&self) -> bool {
-        self.trigger.propagate
     }
 }
 

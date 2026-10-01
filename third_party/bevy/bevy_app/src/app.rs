@@ -15,11 +15,8 @@ use bevy_ecs::{
     intern::Interned,
     message::{message_update_system, MessageCursor},
     prelude::*,
-    schedule::{
-        InternedSystemSet, ScheduleBuildSettings, ScheduleCleanupPolicy, ScheduleError,
-        ScheduleLabel,
-    },
-    system::{IntoObserverSystem, ScheduleSystem, SystemId, SystemInput},
+    schedule::{InternedSystemSet, ScheduleLabel},
+    system::{IntoObserverSystem, ScheduleSystem},
 };
 use bevy_platform::collections::HashMap;
 use core::{fmt::Debug, num::NonZero, panic::AssertUnwindSafe};
@@ -57,8 +54,7 @@ pub(crate) enum AppError {
 /// [standard lifecycle](Main) and provides interface glue for [plugins](`Plugin`).
 ///
 /// A single [`App`] can contain multiple [`SubApp`] instances, but [`App`] methods only affect
-/// the "main" one. To access a particular [`SubApp`], use [`get_sub_app`](App::get_sub_app)
-/// or [`get_sub_app_mut`](App::get_sub_app_mut).
+/// the "main" one. To access a particular [`SubApp`], use [`get_sub_app_mut`](App::get_sub_app_mut).
 ///
 ///
 /// # Examples
@@ -316,58 +312,6 @@ impl App {
     ) -> &mut Self {
         self.main_mut().add_systems(schedule, systems);
         self
-    }
-
-    /// Removes all systems in a [`SystemSet`]. This will cause the schedule to be rebuilt when
-    /// the schedule is run again and can be slow. A [`ScheduleError`] is returned if the schedule needs to be
-    /// [`Schedule::initialize`]'d or the `set` is not found.
-    ///
-    /// Note that this can remove all systems of a type if you pass
-    /// the system to this function as systems implicitly create a set based
-    /// on the system type.
-    ///
-    /// ## Example
-    /// ```
-    /// # use bevy_app::prelude::*;
-    /// # use bevy_ecs::schedule::ScheduleCleanupPolicy;
-    /// #
-    /// # let mut app = App::new();
-    /// # fn system_a() {}
-    /// # fn system_b() {}
-    /// #
-    /// // add the system
-    /// app.add_systems(Update, system_a);
-    ///
-    /// // remove the system
-    /// app.remove_systems_in_set(Update, system_a, ScheduleCleanupPolicy::RemoveSystemsOnly);
-    /// ```
-    pub fn remove_systems_in_set<M>(
-        &mut self,
-        schedule: impl ScheduleLabel,
-        set: impl IntoSystemSet<M>,
-        policy: ScheduleCleanupPolicy,
-    ) -> Result<usize, ScheduleError> {
-        self.main_mut().remove_systems_in_set(schedule, set, policy)
-    }
-
-    /// Registers a system and returns a [`SystemId`] so it can later be called by [`World::run_system`].
-    ///
-    /// It's possible to register the same systems more than once, they'll be stored separately.
-    ///
-    /// This is different from adding systems to a [`Schedule`] with [`App::add_systems`],
-    /// because the [`SystemId`] that is returned can be used anywhere in the [`World`] to run the associated system.
-    /// This allows for running systems in a push-based fashion.
-    /// Using a [`Schedule`] is still preferred for most cases
-    /// due to its better performance and ability to run non-conflicting systems simultaneously.
-    pub fn register_system<I, O, M>(
-        &mut self,
-        system: impl IntoSystem<I, O, M> + 'static,
-    ) -> SystemId<I, O>
-    where
-        I: SystemInput + 'static,
-        O: 'static,
-    {
-        self.main_mut().register_system(system)
     }
 
     /// Configures a collection of system sets in the provided schedule, adding any sets that do not exist.
@@ -635,38 +579,6 @@ impl App {
         self
     }
 
-    /// Associates type data `D` with type `T` in the [`AppTypeRegistry`] resource.
-    ///
-    /// Most of the time [`register_type`](Self::register_type) can be used instead to register a
-    /// type you derived [`Reflect`](bevy_reflect::Reflect) for. However, in cases where you want to
-    /// add a piece of type data that was not included in the list of `#[reflect(...)]` type data in
-    /// the derive, or where the type is generic and cannot register e.g. `ReflectSerialize`
-    /// unconditionally without knowing the specific type parameters, this method can be used to
-    /// insert additional type data.
-    ///
-    /// # Example
-    /// ```
-    /// use bevy_app::App;
-    /// use bevy_reflect::{ReflectSerialize, ReflectDeserialize};
-    ///
-    /// App::new()
-    ///     .register_type::<Option<String>>()
-    ///     .register_type_data::<Option<String>, ReflectSerialize>()
-    ///     .register_type_data::<Option<String>, ReflectDeserialize>();
-    /// ```
-    ///
-    /// See [`bevy_reflect::TypeRegistry::register_type_data`].
-    #[cfg(feature = "bevy_reflect")]
-    pub fn register_type_data<
-        T: bevy_reflect::Reflect + bevy_reflect::TypePath,
-        D: bevy_reflect::TypeData + bevy_reflect::FromType<T>,
-    >(
-        &mut self,
-    ) -> &mut Self {
-        self.main_mut().register_type_data::<T, D>();
-        self
-    }
-
     /// Registers the given component `R` as a [required component] for `T`.
     ///
     /// When `T` is added to an entity, `R` and its own required components will also be added
@@ -921,17 +833,6 @@ impl App {
             .try_register_required_components_with::<T, R>(constructor)
     }
 
-    /// Registers a component type as "disabling",
-    /// using [default query filters](bevy_ecs::entity_disabling::DefaultQueryFilters) to exclude entities with the component from queries.
-    ///
-    /// # Warning
-    ///
-    /// As discussed in the [module docs](bevy_ecs::entity_disabling), this can have performance implications,
-    /// as well as create interoperability issues, and should be used with caution.
-    pub fn register_disabling_component<C: Component>(&mut self) {
-        self.world_mut().register_disabling_component::<C>();
-    }
-
     /// Returns a reference to the main [`SubApp`]'s [`World`]. This is the same as calling
     /// [`app.main().world()`].
     ///
@@ -958,45 +859,6 @@ impl App {
         &mut self.sub_apps.main
     }
 
-    /// Returns a reference to the [`SubApps`] collection.
-    pub fn sub_apps(&self) -> &SubApps {
-        &self.sub_apps
-    }
-
-    /// Returns a mutable reference to the [`SubApps`] collection.
-    pub fn sub_apps_mut(&mut self) -> &mut SubApps {
-        &mut self.sub_apps
-    }
-
-    /// Returns a reference to the [`SubApp`] with the given label.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the [`SubApp`] doesn't exist.
-    pub fn sub_app(&self, label: impl AppLabel) -> &SubApp {
-        let str = label.intern();
-        self.get_sub_app(label).unwrap_or_else(|| {
-            panic!("No sub-app with label '{:?}' exists.", str);
-        })
-    }
-
-    /// Returns a reference to the [`SubApp`] with the given label.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the [`SubApp`] doesn't exist.
-    pub fn sub_app_mut(&mut self, label: impl AppLabel) -> &mut SubApp {
-        let str = label.intern();
-        self.get_sub_app_mut(label).unwrap_or_else(|| {
-            panic!("No sub-app with label '{:?}' exists.", str);
-        })
-    }
-
-    /// Returns a reference to the [`SubApp`] with the given label, if it exists.
-    pub fn get_sub_app(&self, label: impl AppLabel) -> Option<&SubApp> {
-        self.sub_apps.sub_apps.get(&label.intern())
-    }
-
     /// Returns a mutable reference to the [`SubApp`] with the given label, if it exists.
     pub fn get_sub_app_mut(&mut self, label: impl AppLabel) -> Option<&mut SubApp> {
         self.sub_apps.sub_apps.get_mut(&label.intern())
@@ -1012,28 +874,10 @@ impl App {
         self.sub_apps.sub_apps.insert(label.intern(), sub_app);
     }
 
-    /// Removes the [`SubApp`] with the given label, if it exists.
-    pub fn remove_sub_app(&mut self, label: impl AppLabel) -> Option<SubApp> {
-        self.sub_apps.sub_apps.remove(&label.intern())
-    }
-
-    /// Extract data from the main world into the [`SubApp`] with the given label and perform an update if it exists.
-    pub fn update_sub_app_by_label(&mut self, label: impl AppLabel) {
-        self.sub_apps.update_subapp_by_label(label);
-    }
-
     /// Inserts a new `schedule` under the provided `label`, overwriting any existing
     /// schedule with the same label.
     pub fn add_schedule(&mut self, schedule: Schedule) -> &mut Self {
         self.main_mut().add_schedule(schedule);
-        self
-    }
-
-    /// Initializes an empty `schedule` under the provided `label`, if it does not exist.
-    ///
-    /// See [`add_schedule`](Self::add_schedule) to insert an existing schedule.
-    pub fn init_schedule(&mut self, label: impl ScheduleLabel) -> &mut Self {
-        self.main_mut().init_schedule(label);
         self
     }
 
@@ -1059,57 +903,7 @@ impl App {
         self
     }
 
-    /// Applies the provided [`ScheduleBuildSettings`] to all schedules.
-    ///
-    /// This mutates all currently present schedules, but does not apply to any custom schedules
-    /// that might be added in the future.
-    pub fn configure_schedules(
-        &mut self,
-        schedule_build_settings: ScheduleBuildSettings,
-    ) -> &mut Self {
-        self.main_mut().configure_schedules(schedule_build_settings);
-        self
-    }
-
-    /// When doing [ambiguity checking](ScheduleBuildSettings) this
-    /// ignores systems that are ambiguous on [`Component`] T.
-    ///
-    /// This settings only applies to the main world. To apply this to other worlds call the
-    /// [corresponding method](World::allow_ambiguous_component) on World
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// # use bevy_app::prelude::*;
-    /// # use bevy_ecs::prelude::*;
-    /// # use bevy_ecs::schedule::{LogLevel, ScheduleBuildSettings};
-    /// # use bevy_utils::default;
-    ///
-    /// #[derive(Component)]
-    /// struct A;
-    ///
-    /// // these systems are ambiguous on A
-    /// fn system_1(_: Query<&mut A>) {}
-    /// fn system_2(_: Query<&A>) {}
-    ///
-    /// let mut app = App::new();
-    /// app.configure_schedules(ScheduleBuildSettings {
-    ///   ambiguity_detection: LogLevel::Error,
-    ///   ..default()
-    /// });
-    ///
-    /// app.add_systems(Update, ( system_1, system_2 ));
-    /// app.allow_ambiguous_component::<A>();
-    ///
-    /// // running the app does not error.
-    /// app.update();
-    /// ```
-    pub fn allow_ambiguous_component<T: Component>(&mut self) -> &mut Self {
-        self.main_mut().allow_ambiguous_component::<T>();
-        self
-    }
-
-    /// When doing [ambiguity checking](ScheduleBuildSettings) this
+    /// When doing [ambiguity checking](bevy_ecs::schedule::ScheduleBuildSettings) this
     /// ignores systems that are ambiguous on [`Resource`] T.
     ///
     /// This settings only applies to the main world. To apply this to other worlds call the
@@ -1235,13 +1029,6 @@ impl App {
         self
     }
 
-    /// Gets the error handler to set for new supapps.
-    ///
-    /// Note that the error handler of existing subapps may differ.
-    pub fn get_error_handler(&self) -> Option<ErrorHandler> {
-        self.default_error_handler
-    }
-
     /// Set the [default error handler] for the all subapps (including the main one and future ones)
     /// that do not have one.
     ///
@@ -1324,12 +1111,6 @@ impl AppExit {
     #[must_use]
     pub const fn error() -> Self {
         Self::Error(NonZero::<u8>::MIN)
-    }
-
-    /// Returns `true` if `self` is a [`AppExit::Success`].
-    #[must_use]
-    pub const fn is_success(&self) -> bool {
-        matches!(self, AppExit::Success)
     }
 
     /// Returns `true` if `self` is a [`AppExit::Error`].

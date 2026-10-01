@@ -15,9 +15,7 @@ use crate::{
     relationship::RelationshipHookMode,
     world::{EntityMut, EntityWorldMut},
 };
-use bevy_reflect::{
-    FromReflect, FromType, PartialReflect, Reflect, ReflectRef, TypePath, TypeRegistry,
-};
+use bevy_reflect::{FromType, PartialReflect, Reflect, ReflectRef, TypePath, TypeRegistry};
 
 use super::{from_reflect_with_fallback, ReflectComponent};
 
@@ -47,19 +45,8 @@ pub struct ReflectBundleFns {
     ),
     /// Function pointer implementing [`ReflectBundle::remove`].
     pub remove: fn(&mut EntityWorldMut),
-    /// Function pointer implementing [`ReflectBundle::take`].
+    /// Function pointer implementing `ReflectBundle::take`.
     pub take: fn(&mut EntityWorldMut) -> Option<Box<dyn Reflect>>,
-}
-
-impl ReflectBundleFns {
-    /// Get the default set of [`ReflectBundleFns`] for a specific bundle type using its
-    /// [`FromType`] implementation.
-    ///
-    /// This is useful if you want to start with the default implementation before overriding some
-    /// of the functions to create a custom implementation.
-    pub fn new<T: Bundle + FromReflect + TypePath + BundleFromComponents>() -> Self {
-        <ReflectBundle as FromType<T>>::from_type().0
-    }
 }
 
 impl ReflectBundle {
@@ -103,48 +90,6 @@ impl ReflectBundle {
     pub fn remove(&self, entity: &mut EntityWorldMut) -> &ReflectBundle {
         (self.0.remove)(entity);
         self
-    }
-
-    /// Removes all components in the [`Bundle`] from the entity and returns their previous values.
-    ///
-    /// **Note:** If the entity does not have every component in the bundle, this method will not remove any of them.
-    #[must_use]
-    pub fn take(&self, entity: &mut EntityWorldMut) -> Option<Box<dyn Reflect>> {
-        (self.0.take)(entity)
-    }
-
-    /// Create a custom implementation of [`ReflectBundle`].
-    ///
-    /// This is an advanced feature,
-    /// useful for scripting implementations,
-    /// that should not be used by most users
-    /// unless you know what you are doing.
-    ///
-    /// Usually you should derive [`Reflect`] and add the `#[reflect(Bundle)]` bundle
-    /// to generate a [`ReflectBundle`] implementation automatically.
-    ///
-    /// See [`ReflectBundleFns`] for more information.
-    pub fn new(fns: ReflectBundleFns) -> Self {
-        Self(fns)
-    }
-
-    /// The underlying function pointers implementing methods on `ReflectBundle`.
-    ///
-    /// This is useful when you want to keep track locally of an individual
-    /// function pointer.
-    ///
-    /// Calling [`TypeRegistry::get`] followed by
-    /// [`TypeRegistration::data::<ReflectBundle>`] can be costly if done several
-    /// times per frame. Consider cloning [`ReflectBundle`] and keeping it
-    /// between frames, cloning a `ReflectBundle` is very cheap.
-    ///
-    /// If you only need a subset of the methods on `ReflectBundle`,
-    /// use `fn_pointers` to get the underlying [`ReflectBundleFns`]
-    /// and copy the subset of function pointers you care about.
-    ///
-    /// [`TypeRegistration::data::<ReflectBundle>`]: bevy_reflect::TypeRegistration::data
-    pub fn fn_pointers(&self) -> &ReflectBundleFns {
-        &self.0
     }
 }
 

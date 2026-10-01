@@ -34,7 +34,6 @@ pub(super) trait SystemExecutor: Send + Sync {
         world: &mut World,
         error_handler: fn(BevyError, ErrorContext),
     );
-    fn set_apply_final_deferred(&mut self, value: bool);
 }
 
 /// Specifies how a [`Schedule`](super::Schedule) will be run.

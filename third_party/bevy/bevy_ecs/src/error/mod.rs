@@ -16,11 +16,7 @@
 //! Bevy provides a number of pre-built error-handlers for you to use:
 //!
 //! - [`panic`] – panics with the system error
-//! - [`error`] – logs the system error at the `error` level
 //! - [`warn`] – logs the system error at the `warn` level
-//! - [`info`] – logs the system error at the `info` level
-//! - [`debug`] – logs the system error at the `debug` level
-//! - [`trace`] – logs the system error at the `trace` level
 //! - [`ignore`] – ignores the system error
 //!
 //! However, you can use any custom error handler logic by providing your own function (or

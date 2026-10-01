@@ -171,11 +171,6 @@ unsafe impl<P: SystemParam> SystemParamBuilder<P> for ParamBuilder {
 }
 
 impl ParamBuilder {
-    /// Creates a [`SystemParamBuilder`] for any [`SystemParam`] that uses its default initialization.
-    pub fn of<T: SystemParam>() -> impl SystemParamBuilder<T> {
-        Self
-    }
-
     /// Helper method for reading a [`Resource`] as a param, equivalent to `of::<Res<T>>()`
     pub fn resource<'w, T: Resource>() -> impl SystemParamBuilder<Res<'w, T>> {
         Self
@@ -188,18 +183,6 @@ impl ParamBuilder {
 
     /// Helper method for adding a [`Local`] as a param, equivalent to `of::<Local<T>>()`
     pub fn local<'s, T: FromWorld + Send + 'static>() -> impl SystemParamBuilder<Local<'s, T>> {
-        Self
-    }
-
-    /// Helper method for adding a [`Query`] as a param, equivalent to `of::<Query<D>>()`
-    pub fn query<'w, 's, D: QueryData + 'static>() -> impl SystemParamBuilder<Query<'w, 's, D, ()>>
-    {
-        Self
-    }
-
-    /// Helper method for adding a filtered [`Query`] as a param, equivalent to `of::<Query<D, F>>()`
-    pub fn query_filtered<'w, 's, D: QueryData + 'static, F: QueryFilter + 'static>(
-    ) -> impl SystemParamBuilder<Query<'w, 's, D, F>> {
         Self
     }
 }
@@ -523,14 +506,6 @@ impl<T> FilteredResourcesParamBuilder<T> {
     }
 }
 
-impl<'a> FilteredResourcesParamBuilder<Box<dyn FnOnce(&mut FilteredResourcesBuilder) + 'a>> {
-    /// Creates a [`SystemParamBuilder`] for a [`FilteredResources`] that accepts a callback to configure the [`FilteredResourcesBuilder`].
-    /// This boxes the callback so that it has a common type.
-    pub fn new_box(f: impl FnOnce(&mut FilteredResourcesBuilder) + 'a) -> Self {
-        Self(Box::new(f))
-    }
-}
-
 // SAFETY: Any `Access` is a valid state for `FilteredResources`.
 unsafe impl<'w, 's, T: FnOnce(&mut FilteredResourcesBuilder)>
     SystemParamBuilder<FilteredResources<'w, 's>> for FilteredResourcesParamBuilder<T>
@@ -554,14 +529,6 @@ impl<T> FilteredResourcesMutParamBuilder<T> {
         T: FnOnce(&mut FilteredResourcesMutBuilder),
     {
         Self(f)
-    }
-}
-
-impl<'a> FilteredResourcesMutParamBuilder<Box<dyn FnOnce(&mut FilteredResourcesMutBuilder) + 'a>> {
-    /// Creates a [`SystemParamBuilder`] for a [`FilteredResourcesMut`] that accepts a callback to configure the [`FilteredResourcesMutBuilder`].
-    /// This boxes the callback so that it has a common type.
-    pub fn new_box(f: impl FnOnce(&mut FilteredResourcesMutBuilder) + 'a) -> Self {
-        Self(Box::new(f))
     }
 }
 

@@ -307,11 +307,6 @@ impl NodeId {
         matches!(self, NodeId::System(_))
     }
 
-    /// Returns `true` if the identified node is a system set.
-    pub const fn is_set(&self) -> bool {
-        matches!(self, NodeId::Set(_))
-    }
-
     /// Returns the system key if the node is a system, otherwise `None`.
     pub const fn as_system(&self) -> Option<SystemKey> {
         match self {
@@ -750,11 +745,6 @@ impl SystemSets {
     /// Returns `true` if this container is empty.
     pub fn is_empty(&self) -> bool {
         self.sets.is_empty()
-    }
-
-    /// Returns `true` if the given set is present in this container.
-    pub fn contains(&self, set: impl SystemSet) -> bool {
-        self.ids.contains_key(&set.intern())
     }
 
     /// Returns a reference to the system set with the given key, if it exists.

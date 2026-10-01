@@ -37,13 +37,6 @@ use derive_more::derive::{Display, Into};
 #[derive(Debug, Into, Display)]
 pub struct SystemName(DebugName);
 
-impl SystemName {
-    /// Gets the name of the system.
-    pub fn name(&self) -> DebugName {
-        self.0.clone()
-    }
-}
-
 // SAFETY: no component value access
 unsafe impl SystemParam for SystemName {
     type State = ();

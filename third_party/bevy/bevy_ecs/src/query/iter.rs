@@ -2088,7 +2088,7 @@ impl<'w, 's, D: QueryData, F: QueryFilter, I: Iterator<Item = Entity>> Debug
 ///
 /// # Usage
 ///
-/// This type is returned by calling [`Query::iter_combinations`] or [`Query::iter_combinations_mut`].
+/// This type is returned by calling [`Query::iter_combinations`].
 ///
 /// It implements [`Iterator`] only if it iterates over read-only query items ([learn more]).
 ///
@@ -2130,7 +2130,6 @@ impl<'w, 's, D: QueryData, F: QueryFilter, I: Iterator<Item = Entity>> Debug
 /// [performance section]: crate::system::Query#performance
 /// [`Query`]: crate::system::Query
 /// [`Query::iter_combinations`]: crate::system::Query::iter_combinations
-/// [`Query::iter_combinations_mut`]: crate::system::Query::iter_combinations_mut
 pub struct QueryCombinationIter<'w, 's, D: QueryData, F: QueryFilter, const K: usize> {
     tables: &'w Tables,
     archetypes: &'w Archetypes,

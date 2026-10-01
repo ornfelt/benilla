@@ -350,28 +350,6 @@ impl Default for FixedMainScheduleOrder {
     }
 }
 
-impl FixedMainScheduleOrder {
-    /// Adds the given `schedule` after the `after` schedule
-    pub fn insert_after(&mut self, after: impl ScheduleLabel, schedule: impl ScheduleLabel) {
-        let index = self
-            .labels
-            .iter()
-            .position(|current| (**current).eq(&after))
-            .unwrap_or_else(|| panic!("Expected {after:?} to exist"));
-        self.labels.insert(index + 1, schedule.intern());
-    }
-
-    /// Adds the given `schedule` before the `before` schedule
-    pub fn insert_before(&mut self, before: impl ScheduleLabel, schedule: impl ScheduleLabel) {
-        let index = self
-            .labels
-            .iter()
-            .position(|current| (**current).eq(&before))
-            .unwrap_or_else(|| panic!("Expected {before:?} to exist"));
-        self.labels.insert(index, schedule.intern());
-    }
-}
-
 impl FixedMain {
     /// A system that runs the fixed timestep's "main schedule"
     pub fn run_fixed_main(world: &mut World) {

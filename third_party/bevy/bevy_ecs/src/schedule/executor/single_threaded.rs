@@ -144,10 +144,6 @@ impl SystemExecutor for SingleThreadedExecutor {
         self.evaluated_sets.clear();
         self.completed_systems.clear();
     }
-
-    fn set_apply_final_deferred(&mut self, apply_final_deferred: bool) {
-        self.apply_final_deferred = apply_final_deferred;
-    }
 }
 
 impl SingleThreadedExecutor {

@@ -24,7 +24,6 @@ use crate::{
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use bevy_utils::prelude::DebugName;
 
 #[cfg(feature = "bevy_reflect")]
 use crate::prelude::ReflectComponent;
@@ -301,13 +300,6 @@ impl Observer {
         self
     }
 
-    /// Observes the given `components`. This will cause the [`Observer`] to run whenever the [`Event`] has
-    /// an [`EntityComponentsTrigger`](crate::event::EntityComponentsTrigger) that targets any of the `components`.
-    pub fn with_components<I: IntoIterator<Item = ComponentId>>(mut self, components: I) -> Self {
-        self.descriptor.components.extend(components);
-        self
-    }
-
     /// Observes the given `event_key`. This will cause the [`Observer`] to run whenever an event with the given [`EventKey`]
     /// is triggered.
     /// # Safety
@@ -324,16 +316,6 @@ impl Observer {
     pub fn with_error_handler(mut self, error_handler: fn(BevyError, ErrorContext)) -> Self {
         self.error_handler = Some(error_handler);
         self
-    }
-
-    /// Returns the [`ObserverDescriptor`] for this [`Observer`].
-    pub fn descriptor(&self) -> &ObserverDescriptor {
-        &self.descriptor
-    }
-
-    /// Returns the name of the [`Observer`]'s system .
-    pub fn system_name(&self) -> DebugName {
-        self.system.system_name()
     }
 }
 
@@ -381,44 +363,6 @@ pub struct ObserverDescriptor {
     pub(super) entities: Vec<Entity>,
 }
 
-impl ObserverDescriptor {
-    /// Add the given `event_keys` to the descriptor.
-    /// # Safety
-    /// The type of each [`EventKey`] in `event_keys` _must_ match the actual value
-    /// of the event passed into the observer.
-    pub unsafe fn with_event_keys(mut self, event_keys: Vec<EventKey>) -> Self {
-        self.event_keys = event_keys;
-        self
-    }
-
-    /// Add the given `components` to the descriptor.
-    pub fn with_components(mut self, components: Vec<ComponentId>) -> Self {
-        self.components = components;
-        self
-    }
-
-    /// Add the given `entities` to the descriptor.
-    pub fn with_entities(mut self, entities: Vec<Entity>) -> Self {
-        self.entities = entities;
-        self
-    }
-
-    /// Returns the `event_keys` that the observer is watching.
-    pub fn event_keys(&self) -> &[EventKey] {
-        &self.event_keys
-    }
-
-    /// Returns the `components` that the observer is watching.
-    pub fn components(&self) -> &[ComponentId] {
-        &self.components
-    }
-
-    /// Returns the `entities` that the observer is watching.
-    pub fn entities(&self) -> &[Entity] {
-        &self.entities
-    }
-}
-
 /// A [`ComponentHook`] used by [`Observer`] to handle its [`on-add`](`crate::lifecycle::ComponentHooks::on_add`).
 ///
 /// This function exists separate from [`Observer`] to allow [`Observer`] to have its type parameters
@@ -455,13 +399,6 @@ fn hook_on_add<E: Event, B: Bundle, S: ObserverSystem<E, B>>(
 #[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 #[cfg_attr(feature = "bevy_reflect", reflect(Component, Debug))]
 pub struct ObservedBy(pub(crate) Vec<Entity>);
-
-impl ObservedBy {
-    /// Provides a read-only reference to the list of entities observing this entity.
-    pub fn get(&self) -> &[Entity] {
-        &self.0
-    }
-}
 
 impl Component for ObservedBy {
     const STORAGE_TYPE: StorageType = StorageType::SparseSet;
@@ -501,12 +438,6 @@ impl Component for ObservedBy {
     }
 }
 
-pub(crate) trait AnyNamedSystem: Any + Send + Sync + 'static {
-    fn system_name(&self) -> DebugName;
-}
+pub(crate) trait AnyNamedSystem: Any + Send + Sync + 'static {}
 
-impl<T: Any + System> AnyNamedSystem for T {
-    fn system_name(&self) -> DebugName {
-        self.name()
-    }
-}
+impl<T: Any + System> AnyNamedSystem for T {}

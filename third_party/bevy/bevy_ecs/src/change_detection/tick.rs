@@ -39,12 +39,6 @@ impl Tick {
         self.tick
     }
 
-    /// Sets the value of this change tick.
-    #[inline]
-    pub fn set(&mut self, tick: u32) {
-        self.tick = tick;
-    }
-
     /// Returns `true` if this `Tick` occurred since the system's `last_run`.
     ///
     /// `this_run` is the current tick of the system, used as a reference to help deal with wraparound.
@@ -155,32 +149,5 @@ impl ComponentTicks {
     #[inline]
     pub fn is_changed(&self, last_run: Tick, this_run: Tick) -> bool {
         self.changed.is_newer_than(last_run, this_run)
-    }
-
-    /// Creates a new instance with the same change tick for `added` and `changed`.
-    pub fn new(change_tick: Tick) -> Self {
-        Self {
-            added: change_tick,
-            changed: change_tick,
-        }
-    }
-
-    /// Manually sets the change tick.
-    ///
-    /// This is normally done automatically via the [`DerefMut`](core::ops::DerefMut) implementation
-    /// on [`Mut<T>`](crate::change_detection::Mut), [`ResMut<T>`](crate::change_detection::ResMut), etc.
-    /// However, components and resources that make use of interior mutability might require manual updates.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use bevy_ecs::{world::World, change_detection::ComponentTicks};
-    /// let world: World = unimplemented!();
-    /// let component_ticks: ComponentTicks = unimplemented!();
-    ///
-    /// component_ticks.set_changed(world.read_change_tick());
-    /// ```
-    #[inline]
-    pub fn set_changed(&mut self, change_tick: Tick) {
-        self.changed = change_tick;
     }
 }

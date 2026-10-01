@@ -37,11 +37,6 @@ where
     pub fn value(&self) -> &T {
         &self.value
     }
-
-    /// Returns a mutable reference to the input value.
-    pub fn value_mut(&mut self) -> &mut T {
-        &mut self.value
-    }
 }
 
 impl<S, T> System for WithInputWrapper<S, T>
@@ -125,11 +120,6 @@ where
     /// Returns a reference to the input value, if it has been initialized.
     pub fn value(&self) -> Option<&T> {
         self.value.as_ref()
-    }
-
-    /// Returns a mutable reference to the input value, if it has been initialized.
-    pub fn value_mut(&mut self) -> Option<&mut T> {
-        self.value.as_mut()
     }
 }
 

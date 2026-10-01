@@ -10,7 +10,7 @@ use crate::{
     world::{unsafe_world_cell::UnsafeWorldCell, World},
 };
 
-use alloc::{borrow::Cow, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use bevy_utils::prelude::DebugName;
 use core::marker::PhantomData;
 use variadics_please::all_tuples;
@@ -32,19 +32,6 @@ where
     system_meta: SystemMeta,
     // NOTE: PhantomData<fn()-> T> gives this safe Send/Sync impls
     marker: PhantomData<fn() -> (Marker, Out)>,
-}
-
-impl<Marker, Out, F> ExclusiveFunctionSystem<Marker, Out, F>
-where
-    F: ExclusiveSystemParamFunction<Marker>,
-{
-    /// Return this system with a new name.
-    ///
-    /// Useful to give closure systems more readable and unique names for debugging and tracing.
-    pub fn with_name(mut self, new_name: impl Into<Cow<'static, str>>) -> Self {
-        self.system_meta.set_name(new_name);
-        self
-    }
 }
 
 /// A marker type used to distinguish exclusive function systems from regular function systems.

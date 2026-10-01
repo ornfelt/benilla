@@ -16,10 +16,9 @@ use core::ops::Range;
 /// same amount of work to be done, which may not hold true in every
 /// workload.
 ///
-/// See [`Query::par_iter`], [`MessageReader::par_read`] for more information.
+/// See [`Query::par_iter`] for more information.
 ///
 /// [`Query::par_iter`]: crate::system::Query::par_iter
-/// [`MessageReader::par_read`]: crate::message::MessageReader::par_read
 #[derive(Clone, Debug)]
 pub struct BatchingStrategy {
     /// The upper and lower limits for a batch of items.
@@ -52,36 +51,6 @@ impl BatchingStrategy {
             batch_size_limits: 1..usize::MAX,
             batches_per_thread: 1,
         }
-    }
-
-    /// Declares a batching strategy with a fixed batch size.
-    pub const fn fixed(batch_size: usize) -> Self {
-        Self {
-            batch_size_limits: batch_size..batch_size,
-            batches_per_thread: 1,
-        }
-    }
-
-    /// Configures the minimum allowed batch size of this instance.
-    pub const fn min_batch_size(mut self, batch_size: usize) -> Self {
-        self.batch_size_limits.start = batch_size;
-        self
-    }
-
-    /// Configures the maximum allowed batch size of this instance.
-    pub const fn max_batch_size(mut self, batch_size: usize) -> Self {
-        self.batch_size_limits.end = batch_size;
-        self
-    }
-
-    /// Configures the number of batches to assign to each thread for this instance.
-    pub fn batches_per_thread(mut self, batches_per_thread: usize) -> Self {
-        assert!(
-            batches_per_thread > 0,
-            "The number of batches per thread must be non-zero."
-        );
-        self.batches_per_thread = batches_per_thread;
-        self
     }
 
     /// Calculate the batch size according to the given thread count and max item count.

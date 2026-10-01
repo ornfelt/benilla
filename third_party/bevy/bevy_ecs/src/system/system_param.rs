@@ -1898,25 +1898,6 @@ unsafe impl<T: ReadOnlySystemParam> ReadOnlySystemParam for Result<T, SystemPara
 #[derive(Debug)]
 pub struct If<T>(pub T);
 
-impl<T> If<T> {
-    /// Returns the inner `T`.
-    ///
-    /// The inner value is `pub`, so you can also obtain it by destructuring the parameter:
-    ///
-    /// ```
-    /// # use bevy_ecs::prelude::*;
-    /// # #[derive(Resource)]
-    /// # struct SomeResource;
-    /// fn skips_on_missing_resource(If(res): If<Res<SomeResource>>) {
-    ///     let some_resource: Res<SomeResource> = res;
-    /// }
-    /// # bevy_ecs::system::assert_is_system(skips_on_missing_resource);
-    /// ```
-    pub fn into_inner(self) -> T {
-        self.0
-    }
-}
-
 impl<T> Deref for If<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -2110,23 +2091,6 @@ unsafe impl<T: SystemParam> SystemParam for ParamSet<'_, '_, Vec<T>> {
 }
 
 impl<T: SystemParam> ParamSet<'_, '_, Vec<T>> {
-    /// Accesses the parameter at the given index.
-    /// No other parameters may be accessed while this one is active.
-    pub fn get_mut(&mut self, index: usize) -> T::Item<'_, '_> {
-        // SAFETY:
-        // - We initialized the access for each parameter, so the caller ensures we have access to any world data needed by any param.
-        //   We have mutable access to the ParamSet, so no other params in the set are active.
-        // - The caller of `get_param` ensured that this was the world used to initialize our state, and we used that world to initialize parameter states
-        unsafe {
-            T::get_param(
-                &mut self.param_states[index],
-                &self.system_meta,
-                self.world,
-                self.change_tick,
-            )
-        }
-    }
-
     /// Calls a closure for each parameter in the set.
     pub fn for_each(&mut self, mut f: impl FnMut(T::Item<'_, '_>)) {
         self.param_states.iter_mut().for_each(|state| {
@@ -2516,15 +2480,6 @@ impl<'w, 's> DynSystemParam<'w, 's> {
             system_meta,
             change_tick,
         }
-    }
-
-    /// Returns `true` if the inner system param is the same as `T`.
-    pub fn is<T: SystemParam>(&self) -> bool
-    // See downcast() function for an explanation of the where clause
-    where
-        T::Item<'static, 'static>: SystemParam<Item<'w, 's> = T> + 'static,
-    {
-        self.state.is::<ParamState<T::Item<'static, 'static>>>()
     }
 
     /// Returns the inner system param if it is the correct type.

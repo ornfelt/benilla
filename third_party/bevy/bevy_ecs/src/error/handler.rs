@@ -126,39 +126,11 @@ pub fn panic(error: BevyError, ctx: ErrorContext) {
     inner!(panic, error, ctx);
 }
 
-/// Error handler that logs the system error at the `error` level.
-#[track_caller]
-#[inline]
-pub fn error(error: BevyError, ctx: ErrorContext) {
-    inner!(log::error, error, ctx);
-}
-
 /// Error handler that logs the system error at the `warn` level.
 #[track_caller]
 #[inline]
 pub fn warn(error: BevyError, ctx: ErrorContext) {
     inner!(log::warn, error, ctx);
-}
-
-/// Error handler that logs the system error at the `info` level.
-#[track_caller]
-#[inline]
-pub fn info(error: BevyError, ctx: ErrorContext) {
-    inner!(log::info, error, ctx);
-}
-
-/// Error handler that logs the system error at the `debug` level.
-#[track_caller]
-#[inline]
-pub fn debug(error: BevyError, ctx: ErrorContext) {
-    inner!(log::debug, error, ctx);
-}
-
-/// Error handler that logs the system error at the `trace` level.
-#[track_caller]
-#[inline]
-pub fn trace(error: BevyError, ctx: ErrorContext) {
-    inner!(log::trace, error, ctx);
 }
 
 /// Error handler that ignores the system error.

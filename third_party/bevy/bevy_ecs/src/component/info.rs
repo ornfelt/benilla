@@ -331,29 +331,10 @@ impl ComponentDescriptor {
         }
     }
 
-    /// Returns a value indicating the storage strategy for the current component.
-    #[inline]
-    pub fn storage_type(&self) -> StorageType {
-        self.storage_type
-    }
-
-    /// Returns the [`TypeId`] of the underlying component type.
-    /// Returns `None` if the component does not correspond to a Rust type.
-    #[inline]
-    pub fn type_id(&self) -> Option<TypeId> {
-        self.type_id
-    }
-
     /// Returns the name of the current component.
     #[inline]
     pub fn name(&self) -> DebugName {
         self.name.clone()
-    }
-
-    /// Returns whether this component is mutable.
-    #[inline]
-    pub fn mutable(&self) -> bool {
-        self.mutable
     }
 }
 
@@ -397,23 +378,11 @@ impl Components {
         self.num_queued() + self.num_registered()
     }
 
-    /// Returns `true` if there are no components registered or queued with this instance. Otherwise, this returns `false`.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     /// Returns the number of components registered with this instance.
     #[inline]
     pub fn num_queued(&self) -> usize {
         let queued = self.queued.read().unwrap_or_else(PoisonError::into_inner);
         queued.components.len() + queued.dynamic_registrations.len() + queued.resources.len()
-    }
-
-    /// Returns `true` if there are any components registered with this instance. Otherwise, this returns `false`.
-    #[inline]
-    pub fn any_queued(&self) -> bool {
-        self.num_queued() > 0
     }
 
     /// A faster version of [`Self::num_queued`].
@@ -426,7 +395,7 @@ impl Components {
         queued.components.len() + queued.dynamic_registrations.len() + queued.resources.len()
     }
 
-    /// A faster version of [`Self::any_queued`].
+    /// Returns `true` if any components are queued for registration.
     #[inline]
     pub fn any_queued_mut(&mut self) -> bool {
         self.num_queued_mut() > 0
@@ -438,12 +407,6 @@ impl Components {
         self.components.len()
     }
 
-    /// Returns `true` if there are any components registered with this instance. Otherwise, this returns `false`.
-    #[inline]
-    pub fn any_registered(&self) -> bool {
-        self.num_registered() > 0
-    }
-
     /// Gets the metadata associated with the given component, if it is registered.
     /// This will return `None` if the id is not registered or is queued.
     ///
@@ -451,30 +414,6 @@ impl Components {
     #[inline]
     pub fn get_info(&self, id: ComponentId) -> Option<&ComponentInfo> {
         self.components.get(id.0).and_then(|info| info.as_ref())
-    }
-
-    /// Gets the [`ComponentDescriptor`] of the component with this [`ComponentId`] if it is present.
-    /// This will return `None` only if the id is neither registered nor queued to be registered.
-    ///
-    /// Currently, the [`Cow`] will be [`Cow::Owned`] if and only if the component is queued. It will be [`Cow::Borrowed`] otherwise.
-    ///
-    /// This will return an incorrect result if `id` did not come from the same world as `self`. It may return `None` or a garbage value.
-    #[inline]
-    pub fn get_descriptor<'a>(&'a self, id: ComponentId) -> Option<Cow<'a, ComponentDescriptor>> {
-        self.components
-            .get(id.0)
-            .and_then(|info| info.as_ref().map(|info| Cow::Borrowed(&info.descriptor)))
-            .or_else(|| {
-                let queued = self.queued.read().unwrap_or_else(PoisonError::into_inner);
-                // first check components, then resources, then dynamic
-                queued
-                    .components
-                    .values()
-                    .chain(queued.resources.values())
-                    .chain(queued.dynamic_registrations.iter())
-                    .find(|queued| queued.id == id)
-                    .map(|queued| Cow::Owned(queued.descriptor.clone()))
-            })
     }
 
     /// Gets the name of the component with this [`ComponentId`] if it is present.
@@ -557,14 +496,6 @@ impl Components {
         self.components
             .get_mut(id.0)
             .and_then(|info| info.as_mut().map(|info| &mut info.required_by))
-    }
-
-    /// Returns true if the [`ComponentId`] is fully registered and valid.
-    /// Ids may be invalid if they are still queued to be registered.
-    /// Those ids are still correct, but they are not usable in every context yet.
-    #[inline]
-    pub fn is_id_valid(&self, id: ComponentId) -> bool {
-        self.components.get(id.0).is_some_and(Option::is_some)
     }
 
     /// Type-erased equivalent of [`Components::valid_component_id()`].
@@ -697,8 +628,7 @@ impl Components {
     /// instance.
     ///
     /// Returns [`None`] if the `Resource` type has not yet been initialized using
-    /// [`ComponentsRegistrator::register_resource()`](super::ComponentsRegistrator::register_resource) or
-    /// [`ComponentsQueuedRegistrator::queue_register_resource()`](super::ComponentsQueuedRegistrator::queue_register_resource).
+    /// [`ComponentsRegistrator::register_resource()`](super::ComponentsRegistrator::register_resource).
     ///
     /// ```
     /// use bevy_ecs::prelude::*;

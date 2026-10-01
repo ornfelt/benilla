@@ -12,7 +12,7 @@ use crate::{
     world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId},
 };
 
-use alloc::{borrow::Cow, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use bevy_utils::prelude::DebugName;
 use core::marker::PhantomData;
 use variadics_please::all_tuples;
@@ -58,45 +58,12 @@ impl SystemMeta {
         }
     }
 
-    /// Returns the system's name
-    #[inline]
-    pub fn name(&self) -> &DebugName {
-        &self.name
-    }
-
-    /// Sets the name of this system.
-    ///
-    /// Useful to give closure systems more readable and unique names for debugging and tracing.
-    #[inline]
-    pub fn set_name(&mut self, new_name: impl Into<Cow<'static, str>>) {
-        let new_name: Cow<'static, str> = new_name.into();
-        #[cfg(feature = "trace")]
-        {
-            let name = new_name.as_ref();
-            self.system_span = info_span!(parent: None, "system", name = name);
-            self.commands_span = info_span!(parent: None, "system_commands", name = name);
-        }
-        self.name = new_name.into();
-    }
-
-    /// Returns true if the system is [`Send`].
-    #[inline]
-    pub fn is_send(&self) -> bool {
-        !self.flags.intersects(SystemStateFlags::NON_SEND)
-    }
-
     /// Sets the system to be not [`Send`].
     ///
     /// This is irreversible.
     #[inline]
     pub fn set_non_send(&mut self) {
         self.flags |= SystemStateFlags::NON_SEND;
-    }
-
-    /// Returns true if the system has deferred [`SystemParam`]'s
-    #[inline]
-    pub fn has_deferred(&self) -> bool {
-        self.flags.intersects(SystemStateFlags::DEFERRED)
     }
 
     /// Marks the system as having deferred buffers like [`Commands`](`super::Commands`)
@@ -109,11 +76,6 @@ impl SystemMeta {
     /// Mark the system to run exclusively. i.e. no other systems will run at the same time.
     pub fn set_exclusive(&mut self) {
         self.flags |= SystemStateFlags::EXCLUSIVE;
-    }
-
-    /// Expose a read only copy of `last_run`.
-    pub fn get_last_run(&self) -> Tick {
-        self.last_run
     }
 }
 
@@ -342,18 +304,6 @@ impl<Param: SystemParam> SystemState<Param> {
         )
     }
 
-    /// Gets the metadata for this instance.
-    #[inline]
-    pub fn meta(&self) -> &SystemMeta {
-        &self.meta
-    }
-
-    /// Gets the metadata for this instance.
-    #[inline]
-    pub fn meta_mut(&mut self) -> &mut SystemMeta {
-        &mut self.meta
-    }
-
     /// Retrieve the [`SystemParam`] values. This can only be called when all parameters are read-only.
     #[inline]
     pub fn get<'w, 's>(&'s mut self, world: &'w World) -> SystemParamItem<'w, 's, Param>
@@ -455,24 +405,6 @@ impl<Param: SystemParam> SystemState<Param> {
         self.meta.last_run = change_tick;
         param
     }
-
-    /// Returns a reference to the current system param states.
-    pub fn param_state(&self) -> &Param::State {
-        &self.param_state
-    }
-
-    /// Returns a mutable reference to the current system param states.
-    /// Marked as unsafe because modifying the system states may result in violation to certain
-    /// assumptions made by the [`SystemParam`]. Use with care.
-    ///
-    /// # Safety
-    /// Modifying the system param states may have unintended consequences.
-    /// The param state is generally considered to be owned by the [`SystemParam`]. Modifications
-    /// should respect any invariants as required by the [`SystemParam`].
-    /// For example, modifying the system state of [`ResMut`](crate::system::ResMut) will obviously create issues.
-    pub unsafe fn param_state_mut(&mut self) -> &mut Param::State {
-        &mut self.param_state
-    }
 }
 
 impl<Param: SystemParam> FromWorld for SystemState<Param> {
@@ -526,14 +458,6 @@ where
             system_meta,
             marker: PhantomData,
         }
-    }
-
-    /// Return this system with a new name.
-    ///
-    /// Useful to give closure systems more readable and unique names for debugging and tracing.
-    pub fn with_name(mut self, new_name: impl Into<Cow<'static, str>>) -> Self {
-        self.system_meta.set_name(new_name.into());
-        self
     }
 }
 

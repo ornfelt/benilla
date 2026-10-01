@@ -1,10 +1,6 @@
 #[cfg(feature = "bevy_reflect")]
 use bevy_reflect::Reflect;
-use core::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-    panic::Location,
-};
+use core::{marker::PhantomData, ops::DerefMut, panic::Location};
 
 /// A value that contains a `T` if the `track_location` feature is enabled,
 /// and is a ZST if it is not.
@@ -112,46 +108,6 @@ impl<T> MaybeLocation<Option<T>> {
             marker: PhantomData,
         }
     }
-
-    /// Transposes a `MaybeLocation` of an [`Option`] into an [`Option`] of a `MaybeLocation`.
-    ///
-    /// This can be useful if you want to use the `?` operator to exit early
-    /// if the `track_location` feature is enabled but the value is not found.
-    ///
-    /// If the `track_location` feature is enabled,
-    /// this returns `Some` if the inner value is `Some`
-    /// and `None` if the inner value is `None`.
-    ///
-    /// If it is disabled, this always returns `Some`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ecs::{change_detection::MaybeLocation, world::World};
-    /// # use core::panic::Location;
-    /// #
-    /// # fn test() -> Option<()> {
-    /// let mut world = World::new();
-    /// let entity = world.spawn(()).id();
-    /// let location: MaybeLocation<Option<&'static Location<'static>>> =
-    ///     world.entities().entity_get_spawned_or_despawned_by(entity);
-    /// let location: MaybeLocation<&'static Location<'static>> = location.transpose()?;
-    /// # Some(())
-    /// # }
-    /// # test();
-    /// ```
-    ///
-    /// # See also
-    ///
-    /// - [`into_option`][Self::into_option] to convert to an `Option<Option<T>>`.
-    ///   When used with [`Option::flatten`], this will have a similar effect,
-    ///   but will return `None` when the `track_location` feature is disabled.
-    #[inline]
-    pub fn transpose(self) -> Option<MaybeLocation<T>> {
-        Some(MaybeLocation {
-            marker: PhantomData,
-        })
-    }
 }
 
 impl<T> MaybeLocation<&T> {
@@ -196,17 +152,6 @@ impl<T: ?Sized> MaybeLocation<T> {
     /// Converts from `&mut MaybeLocation<T>` to `MaybeLocation<&mut T>`.
     #[inline]
     pub const fn as_mut(&mut self) -> MaybeLocation<&mut T> {
-        MaybeLocation {
-            marker: PhantomData,
-        }
-    }
-
-    /// Converts from `&MaybeLocation<T>` to `MaybeLocation<&T::Target>`.
-    #[inline]
-    pub fn as_deref(&self) -> MaybeLocation<&T::Target>
-    where
-        T: Deref,
-    {
         MaybeLocation {
             marker: PhantomData,
         }

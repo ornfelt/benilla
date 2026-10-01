@@ -91,15 +91,6 @@ impl World {
         );
     }
 
-    /// Triggers the given mutable [`Event`] reference using the given mutable [`Trigger`](crate::event::Trigger) reference, which
-    /// will run any [`Observer`]s watching for it.
-    ///
-    /// Compared to [`World::trigger`], this method is most useful when it's necessary to check
-    /// or use the event after it has been modified by observers.
-    pub fn trigger_ref_with<'a, E: Event>(&mut self, event: &mut E, trigger: &mut E::Trigger<'a>) {
-        self.trigger_ref_with_caller(event, trigger, MaybeLocation::caller());
-    }
-
     pub(crate) fn trigger_ref_with_caller<'a, E: Event>(
         &mut self,
         event: &mut E,

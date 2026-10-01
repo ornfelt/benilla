@@ -1,13 +1,10 @@
-use crate::{App, AppLabel, InternedAppLabel, Plugin, Plugins, PluginsState};
+use crate::{App, InternedAppLabel, Plugin, PluginsState};
 use alloc::{boxed::Box, string::String, vec::Vec};
 use bevy_ecs::{
     message::MessageRegistry,
     prelude::*,
-    schedule::{
-        InternedScheduleLabel, InternedSystemSet, ScheduleBuildSettings, ScheduleCleanupPolicy,
-        ScheduleError, ScheduleLabel,
-    },
-    system::{ScheduleSystem, SystemId, SystemInput},
+    schedule::{InternedScheduleLabel, InternedSystemSet, ScheduleLabel},
+    system::ScheduleSystem,
 };
 use bevy_platform::collections::{HashMap, HashSet};
 use core::fmt::Debug;
@@ -169,35 +166,6 @@ impl SubApp {
         self
     }
 
-    /// Take the function that will be called by [`extract`](Self::extract) out of the app, if any was set,
-    /// and replace it with `None`.
-    ///
-    /// If you use Bevy, `bevy_render` will set a default extract function used to extract data from
-    /// the main world into the render world as part of the Extract phase. In that case, you cannot replace
-    /// it with your own function. Instead, take the Bevy default function with this, and install your own
-    /// instead which calls the Bevy default.
-    ///
-    /// ```
-    /// # use bevy_app::SubApp;
-    /// # let mut app = SubApp::new();
-    /// let mut default_fn = app.take_extract();
-    /// app.set_extract(move |main, render| {
-    ///     // Do pre-extract custom logic
-    ///     // [...]
-    ///
-    ///     // Call Bevy's default, which executes the Extract phase
-    ///     if let Some(f) = default_fn.as_mut() {
-    ///         f(main, render);
-    ///     }
-    ///
-    ///     // Do post-extract custom logic
-    ///     // [...]
-    /// });
-    /// ```
-    pub fn take_extract(&mut self) -> Option<ExtractFn> {
-        self.extract.take()
-    }
-
     /// See [`App::insert_resource`].
     pub fn insert_resource<R: Resource>(&mut self, resource: R) -> &mut Self {
         self.world.insert_resource(resource);
@@ -222,30 +190,6 @@ impl SubApp {
         self
     }
 
-    /// See [`App::remove_systems_in_set`]
-    pub fn remove_systems_in_set<M>(
-        &mut self,
-        schedule: impl ScheduleLabel,
-        set: impl IntoSystemSet<M>,
-        policy: ScheduleCleanupPolicy,
-    ) -> Result<usize, ScheduleError> {
-        self.world.schedule_scope(schedule, |world, schedule| {
-            schedule.remove_systems_in_set(set, world, policy)
-        })
-    }
-
-    /// See [`App::register_system`].
-    pub fn register_system<I, O, M>(
-        &mut self,
-        system: impl IntoSystem<I, O, M> + 'static,
-    ) -> SystemId<I, O>
-    where
-        I: SystemInput + 'static,
-        O: 'static,
-    {
-        self.world.register_system(system)
-    }
-
     /// See [`App::configure_sets`].
     #[track_caller]
     pub fn configure_sets<M>(
@@ -262,16 +206,6 @@ impl SubApp {
     pub fn add_schedule(&mut self, schedule: Schedule) -> &mut Self {
         let mut schedules = self.world.resource_mut::<Schedules>();
         schedules.insert(schedule);
-        self
-    }
-
-    /// See [`App::init_schedule`].
-    pub fn init_schedule(&mut self, label: impl ScheduleLabel) -> &mut Self {
-        let label = label.intern();
-        let mut schedules = self.world.resource_mut::<Schedules>();
-        if !schedules.contains(label) {
-            schedules.insert(Schedule::new(label));
-        }
         self
     }
 
@@ -304,23 +238,6 @@ impl SubApp {
         let schedule = schedules.get_mut(label).unwrap();
         f(schedule);
 
-        self
-    }
-
-    /// See [`App::configure_schedules`].
-    pub fn configure_schedules(
-        &mut self,
-        schedule_build_settings: ScheduleBuildSettings,
-    ) -> &mut Self {
-        self.world_mut()
-            .resource_mut::<Schedules>()
-            .configure_schedules(schedule_build_settings);
-        self
-    }
-
-    /// See [`App::allow_ambiguous_component`].
-    pub fn allow_ambiguous_component<T: Component>(&mut self) -> &mut Self {
-        self.world_mut().allow_ambiguous_component::<T>();
         self
     }
 
@@ -359,12 +276,6 @@ impl SubApp {
             MessageRegistry::register_message::<T>(self.world_mut());
         }
 
-        self
-    }
-
-    /// See [`App::add_plugins`].
-    pub fn add_plugins<M>(&mut self, plugins: impl Plugins<M>) -> &mut Self {
-        self.run_as_app(|app| plugins.add_to_app(app));
         self
     }
 
@@ -455,19 +366,6 @@ impl SubApp {
         registry.write().register::<T>();
         self
     }
-
-    /// See [`App::register_type_data`].
-    #[cfg(feature = "bevy_reflect")]
-    pub fn register_type_data<
-        T: bevy_reflect::Reflect + bevy_reflect::TypePath,
-        D: bevy_reflect::TypeData + bevy_reflect::FromType<T>,
-    >(
-        &mut self,
-    ) -> &mut Self {
-        let registry = self.world.resource_mut::<AppTypeRegistry>();
-        registry.write().register_type_data::<T, D>();
-        self
-    }
 }
 
 /// The collection of sub-apps that belong to an [`App`].
@@ -508,13 +406,5 @@ impl SubApps {
     /// Returns a mutable iterator over the sub-apps (starting with the main one).
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut SubApp> + '_ {
         core::iter::once(&mut self.main).chain(self.sub_apps.values_mut())
-    }
-
-    /// Extract data from the main world into the [`SubApp`] with the given label and perform an update if it exists.
-    pub fn update_subapp_by_label(&mut self, label: impl AppLabel) {
-        if let Some(sub_app) = self.sub_apps.get_mut(&label.intern()) {
-            sub_app.extract(&mut self.main.world);
-            sub_app.update();
-        }
     }
 }
