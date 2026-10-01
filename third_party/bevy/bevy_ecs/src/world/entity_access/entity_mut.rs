@@ -5,7 +5,7 @@ use crate::{
     query::{has_conflicts, Access, QueryAccessError, ReleaseStateQueryData},
     world::{
         error::EntityComponentError, unsafe_world_cell::UnsafeEntityCell, DynamicComponentFetch,
-        EntityRef, FilteredEntityMut, FilteredEntityRef, Mut,
+        EntityRef, FilteredEntityRef, Mut,
     },
 };
 
@@ -386,22 +386,6 @@ impl<'a> From<&'a EntityMut<'_>> for FilteredEntityRef<'a, 'static> {
         // SAFETY:
         // - `EntityMut` guarantees exclusive access to all components in the new `FilteredEntityRef`.
         unsafe { FilteredEntityRef::new(entity.cell, const { &Access::new_read_all() }) }
-    }
-}
-
-impl<'a> From<EntityMut<'a>> for FilteredEntityMut<'a, 'static> {
-    fn from(entity: EntityMut<'a>) -> Self {
-        // SAFETY:
-        // - `EntityMut` guarantees exclusive access to all components in the new `FilteredEntityMut`.
-        unsafe { FilteredEntityMut::new(entity.cell, const { &Access::new_write_all() }) }
-    }
-}
-
-impl<'a> From<&'a mut EntityMut<'_>> for FilteredEntityMut<'a, 'static> {
-    fn from(entity: &'a mut EntityMut<'_>) -> Self {
-        // SAFETY:
-        // - `EntityMut` guarantees exclusive access to all components in the new `FilteredEntityMut`.
-        unsafe { FilteredEntityMut::new(entity.cell, const { &Access::new_write_all() }) }
     }
 }
 

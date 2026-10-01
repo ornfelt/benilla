@@ -3,7 +3,7 @@ use crate::{
     component::{Component, ComponentId, Components, Mutable},
     entity::{ContainsEntity, Entity, EntityEquivalent},
     query::Access,
-    world::{unsafe_world_cell::UnsafeEntityCell, FilteredEntityMut, FilteredEntityRef, Mut, Ref},
+    world::{unsafe_world_cell::UnsafeEntityCell, FilteredEntityRef, Mut, Ref},
 };
 
 use core::{
@@ -232,14 +232,6 @@ where
             // covered by the `contains` check above.
             unsafe { self.entity.get_mut() }
         }
-    }
-}
-
-impl<'w, 's, B: Bundle> From<&'w mut EntityMutExcept<'_, 's, B>> for FilteredEntityMut<'w, 's> {
-    fn from(value: &'w mut EntityMutExcept<'_, 's, B>) -> Self {
-        // SAFETY:
-        // - The FilteredEntityMut has the same component access as the given EntityMutExcept.
-        unsafe { FilteredEntityMut::new(value.entity, value.access) }
     }
 }
 

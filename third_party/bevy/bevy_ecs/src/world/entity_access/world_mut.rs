@@ -15,7 +15,7 @@ use crate::{
     system::IntoObserverSystem,
     world::{
         error::EntityComponentError, unsafe_world_cell::UnsafeEntityCell, ComponentEntry,
-        DynamicComponentFetch, EntityMut, EntityRef, FilteredEntityMut, FilteredEntityRef, Mut,
+        DynamicComponentFetch, EntityMut, EntityRef, FilteredEntityRef, Mut,
         OccupiedComponentEntry, VacantComponentEntry, World,
     },
 };
@@ -1487,32 +1487,6 @@ impl<'a> From<&'a EntityWorldMut<'_>> for FilteredEntityRef<'a, 'static> {
             FilteredEntityRef::new(
                 entity.as_unsafe_entity_cell_readonly(),
                 const { &Access::new_read_all() },
-            )
-        }
-    }
-}
-
-impl<'a> From<EntityWorldMut<'a>> for FilteredEntityMut<'a, 'static> {
-    fn from(entity: EntityWorldMut<'a>) -> Self {
-        // SAFETY:
-        // - `EntityWorldMut` guarantees exclusive access to the entire world.
-        unsafe {
-            FilteredEntityMut::new(
-                entity.into_unsafe_entity_cell(),
-                const { &Access::new_write_all() },
-            )
-        }
-    }
-}
-
-impl<'a> From<&'a mut EntityWorldMut<'_>> for FilteredEntityMut<'a, 'static> {
-    fn from(entity: &'a mut EntityWorldMut<'_>) -> Self {
-        // SAFETY:
-        // - `EntityWorldMut` guarantees exclusive access to the entire world.
-        unsafe {
-            FilteredEntityMut::new(
-                entity.as_unsafe_entity_cell(),
-                const { &Access::new_write_all() },
             )
         }
     }

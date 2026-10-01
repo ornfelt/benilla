@@ -772,6 +772,23 @@ the same repository's.
   `SystemParam` derive's `#[system_param(builder)]` option (the derive now rejects every
   struct-level option, as it did every other one). `FunctionSystem::new` loses its state
   argument: its one caller left passed `None`. No system, schedule or run-time path changed.
+- **`bevy_ecs`'s query transmutes, lenses, joins and sorts.** Nothing outside bevy_ecs's own tests
+  transmutes, joins or sorts a query (each was marked `#[deprecated]` and the workspace checked
+  with `--all-targets`: no warning outside bevy_ecs), so `QueryState::transmute`/
+  `transmute_filtered`/`join`/`join_filtered`, `Query::transmute_lens*`/`join*` with `QueryLens`
+  and its two `From` impls, the seven `sort*` methods of `QueryIter` and of `QueryManyIter` with
+  `QuerySortedIter`, `QuerySortedManyIter` and `NeutralOrd` (and `QueryManyIter`'s `world` field,
+  read only by its sorts), and their tests are deleted. `FilteredEntityMut` goes whole, with its
+  conversions, its tests and `TryFromFilteredError::MissingWriteAllAccess`; `FilteredEntityRef`
+  stays for `ReflectComponent::reflect` (bevy_scene passes an `EntityRef`) but is no longer
+  `QueryData`, and `QueryData::provide_extra_access`, which only the transmutes called (every
+  other impl was the empty default or forwarded to its fields), leaves the trait, the tuple impls
+  and the `QueryData` derive. `Observer::with_entities`/`watch_entities` (test-only; `with_entity`
+  serves `EntityWorldMut::observe`) and the `Access`/`FilteredAccess` methods left without a
+  caller (`has_any_write`, `has_write_all*`, `clear_writes`, `remove_conflicting_access`,
+  `is_subset*`, `resource_reads*`/`resource_writes`, `add_unfiltered_*_all_resources`,
+  `new_write_all`, `invertible_difference_with`) go too. No system, schedule or run-time path
+  changed.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

@@ -302,12 +302,11 @@ pub trait Event: Send + Sync + Sized + 'static {
 /// Note that the [`Observer`] component is not added to the entity it is observing. Observers should always be their own entities, as there
 /// can be multiple observers of the same entity!
 ///
-/// You can call [`Observer::watch_entity`] more than once or [`Observer::watch_entities`] to watch multiple entities with the same [`Observer`].
+/// You can call [`Observer::watch_entity`] more than once to watch multiple entities with the same [`Observer`].
 ///
 /// [`EntityWorldMut::observe`]: crate::world::EntityWorldMut::observe
 /// [`Observer`]: crate::observer::Observer
 /// [`Observer::watch_entity`]: crate::observer::Observer::watch_entity
-/// [`Observer::watch_entities`]: crate::observer::Observer::watch_entities
 pub trait EntityEvent: Event {
     /// The [`Entity`] "target" of this [`EntityEvent`]. When triggered, this will run observers that watch for this specific entity.
     fn event_target(&self) -> Entity;

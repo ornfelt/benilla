@@ -11,7 +11,7 @@ use crate::{
     storage::{ComponentSparseSet, Table, TableRow},
     world::{
         unsafe_world_cell::UnsafeWorldCell, EntityMut, EntityMutExcept, EntityRef, EntityRefExcept,
-        FilteredEntityMut, FilteredEntityRef, Mut, Ref, World,
+        Mut, Ref, World,
     },
 };
 use bevy_ptr::{ThinSlicePtr, UnsafeCellDeref};
@@ -307,22 +307,6 @@ pub unsafe trait QueryData: WorldQuery {
         item: Self::Item<'wlong, 's>,
     ) -> Self::Item<'wshort, 's>;
 
-    /// Offers additional access above what we requested in `update_component_access`.
-    /// Implementations may add additional access that is a subset of `available_access`
-    /// and does not conflict with anything in `access`,
-    /// and must update `access` to include that access.
-    ///
-    /// This is used by [`WorldQuery`] types like [`FilteredEntityRef`]
-    /// and [`FilteredEntityMut`] to support dynamic access.
-    ///
-    /// Called when constructing a [`QueryLens`](crate::system::QueryLens)
-    fn provide_extra_access(
-        _state: &mut Self::State,
-        _access: &mut Access,
-        _available_access: &Access,
-    ) {
-    }
-
     /// Fetch [`Self::Item`](`QueryData::Item`) for either the given `entity` in the current [`Table`],
     /// or for the given `entity` in the current [`Archetype`]. This must always be called after
     /// [`WorldQuery::set_table`] with a `table_row` in the range of the current [`Table`] or after
@@ -365,7 +349,7 @@ pub type ROQueryItem<'w, 's, D> = QueryItem<'w, 's, <D as QueryData>::ReadOnly>;
 /// A [`QueryData`] that does not borrow from its [`QueryState`](crate::query::QueryState).
 ///
 /// This is implemented by most `QueryData` types.
-/// The main exceptions are [`FilteredEntityRef`], [`FilteredEntityMut`], [`EntityRefExcept`], and [`EntityMutExcept`],
+/// The main exceptions are [`EntityRefExcept`] and [`EntityMutExcept`],
 /// which borrow an access list from their query state.
 /// Consider using a full [`EntityRef`] or [`EntityMut`] if you would need those.
 pub trait ReleaseStateQueryData: QueryData {
@@ -799,251 +783,6 @@ impl ReleaseStateQueryData for EntityMut<'_> {
 }
 
 impl ArchetypeQueryData for EntityMut<'_> {}
-
-/// SAFETY: The accesses of `Self::ReadOnly` are a subset of the accesses of `Self`
-unsafe impl WorldQuery for FilteredEntityRef<'_, '_> {
-    type Fetch<'w> = EntityFetch<'w>;
-    type State = Access;
-
-    fn shrink_fetch<'wlong: 'wshort, 'wshort>(fetch: Self::Fetch<'wlong>) -> Self::Fetch<'wshort> {
-        fetch
-    }
-
-    const IS_DENSE: bool = true;
-
-    unsafe fn init_fetch<'w, 's>(
-        world: UnsafeWorldCell<'w>,
-        _state: &'s Self::State,
-        last_run: Tick,
-        this_run: Tick,
-    ) -> Self::Fetch<'w> {
-        EntityFetch {
-            world,
-            last_run,
-            this_run,
-        }
-    }
-
-    #[inline]
-    unsafe fn set_archetype<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _: &'w Archetype,
-        _table: &Table,
-    ) {
-    }
-
-    #[inline]
-    unsafe fn set_table<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _: &'w Table,
-    ) {
-    }
-
-    fn update_component_access(state: &Self::State, filtered_access: &mut FilteredAccess) {
-        assert!(
-            filtered_access.access().is_compatible(state),
-            "FilteredEntityRef conflicts with a previous access in this query. Exclusive access cannot coincide with any other accesses.",
-        );
-        filtered_access.access.extend(state);
-    }
-
-    fn init_state(_world: &mut World) -> Self::State {
-        Access::default()
-    }
-
-    fn get_state(_components: &Components) -> Option<Self::State> {
-        Some(Access::default())
-    }
-
-    fn matches_component_set(
-        _state: &Self::State,
-        _set_contains_id: &impl Fn(ComponentId) -> bool,
-    ) -> bool {
-        true
-    }
-}
-
-/// SAFETY: `Self` is the same as `Self::ReadOnly`
-unsafe impl<'a, 'b> QueryData for FilteredEntityRef<'a, 'b> {
-    const IS_READ_ONLY: bool = true;
-    const IS_ARCHETYPAL: bool = true;
-    type ReadOnly = Self;
-    type Item<'w, 's> = FilteredEntityRef<'w, 's>;
-
-    fn shrink<'wlong: 'wshort, 'wshort, 's>(
-        item: Self::Item<'wlong, 's>,
-    ) -> Self::Item<'wshort, 's> {
-        item
-    }
-
-    #[inline]
-    fn provide_extra_access(
-        state: &mut Self::State,
-        access: &mut Access,
-        available_access: &Access,
-    ) {
-        // Claim any extra access that doesn't conflict with other subqueries
-        // This is used when constructing a `QueryLens`
-        // Start with the entire available access, since that is the most we can possibly access
-        state.clone_from(available_access);
-        // Prevent all writes, since `FilteredEntityRef` only performs read access
-        state.clear_writes();
-        // Prevent any access that would conflict with other accesses in the current query
-        state.remove_conflicting_access(access);
-        // Finally, add the resulting access to the query access
-        // to make sure a later `FilteredEntityMut` won't conflict with this.
-        access.extend(state);
-    }
-
-    #[inline(always)]
-    unsafe fn fetch<'w, 's>(
-        access: &'s Self::State,
-        fetch: &mut Self::Fetch<'w>,
-        entity: Entity,
-        _table_row: TableRow,
-    ) -> Option<Self::Item<'w, 's>> {
-        // SAFETY: `fetch` must be called with an entity that exists in the world
-        let cell = unsafe {
-            fetch
-                .world
-                .get_entity_with_ticks(entity, fetch.last_run, fetch.this_run)
-                .debug_checked_unwrap()
-        };
-        // SAFETY: mutable access to every component has been registered.
-        Some(unsafe { FilteredEntityRef::new(cell, access) })
-    }
-
-    fn iter_access(state: &Self::State) -> impl Iterator<Item = EcsAccessType<'_>> {
-        iter::once(EcsAccessType::Access(state))
-    }
-}
-
-/// SAFETY: Access is read-only.
-unsafe impl ReadOnlyQueryData for FilteredEntityRef<'_, '_> {}
-
-impl ArchetypeQueryData for FilteredEntityRef<'_, '_> {}
-
-/// SAFETY: The accesses of `Self::ReadOnly` are a subset of the accesses of `Self`
-unsafe impl WorldQuery for FilteredEntityMut<'_, '_> {
-    type Fetch<'w> = EntityFetch<'w>;
-    type State = Access;
-
-    fn shrink_fetch<'wlong: 'wshort, 'wshort>(fetch: Self::Fetch<'wlong>) -> Self::Fetch<'wshort> {
-        fetch
-    }
-
-    const IS_DENSE: bool = true;
-
-    unsafe fn init_fetch<'w, 's>(
-        world: UnsafeWorldCell<'w>,
-        _state: &'s Self::State,
-        last_run: Tick,
-        this_run: Tick,
-    ) -> Self::Fetch<'w> {
-        EntityFetch {
-            world,
-            last_run,
-            this_run,
-        }
-    }
-
-    #[inline]
-    unsafe fn set_archetype<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _: &'w Archetype,
-        _table: &Table,
-    ) {
-    }
-
-    #[inline]
-    unsafe fn set_table<'w, 's>(
-        _fetch: &mut Self::Fetch<'w>,
-        _state: &'s Self::State,
-        _: &'w Table,
-    ) {
-    }
-
-    fn update_component_access(state: &Self::State, filtered_access: &mut FilteredAccess) {
-        assert!(
-            filtered_access.access().is_compatible(state),
-            "FilteredEntityMut conflicts with a previous access in this query. Exclusive access cannot coincide with any other accesses.",
-        );
-        filtered_access.access.extend(state);
-    }
-
-    fn init_state(_world: &mut World) -> Self::State {
-        Access::default()
-    }
-
-    fn get_state(_components: &Components) -> Option<Self::State> {
-        Some(Access::default())
-    }
-
-    fn matches_component_set(
-        _state: &Self::State,
-        _set_contains_id: &impl Fn(ComponentId) -> bool,
-    ) -> bool {
-        true
-    }
-}
-
-/// SAFETY: access of `FilteredEntityRef` is a subset of `FilteredEntityMut`
-unsafe impl<'a, 'b> QueryData for FilteredEntityMut<'a, 'b> {
-    const IS_READ_ONLY: bool = false;
-    const IS_ARCHETYPAL: bool = true;
-    type ReadOnly = FilteredEntityRef<'a, 'b>;
-    type Item<'w, 's> = FilteredEntityMut<'w, 's>;
-
-    fn shrink<'wlong: 'wshort, 'wshort, 's>(
-        item: Self::Item<'wlong, 's>,
-    ) -> Self::Item<'wshort, 's> {
-        item
-    }
-
-    #[inline]
-    fn provide_extra_access(
-        state: &mut Self::State,
-        access: &mut Access,
-        available_access: &Access,
-    ) {
-        // Claim any extra access that doesn't conflict with other subqueries
-        // This is used when constructing a `QueryLens`
-        // Start with the entire available access, since that is the most we can possibly access
-        state.clone_from(available_access);
-        // Prevent any access that would conflict with other accesses in the current query
-        state.remove_conflicting_access(access);
-        // Finally, add the resulting access to the query access
-        // to make sure a later `FilteredEntityRef` or `FilteredEntityMut` won't conflict with this.
-        access.extend(state);
-    }
-
-    #[inline(always)]
-    unsafe fn fetch<'w, 's>(
-        access: &'s Self::State,
-        fetch: &mut Self::Fetch<'w>,
-        entity: Entity,
-        _table_row: TableRow,
-    ) -> Option<Self::Item<'w, 's>> {
-        // SAFETY: `fetch` must be called with an entity that exists in the world
-        let cell = unsafe {
-            fetch
-                .world
-                .get_entity_with_ticks(entity, fetch.last_run, fetch.this_run)
-                .debug_checked_unwrap()
-        };
-        // SAFETY: mutable access to every component has been registered.
-        Some(unsafe { FilteredEntityMut::new(cell, access) })
-    }
-
-    fn iter_access(state: &Self::State) -> impl Iterator<Item = EcsAccessType<'_>> {
-        iter::once(EcsAccessType::Access(state))
-    }
-}
-
-impl ArchetypeQueryData for FilteredEntityMut<'_, '_> {}
 
 /// SAFETY: `EntityRefExcept` guards access to all components in the bundle `B`
 /// and populates `Access` values so that queries that conflict with this access
@@ -2474,16 +2213,6 @@ macro_rules! impl_tuple_query_data {
                 ($(
                     $name::shrink($name),
                 )*)
-            }
-
-            #[inline]
-            fn provide_extra_access(
-                state: &mut Self::State,
-                access: &mut Access,
-                available_access: &Access,
-            ) {
-                let ($($name,)*) = state;
-                $($name::provide_extra_access($name, access, available_access);)*
             }
 
             #[inline(always)]

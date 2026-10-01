@@ -161,20 +161,6 @@ impl Access {
         access
     }
 
-    /// Creates an [`Access`] with read and write access to all components.
-    /// This is equivalent to calling `write_all()` on `Access::new()`,
-    /// but is available in a `const` context.
-    pub(crate) const fn new_write_all() -> Self {
-        let mut access = Self::new();
-        access.reads_all_resources = true;
-        access.writes_all_resources = true;
-        // Note that we cannot use `write_all_components()`
-        // because `FixedBitSet::clear()` is not `const`.
-        access.component_read_and_writes_inverted = true;
-        access.component_writes_inverted = true;
-        access
-    }
-
     fn add_component_sparse_set_index_read(&mut self, index: usize) {
         if !self.component_read_and_writes_inverted {
             self.component_read_and_writes.grow_and_insert(index);
@@ -304,11 +290,6 @@ impl Access {
         self.has_any_component_read() || self.has_any_resource_read()
     }
 
-    /// Returns `true` if this accesses any resources or components mutably.
-    pub fn has_any_write(&self) -> bool {
-        self.has_any_component_write() || self.has_any_resource_write()
-    }
-
     /// Returns true if this has an archetypal (indirect) access to the component given by `index`.
     ///
     /// This is a component whose value is not accessed (and thus will never cause conflicts),
@@ -369,40 +350,15 @@ impl Access {
         self.component_read_and_writes_inverted && self.component_read_and_writes.is_clear()
     }
 
-    /// Returns `true` if this has write access to all components (i.e. `EntityMut`).
-    #[inline]
-    pub fn has_write_all_components(&self) -> bool {
-        self.component_writes_inverted && self.component_writes.is_clear()
-    }
-
     /// Returns `true` if this has access to all resources (i.e. `EntityRef`).
     #[inline]
     pub fn has_read_all_resources(&self) -> bool {
         self.reads_all_resources
     }
 
-    /// Returns `true` if this has write access to all resources (i.e. `EntityMut`).
-    #[inline]
-    pub fn has_write_all_resources(&self) -> bool {
-        self.writes_all_resources
-    }
-
     /// Returns `true` if this has access to all indexed elements (i.e. `&World`).
     pub fn has_read_all(&self) -> bool {
         self.has_read_all_components() && self.has_read_all_resources()
-    }
-
-    /// Returns `true` if this has write access to all indexed elements (i.e. `&mut World`).
-    pub fn has_write_all(&self) -> bool {
-        self.has_write_all_components() && self.has_write_all_resources()
-    }
-
-    /// Removes all writes.
-    pub fn clear_writes(&mut self) {
-        self.writes_all_resources = false;
-        self.component_writes_inverted = false;
-        self.component_writes.clear();
-        self.resource_writes.clear();
     }
 
     /// Adds all access from `other`.
@@ -426,37 +382,6 @@ impl Access {
             .union_with(&other.resource_read_and_writes);
         self.resource_writes.union_with(&other.resource_writes);
         self.archetypal.union_with(&other.archetypal);
-    }
-
-    /// Removes any access from `self` that would conflict with `other`.
-    /// This removes any reads and writes for any component written by `other`,
-    /// and removes any writes for any component read by `other`.
-    pub fn remove_conflicting_access(&mut self, other: &Access) {
-        invertible_difference_with(
-            &mut self.component_read_and_writes,
-            &mut self.component_read_and_writes_inverted,
-            &other.component_writes,
-            other.component_writes_inverted,
-        );
-        invertible_difference_with(
-            &mut self.component_writes,
-            &mut self.component_writes_inverted,
-            &other.component_read_and_writes,
-            other.component_read_and_writes_inverted,
-        );
-
-        if other.reads_all_resources {
-            self.writes_all_resources = false;
-            self.resource_writes.clear();
-        }
-        if other.writes_all_resources {
-            self.reads_all_resources = false;
-            self.resource_read_and_writes.clear();
-        }
-        self.resource_read_and_writes
-            .difference_with(&other.resource_writes);
-        self.resource_writes
-            .difference_with(&other.resource_read_and_writes);
     }
 
     /// Returns `true` if the access and `other` can be active at the same time,
@@ -546,83 +471,6 @@ impl Access {
         self.is_components_compatible(other) && self.is_resources_compatible(other)
     }
 
-    /// Returns `true` if the set's component access is a subset of another, i.e. `other`'s component access
-    /// contains at least all the values in `self`.
-    pub fn is_subset_components(&self, other: &Access) -> bool {
-        for (
-            our_components,
-            their_components,
-            our_components_inverted,
-            their_components_inverted,
-        ) in [
-            (
-                &self.component_read_and_writes,
-                &other.component_read_and_writes,
-                self.component_read_and_writes_inverted,
-                other.component_read_and_writes_inverted,
-            ),
-            (
-                &self.component_writes,
-                &other.component_writes,
-                self.component_writes_inverted,
-                other.component_writes_inverted,
-            ),
-        ] {
-            match (our_components_inverted, their_components_inverted) {
-                (true, true) => {
-                    if !their_components.is_subset(our_components) {
-                        return false;
-                    }
-                }
-                (true, false) => {
-                    return false;
-                }
-                (false, true) => {
-                    if !our_components.is_disjoint(their_components) {
-                        return false;
-                    }
-                }
-                (false, false) => {
-                    if !our_components.is_subset(their_components) {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        true
-    }
-
-    /// Returns `true` if the set's resource access is a subset of another, i.e. `other`'s resource access
-    /// contains at least all the values in `self`.
-    pub fn is_subset_resources(&self, other: &Access) -> bool {
-        if self.writes_all_resources {
-            return other.writes_all_resources;
-        }
-
-        if other.writes_all_resources {
-            return true;
-        }
-
-        if self.reads_all_resources {
-            return other.reads_all_resources;
-        }
-
-        if other.reads_all_resources {
-            return self.resource_writes.is_subset(&other.resource_writes);
-        }
-
-        self.resource_read_and_writes
-            .is_subset(&other.resource_read_and_writes)
-            && self.resource_writes.is_subset(&other.resource_writes)
-    }
-
-    /// Returns `true` if the set is a subset of another, i.e. `other` contains
-    /// at least all the values in `self`.
-    pub fn is_subset(&self, other: &Access) -> bool {
-        self.is_subset_components(other) && self.is_subset_resources(other)
-    }
-
     fn get_component_conflicts(&self, other: &Access) -> AccessConflicts {
         let mut conflicts = FixedBitSet::new();
 
@@ -699,23 +547,6 @@ impl Access {
                 .intersection(&other.resource_writes),
         );
         AccessConflicts::Individual(conflicts)
-    }
-
-    /// Returns the indices of the resources this has access to.
-    pub fn resource_reads_and_writes(&self) -> impl Iterator<Item = ComponentId> + '_ {
-        self.resource_read_and_writes.ones().map(ComponentId::new)
-    }
-
-    /// Returns the indices of the resources this has non-exclusive access to.
-    pub fn resource_reads(&self) -> impl Iterator<Item = ComponentId> + '_ {
-        self.resource_read_and_writes
-            .difference(&self.resource_writes)
-            .map(ComponentId::new)
-    }
-
-    /// Returns the indices of the resources this has exclusive access to.
-    pub fn resource_writes(&self) -> impl Iterator<Item = ComponentId> + '_ {
-        self.resource_writes.ones().map(ComponentId::new)
     }
 
     /// Returns an iterator over the component IDs and their [`ComponentAccessKind`].
@@ -809,27 +640,6 @@ fn invertible_union_with(
         }
         (false, false) => self_set.union_with(other_set),
     }
-}
-
-/// Performs an in-place set difference of `other` from `self`, where either set may be inverted.
-///
-/// Each set corresponds to a `FixedBitSet` if `inverted` is `false`,
-/// or to the infinite (co-finite) complement of the `FixedBitSet` if `inverted` is `true`.
-///
-/// This updates the `self` set to remove any elements in the `other` set.
-/// Note that this may change `self_inverted` to `false` if we remove an
-/// infinite set from another infinite one, resulting in a finite difference.
-fn invertible_difference_with(
-    self_set: &mut FixedBitSet,
-    self_inverted: &mut bool,
-    other_set: &FixedBitSet,
-    other_inverted: bool,
-) {
-    // We can share the implementation of `invertible_union_with` with some algebra:
-    // A - B = A & !B = !(!A | B)
-    *self_inverted = !*self_inverted;
-    invertible_union_with(self_set, self_inverted, other_set, other_inverted);
-    *self_inverted = !*self_inverted;
 }
 
 /// Error returned when attempting to iterate over items included in an [`Access`]
@@ -1161,12 +971,6 @@ impl FilteredAccess {
         self.access.write_all_components();
     }
 
-    /// Returns `true` if the set is a subset of another, i.e. `other` contains
-    /// at least all the values in `self`.
-    pub fn is_subset(&self, other: &FilteredAccess) -> bool {
-        self.required.is_subset(&other.required) && self.access().is_subset(other.access())
-    }
-
     /// Returns the indices of the elements that this access filters for.
     pub fn with_filters(&self) -> impl Iterator<Item = ComponentId> + '_ {
         self.filter_sets
@@ -1349,20 +1153,6 @@ impl FilteredAccessSet {
         self.add(filter);
     }
 
-    /// Adds read access to all resources to the set.
-    pub fn add_unfiltered_read_all_resources(&mut self) {
-        let mut filter = FilteredAccess::default();
-        filter.access.read_all_resources();
-        self.add(filter);
-    }
-
-    /// Adds write access to all resources to the set.
-    pub fn add_unfiltered_write_all_resources(&mut self) {
-        let mut filter = FilteredAccess::default();
-        filter.access.write_all_resources();
-        self.add(filter);
-    }
-
     /// Adds all of the accesses from the passed set to `self`.
     pub fn extend(&mut self, filtered_access_set: FilteredAccessSet) {
         self.combined_access
@@ -1388,7 +1178,7 @@ impl FilteredAccessSet {
 
 #[cfg(test)]
 mod tests {
-    use super::{invertible_difference_with, invertible_union_with};
+    use super::invertible_union_with;
     use crate::{
         component::ComponentId,
         query::{
@@ -1798,38 +1588,5 @@ mod tests {
 
         // [0] | [2, ...] = [0, 2, ...]
         assert_eq!((self_set, self_inverted), (bit_set(3, [1]), true));
-    }
-
-    #[test]
-    fn invertible_difference_with_tests() {
-        let invertible_difference = |mut self_inverted: bool, other_inverted: bool| {
-            // Check all four possible bit states: In both sets, the first, the second, or neither
-            let mut self_set = bit_set(4, [0, 1]);
-            let other_set = bit_set(4, [0, 2]);
-            invertible_difference_with(
-                &mut self_set,
-                &mut self_inverted,
-                &other_set,
-                other_inverted,
-            );
-            (self_set, self_inverted)
-        };
-
-        // Check each combination of `inverted` flags
-        let (s, i) = invertible_difference(false, false);
-        // [0, 1] - [0, 2] = [1]
-        assert_eq!((s, i), (bit_set(4, [1]), false));
-
-        let (s, i) = invertible_difference(false, true);
-        // [0, 1] - [1, 3, ...] = [0]
-        assert_eq!((s, i), (bit_set(4, [0]), false));
-
-        let (s, i) = invertible_difference(true, false);
-        // [2, 3, ...] - [0, 2] = [3, ...]
-        assert_eq!((s, i), (bit_set(4, [0, 1, 2]), true));
-
-        let (s, i) = invertible_difference(true, true);
-        // [2, 3, ...] - [1, 3, ...] = [2]
-        assert_eq!((s, i), (bit_set(4, [2]), false));
     }
 }

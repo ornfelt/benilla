@@ -18,8 +18,8 @@ pub use bevy_ecs_macros::FromWorld;
 pub use deferred_world::DeferredWorld;
 pub use entity_access::{
     ComponentEntry, DynamicComponentFetch, EntityMut, EntityMutExcept, EntityRef, EntityRefExcept,
-    EntityWorldMut, FilteredEntityMut, FilteredEntityRef, OccupiedComponentEntry,
-    TryFromFilteredError, VacantComponentEntry,
+    EntityWorldMut, FilteredEntityRef, OccupiedComponentEntry, TryFromFilteredError,
+    VacantComponentEntry,
 };
 pub use entity_fetch::{EntityFetcher, WorldEntityFetch};
 pub use identifier::WorldId;

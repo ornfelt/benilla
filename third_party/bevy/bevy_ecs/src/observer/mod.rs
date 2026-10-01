@@ -1030,26 +1030,6 @@ mod tests {
     }
 
     #[test]
-    fn observer_watch_entities() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-        let entities = world
-            .spawn_batch(core::iter::repeat_n((), 4))
-            .collect::<Vec<_>>();
-        let observer = Observer::new(|_: On<EntityEventA>, mut order: ResMut<Order>| {
-            order.observed("a");
-        });
-        world.spawn(observer.with_entities(entities.iter().copied().take(2)));
-
-        world.trigger(EntityEventA(entities[0]));
-        world.trigger(EntityEventA(entities[1]));
-        assert_eq!(vec!["a", "a"], world.resource::<Order>().0);
-        world.trigger(EntityEventA(entities[2]));
-        world.trigger(EntityEventA(entities[3]));
-        assert_eq!(vec!["a", "a"], world.resource::<Order>().0);
-    }
-
-    #[test]
     fn unregister_global_observer() {
         let mut world = World::new();
         let mut observer = world.add_observer(|_: On<EventA>| {});

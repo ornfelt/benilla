@@ -29,7 +29,7 @@ mod tests {
         component::ComponentId,
         prelude::*,
         system::{assert_is_system, RunSystemOnce as _},
-        world::{error::EntityComponentError, DeferredWorld, FilteredEntityMut, FilteredEntityRef},
+        world::{error::EntityComponentError, DeferredWorld, FilteredEntityRef},
     };
 
     use super::{EntityMutExcept, EntityRefExcept};
@@ -775,38 +775,6 @@ mod tests {
         assert!(e.get_ref::<A>().is_none());
         assert!(e.get_change_ticks::<A>().is_none());
         assert!(e.get_by_id(a_id).is_none());
-        assert!(e.get_change_ticks_by_id(a_id).is_none());
-    }
-
-    #[test]
-    fn filtered_entity_mut_normal() {
-        let mut world = World::new();
-        let a_id = world.register_component::<A>();
-
-        let mut e: FilteredEntityMut = world.spawn(A).into();
-
-        assert!(e.get::<A>().is_some());
-        assert!(e.get_ref::<A>().is_some());
-        assert!(e.get_mut::<A>().is_some());
-        assert!(e.get_change_ticks::<A>().is_some());
-        assert!(e.get_by_id(a_id).is_some());
-        assert!(e.get_mut_by_id(a_id).is_some());
-        assert!(e.get_change_ticks_by_id(a_id).is_some());
-    }
-
-    #[test]
-    fn filtered_entity_mut_missing() {
-        let mut world = World::new();
-        let a_id = world.register_component::<A>();
-
-        let mut e: FilteredEntityMut = world.spawn(()).into();
-
-        assert!(e.get::<A>().is_none());
-        assert!(e.get_ref::<A>().is_none());
-        assert!(e.get_mut::<A>().is_none());
-        assert!(e.get_change_ticks::<A>().is_none());
-        assert!(e.get_by_id(a_id).is_none());
-        assert!(e.get_mut_by_id(a_id).is_none());
         assert!(e.get_change_ticks_by_id(a_id).is_none());
     }
 
