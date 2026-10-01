@@ -90,8 +90,6 @@ pub struct ArrayInfo {
     item_info: fn() -> Option<&'static TypeInfo>,
     item_ty: Type,
     capacity: usize,
-    #[cfg(feature = "reflect_documentation")]
-    docs: Option<&'static str>,
 }
 
 impl ArrayInfo {
@@ -109,15 +107,7 @@ impl ArrayInfo {
             item_info: TItem::maybe_type_info,
             item_ty: Type::of::<TItem>(),
             capacity,
-            #[cfg(feature = "reflect_documentation")]
-            docs: None,
         }
-    }
-
-    /// Sets the docstring for this array.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: Option<&'static str>) -> Self {
-        Self { docs, ..self }
     }
 
     /// The compile-time capacity of the array.
@@ -140,12 +130,6 @@ impl ArrayInfo {
     /// [type]: Type
     pub fn item_ty(&self) -> Type {
         self.item_ty
-    }
-
-    /// The docstring of this array, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn docs(&self) -> Option<&'static str> {
-        self.docs
     }
 
     impl_generic_info_methods!(generics);

@@ -130,9 +130,6 @@ impl FromReflect for Cow<'static, str> {
     }
 }
 
-#[cfg(feature = "functions")]
-crate::func::macros::impl_function_traits!(Cow<'static, str>);
-
 impl<T: FromReflect + MaybeTyped + Clone + TypePath + GetTypeRegistration> List
     for Cow<'static, [T]>
 {
@@ -303,6 +300,3 @@ impl<T: FromReflect + MaybeTyped + Clone + TypePath + GetTypeRegistration> FromR
         Some(temp_vec.into())
     }
 }
-
-#[cfg(feature = "functions")]
-crate::func::macros::impl_function_traits!(Cow<'static, [T]>; <T: FromReflect + MaybeTyped + Clone + TypePath + GetTypeRegistration>);

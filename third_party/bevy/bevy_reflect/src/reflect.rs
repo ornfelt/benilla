@@ -284,8 +284,6 @@ where
             ReflectRef::Map(dyn_map) => Box::new(dyn_map.to_dynamic_map()),
             ReflectRef::Set(dyn_set) => Box::new(dyn_set.to_dynamic_set()),
             ReflectRef::Enum(dyn_enum) => Box::new(dyn_enum.to_dynamic_enum()),
-            #[cfg(feature = "functions")]
-            ReflectRef::Function(dyn_function) => Box::new(dyn_function.to_dynamic_function()),
             ReflectRef::Opaque(value) => value.reflect_clone().unwrap().into_partial_reflect(),
         }
     }
@@ -364,8 +362,6 @@ where
             ReflectRef::Map(dyn_map) => map_debug(dyn_map, f),
             ReflectRef::Set(dyn_set) => set_debug(dyn_set, f),
             ReflectRef::Enum(dyn_enum) => enum_debug(dyn_enum, f),
-            #[cfg(feature = "functions")]
-            ReflectRef::Function(dyn_function) => dyn_function.fmt(f),
             ReflectRef::Opaque(_) => write!(f, "Reflect({})", self.reflect_type_path()),
         }
     }

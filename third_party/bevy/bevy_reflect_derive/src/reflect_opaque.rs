@@ -22,14 +22,6 @@ use syn::{parenthesized, parse::ParseStream, token::Paren, Attribute, Generics, 
 /// (in my_crate::bar) Bar(TraitA, TraitB)
 /// ```
 pub(crate) struct ReflectOpaqueDef {
-    #[cfg_attr(
-        not(feature = "reflect_documentation"),
-        expect(
-            dead_code,
-            reason = "The is used when the `documentation` feature is enabled.",
-        )
-    )]
-    pub attrs: Vec<Attribute>,
     pub type_path: Path,
     pub generics: Generics,
     pub traits: Option<ContainerAttributes>,
@@ -46,7 +38,8 @@ impl ReflectOpaqueDef {
     }
 
     fn parse(input: ParseStream, trait_: ReflectTraitToImpl) -> syn::Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        // Doc comments on the type: parsed and dropped.
+        input.call(Attribute::parse_outer)?;
 
         let custom_path = CustomPathDef::parse_parenthesized(input)?;
 
@@ -65,7 +58,6 @@ impl ReflectOpaqueDef {
             });
         }
         Ok(Self {
-            attrs,
             type_path,
             generics,
             traits,

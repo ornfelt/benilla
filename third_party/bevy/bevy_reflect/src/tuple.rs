@@ -157,8 +157,6 @@ pub struct TupleInfo {
     ty: Type,
     generics: Generics,
     fields: Box<[UnnamedField]>,
-    #[cfg(feature = "reflect_documentation")]
-    docs: Option<&'static str>,
 }
 
 impl TupleInfo {
@@ -172,15 +170,7 @@ impl TupleInfo {
             ty: Type::of::<T>(),
             generics: Generics::new(),
             fields: fields.to_vec().into_boxed_slice(),
-            #[cfg(feature = "reflect_documentation")]
-            docs: None,
         }
-    }
-
-    /// Sets the docstring for this tuple.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: Option<&'static str>) -> Self {
-        Self { docs, ..self }
     }
 
     /// Get the field at the given index.
@@ -199,12 +189,6 @@ impl TupleInfo {
     }
 
     impl_type_methods!(ty);
-
-    /// The docstring of this tuple, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn docs(&self) -> Option<&'static str> {
-        self.docs
-    }
 
     impl_generic_info_methods!(generics);
 }
@@ -738,55 +722,6 @@ all_tuples!(
     12,
     P
 );
-
-#[cfg(feature = "functions")]
-const _: () = {
-    macro_rules! impl_get_ownership_tuple {
-    ($(#[$meta:meta])* $($name: ident),*) => {
-        $(#[$meta])*
-        $crate::func::args::impl_get_ownership!(($($name,)*); <$($name),*>);
-    };
-}
-
-    all_tuples!(
-        #[doc(fake_variadic)]
-        impl_get_ownership_tuple,
-        0,
-        12,
-        P
-    );
-
-    macro_rules! impl_from_arg_tuple {
-    ($(#[$meta:meta])* $($name: ident),*) => {
-        $(#[$meta])*
-        $crate::func::args::impl_from_arg!(($($name,)*); <$($name: FromReflect + MaybeTyped + TypePath + GetTypeRegistration),*>);
-    };
-}
-
-    all_tuples!(
-        #[doc(fake_variadic)]
-        impl_from_arg_tuple,
-        0,
-        12,
-        P
-    );
-
-    macro_rules! impl_into_return_tuple {
-    ($(#[$meta:meta])* $($name: ident),+) => {
-        $(#[$meta])*
-        $crate::func::impl_into_return!(($($name,)*); <$($name: FromReflect + MaybeTyped + TypePath + GetTypeRegistration),*>);
-    };
-}
-
-    // The unit type (i.e. `()`) is special-cased, so we skip implementing it here.
-    all_tuples!(
-        #[doc(fake_variadic)]
-        impl_into_return_tuple,
-        1,
-        12,
-        P
-    );
-};
 
 #[cfg(test)]
 mod tests {

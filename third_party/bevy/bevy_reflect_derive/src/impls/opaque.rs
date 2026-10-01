@@ -11,12 +11,6 @@ pub(crate) fn impl_opaque(meta: &ReflectMeta) -> proc_macro2::TokenStream {
     let bevy_reflect_path = meta.bevy_reflect_path();
     let type_path = meta.type_path();
 
-    #[cfg(feature = "reflect_documentation")]
-    let with_docs = {
-        let doc = quote::ToTokens::to_token_stream(meta.doc());
-        Some(quote!(.with_docs(#doc)))
-    };
-    #[cfg(not(feature = "reflect_documentation"))]
     let with_docs: Option<proc_macro2::TokenStream> = None;
 
     let where_clause_options = WhereClauseOptions::new(meta);
@@ -50,10 +44,7 @@ pub(crate) fn impl_opaque(meta: &ReflectMeta) -> proc_macro2::TokenStream {
         }
     };
 
-    #[cfg(not(feature = "functions"))]
     let function_impls = None::<proc_macro2::TokenStream>;
-    #[cfg(feature = "functions")]
-    let function_impls = crate::impls::impl_function_traits(&where_clause_options);
 
     let (impl_generics, ty_generics, where_clause) = type_path.generics().split_for_impl();
     let where_reflect_clause = where_clause_options.extend_where_clause(where_clause);

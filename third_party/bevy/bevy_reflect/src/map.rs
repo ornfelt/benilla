@@ -118,8 +118,6 @@ pub struct MapInfo {
     key_ty: Type,
     value_info: fn() -> Option<&'static TypeInfo>,
     value_ty: Type,
-    #[cfg(feature = "reflect_documentation")]
-    docs: Option<&'static str>,
 }
 
 impl MapInfo {
@@ -136,15 +134,7 @@ impl MapInfo {
             key_ty: Type::of::<TKey>(),
             value_info: TValue::maybe_type_info,
             value_ty: Type::of::<TValue>(),
-            #[cfg(feature = "reflect_documentation")]
-            docs: None,
         }
-    }
-
-    /// Sets the docstring for this map.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: Option<&'static str>) -> Self {
-        Self { docs, ..self }
     }
 
     impl_type_methods!(ty);
@@ -177,12 +167,6 @@ impl MapInfo {
     /// [type]: Type
     pub fn value_ty(&self) -> Type {
         self.value_ty
-    }
-
-    /// The docstring of this map, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn docs(&self) -> Option<&'static str> {
-        self.docs
     }
 
     impl_generic_info_methods!(generics);

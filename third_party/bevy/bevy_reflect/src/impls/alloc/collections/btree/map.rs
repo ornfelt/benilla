@@ -223,10 +223,3 @@ where
 }
 
 impl_type_path!(::alloc::collections::BTreeMap<K, V>);
-#[cfg(feature = "functions")]
-crate::func::macros::impl_function_traits!(::alloc::collections::BTreeMap<K, V>;
-    <
-        K: FromReflect + MaybeTyped + TypePath + GetTypeRegistration + Eq + Ord,
-        V: FromReflect + MaybeTyped + TypePath + GetTypeRegistration
-    >
-);

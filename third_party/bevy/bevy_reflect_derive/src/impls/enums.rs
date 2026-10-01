@@ -67,10 +67,7 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> proc_macro2::TokenStream 
     );
     let clone_fn = reflect_enum.get_clone_impl();
 
-    #[cfg(not(feature = "functions"))]
     let function_impls = None::<proc_macro2::TokenStream>;
-    #[cfg(feature = "functions")]
-    let function_impls = crate::impls::impl_function_traits(&where_clause_options);
 
     let get_type_registration_impl = reflect_enum.get_type_registration(&where_clause_options);
 

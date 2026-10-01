@@ -86,7 +86,6 @@ default-features = false
 
 [dependencies.bevy_reflect]
 version = "0.18.0"
-features = ["uuid"]
 default-features = false
 
 [dependencies.bevy_tasks]

@@ -19,8 +19,6 @@ extern crate proc_macro;
 mod container_attributes;
 mod custom_attributes;
 mod derive_data;
-#[cfg(feature = "reflect_documentation")]
-mod documentation;
 mod enum_utility;
 mod field_attributes;
 mod from_reflect;
@@ -670,9 +668,6 @@ pub fn impl_reflect_opaque(input: TokenStream) -> TokenStream {
     };
 
     let meta = ReflectMeta::new(type_path, def.traits.unwrap_or_default());
-
-    #[cfg(feature = "reflect_documentation")]
-    let meta = meta.with_docs(documentation::Documentation::from_attributes(&def.attrs));
 
     let reflect_impls = impls::impl_opaque(&meta);
     let from_reflect_impl = from_reflect::impl_opaque(&meta);

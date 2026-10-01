@@ -75,7 +75,6 @@ default-features = false
 
 [dependencies.bevy_reflect]
 version = "0.18.0"
-features = ["smol_str"]
 
 [dependencies.bevy_utils]
 version = "0.18.0"

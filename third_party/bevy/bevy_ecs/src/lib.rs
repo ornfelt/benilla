@@ -111,10 +111,6 @@ pub mod prelude {
     pub use crate::reflect::{
         AppTypeRegistry, ReflectComponent, ReflectEvent, ReflectFromWorld, ReflectResource,
     };
-
-    #[doc(hidden)]
-    #[cfg(feature = "reflect_functions")]
-    pub use crate::reflect::AppFunctionRegistry;
 }
 
 /// Exports used by macros.

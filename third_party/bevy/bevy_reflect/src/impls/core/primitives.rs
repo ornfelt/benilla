@@ -479,9 +479,6 @@ impl<T: Reflect + MaybeTyped + TypePath + GetTypeRegistration, const N: usize> G
     }
 }
 
-#[cfg(feature = "functions")]
-crate::func::macros::impl_function_traits!([T; N]; <T: Reflect + MaybeTyped + TypePath + GetTypeRegistration> [const N: usize]);
-
 impl<T: TypePath> TypePath for [T]
 where
     [T]: ToOwned,

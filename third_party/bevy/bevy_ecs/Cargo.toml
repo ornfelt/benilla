@@ -71,10 +71,6 @@ multi_threaded = [
     "bevy_tasks/multi_threaded",
     "dep:arrayvec",
 ]
-reflect_functions = [
-    "bevy_reflect",
-    "bevy_reflect/functions",
-]
 serialize = [
     "dep:serde",
     "bevy_platform/serialize",

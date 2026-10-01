@@ -57,11 +57,6 @@ hotpatching = [
     "dep:dioxus-devtools",
     "dep:crossbeam-channel",
 ]
-reflect_functions = [
-    "bevy_reflect",
-    "bevy_reflect/functions",
-    "bevy_ecs/reflect_functions",
-]
 std = [
     "bevy_reflect?/std",
     "bevy_ecs/std",

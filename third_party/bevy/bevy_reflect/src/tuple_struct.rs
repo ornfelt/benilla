@@ -76,8 +76,6 @@ pub struct TupleStructInfo {
     generics: Generics,
     fields: Box<[UnnamedField]>,
     custom_attributes: Arc<CustomAttributes>,
-    #[cfg(feature = "reflect_documentation")]
-    docs: Option<&'static str>,
 }
 
 impl TupleStructInfo {
@@ -92,15 +90,7 @@ impl TupleStructInfo {
             generics: Generics::new(),
             fields: fields.to_vec().into_boxed_slice(),
             custom_attributes: Arc::new(CustomAttributes::default()),
-            #[cfg(feature = "reflect_documentation")]
-            docs: None,
         }
-    }
-
-    /// Sets the docstring for this struct.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: Option<&'static str>) -> Self {
-        Self { docs, ..self }
     }
 
     /// Sets the custom attributes for this struct.
@@ -127,12 +117,6 @@ impl TupleStructInfo {
     }
 
     impl_type_methods!(ty);
-
-    /// The docstring of this struct, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn docs(&self) -> Option<&'static str> {
-        self.docs
-    }
 
     impl_custom_attribute_methods!(self.custom_attributes, "struct");
 

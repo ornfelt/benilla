@@ -298,6 +298,3 @@ impl GetTypeRegistration for Cow<'static, Path> {
         registration
     }
 }
-
-#[cfg(feature = "functions")]
-crate::func::macros::impl_function_traits!(Cow<'static, Path>);

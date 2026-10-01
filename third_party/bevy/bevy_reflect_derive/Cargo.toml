@@ -36,8 +36,6 @@ all-features = true
 
 [features]
 default = []
-functions = []
-reflect_documentation = []
 
 [lib]
 name = "bevy_reflect_derive"

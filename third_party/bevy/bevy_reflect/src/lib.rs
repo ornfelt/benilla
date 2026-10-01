@@ -127,7 +127,6 @@
 //! * [`Struct`]
 //! * [`TupleStruct`]
 //! * [`Enum`]
-//! * [`Function`] (requires the `functions` feature)
 //!
 //! As mentioned previously, the last three are automatically implemented by the [derive macro].
 //!
@@ -477,29 +476,6 @@
 //! These dependencies are used by the [Bevy] game engine and must define their reflection implementations
 //! within this crate due to Rust's [orphan rule].
 //!
-//! ## `functions`
-//!
-//! | Default | Dependencies                      |
-//! | :-----: | :-------------------------------: |
-//! | ❌      | [`bevy_reflect_derive/functions`] |
-//!
-//! This feature allows creating a [`DynamicFunction`] or [`DynamicFunctionMut`] from Rust functions. Dynamic
-//! functions can then be called with valid [`ArgList`]s.
-//!
-//! For more information, read the [`func`] module docs.
-//!
-//! ## `documentation`
-//!
-//! | Default | Dependencies                                  |
-//! | :-----: | :-------------------------------------------: |
-//! | ❌      | [`bevy_reflect_derive/documentation`]         |
-//!
-//! This feature enables capturing doc comments as strings for items that [derive `Reflect`].
-//! Documentation information can then be accessed at runtime on the [`TypeInfo`] of that item.
-//!
-//! This can be useful for generating documentation for scripting language interop or
-//! for displaying tooltips in an editor.
-//!
 //! ## `debug`
 //!
 //! | Default | Dependencies                                  |
@@ -523,7 +499,6 @@
 //! [the language feature for dyn upcasting coercion]: https://github.com/rust-lang/rust/issues/65991
 //! [derive macro]: derive@crate::Reflect
 //! [`'static` lifetime]: https://doc.rust-lang.org/rust-by-example/scope/lifetime/static_lifetime.html#trait-bound
-//! [`Function`]: crate::func::Function
 //! [derive macro documentation]: derive@crate::Reflect
 //! [deriving `Reflect`]: derive@crate::Reflect
 //! [type data]: TypeData
@@ -543,12 +518,6 @@
 //! [`smallvec`]: https://docs.rs/smallvec/latest/smallvec/
 //! [`indexmap`]: https://docs.rs/indexmap/latest/indexmap/
 //! [orphan rule]: https://doc.rust-lang.org/book/ch10-02-traits.html#implementing-a-trait-on-a-type:~:text=But%20we%20can%E2%80%99t,implementation%20to%20use.
-//! [`bevy_reflect_derive/documentation`]: bevy_reflect_derive
-//! [`bevy_reflect_derive/functions`]: bevy_reflect_derive
-//! [`DynamicFunction`]: crate::func::DynamicFunction
-//! [`DynamicFunctionMut`]: crate::func::DynamicFunctionMut
-//! [`ArgList`]: crate::func::ArgList
-//! [derive `Reflect`]: derive@crate::Reflect
 
 #![no_std]
 
@@ -564,8 +533,6 @@ mod array;
 mod error;
 mod fields;
 mod from_reflect;
-#[cfg(feature = "functions")]
-pub mod func;
 mod is;
 mod kind;
 mod list;
@@ -587,8 +554,6 @@ mod impls {
     mod bevy_platform;
     mod core;
     mod foldhash;
-    #[cfg(feature = "hashbrown")]
-    mod hashbrown;
     mod macros;
     #[cfg(feature = "std")]
     mod std;
@@ -597,16 +562,8 @@ mod impls {
     mod glam;
     #[cfg(feature = "indexmap")]
     mod indexmap;
-    #[cfg(feature = "petgraph")]
-    mod petgraph;
     #[cfg(feature = "smallvec")]
     mod smallvec;
-    #[cfg(feature = "smol_str")]
-    mod smol_str;
-    #[cfg(feature = "uuid")]
-    mod uuid;
-    #[cfg(feature = "wgpu-types")]
-    mod wgpu_types;
 }
 
 pub mod attributes;
@@ -630,9 +587,6 @@ pub mod prelude {
         Reflect, ReflectDeserialize, ReflectFromReflect, ReflectPath, ReflectSerialize, Struct,
         TupleStruct, TypePath,
     };
-
-    #[cfg(feature = "functions")]
-    pub use crate::func::{Function, IntoFunction, IntoFunctionMut};
 }
 
 pub use array::*;
@@ -2342,144 +2296,6 @@ mod tests {
         let type_info = <(i32, i32) as Typed>::type_info();
         let mut dynamic_array = [123; 2].to_dynamic_array();
         dynamic_array.set_represented_type(Some(type_info));
-    }
-
-    #[cfg(feature = "reflect_documentation")]
-    mod docstrings {
-        use super::*;
-
-        #[test]
-        fn should_not_contain_docs() {
-            // Regular comments do not count as doc comments,
-            // and are therefore not reflected.
-            #[derive(Reflect)]
-            struct SomeStruct;
-
-            let info = <SomeStruct as Typed>::type_info();
-            assert_eq!(None, info.docs());
-
-            // Block comments do not count as doc comments,
-            // and are therefore not reflected.
-            #[derive(Reflect)]
-            struct SomeOtherStruct;
-
-            let info = <SomeOtherStruct as Typed>::type_info();
-            assert_eq!(None, info.docs());
-        }
-
-        #[test]
-        fn should_contain_docs() {
-            /// Some struct.
-            ///
-            /// # Example
-            ///
-            /// ```ignore (This is only used for a unit test, no need to doc test)
-            /// let some_struct = SomeStruct;
-            /// ```
-            #[derive(Reflect)]
-            struct SomeStruct;
-
-            let info = <SomeStruct as Typed>::type_info();
-            assert_eq!(
-                Some(" Some struct.\n\n # Example\n\n ```ignore (This is only used for a unit test, no need to doc test)\n let some_struct = SomeStruct;\n ```"),
-                info.docs()
-            );
-
-            #[doc = "The compiler automatically converts `///`-style comments into `#[doc]` attributes."]
-            #[doc = "Of course, you _could_ use the attribute directly if you wanted to."]
-            #[doc = "Both will be reflected."]
-            #[derive(Reflect)]
-            struct SomeOtherStruct;
-
-            let info = <SomeOtherStruct as Typed>::type_info();
-            assert_eq!(
-                Some("The compiler automatically converts `///`-style comments into `#[doc]` attributes.\nOf course, you _could_ use the attribute directly if you wanted to.\nBoth will be reflected."),
-                info.docs()
-            );
-
-            /// Some tuple struct.
-            #[derive(Reflect)]
-            struct SomeTupleStruct(usize);
-
-            let info = <SomeTupleStruct as Typed>::type_info();
-            assert_eq!(Some(" Some tuple struct."), info.docs());
-
-            /// Some enum.
-            #[derive(Reflect)]
-            enum SomeEnum {
-                Foo,
-            }
-
-            let info = <SomeEnum as Typed>::type_info();
-            assert_eq!(Some(" Some enum."), info.docs());
-
-            #[derive(Clone)]
-            struct SomePrimitive;
-            impl_reflect_opaque!(
-                /// Some primitive for which we have attributed custom documentation.
-                (in bevy_reflect::tests) SomePrimitive
-            );
-
-            let info = <SomePrimitive as Typed>::type_info();
-            assert_eq!(
-                Some(" Some primitive for which we have attributed custom documentation."),
-                info.docs()
-            );
-        }
-
-        #[test]
-        fn fields_should_contain_docs() {
-            #[derive(Reflect)]
-            struct SomeStruct {
-                /// The name
-                name: String,
-                /// The index
-                index: usize,
-                // Not documented...
-                data: Vec<i32>,
-            }
-
-            let info = <SomeStruct as Typed>::type_info().as_struct().unwrap();
-
-            let mut fields = info.iter();
-            assert_eq!(Some(" The name"), fields.next().unwrap().docs());
-            assert_eq!(Some(" The index"), fields.next().unwrap().docs());
-            assert_eq!(None, fields.next().unwrap().docs());
-        }
-
-        #[test]
-        fn variants_should_contain_docs() {
-            #[derive(Reflect)]
-            enum SomeEnum {
-                // Not documented...
-                Nothing,
-                /// Option A
-                A(
-                    /// Index
-                    usize,
-                ),
-                /// Option B
-                B {
-                    /// Name
-                    name: String,
-                },
-            }
-
-            let info = <SomeEnum as Typed>::type_info().as_enum().unwrap();
-
-            let mut variants = info.iter();
-            assert_eq!(None, variants.next().unwrap().docs());
-
-            let variant = variants.next().unwrap().as_tuple_variant().unwrap();
-            assert_eq!(Some(" Option A"), variant.docs());
-            let field = variant.field_at(0).unwrap();
-            assert_eq!(Some(" Index"), field.docs());
-
-            let variant = variants.next().unwrap().as_struct_variant().unwrap();
-            assert_eq!(Some(" Option B"), variant.docs());
-            let field = variant.field_at(0).unwrap();
-            assert_eq!(Some(" Name"), field.docs());
-        }
     }
 
     #[test]

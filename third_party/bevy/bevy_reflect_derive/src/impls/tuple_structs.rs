@@ -35,10 +35,7 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> proc_macro2::
     );
     let clone_fn = reflect_struct.get_clone_impl();
 
-    #[cfg(not(feature = "functions"))]
     let function_impls = None::<proc_macro2::TokenStream>;
-    #[cfg(feature = "functions")]
-    let function_impls = crate::impls::impl_function_traits(&where_clause_options);
 
     let (impl_generics, ty_generics, where_clause) = reflect_struct
         .meta()

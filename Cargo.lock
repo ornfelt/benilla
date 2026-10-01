@@ -1101,14 +1101,10 @@ dependencies = [
  "foldhash 0.2.0",
  "glam 0.30.10",
  "indexmap",
- "petgraph",
  "serde",
  "smallvec",
- "smol_str",
  "thiserror 2.0.18",
- "uuid",
  "variadics_please",
- "wgpu-types",
 ]
 
 [[package]]
@@ -3986,7 +3982,6 @@ dependencies = [
  "hashbrown 0.15.5",
  "indexmap",
  "serde",
- "serde_derive",
 ]
 
 [[package]]
@@ -5790,7 +5785,6 @@ dependencies = [
  "bytemuck",
  "js-sys",
  "log",
- "serde",
  "thiserror 2.0.18",
  "web-sys",
 ]

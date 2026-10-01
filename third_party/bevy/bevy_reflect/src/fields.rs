@@ -14,8 +14,6 @@ pub struct NamedField {
     type_info: fn() -> Option<&'static TypeInfo>,
     ty: Type,
     custom_attributes: Arc<CustomAttributes>,
-    #[cfg(feature = "reflect_documentation")]
-    docs: Option<&'static str>,
 }
 
 impl NamedField {
@@ -26,15 +24,7 @@ impl NamedField {
             type_info: T::maybe_type_info,
             ty: Type::of::<T>(),
             custom_attributes: Arc::new(CustomAttributes::default()),
-            #[cfg(feature = "reflect_documentation")]
-            docs: None,
         }
-    }
-
-    /// Sets the docstring for this field.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: Option<&'static str>) -> Self {
-        Self { docs, ..self }
     }
 
     /// Sets the custom attributes for this field.
@@ -61,12 +51,6 @@ impl NamedField {
 
     impl_type_methods!(ty);
 
-    /// The docstring of this field, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn docs(&self) -> Option<&'static str> {
-        self.docs
-    }
-
     impl_custom_attribute_methods!(self.custom_attributes, "field");
 }
 
@@ -77,8 +61,6 @@ pub struct UnnamedField {
     type_info: fn() -> Option<&'static TypeInfo>,
     ty: Type,
     custom_attributes: Arc<CustomAttributes>,
-    #[cfg(feature = "reflect_documentation")]
-    docs: Option<&'static str>,
 }
 
 impl UnnamedField {
@@ -89,15 +71,7 @@ impl UnnamedField {
             type_info: T::maybe_type_info,
             ty: Type::of::<T>(),
             custom_attributes: Arc::new(CustomAttributes::default()),
-            #[cfg(feature = "reflect_documentation")]
-            docs: None,
         }
-    }
-
-    /// Sets the docstring for this field.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: Option<&'static str>) -> Self {
-        Self { docs, ..self }
     }
 
     /// Sets the custom attributes for this field.
@@ -123,12 +97,6 @@ impl UnnamedField {
     }
 
     impl_type_methods!(ty);
-
-    /// The docstring of this field, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn docs(&self) -> Option<&'static str> {
-        self.docs
-    }
 
     impl_custom_attribute_methods!(self.custom_attributes, "field");
 }

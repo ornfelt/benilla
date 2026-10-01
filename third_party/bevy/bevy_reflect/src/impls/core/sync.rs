@@ -17,8 +17,6 @@ macro_rules! impl_reflect_for_atomic {
         impl_type_path!($ty);
 
         const _: () = {
-            #[cfg(feature = "functions")]
-            crate::func::macros::impl_function_traits!($ty);
 
             impl GetTypeRegistration for $ty {
                 fn get_type_registration() -> TypeRegistration {

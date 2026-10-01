@@ -1,8 +1,6 @@
 use alloc::boxed::Box;
 use thiserror::Error;
 
-#[cfg(feature = "functions")]
-use crate::func::Function;
 use crate::{Array, Enum, List, Map, PartialReflect, Set, Struct, Tuple, TupleStruct};
 
 /// An enumeration of the "kinds" of a reflected type.
@@ -47,11 +45,6 @@ pub enum ReflectKind {
     ///
     /// [enum-like]: Enum
     Enum,
-    /// A [function-like] type.
-    ///
-    /// [function-like]: Function
-    #[cfg(feature = "functions")]
-    Function,
     /// An opaque type.
     ///
     /// This most often represents a type where it is either impossible, difficult,
@@ -80,8 +73,6 @@ impl core::fmt::Display for ReflectKind {
             ReflectKind::Map => f.pad("map"),
             ReflectKind::Set => f.pad("set"),
             ReflectKind::Enum => f.pad("enum"),
-            #[cfg(feature = "functions")]
-            ReflectKind::Function => f.pad("function"),
             ReflectKind::Opaque => f.pad("opaque"),
         }
     }
@@ -101,8 +92,6 @@ macro_rules! impl_reflect_kind_conversions {
                     Self::Map(_) => ReflectKind::Map,
                     Self::Set(_) => ReflectKind::Set,
                     Self::Enum(_) => ReflectKind::Enum,
-                    #[cfg(feature = "functions")]
-                    Self::Function(_) => ReflectKind::Function,
                     Self::Opaque(_) => ReflectKind::Opaque,
                 }
             }
@@ -119,8 +108,6 @@ macro_rules! impl_reflect_kind_conversions {
                     $name::Map(_) => Self::Map,
                     $name::Set(_) => Self::Set,
                     $name::Enum(_) => Self::Enum,
-                    #[cfg(feature = "functions")]
-                    $name::Function(_) => Self::Function,
                     $name::Opaque(_) => Self::Opaque,
                 }
             }
@@ -210,11 +197,6 @@ pub enum ReflectRef<'a> {
     ///
     /// [enum-like]: Enum
     Enum(&'a dyn Enum),
-    /// An immutable reference to a [function-like] type.
-    ///
-    /// [function-like]: Function
-    #[cfg(feature = "functions")]
-    Function(&'a dyn Function),
     /// An immutable reference to an [opaque] type.
     ///
     /// [opaque]: ReflectKind::Opaque
@@ -276,11 +258,6 @@ pub enum ReflectMut<'a> {
     ///
     /// [enum-like]: Enum
     Enum(&'a mut dyn Enum),
-    #[cfg(feature = "functions")]
-    /// A mutable reference to a [function-like] type.
-    ///
-    /// [function-like]: Function
-    Function(&'a mut dyn Function),
     /// A mutable reference to an [opaque] type.
     ///
     /// [opaque]: ReflectKind::Opaque
@@ -342,11 +319,6 @@ pub enum ReflectOwned {
     ///
     /// [enum-like]: Enum
     Enum(Box<dyn Enum>),
-    /// An owned [function-like] type.
-    ///
-    /// [function-like]: Function
-    #[cfg(feature = "functions")]
-    Function(Box<dyn Function>),
     /// An owned [opaque] type.
     ///
     /// [opaque]: ReflectKind::Opaque

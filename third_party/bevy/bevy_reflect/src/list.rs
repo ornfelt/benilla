@@ -124,8 +124,6 @@ pub struct ListInfo {
     generics: Generics,
     item_info: fn() -> Option<&'static TypeInfo>,
     item_ty: Type,
-    #[cfg(feature = "reflect_documentation")]
-    docs: Option<&'static str>,
 }
 
 impl ListInfo {
@@ -136,15 +134,7 @@ impl ListInfo {
             generics: Generics::new(),
             item_info: TItem::maybe_type_info,
             item_ty: Type::of::<TItem>(),
-            #[cfg(feature = "reflect_documentation")]
-            docs: None,
         }
-    }
-
-    /// Sets the docstring for this list.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: Option<&'static str>) -> Self {
-        Self { docs, ..self }
     }
 
     impl_type_methods!(ty);
@@ -162,12 +152,6 @@ impl ListInfo {
     /// [type]: Type
     pub fn item_ty(&self) -> Type {
         self.item_ty
-    }
-
-    /// The docstring of this list, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn docs(&self) -> Option<&'static str> {
-        self.docs
     }
 
     impl_generic_info_methods!(generics);

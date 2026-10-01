@@ -68,7 +68,6 @@ default-features = false
 
 [dependencies.bevy_reflect]
 version = "0.18.0"
-features = ["petgraph"]
 
 [dependencies.bevy_time]
 version = "0.18.0"

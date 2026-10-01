@@ -530,6 +530,17 @@ the same repository's.
   impls and the tests that only proved they compile, `GlobalTransform`,
   `StaticTransformOptimizations`, and `bevy_app`'s `Propagate`, `PropagateOver`, `PropagateStop`
   and `Inherited`.
+- **`bevy_reflect`'s off features and unreached impls.** The features the build never enabled go
+  by cfg resolution with their code: `functions` (the `func` module, the derive's `func` impls,
+  `bevy_app`'s and `bevy_ecs`'s `reflect_functions` with `register_function*` and
+  `AppFunctionRegistry`), `reflect_documentation` (the derive's doc capture and `TypeInfo`'s
+  docs), `hashbrown`, `critical-section` (`bevy_internal`'s request goes) and `wgpu-types`, with
+  the `hashbrown` and `wgpu-types` dependencies and the `reflect_docs` example entry. The on
+  features no kept derive reaches go with their requests and dependencies: `petgraph`
+  (`bevy_animation` asked), `smol_str` (`bevy_text`), `uuid` (`bevy_asset`), which turns off
+  `petgraph`'s `serde-1` and `smol_str`'s `serde` for the build (serde impls nothing names).
+  `smallvec` and `indexmap` leave `bevy_reflect`'s defaults and `bevy_internal`'s request but stay
+  on: `bevy_ecs`'s own derives (`DefaultQueryFilters`, `EntityIndexSet`) still need them.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

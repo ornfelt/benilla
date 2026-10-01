@@ -56,9 +56,6 @@ pub(crate) struct ReflectMeta<'a> {
     remote_ty: Option<RemoteType<'a>>,
     /// A cached instance of the path to the `bevy_reflect` crate.
     bevy_reflect_path: Path,
-    /// The documentation for this type, if any
-    #[cfg(feature = "reflect_documentation")]
-    docs: crate::documentation::Documentation,
 }
 
 /// Struct data used by derive macros for `Reflect` and `FromReflect`.
@@ -114,9 +111,6 @@ pub(crate) struct StructField<'a> {
     ///
     /// [ignored]: crate::field_attributes::ReflectIgnoreBehavior::IgnoreAlways
     pub reflection_index: Option<usize>,
-    /// The documentation for this field, if any
-    #[cfg(feature = "reflect_documentation")]
-    pub doc: crate::documentation::Documentation,
 }
 
 /// Represents a variant on an enum.
@@ -127,9 +121,6 @@ pub(crate) struct EnumVariant<'a> {
     pub fields: EnumVariantFields<'a>,
     /// The reflection-based attributes on the variant.
     pub attrs: FieldAttributes,
-    /// The documentation for this variant, if any
-    #[cfg(feature = "reflect_documentation")]
-    pub doc: crate::documentation::Documentation,
 }
 
 pub(crate) enum EnumVariantFields<'a> {
@@ -191,9 +182,6 @@ impl<'a> ReflectDerive<'a> {
         // Should indicate whether `#[type_name = "..."]` was used.
         let mut custom_type_name: Option<Ident> = None;
 
-        #[cfg(feature = "reflect_documentation")]
-        let mut doc = crate::documentation::Documentation::default();
-
         for attribute in &input.attrs {
             match &attribute.meta {
                 Meta::List(meta_list) if meta_list.path.is_ident(REFLECT_ATTRIBUTE_NAME) => {
@@ -239,16 +227,6 @@ impl<'a> ReflectDerive<'a> {
 
                     custom_type_name = Some(parse_str(&lit.value())?);
                 }
-                #[cfg(feature = "reflect_documentation")]
-                Meta::NameValue(pair) if pair.path.is_ident("doc") => {
-                    if let syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(lit),
-                        ..
-                    }) = &pair.value
-                    {
-                        doc.push(lit.value());
-                    }
-                }
                 _ => continue,
             }
         }
@@ -283,9 +261,6 @@ impl<'a> ReflectDerive<'a> {
                 format!("a #[{TYPE_PATH_ATTRIBUTE_NAME} = \"...\"] attribute must be specified when using {provenance}"),
             ));
         }
-
-        #[cfg(feature = "reflect_documentation")]
-        let meta = meta.with_docs(doc);
 
         if meta.attrs().is_opaque() {
             return Ok(Self::Opaque(meta));
@@ -391,8 +366,6 @@ impl<'a> ReflectDerive<'a> {
                         reflection_index,
                         attrs,
                         data: field,
-                        #[cfg(feature = "reflect_documentation")]
-                        doc: crate::documentation::Documentation::from_attributes(&field.attrs),
                     })
                 },
             )
@@ -418,8 +391,6 @@ impl<'a> ReflectDerive<'a> {
                     fields,
                     attrs: FieldAttributes::parse_attributes(&variant.attrs)?,
                     data: variant,
-                    #[cfg(feature = "reflect_documentation")]
-                    doc: crate::documentation::Documentation::from_attributes(&variant.attrs),
                 })
             })
             .fold(ResultSifter::default(), ResultSifter::fold);
@@ -435,15 +406,7 @@ impl<'a> ReflectMeta<'a> {
             type_path,
             remote_ty: None,
             bevy_reflect_path: crate::meta::get_bevy_reflect_path(),
-            #[cfg(feature = "reflect_documentation")]
-            docs: Default::default(),
         }
-    }
-
-    /// Sets the documentation for this type.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn with_docs(self, docs: crate::documentation::Documentation) -> Self {
-        Self { docs, ..self }
     }
 
     /// The registered reflect attributes on this struct.
@@ -496,12 +459,6 @@ impl<'a> ReflectMeta<'a> {
             Option::<core::iter::Empty<&Type>>::None,
         )
     }
-
-    /// The collection of docstrings for this type, if any.
-    #[cfg(feature = "reflect_documentation")]
-    pub fn doc(&self) -> &crate::documentation::Documentation {
-        &self.docs
-    }
 }
 
 impl<'a> StructField<'a> {
@@ -534,16 +491,6 @@ impl<'a> StructField<'a> {
             info.extend(quote! {
                 .with_custom_attributes(#custom_attributes)
             });
-        }
-
-        #[cfg(feature = "reflect_documentation")]
-        {
-            let docs = &self.doc;
-            if !docs.is_empty() {
-                info.extend(quote! {
-                    .with_docs(#docs)
-                });
-            }
         }
 
         info
@@ -682,16 +629,6 @@ impl<'a> ReflectStruct<'a> {
             info.extend(quote! {
                 .with_generics(#generics)
             });
-        }
-
-        #[cfg(feature = "reflect_documentation")]
-        {
-            let docs = self.meta().doc();
-            if !docs.is_empty() {
-                info.extend(quote! {
-                    .with_docs(#docs)
-                });
-            }
         }
 
         quote! {
@@ -907,16 +844,6 @@ impl<'a> ReflectEnum<'a> {
             });
         }
 
-        #[cfg(feature = "reflect_documentation")]
-        {
-            let docs = self.meta().doc();
-            if !docs.is_empty() {
-                info.extend(quote! {
-                    .with_docs(#docs)
-                });
-            }
-        }
-
         quote! {
             #bevy_reflect_path::TypeInfo::Enum(#info)
         }
@@ -1024,16 +951,6 @@ impl<'a> EnumVariant<'a> {
             info.extend(quote! {
                 .with_custom_attributes(#custom_attributes)
             });
-        }
-
-        #[cfg(feature = "reflect_documentation")]
-        {
-            let docs = &self.doc;
-            if !docs.is_empty() {
-                info.extend(quote! {
-                    .with_docs(#docs)
-                });
-            }
         }
 
         quote! {
