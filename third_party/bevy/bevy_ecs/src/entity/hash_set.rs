@@ -52,7 +52,7 @@ impl EntityHashSet {
     /// An iterator visiting all elements in arbitrary order.
     /// The iterator element type is `&'a Entity`.
     ///
-    /// Equivalent to [`HashSet::iter`].
+    /// Equivalent to [`HashSet`]'s `iter`.
     pub fn iter(&self) -> Iter<'_> {
         Iter(self.0.iter(), PhantomData)
     }

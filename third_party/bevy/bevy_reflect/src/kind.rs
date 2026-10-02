@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use thiserror::Error;
 
-use crate::{Array, Enum, List, Map, PartialReflect, Set, Struct, Tuple, TupleStruct};
+use crate::{Array, Enum, List, PartialReflect, Struct, Tuple, TupleStruct};
 
 /// An enumeration of the "kinds" of a reflected type.
 ///
@@ -33,14 +33,6 @@ pub enum ReflectKind {
     ///
     /// [array-like]: Array
     Array,
-    /// A [map-like] type.
-    ///
-    /// [map-like]: Map
-    Map,
-    /// A [set-like] type.
-    ///
-    /// [set-like]: Set
-    Set,
     /// An [enum-like] type.
     ///
     /// [enum-like]: Enum
@@ -70,8 +62,6 @@ impl core::fmt::Display for ReflectKind {
             ReflectKind::Tuple => f.pad("tuple"),
             ReflectKind::List => f.pad("list"),
             ReflectKind::Array => f.pad("array"),
-            ReflectKind::Map => f.pad("map"),
-            ReflectKind::Set => f.pad("set"),
             ReflectKind::Enum => f.pad("enum"),
             ReflectKind::Opaque => f.pad("opaque"),
         }
@@ -89,8 +79,6 @@ macro_rules! impl_reflect_kind_conversions {
                     Self::Tuple(_) => ReflectKind::Tuple,
                     Self::List(_) => ReflectKind::List,
                     Self::Array(_) => ReflectKind::Array,
-                    Self::Map(_) => ReflectKind::Map,
-                    Self::Set(_) => ReflectKind::Set,
                     Self::Enum(_) => ReflectKind::Enum,
                     Self::Opaque(_) => ReflectKind::Opaque,
                 }
@@ -105,8 +93,6 @@ macro_rules! impl_reflect_kind_conversions {
                     $name::Tuple(_) => Self::Tuple,
                     $name::List(_) => Self::List,
                     $name::Array(_) => Self::Array,
-                    $name::Map(_) => Self::Map,
-                    $name::Set(_) => Self::Set,
                     $name::Enum(_) => Self::Enum,
                     $name::Opaque(_) => Self::Opaque,
                 }
@@ -185,14 +171,6 @@ pub enum ReflectRef<'a> {
     ///
     /// [array-like]: Array
     Array(&'a dyn Array),
-    /// An immutable reference to a [map-like] type.
-    ///
-    /// [map-like]: Map
-    Map(&'a dyn Map),
-    /// An immutable reference to a [set-like] type.
-    ///
-    /// [set-like]: Set
-    Set(&'a dyn Set),
     /// An immutable reference to an [enum-like] type.
     ///
     /// [enum-like]: Enum
@@ -211,8 +189,6 @@ impl<'a> ReflectRef<'a> {
     impl_cast_method!(as_tuple: Tuple => &'a dyn Tuple);
     impl_cast_method!(as_list: List => &'a dyn List);
     impl_cast_method!(as_array: Array => &'a dyn Array);
-    impl_cast_method!(as_map: Map => &'a dyn Map);
-    impl_cast_method!(as_set: Set => &'a dyn Set);
     impl_cast_method!(as_enum: Enum => &'a dyn Enum);
 }
 
@@ -245,14 +221,6 @@ pub enum ReflectMut<'a> {
     ///
     /// [array-like]: Array
     Array(&'a mut dyn Array),
-    /// A mutable reference to a [map-like] type.
-    ///
-    /// [map-like]: Map
-    Map(&'a mut dyn Map),
-    /// A mutable reference to a [set-like] type.
-    ///
-    /// [set-like]: Set
-    Set(&'a mut dyn Set),
     /// A mutable reference to an [enum-like] type.
     ///
     /// [enum-like]: Enum
@@ -264,11 +232,6 @@ pub enum ReflectMut<'a> {
 }
 
 impl_reflect_kind_conversions!(ReflectMut<'_>);
-
-impl<'a> ReflectMut<'a> {
-    impl_cast_method!(as_map: Map => &'a mut dyn Map);
-    impl_cast_method!(as_set: Set => &'a mut dyn Set);
-}
 
 /// An owned enumeration of ["kinds"] of a reflected type.
 ///
@@ -299,14 +262,6 @@ pub enum ReflectOwned {
     ///
     /// [array-like]: Array
     Array(Box<dyn Array>),
-    /// An owned [map-like] type.
-    ///
-    /// [map-like]: Map
-    Map(Box<dyn Map>),
-    /// An owned [set-like] type.
-    ///
-    /// [set-like]: Set
-    Set(Box<dyn Set>),
     /// An owned [enum-like] type.
     ///
     /// [enum-like]: Enum
@@ -327,7 +282,6 @@ impl ReflectOwned {
 #[cfg(test)]
 mod tests {
     use alloc::vec;
-    use bevy_platform::collections::HashSet;
 
     use super::*;
 
@@ -344,23 +298,6 @@ mod tests {
             Err(ReflectKindMismatchError {
                 expected: ReflectKind::Array,
                 received: ReflectKind::List
-            })
-        ));
-    }
-
-    #[test]
-    fn should_cast_mut() {
-        let mut value: HashSet<i32> = HashSet::default();
-
-        let result = value.reflect_mut().as_set();
-        assert!(result.is_ok());
-
-        let result = value.reflect_mut().as_map();
-        assert!(matches!(
-            result,
-            Err(ReflectKindMismatchError {
-                expected: ReflectKind::Map,
-                received: ReflectKind::Set
             })
         ));
     }

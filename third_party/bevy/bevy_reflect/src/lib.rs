@@ -122,8 +122,6 @@
 //! * [`Tuple`]
 //! * [`Array`]
 //! * [`List`]
-//! * [`Set`]
-//! * [`Map`]
 //! * [`Struct`]
 //! * [`TupleStruct`]
 //! * [`Enum`]
@@ -186,7 +184,6 @@
 //! * [`DynamicTuple`]
 //! * [`DynamicArray`]
 //! * [`DynamicList`]
-//! * [`DynamicMap`]
 //! * [`DynamicStruct`]
 //! * [`DynamicTupleStruct`]
 //! * [`DynamicEnum`]
@@ -416,10 +413,8 @@ mod from_reflect;
 mod is;
 mod kind;
 mod list;
-mod map;
 mod reflect;
 mod reflectable;
-mod set;
 mod struct_trait;
 mod tuple;
 mod tuple_struct;
@@ -429,7 +424,6 @@ mod type_registry;
 
 mod impls {
     mod alloc;
-    mod bevy_platform;
     mod core;
     mod macros;
 
@@ -464,10 +458,8 @@ pub use generics::*;
 pub use is::*;
 pub use kind::*;
 pub use list::*;
-pub use map::*;
 pub use reflect::*;
 pub use reflectable::*;
-pub use set::*;
 pub use struct_trait::*;
 pub use tuple::*;
 pub use tuple_struct::*;
@@ -483,8 +475,8 @@ pub use bevy_reflect_derive::*;
 #[doc(hidden)]
 pub mod __macro_exports {
     use crate::{
-        DynamicArray, DynamicEnum, DynamicList, DynamicMap, DynamicStruct, DynamicTuple,
-        DynamicTupleStruct, GetTypeRegistration, TypeRegistry,
+        DynamicArray, DynamicEnum, DynamicList, DynamicStruct, DynamicTuple, DynamicTupleStruct,
+        GetTypeRegistration, TypeRegistry,
     };
 
     /// Re-exports of items from the [`alloc`] crate.
@@ -531,8 +523,6 @@ pub mod __macro_exports {
 
     impl RegisterForReflection for DynamicStruct {}
 
-    impl RegisterForReflection for DynamicMap {}
-
     impl RegisterForReflection for DynamicList {}
 
     impl RegisterForReflection for DynamicArray {}
@@ -554,7 +544,6 @@ mod tests {
         vec,
         vec::Vec,
     };
-    use bevy_platform::collections::HashMap;
     use core::{
         any::TypeId,
         fmt::{Debug, Formatter},
@@ -658,47 +647,6 @@ mod tests {
     }
 
     #[test]
-    fn reflect_map() {
-        #[derive(Reflect, Hash)]
-        #[reflect(Hash)]
-        struct Foo {
-            a: u32,
-            b: String,
-        }
-
-        let key_a = Foo {
-            a: 1,
-            b: "k1".to_string(),
-        };
-
-        let key_b = Foo {
-            a: 1,
-            b: "k1".to_string(),
-        };
-
-        let key_c = Foo {
-            a: 3,
-            b: "k3".to_string(),
-        };
-
-        let mut map = DynamicMap::default();
-        map.insert(key_a, 10u32);
-        assert_eq!(
-            10,
-            *map.get(&key_b).unwrap().try_downcast_ref::<u32>().unwrap()
-        );
-        assert!(map.get(&key_c).is_none());
-        *map.get_mut(&key_b)
-            .unwrap()
-            .try_downcast_mut::<u32>()
-            .unwrap() = 20;
-        assert_eq!(
-            20,
-            *map.get(&key_b).unwrap().try_downcast_ref::<u32>().unwrap()
-        );
-    }
-
-    #[test]
     fn reflect_unit_struct() {
         #[derive(Reflect)]
         struct Foo(u32, u64);
@@ -726,66 +674,6 @@ mod tests {
         let mut iter = patch.iter_fields();
         assert_eq!(3, *iter.next().unwrap().try_downcast_ref::<u32>().unwrap());
         assert_eq!(4, *iter.next().unwrap().try_downcast_ref::<u64>().unwrap());
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "the given key of type `bevy_reflect::tests::Foo` does not support hashing"
-    )]
-    fn reflect_map_no_hash() {
-        #[derive(Reflect)]
-        struct Foo {
-            a: u32,
-        }
-
-        let foo = Foo { a: 1 };
-        assert!(foo.reflect_hash().is_none());
-
-        let mut map = DynamicMap::default();
-        map.insert(foo, 10u32);
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "the dynamic type `bevy_reflect::DynamicStruct` (representing `bevy_reflect::tests::Foo`) does not support hashing"
-    )]
-    fn reflect_map_no_hash_dynamic_representing() {
-        #[derive(Reflect, Hash)]
-        #[reflect(Hash)]
-        struct Foo {
-            a: u32,
-        }
-
-        let foo = Foo { a: 1 };
-        assert!(foo.reflect_hash().is_some());
-        let dynamic = foo.to_dynamic_struct();
-
-        let mut map = DynamicMap::default();
-        map.insert(dynamic, 11u32);
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "the dynamic type `bevy_reflect::DynamicStruct` does not support hashing"
-    )]
-    fn reflect_map_no_hash_dynamic() {
-        #[allow(
-            clippy::allow_attributes,
-            dead_code,
-            reason = "This struct is used as a compilation test to test the derive macros, and as such is intentionally never constructed."
-        )]
-        #[derive(Reflect, Hash)]
-        #[reflect(Hash)]
-        struct Foo {
-            a: u32,
-        }
-
-        let mut dynamic = DynamicStruct::default();
-        dynamic.insert("a", 4u32);
-        assert!(dynamic.reflect_hash().is_none());
-
-        let mut map = DynamicMap::default();
-        map.insert(dynamic, 11u32);
     }
 
     #[test]
@@ -1321,10 +1209,9 @@ mod tests {
             #[reflect(ignore)]
             _b: u32,
             c: Vec<isize>,
-            d: HashMap<usize, i8>,
             e: Bar,
             f: (i32, Vec<isize>, Bar),
-            g: Vec<(Baz, HashMap<usize, Bar>)>,
+            g: Vec<(Baz,)>,
             h: [u32; 2],
         }
 
@@ -1337,21 +1224,13 @@ mod tests {
         #[derive(Reflect, Eq, PartialEq, Debug)]
         struct Baz(String);
 
-        let mut hash_map = <HashMap<_, _>>::default();
-        hash_map.insert(1, 1);
-        hash_map.insert(2, 2);
-
-        let mut hash_map_baz = <HashMap<_, _>>::default();
-        hash_map_baz.insert(1, Bar { x: 0 });
-
         let mut foo = Foo {
             a: 1,
             _b: 1,
             c: vec![1, 2],
-            d: hash_map,
             e: Bar { x: 1 },
             f: (1, vec![1, 2], Bar { x: 1 }),
-            g: vec![(Baz("string".to_string()), hash_map_baz)],
+            g: vec![(Baz("string".to_string()),)],
             h: [2; 2],
         };
 
@@ -1364,11 +1243,6 @@ mod tests {
         list.push(4isize);
         list.push(5isize);
         foo_patch.insert("c", list.to_dynamic_list());
-
-        let mut map = DynamicMap::default();
-        map.insert(2usize, 3i8);
-        map.insert(3usize, 4i8);
-        foo_patch.insert("d", map);
 
         let mut bar_patch = DynamicStruct::default();
         bar_patch.insert("x", 2u32);
@@ -1388,15 +1262,6 @@ mod tests {
                 tuple_struct.insert("new_string".to_string());
                 tuple_struct
             });
-            tuple.insert({
-                let mut map = DynamicMap::default();
-                map.insert(1usize, {
-                    let mut struct_ = DynamicStruct::default();
-                    struct_.insert("x", 7u32);
-                    struct_
-                });
-                map
-            });
             tuple
         });
         foo_patch.insert("g", composite);
@@ -1406,21 +1271,13 @@ mod tests {
 
         foo.apply(&foo_patch);
 
-        let mut hash_map = <HashMap<_, _>>::default();
-        hash_map.insert(2, 3);
-        hash_map.insert(3, 4);
-
-        let mut hash_map_baz = <HashMap<_, _>>::default();
-        hash_map_baz.insert(1, Bar { x: 7 });
-
         let expected_foo = Foo {
             a: 2,
             _b: 1,
             c: vec![3, 4, 5],
-            d: hash_map,
             e: Bar { x: 2 },
             f: (2, vec![3, 4, 5], Bar { x: 2 }),
-            g: vec![(Baz("new_string".to_string()), hash_map_baz.clone())],
+            g: vec![(Baz("new_string".to_string()),)],
             h: [2; 2],
         };
 
@@ -1429,18 +1286,13 @@ mod tests {
         let new_foo = Foo::from_reflect(&foo_patch)
             .expect("error while creating a concrete type from a dynamic type");
 
-        let mut hash_map = <HashMap<_, _>>::default();
-        hash_map.insert(2, 3);
-        hash_map.insert(3, 4);
-
         let expected_new_foo = Foo {
             a: 2,
             _b: 0,
             c: vec![3, 4, 5],
-            d: hash_map,
             e: Bar { x: 2 },
             f: (2, vec![3, 4, 5], Bar { x: 2 }),
-            g: vec![(Baz("new_string".to_string()), hash_map_baz)],
+            g: vec![(Baz("new_string".to_string()),)],
             h: [2; 2],
         };
 
@@ -1506,15 +1358,6 @@ mod tests {
             registry.contains(TypeId::of::<Bar>()),
             "registry should contain auto-registered `Bar` from `Vec<Foo>`"
         );
-
-        // === HashMap === //
-        let mut registry = TypeRegistry::empty();
-        registry.register::<HashMap<i32, Foo>>();
-
-        assert!(
-            registry.contains(TypeId::of::<Bar>()),
-            "registry should contain auto-registered `Bar` from `HashMap<i32, Foo>`"
-        );
     }
 
     #[test]
@@ -1525,7 +1368,6 @@ mod tests {
             DynamicEnum,
             DynamicTupleStruct,
             DynamicStruct,
-            DynamicMap,
             DynamicList,
             DynamicArray,
             DynamicTuple,
@@ -1614,12 +1456,6 @@ mod tests {
         let fields = tuple_value.drain();
         assert!(fields[0].reflect_partial_eq(&123_i32).unwrap_or_default());
         assert!(fields[1].reflect_partial_eq(&321_i32).unwrap_or_default());
-
-        let mut map_value: Box<dyn Map> =
-            Box::new([(123_i32, 321_i32)].into_iter().collect::<HashMap<_, _>>());
-        let fields = map_value.drain();
-        assert!(fields[0].0.reflect_partial_eq(&123_i32).unwrap_or_default());
-        assert!(fields[0].1.reflect_partial_eq(&321_i32).unwrap_or_default());
     }
 
     #[test]
@@ -1644,13 +1480,6 @@ mod tests {
         let array = [b'0'; 4];
         let dyn_array = array.to_dynamic_array();
         assert_ne!(dyn_array.reflect_type_path(), <[u8; 4]>::type_path());
-
-        let map = HashMap::<usize, String>::default();
-        let dyn_map = map.to_dynamic_map();
-        assert_ne!(
-            dyn_map.reflect_type_path(),
-            HashMap::<usize, String>::type_path()
-        );
 
         let tuple = (0usize, "1".to_string(), 2.0f32);
         let mut dyn_tuple = tuple.to_dynamic_tuple();
@@ -1948,24 +1777,6 @@ mod tests {
         let info = value.reflect_type_info();
         assert!(info.is::<MyCowSlice>());
 
-        // Map
-        type MyMap = HashMap<usize, f32>;
-
-        let info = MyMap::type_info().as_map().unwrap();
-
-        assert!(info.is::<MyMap>());
-        assert!(info.key_ty().is::<usize>());
-        assert!(info.value_ty().is::<f32>());
-        assert!(info.key_info().unwrap().is::<usize>());
-        assert!(info.value_info().unwrap().is::<f32>());
-        assert_eq!(MyMap::type_path(), info.type_path());
-        assert_eq!(usize::type_path(), info.key_ty().path());
-        assert_eq!(f32::type_path(), info.value_ty().path());
-
-        let value: &dyn Reflect = &MyMap::default();
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyMap>());
-
         // Value
         type MyValue = String;
 
@@ -1995,9 +1806,6 @@ mod tests {
 
         let dyn_struct: &dyn Struct = &SomeStruct;
         let _: &StructInfo = dyn_struct.get_represented_struct_info().unwrap();
-
-        let dyn_map: &dyn Map = &HashMap::<(), ()>::default();
-        let _: &MapInfo = dyn_map.get_represented_map_info().unwrap();
 
         let dyn_array: &dyn Array = &[1, 2, 3];
         let _: &ArrayInfo = dyn_array.get_represented_array_info().unwrap();
@@ -2087,7 +1895,6 @@ mod tests {
             value: usize,
             list: Vec<String>,
             array: [f32; 3],
-            map: HashMap<i32, f32>,
             a_struct: SomeStruct,
             a_tuple_struct: SomeTupleStruct,
             enum_unit: SomeEnum,
@@ -2123,14 +1930,10 @@ mod tests {
             }
         }
 
-        let mut map = <HashMap<_, _>>::default();
-        map.insert(123, 1.23);
-
         let test = Test {
             value: 123,
             list: vec![String::from("A"), String::from("B"), String::from("C")],
             array: [1.0, 2.0, 3.0],
-            map,
             a_struct: SomeStruct {
                 foo: String::from("A Struct!"),
             },
@@ -2156,9 +1959,6 @@ bevy_reflect::tests::Test {
         2.0,
         3.0,
     ],
-    map: {
-        123: 1.23,
-    },
     a_struct: bevy_reflect::tests::SomeStruct {
         foo: "A Struct!",
     },
@@ -2445,20 +2245,15 @@ bevy_reflect::tests::Test {
             array: [u32; 3],
             // test DynamicEnum
             e: TestEnum,
-            // test DynamicMap
-            map: HashMap<u32, u32>,
             // test reflected value
             value: u32,
         }
-        let mut map = <HashMap<_, _>>::default();
-        map.insert(9, 10);
         let mut test_struct: DynamicStruct = TestStruct {
             tuple: (0, 1),
             list: vec![2, 3, 4],
             array: [5, 6, 7],
             tuple_struct: TestTupleStruct(8),
             e: TestEnum::A(11),
-            map,
             value: 12,
         }
         .to_dynamic_struct();
@@ -2479,7 +2274,6 @@ bevy_reflect::tests::Test {
                 list: DynamicList([2, 3, 4]), \
                 array: DynamicArray([5, 6, 7]), \
                 e: DynamicEnum(A(11)), \
-                map: DynamicMap({9: 10}), \
                 value: 12, \
                 unknown_struct: DynamicStruct(_ { a: 13 }), \
                 unknown_tuplestruct: DynamicTupleStruct(_(14)) \

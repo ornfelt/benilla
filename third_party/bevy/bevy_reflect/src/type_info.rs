@@ -1,7 +1,7 @@
 use crate::{
-    ArrayInfo, DynamicArray, DynamicEnum, DynamicList, DynamicMap, DynamicStruct, DynamicTuple,
-    DynamicTupleStruct, EnumInfo, Generics, ListInfo, MapInfo, PartialReflect, Reflect,
-    ReflectKind, SetInfo, StructInfo, TupleInfo, TupleStructInfo, TypePath, TypePathTable,
+    ArrayInfo, DynamicArray, DynamicEnum, DynamicList, DynamicStruct, DynamicTuple,
+    DynamicTupleStruct, EnumInfo, Generics, ListInfo, PartialReflect, Reflect, ReflectKind,
+    StructInfo, TupleInfo, TupleStructInfo, TypePath, TypePathTable,
 };
 use core::{
     any::{Any, TypeId},
@@ -132,8 +132,6 @@ impl MaybeTyped for DynamicTupleStruct {}
 
 impl MaybeTyped for DynamicStruct {}
 
-impl MaybeTyped for DynamicMap {}
-
 impl MaybeTyped for DynamicList {}
 
 impl MaybeTyped for DynamicArray {}
@@ -221,14 +219,6 @@ pub enum TypeInfo {
     ///
     /// [array-like]: crate::Array
     Array(ArrayInfo),
-    /// Type information for a [map-like] type.
-    ///
-    /// [map-like]: crate::Map
-    Map(MapInfo),
-    /// Type information for a [set-like] type.
-    ///
-    /// [set-like]: crate::Set
-    Set(SetInfo),
     /// Type information for an [enum-like] type.
     ///
     /// [enum-like]: crate::Enum
@@ -249,8 +239,6 @@ impl TypeInfo {
             Self::Tuple(info) => info.ty(),
             Self::List(info) => info.ty(),
             Self::Array(info) => info.ty(),
-            Self::Map(info) => info.ty(),
-            Self::Set(info) => info.ty(),
             Self::Enum(info) => info.ty(),
             Self::Opaque(info) => info.ty(),
         }
@@ -298,8 +286,6 @@ impl TypeInfo {
             Self::Tuple(_) => ReflectKind::Tuple,
             Self::List(_) => ReflectKind::List,
             Self::Array(_) => ReflectKind::Array,
-            Self::Map(_) => ReflectKind::Map,
-            Self::Set(_) => ReflectKind::Set,
             Self::Enum(_) => ReflectKind::Enum,
             Self::Opaque(_) => ReflectKind::Opaque,
         }
@@ -312,8 +298,6 @@ impl TypeInfo {
             Self::Tuple(info) => info.generics(),
             Self::List(info) => info.generics(),
             Self::Array(info) => info.generics(),
-            Self::Map(info) => info.generics(),
-            Self::Set(info) => info.generics(),
             Self::Enum(info) => info.generics(),
             Self::Opaque(info) => info.generics(),
         }
@@ -343,7 +327,6 @@ impl TypeInfo {
     impl_cast_method!(as_tuple: Tuple => TupleInfo);
     impl_cast_method!(as_list: List => ListInfo);
     impl_cast_method!(as_array: Array => ArrayInfo);
-    impl_cast_method!(as_map: Map => MapInfo);
     impl_cast_method!(as_enum: Enum => EnumInfo);
     impl_cast_method!(as_opaque: Opaque => OpaqueInfo);
 }

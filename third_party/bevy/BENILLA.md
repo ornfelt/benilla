@@ -598,6 +598,18 @@ the same repository's.
   their impls (`SmallVec` as a list, `IndexMap`/`IndexSet` as a map and a set) and `bevy_ecs`'s
   request for them: the bevy_ecs derives that needed them went with its reflection, and no kept
   derive reflects either type. Every kept derive expands to the same tokens.
+- **`bevy_reflect`'s `Map` and `Set` kinds.** Nothing in the build reflects a map or a set: the
+  only implementors were bevy_platform's `HashMap`/`HashSet` (with their `TypePath` impls and
+  those of the three hashers), and no kept derive has a field of either (the workspace checks
+  without them). The impls go with their two macros, and then the kinds whole: `Map`/`Set`,
+  `DynamicMap`/`DynamicSet`, `MapInfo`/`SetInfo`, their iterators and the `map_*`/`set_*`
+  helpers (`map.rs`, `set.rs`), the `Map`/`Set` variants of `ReflectKind`, `ReflectRef`,
+  `ReflectMut`, `ReflectOwned` and `TypeInfo` with every match arm on them (only bevy_reflect
+  matches on them; bevy_animation matches `Struct` and `TupleStruct`), `ReflectRef::as_map`/
+  `as_set`, `ReflectMut`'s two casts (all it had) and `TypeInfo::as_map`. bevy_reflect's own
+  tests lose their map parts and keep their other assertions (`reflect_complex_patch` keeps its
+  tuple-of-one `g` field); `reflect_map*` and `kind.rs`' `should_cast_mut` go whole. The default
+  registry never held a map, so no registry changes.
 - **`bevy_ecs`'s and `bevy_app`'s off features and platform code.** The features nothing in the
   build can enable go with their code: `bevy_debug_stepping` (the `Stepping` resource and module,
   `bevy_app`'s `Stepping::begin_frame` system, the executors' skip list, so
@@ -868,16 +880,18 @@ the same repository's.
 - **`bevy_platform`'s forwarding API.** `HashMap` and `HashSet` are newtypes over hashbrown's
   maps that `Deref` to them, with an inherent method forwarding to each hashbrown method of the
   same name. The forwards go, apart from the three constructors something calls (`HashMap::new`,
-  and `with_hasher`/`with_capacity_and_hasher` on both types), which set the `FixedHasher`, and the
-  forwards bevy_reflect's `Map`/`Set` impls for the newtypes call (`get`, `get_mut`, `len`, `iter`,
-  `drain`, `retain`, `insert`, `remove`, and `contains` on the set): inside those impls a method
-  call would resolve to the reflect trait's own method of that name (`Self::len(self)` would
-  recurse). Every other call now reaches hashbrown's method through `Deref`, the method the
-  forward called. Proved twice: every newtype method marked `#[deprecated]` on HEAD gave the call
-  sites (1031, in the workspace with `--all-targets`, the `trace_chrome` build and the tests of
-  31 vendored crates); after the cut, the same builds against a scratch hashbrown with every
-  method marked `#[deprecated]` show each of the 275 sites of a removed, called method warning
-  on hashbrown's method of the same name on the same type. Also gone, none of them used: the
+  and `with_hasher`/`with_capacity_and_hasher` on both types), which set the `FixedHasher`. Every
+  call now reaches hashbrown's method through `Deref`, the method the forward called. Proved for
+  each of the two cuts: every newtype method marked `#[deprecated]` before the cut gave the call
+  sites (in the workspace with `--all-targets`, the `trace_chrome` builds and the tests of the
+  vendored crates); after the cut, the same builds against a scratch hashbrown with every method
+  marked `#[deprecated]` show each site of a removed method warning on hashbrown's method of the
+  same name on the same type (275 of 275 for the first cut; 686 of 686 for the second, which took
+  the nine forwards bevy_reflect's `Map`/`Set` impls needed, `get`, `get_mut`, `len`, `iter`,
+  `drain`, `retain`, `insert`, `remove`, and `contains` on the set, once those impls went).
+  bevy_scene's debounce loop copies the `u32` age out of its map before `insert`, since a mutable
+  call through `DerefMut` cannot take the two-phase borrow the inherent `insert` did; bevy_ecs's
+  `EntityHashSet::iter` doc names hashbrown's `iter` without a link. Also gone, none of them used: the
   `HashSet` assignment operators (bevy_ecs's `EntityHashSet` ones now reach hashbrown's through
   `Deref`), the array and `HashMap<T, ()>` `From` impls, the unused hashbrown re-exports (the raw
   entry builders, `EntryRef`, `ExtractIf`, `OccupiedError`, the key and value iterators, most of

@@ -6,11 +6,10 @@
 
 use core::{
     fmt::Debug,
-    hash::{BuildHasher, Hash},
     ops::{BitAnd, BitOr, BitXor, Deref, DerefMut, Sub},
 };
 
-use hashbrown::{hash_set as hb, Equivalent};
+use hashbrown::hash_set as hb;
 
 use crate::hash::FixedHasher;
 
@@ -204,109 +203,6 @@ where
 }
 
 impl<T, S> HashSet<T, S> {
-    /// An iterator visiting all elements in arbitrary order.
-    /// The iterator element type is `&'a T`.
-    ///
-    /// Refer to [`iter`](hb::HashSet::iter) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// #
-    /// let mut map = HashSet::new();
-    ///
-    /// map.insert("foo");
-    /// map.insert("bar");
-    /// map.insert("baz");
-    ///
-    /// for value in map.iter() {
-    ///     // "foo", "bar", "baz"
-    ///     // Note that the above order is not guaranteed
-    /// }
-    /// #
-    /// # assert_eq!(map.iter().count(), 3);
-    /// ```
-    #[inline]
-    pub fn iter(&self) -> Iter<'_, T> {
-        self.0.iter()
-    }
-
-    /// Returns the number of elements in the set.
-    ///
-    /// Refer to [`len`](hb::HashSet::len) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// let mut map = HashSet::new();
-    ///
-    /// assert_eq!(map.len(), 0);
-    ///
-    /// map.insert("foo");
-    ///
-    /// assert_eq!(map.len(), 1);
-    /// ```
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Clears the set, returning all elements in an iterator.
-    ///
-    /// Refer to [`drain`](hb::HashSet::drain) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// #
-    /// let mut map = HashSet::new();
-    ///
-    /// map.insert("foo");
-    /// map.insert("bar");
-    /// map.insert("baz");
-    ///
-    /// for value in map.drain() {
-    ///     // "foo", "bar", "baz"
-    ///     // Note that the above order is not guaranteed
-    /// }
-    ///
-    /// assert!(map.is_empty());
-    /// ```
-    #[inline]
-    pub fn drain(&mut self) -> Drain<'_, T> {
-        self.0.drain()
-    }
-
-    /// Retains only the elements specified by the predicate.
-    ///
-    /// Refer to [`retain`](hb::HashSet::retain) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// #
-    /// let mut map = HashSet::new();
-    ///
-    /// map.insert("foo");
-    /// map.insert("bar");
-    /// map.insert("baz");
-    ///
-    /// map.retain(|value| *value == "baz");
-    ///
-    /// assert_eq!(map.len(), 1);
-    /// ```
-    #[inline]
-    pub fn retain<F>(&mut self, f: F)
-    where
-        F: FnMut(&T) -> bool,
-    {
-        self.0.retain(f);
-    }
-
     /// Creates a new empty hash set which will use the given hasher to hash
     /// keys.
     ///
@@ -349,100 +245,6 @@ impl<T, S> HashSet<T, S> {
     #[inline]
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self(hb::HashSet::with_capacity_and_hasher(capacity, hasher))
-    }
-}
-
-impl<T, S> HashSet<T, S>
-where
-    T: Eq + Hash,
-    S: BuildHasher,
-{
-    /// Returns `true` if the set contains a value.
-    ///
-    /// Refer to [`contains`](hb::HashSet::contains) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// let mut map = HashSet::new();
-    ///
-    /// map.insert("foo");
-    ///
-    /// assert!(map.contains("foo"));
-    /// ```
-    #[inline]
-    pub fn contains<Q>(&self, value: &Q) -> bool
-    where
-        Q: Hash + Equivalent<T> + ?Sized,
-    {
-        self.0.contains(value)
-    }
-
-    /// Returns a reference to the value in the set, if any, that is equal to the given value.
-    ///
-    /// Refer to [`get`](hb::HashSet::get) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// let mut map = HashSet::new();
-    ///
-    /// map.insert("foo");
-    ///
-    /// assert_eq!(map.get("foo"), Some(&"foo"));
-    /// ```
-    #[inline]
-    pub fn get<Q>(&self, value: &Q) -> Option<&T>
-    where
-        Q: Hash + Equivalent<T> + ?Sized,
-    {
-        self.0.get(value)
-    }
-
-    /// Adds a value to the set.
-    ///
-    /// Refer to [`insert`](hb::HashSet::insert) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// let mut map = HashSet::new();
-    ///
-    /// map.insert("foo");
-    ///
-    /// assert!(map.contains("foo"));
-    /// ```
-    #[inline]
-    pub fn insert(&mut self, value: T) -> bool {
-        self.0.insert(value)
-    }
-
-    /// Removes a value from the set. Returns whether the value was
-    /// present in the set.
-    ///
-    /// Refer to [`remove`](hb::HashSet::remove) for further details.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use bevy_platform::collections::HashSet;
-    /// let mut map = HashSet::new();
-    ///
-    /// map.insert("foo");
-    ///
-    /// assert!(map.remove("foo"));
-    ///
-    /// assert!(map.is_empty());
-    /// ```
-    #[inline]
-    pub fn remove<Q>(&mut self, value: &Q) -> bool
-    where
-        Q: Hash + Equivalent<T> + ?Sized,
-    {
-        self.0.remove(value)
     }
 }
 

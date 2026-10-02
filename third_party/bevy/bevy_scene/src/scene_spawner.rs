@@ -490,16 +490,16 @@ pub fn scene_spawner_system(world: &mut World) {
 
         const SCENE_ASSET_AGE_THRESHOLD: u32 = 2;
         for asset_id in scene_spawner.debounced_scene_asset_events.clone().keys() {
-            let age = scene_spawner
+            let age = *scene_spawner
                 .debounced_scene_asset_events
                 .get(asset_id)
                 .unwrap();
-            if *age > SCENE_ASSET_AGE_THRESHOLD {
+            if age > SCENE_ASSET_AGE_THRESHOLD {
                 scene_spawner.debounced_scene_asset_events.remove(asset_id);
             } else {
                 scene_spawner
                     .debounced_scene_asset_events
-                    .insert(*asset_id, *age + 1);
+                    .insert(*asset_id, age + 1);
             }
         }
         for asset_id in scene_spawner
@@ -507,18 +507,18 @@ pub fn scene_spawner_system(world: &mut World) {
             .clone()
             .keys()
         {
-            let age = scene_spawner
+            let age = *scene_spawner
                 .debounced_dynamic_scene_asset_events
                 .get(asset_id)
                 .unwrap();
-            if *age > SCENE_ASSET_AGE_THRESHOLD {
+            if age > SCENE_ASSET_AGE_THRESHOLD {
                 scene_spawner
                     .debounced_dynamic_scene_asset_events
                     .remove(asset_id);
             } else {
                 scene_spawner
                     .debounced_dynamic_scene_asset_events
-                    .insert(*asset_id, *age + 1);
+                    .insert(*asset_id, age + 1);
             }
         }
     });

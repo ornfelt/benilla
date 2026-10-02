@@ -1,6 +1,5 @@
 use crate::{
-    array_debug, enum_debug, list_debug, map_debug, set_debug, struct_debug, tuple_debug,
-    tuple_struct_debug, DynamicTypePath, DynamicTyped, OpaqueInfo, ReflectCloneError, ReflectKind,
+    array_debug, enum_debug, list_debug, struct_debug, tuple_debug, tuple_struct_debug, DynamicTypePath, DynamicTyped, OpaqueInfo, ReflectCloneError, ReflectKind,
     ReflectKindMismatchError, ReflectMut, ReflectOwned, ReflectRef, TypeInfo, TypePath, Typed,
 };
 use alloc::borrow::Cow;
@@ -165,20 +164,13 @@ where
     /// - If `Self` is a [`List`] or [`Array`], then each element of `value` is applied
     ///   to the corresponding element of `self`. Up to `self.len()` items are applied,
     ///   and excess elements in `value` are appended to `self`.
-    /// - If `Self` is a [`Map`], then for each key in `value`, the associated
-    ///   value is applied to the value associated with the same key in `self`.
-    ///   Keys which are not present in `self` are inserted, and keys from `self` which are not present in `value` are removed.
-    /// - If `Self` is a [`Set`], then each element of `value` is applied to the corresponding
-    ///   element of `Self`. If an element of `value` does not exist in `Self` then it is
-    ///   cloned and inserted. If an element from `self` is not present in `value` then it is removed.
     /// - If `Self` is none of these, then `value` is downcast to `Self`, cloned, and
     ///   assigned to `self`.
     ///
-    /// Note that `Reflect` must be implemented manually for [`List`]s,
-    /// [`Map`]s, and [`Set`]s in order to achieve the correct semantics, as derived
-    /// implementations will have the semantics for [`Struct`], [`TupleStruct`], [`Enum`]
-    /// or none of the above depending on the kind of type. For lists, maps, and sets, use the
-    /// [`list_apply`], [`map_apply`], and [`set_apply`] helper functions when implementing this method.
+    /// Note that `Reflect` must be implemented manually for [`List`]s in order to achieve the
+    /// correct semantics, as derived implementations will have the semantics for [`Struct`],
+    /// [`TupleStruct`], [`Enum`] or none of the above depending on the kind of type. For lists,
+    /// use the [`list_apply`] helper function when implementing this method.
     ///
     /// [reflection subtrait]: crate#the-reflection-subtraits
     /// [`Struct`]: crate::Struct
@@ -187,11 +179,7 @@ where
     /// [`Enum`]: crate::Enum
     /// [`List`]: crate::List
     /// [`Array`]: crate::Array
-    /// [`Map`]: crate::Map
-    /// [`Set`]: crate::Set
     /// [`list_apply`]: crate::list_apply
-    /// [`map_apply`]: crate::map_apply
-    /// [`set_apply`]: crate::set_apply
     ///
     /// # Panics
     ///
@@ -281,8 +269,6 @@ where
             ReflectRef::Tuple(dyn_tuple) => Box::new(dyn_tuple.to_dynamic_tuple()),
             ReflectRef::List(dyn_list) => Box::new(dyn_list.to_dynamic_list()),
             ReflectRef::Array(dyn_array) => Box::new(dyn_array.to_dynamic_array()),
-            ReflectRef::Map(dyn_map) => Box::new(dyn_map.to_dynamic_map()),
-            ReflectRef::Set(dyn_set) => Box::new(dyn_set.to_dynamic_set()),
             ReflectRef::Enum(dyn_enum) => Box::new(dyn_enum.to_dynamic_enum()),
             ReflectRef::Opaque(value) => value.reflect_clone().unwrap().into_partial_reflect(),
         }
@@ -346,11 +332,11 @@ where
     /// Debug formatter for the value.
     ///
     /// Any value that is not an implementor of other `Reflect` subtraits
-    /// (e.g. [`List`], [`Map`]), will default to the format: `"Reflect(type_path)"`,
+    /// (e.g. [`List`], [`Struct`]), will default to the format: `"Reflect(type_path)"`,
     /// where `type_path` is the [type path] of the underlying type.
     ///
     /// [`List`]: crate::List
-    /// [`Map`]: crate::Map
+    /// [`Struct`]: crate::Struct
     /// [type path]: TypePath::type_path
     fn debug(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.reflect_ref() {
@@ -359,8 +345,6 @@ where
             ReflectRef::Tuple(dyn_tuple) => tuple_debug(dyn_tuple, f),
             ReflectRef::List(dyn_list) => list_debug(dyn_list, f),
             ReflectRef::Array(dyn_array) => array_debug(dyn_array, f),
-            ReflectRef::Map(dyn_map) => map_debug(dyn_map, f),
-            ReflectRef::Set(dyn_set) => set_debug(dyn_set, f),
             ReflectRef::Enum(dyn_enum) => enum_debug(dyn_enum, f),
             ReflectRef::Opaque(_) => write!(f, "Reflect({})", self.reflect_type_path()),
         }
