@@ -1,8 +1,8 @@
 # benilla's vendored Bevy: what it is, and how to check it
 
 Upstream: [`bevyengine/bevy`](https://github.com/bevyengine/bevy), MIT OR Apache-2.0, version
-`0.18.1` (and `bevy_mikktspace` `0.17.0-dev`, the version 0.18.1 depends on), the versions the
-workspace lock resolved to. Beside it, in `third_party/bevy-plugins/`, the Bevy plugins benilla
+`0.18.1` (and `bevy_mikktspace` `0.17.0-dev`, the version 0.18.1 depends on, since deleted), the
+versions the workspace lock resolved to. Beside it, in `third_party/bevy-plugins/`, the Bevy plugins benilla
 builds, at their locked versions: [`avian3d`](https://github.com/Jondolf/avian) `0.6.1` with
 `avian_derive` `0.2.3`, [`bevy_heavy`](https://github.com/Jondolf/bevy_heavy) `0.4.0`,
 [`bevy_transform_interpolation`](https://github.com/Jondolf/bevy_transform_interpolation) `0.4.0`
@@ -834,6 +834,25 @@ the same repository's.
   `ThreadExecutorTicker::try_tick` had no caller (marked `#[deprecated]`, the workspace checked
   with `--all-targets`: no warning outside bevy_tasks). No system, schedule or run-time path
   changed.
+- **`bevy_mikktspace`, and with it `Mesh::generate_tangents`/`with_generated_tangents` and
+  `GenerateTangentsError`.** Its one caller was `ForwardDecalPlugin::build` (added by
+  `PbrPlugin`), which generates the tangents of its 1×1 decal quad at startup. Measured once at
+  the copy (a scratch test): mikktspace gave `[1.0, 0.0, 0.0, 1.0]` (bits `3f800000 0 0
+  3f800000`) at each of the four vertices, so the plugin now inserts that attribute directly and
+  `ForwardDecalMesh`'s asset is the same, bit for bit. The `bevy_mikktspace` features of `bevy`,
+  `bevy_internal`, `bevy_mesh` and avian3d's `collider-from-mesh` request go.
+- **`bevy_platform`, to `std`.** The build enables `std`, so the `no_std` fallbacks (the
+  spin-lock `sync` types, the `Instant` and `sleep` fallbacks), the `portable-atomic` paths for
+  targets without native atomics, the off `rayon` (parallel-iterator impls on `HashMap`/`HashSet`)
+  and `critical-section` features go, with the `spin`, `critical-section` and `portable-atomic`
+  dependencies and the README's `no_std` sections. `sync`, `time` and `thread` re-export `std`'s
+  and `core`'s items under the same names. The `cfg` alias module (`switch!`, `define_alias!`, the
+  `std`/`alloc`/`arc`/`panic_*`/`critical_section` aliases) goes with `bevy_utils`'s `cfg` module,
+  its only other user: every block they gated was active and is now plain code. The off
+  `critical-section` feature also leaves the manifests that only forwarded it (`bevy`,
+  `bevy_internal`, `bevy_app`, `bevy_color`, `bevy_diagnostic`, `bevy_ecs`, `bevy_input`,
+  `bevy_state`, `bevy_time`, `bevy_transform`, `bevy_transform_interpolation`). No crate's
+  resolved features change on the desktop targets.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
@@ -969,7 +988,7 @@ the same repository's.
   `getrandom`'s `wasm_js`, which only wasm builds compile.
 - **`bevy` and `bevy_internal`'s manifests** keep only the features the build enables or a
   manifest in it names (the workspace's list, `debug`, `trace_tracy`, `trace_chrome`, and
-  `bevy_transform_interpolation`'s `critical-section` and `libm`), each
+  `bevy_transform_interpolation`'s `libm`), each
   enabling what it did minus the cut crates; `bevy`'s examples, tests, dev-dependencies, profiles
   and `dynamic_linking` are gone. The optional dependencies no kept feature reaches left with them
   (`bevy_audio`, `bevy_dev_tools`, `bevy_feathers`, `bevy_ui_widgets`, `bevy_solari`,

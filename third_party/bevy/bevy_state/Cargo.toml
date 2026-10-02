@@ -33,10 +33,6 @@ all-features = true
 
 [features]
 bevy_app = ["dep:bevy_app"]
-critical-section = [
-    "bevy_ecs/critical-section",
-    "bevy_app?/critical-section",
-]
 default = [
     "std",
     "bevy_app",

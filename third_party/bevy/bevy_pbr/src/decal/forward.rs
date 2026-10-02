@@ -31,8 +31,8 @@ impl Plugin for ForwardDecalPlugin {
                 .mesh()
                 .build()
                 .rotated_by(Quat::from_rotation_arc(Vec3::Z, Vec3::Y))
-                .with_generated_tangents()
-                .unwrap(),
+                // The tangents mikktspace generated for this quad, bit for bit.
+                .with_inserted_attribute(Mesh::ATTRIBUTE_TANGENT, vec![[1.0f32, 0.0, 0.0, 1.0]; 4]),
         );
 
         app.insert_resource(ForwardDecalMesh(mesh));

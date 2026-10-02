@@ -81,7 +81,6 @@ all-features = true
 3d_api = [
     "common_api",
     "bevy_light",
-    "bevy_mikktspace",
     "ktx2",
     "morph_animation",
     "morph",
@@ -123,7 +122,6 @@ bevy_input_focus = ["bevy_internal/bevy_input_focus"]
 bevy_light = ["bevy_internal/bevy_light"]
 bevy_log = ["bevy_internal/bevy_log"]
 bevy_mesh = ["bevy_internal/bevy_mesh"]
-bevy_mikktspace = ["bevy_internal/bevy_mikktspace"]
 bevy_pbr = ["bevy_internal/bevy_pbr"]
 bevy_picking = ["bevy_internal/bevy_picking"]
 bevy_post_process = ["bevy_internal/bevy_post_process"]
@@ -149,7 +147,6 @@ common_api = [
     "hdr",
     "png",
 ]
-critical-section = ["bevy_internal/critical-section"]
 debug = ["bevy_internal/debug"]
 default_font = ["bevy_internal/default_font"]
 gamepad = ["bevy_internal/gamepad"]

@@ -84,7 +84,6 @@ version = "0.18.0"
 version = "0.18.0"
 features = [
     "morph",
-    "bevy_mikktspace",
 ]
 
 [dependencies.bevy_platform]

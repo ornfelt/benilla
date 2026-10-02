@@ -92,7 +92,6 @@ bevy_mesh = [
     "dep:bevy_mesh",
     "bevy_image",
 ]
-bevy_mikktspace = ["bevy_mesh?/bevy_mikktspace"]
 bevy_pbr = [
     "dep:bevy_pbr",
     "bevy_light",
@@ -141,15 +140,6 @@ bevy_ui_render = [
 bevy_window = [
     "dep:bevy_window",
     "bevy_image",
-]
-critical-section = [
-    "bevy_app/critical-section",
-    "bevy_diagnostic/critical-section",
-    "bevy_ecs/critical-section",
-    "bevy_input/critical-section",
-    "bevy_platform/critical-section",
-    "bevy_state?/critical-section",
-    "bevy_time/critical-section",
 ]
 debug = [
     "bevy_utils/debug",

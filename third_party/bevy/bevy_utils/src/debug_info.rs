@@ -1,7 +1,4 @@
-use crate::cfg;
-cfg::alloc! {
-    use alloc::{borrow::Cow, fmt, string::String};
-}
+use alloc::{borrow::Cow, fmt, string::String};
 #[cfg(feature = "debug")]
 use core::any::type_name;
 use core::ops::Deref;
@@ -20,19 +17,17 @@ pub struct DebugName {
     name: Cow<'static, str>,
 }
 
-cfg::alloc! {
-    impl fmt::Display for DebugName {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            // Deref to `str`, which will use `FEATURE_DISABLED` if necessary
-            write!(f, "{}", &**self)
-        }
+impl fmt::Display for DebugName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Deref to `str`, which will use `FEATURE_DISABLED` if necessary
+        write!(f, "{}", &**self)
     }
+}
 
-    impl fmt::Debug for DebugName {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            // Deref to `str`, which will use `FEATURE_DISABLED` if necessary
-            write!(f, "{:?}", &**self)
-        }
+impl fmt::Debug for DebugName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Deref to `str`, which will use `FEATURE_DISABLED` if necessary
+        write!(f, "{:?}", &**self)
     }
 }
 
@@ -54,22 +49,20 @@ impl DebugName {
         }
     }
 
-    cfg::alloc! {
-        /// Create a new `DebugName` from a `String`
-        ///
-        /// The value will be ignored if the `debug` feature is not enabled
-        #[cfg_attr(
-            not(feature = "debug"),
-            expect(
-                unused_variables,
-                reason = "The value will be ignored if the `debug` feature is not enabled"
-            )
-        )]
-        pub fn owned(value: String) -> Self {
-            DebugName {
-                #[cfg(feature = "debug")]
-                name: Cow::Owned(value),
-            }
+    /// Create a new `DebugName` from a `String`
+    ///
+    /// The value will be ignored if the `debug` feature is not enabled
+    #[cfg_attr(
+        not(feature = "debug"),
+        expect(
+            unused_variables,
+            reason = "The value will be ignored if the `debug` feature is not enabled"
+        )
+    )]
+    pub fn owned(value: String) -> Self {
+        DebugName {
+            #[cfg(feature = "debug")]
+            name: Cow::Owned(value),
         }
     }
 
@@ -113,46 +106,44 @@ impl Deref for DebugName {
     }
 }
 
-cfg::alloc! {
-    impl From<Cow<'static, str>> for DebugName {
-        #[cfg_attr(
-            not(feature = "debug"),
-            expect(
-                unused_variables,
-                reason = "The value will be ignored if the `debug` feature is not enabled"
-            )
-        )]
-        fn from(value: Cow<'static, str>) -> Self {
-            Self {
-                #[cfg(feature = "debug")]
-                name: value,
-            }
-        }
-    }
-
-    impl From<String> for DebugName {
-        fn from(value: String) -> Self {
-            Self::owned(value)
-        }
-    }
-
-    impl From<DebugName> for Cow<'static, str> {
-        #[cfg_attr(
-            not(feature = "debug"),
-            expect(
-                unused_variables,
-                reason = "The value will be ignored if the `debug` feature is not enabled"
-            )
-        )]
-        fn from(value: DebugName) -> Self {
+impl From<Cow<'static, str>> for DebugName {
+    #[cfg_attr(
+        not(feature = "debug"),
+        expect(
+            unused_variables,
+            reason = "The value will be ignored if the `debug` feature is not enabled"
+        )
+    )]
+    fn from(value: Cow<'static, str>) -> Self {
+        Self {
             #[cfg(feature = "debug")]
-            {
-                value.name
-            }
-            #[cfg(not(feature = "debug"))]
-            {
-                Cow::Borrowed(FEATURE_DISABLED)
-            }
+            name: value,
+        }
+    }
+}
+
+impl From<String> for DebugName {
+    fn from(value: String) -> Self {
+        Self::owned(value)
+    }
+}
+
+impl From<DebugName> for Cow<'static, str> {
+    #[cfg_attr(
+        not(feature = "debug"),
+        expect(
+            unused_variables,
+            reason = "The value will be ignored if the `debug` feature is not enabled"
+        )
+    )]
+    fn from(value: DebugName) -> Self {
+        #[cfg(feature = "debug")]
+        {
+            value.name
+        }
+        #[cfg(not(feature = "debug"))]
+        {
+            Cow::Borrowed(FEATURE_DISABLED)
         }
     }
 }

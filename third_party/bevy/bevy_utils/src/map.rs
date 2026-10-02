@@ -135,21 +135,19 @@ mod tests {
         Hash::hash(&TypeId::of::<()>(), &mut Hasher);
     }
 
-    crate::cfg::alloc! {
-        #[test]
-        fn stable_hash_within_same_program_execution() {
-            use alloc::vec::Vec;
+    #[test]
+    fn stable_hash_within_same_program_execution() {
+        use alloc::vec::Vec;
 
-            let mut map_1 = <HashMap<_, _>>::default();
-            let mut map_2 = <HashMap<_, _>>::default();
-            for i in 1..10 {
-                map_1.insert(i, i);
-                map_2.insert(i, i);
-            }
-            assert_eq!(
-                map_1.iter().collect::<Vec<_>>(),
-                map_2.iter().collect::<Vec<_>>()
-            );
+        let mut map_1 = <HashMap<_, _>>::default();
+        let mut map_2 = <HashMap<_, _>>::default();
+        for i in 1..10 {
+            map_1.insert(i, i);
+            map_2.insert(i, i);
         }
+        assert_eq!(
+            map_1.iter().collect::<Vec<_>>(),
+            map_2.iter().collect::<Vec<_>>()
+        );
     }
 }

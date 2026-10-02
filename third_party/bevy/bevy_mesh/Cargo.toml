@@ -61,10 +61,6 @@ optional = true
 [dependencies.bevy_math]
 version = "0.18.0"
 
-[dependencies.bevy_mikktspace]
-version = "0.17.0-dev"
-optional = true
-
 [dependencies.bevy_platform]
 version = "0.18.0"
 features = [

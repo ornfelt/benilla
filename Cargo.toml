@@ -82,7 +82,6 @@ bevy_log = { path = "third_party/bevy/bevy_log" }
 bevy_macro_utils = { path = "third_party/bevy/bevy_macro_utils" }
 bevy_math = { path = "third_party/bevy/bevy_math" }
 bevy_mesh = { path = "third_party/bevy/bevy_mesh" }
-bevy_mikktspace = { path = "third_party/bevy/bevy_mikktspace" }
 bevy_pbr = { path = "third_party/bevy/bevy_pbr" }
 bevy_platform = { path = "third_party/bevy/bevy_platform" }
 bevy_ptr = { path = "third_party/bevy/bevy_ptr" }

@@ -243,8 +243,6 @@ impl Mesh {
         MeshVertexAttribute::new("Vertex_Uv_1", 3, VertexFormat::Float32x2);
 
     /// The direction of the vertex tangent. Used for normal mapping.
-    /// Usually generated with [`generate_tangents`](Mesh::generate_tangents) or
-    /// [`with_generated_tangents`](Mesh::with_generated_tangents).
     ///
     /// The format of this attribute is [`VertexFormat::Float32x4`].
     pub const ATTRIBUTE_TANGENT: MeshVertexAttribute =
@@ -757,30 +755,6 @@ impl Mesh {
         }
 
         self.try_insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
-    }
-
-    /// Generate tangents for the mesh using the `mikktspace` algorithm.
-    ///
-    /// Sets the [`Mesh::ATTRIBUTE_TANGENT`] attribute if successful.
-    /// Requires a [`PrimitiveTopology::TriangleList`] topology and the [`Mesh::ATTRIBUTE_POSITION`], [`Mesh::ATTRIBUTE_NORMAL`] and [`Mesh::ATTRIBUTE_UV_0`] attributes set.
-    #[cfg(feature = "bevy_mikktspace")]
-    pub fn generate_tangents(&mut self) -> Result<(), super::GenerateTangentsError> {
-        let tangents = super::generate_tangents_for_mesh(self)?;
-        self.try_insert_attribute(Mesh::ATTRIBUTE_TANGENT, tangents)?;
-        Ok(())
-    }
-
-    /// Consumes the mesh and returns a mesh with tangents generated using the `mikktspace` algorithm.
-    ///
-    /// The resulting mesh will have the [`Mesh::ATTRIBUTE_TANGENT`] attribute if successful.
-    ///
-    /// (Alternatively, you can use [`Mesh::generate_tangents`] to mutate an existing mesh in-place)
-    ///
-    /// Requires a [`PrimitiveTopology::TriangleList`] topology and the [`Mesh::ATTRIBUTE_POSITION`], [`Mesh::ATTRIBUTE_NORMAL`] and [`Mesh::ATTRIBUTE_UV_0`] attributes set.
-    #[cfg(feature = "bevy_mikktspace")]
-    pub fn with_generated_tangents(mut self) -> Result<Mesh, super::GenerateTangentsError> {
-        self.generate_tangents()?;
-        Ok(self)
     }
 
     /// Rotates the vertex positions, normals, and tangents of the mesh by the given [`Quat`].

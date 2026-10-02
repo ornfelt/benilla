@@ -42,7 +42,6 @@ repository = "https://github.com/avianphysics/avian"
 bevy_scene = ["bevy/bevy_scene"]
 collider-from-mesh = [
     "bevy/bevy_mesh",
-    "bevy/bevy_mikktspace",
     "3d",
 ]
 debug-plugin = [

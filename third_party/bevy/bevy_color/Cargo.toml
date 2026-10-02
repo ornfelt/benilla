@@ -43,7 +43,6 @@ alloc = [
     "bevy_math/alloc",
     "serde?/alloc",
 ]
-critical-section = []
 default = [
     "std",
     "encase",

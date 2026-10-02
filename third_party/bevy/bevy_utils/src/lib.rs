@@ -9,35 +9,16 @@
 //!
 //! [Bevy]: https://bevy.org/
 
-/// Configuration information for this crate.
-pub mod cfg {
-    pub(crate) use bevy_platform::cfg::*;
+extern crate alloc;
+extern crate std;
 
-    pub use bevy_platform::cfg::{alloc, std};
+mod map;
+pub use map::*;
 
-    define_alias! {
-        #[cfg(feature = "parallel")] => {
-            /// Indicates the `Parallel` type is available.
-            parallel
-        }
-    }
-}
-
-cfg::std! {
-    extern crate std;
-}
-
-cfg::alloc! {
-    extern crate alloc;
-
-    mod map;
-    pub use map::*;
-}
-
-cfg::parallel! {
-    mod parallel_queue;
-    pub use parallel_queue::*;
-}
+#[cfg(feature = "parallel")]
+mod parallel_queue;
+#[cfg(feature = "parallel")]
+pub use parallel_queue::*;
 
 /// The utilities prelude.
 ///

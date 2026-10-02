@@ -34,7 +34,6 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Jondolf/bevy_transform_interpolation"
 
 [features]
-critical-section = ["bevy/critical-section"]
 default = ["std"]
 libm = ["bevy/libm"]
 std = ["bevy/std"]

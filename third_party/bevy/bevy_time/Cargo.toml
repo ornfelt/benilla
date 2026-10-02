@@ -35,11 +35,6 @@ rustdoc-args = [
 all-features = true
 
 [features]
-critical-section = [
-    "bevy_ecs/critical-section",
-    "bevy_platform/critical-section",
-    "bevy_app/critical-section",
-]
 default = [
     "std",
     "bevy_app/default",
