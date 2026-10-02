@@ -4,13 +4,9 @@ use bevy_platform::{
     collections::HashMap,
     sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
-use bevy_ptr::{Ptr, PtrMut};
+use bevy_ptr::PtrMut;
 use bevy_utils::TypeIdMap;
-use core::{
-    any::TypeId,
-    fmt::Debug,
-    ops::{Deref, DerefMut},
-};
+use core::{any::TypeId, fmt::Debug};
 use downcast_rs::{impl_downcast, Downcast};
 
 /// A registry of [reflected] types.
@@ -194,37 +190,6 @@ impl TypeRegistry {
         type_path_to_id.insert(registration.type_info().type_path(), registration.type_id());
     }
 
-    /// Registers the type data `D` for type `T`.
-    ///
-    /// Most of the time [`TypeRegistry::register`] can be used instead to register a type you derived [`Reflect`] for.
-    /// However, in cases where you want to add a piece of type data that was not included in the list of `#[reflect(...)]` type data in the derive,
-    /// or where the type is generic and cannot register e.g. [`ReflectDefault`](crate::std_traits::ReflectDefault) unconditionally without knowing the specific type parameters,
-    /// this method can be used to insert additional type data.
-    ///
-    /// # Example
-    /// ```
-    /// use bevy_reflect::{TypeRegistry, std_traits::ReflectDefault};
-    ///
-    /// let mut type_registry = TypeRegistry::default();
-    /// type_registry.register::<Option<String>>();
-    /// type_registry.register_type_data::<Option<String>, ReflectDefault>();
-    /// ```
-    pub fn register_type_data<T: Reflect + TypePath, D: TypeData + FromType<T>>(&mut self) {
-        let data = self.get_mut(TypeId::of::<T>()).unwrap_or_else(|| {
-            panic!(
-                "attempted to call `TypeRegistry::register_type_data` for type `{T}` with data `{D}` without registering `{T}` first",
-                T = T::type_path(),
-                D = core::any::type_name::<D>(),
-            )
-        });
-        data.insert(D::from_type());
-    }
-
-    /// Whether the type with given [`TypeId`] has been registered in this registry.
-    pub fn contains(&self, type_id: TypeId) -> bool {
-        self.registrations.contains_key(&type_id)
-    }
-
     /// Returns a reference to the [`TypeRegistration`] of the type with the
     /// given [`TypeId`].
     ///
@@ -242,18 +207,6 @@ impl TypeRegistry {
         self.registrations.get_mut(&type_id)
     }
 
-    /// Returns a reference to the [`TypeRegistration`] of the type with the
-    /// given [type path].
-    ///
-    /// If no type with the given path has been registered, returns `None`.
-    ///
-    /// [type path]: TypePath::type_path
-    pub fn get_with_type_path(&self, type_path: &str) -> Option<&TypeRegistration> {
-        self.type_path_to_id
-            .get(type_path)
-            .and_then(|id| self.get(*id))
-    }
-
     /// Returns a reference to the [`TypeData`] of type `T` associated with the given [`TypeId`].
     ///
     /// The returned value may be used to downcast [`Reflect`] trait objects to
@@ -266,12 +219,6 @@ impl TypeRegistry {
     pub fn get_type_data<T: TypeData>(&self, type_id: TypeId) -> Option<&T> {
         self.get(type_id)
             .and_then(|registration| registration.data::<T>())
-    }
-
-    /// Returns an iterator over the [`TypeRegistration`]s of the registered
-    /// types.
-    pub fn iter(&self) -> impl Iterator<Item = &TypeRegistration> {
-        self.registrations.values()
     }
 }
 
@@ -375,26 +322,6 @@ impl TypeRegistration {
             .get(&TypeId::of::<T>())
             .and_then(|value| value.downcast_ref())
     }
-
-    /// Returns an iterator over all [type data] in this registration.
-    ///
-    /// The iterator yields a tuple of the [`TypeId`] and its corresponding type data.
-    ///
-    /// [type data]: TypeData
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &dyn TypeData)> {
-        self.data.iter().map(|(id, data)| (*id, data.deref()))
-    }
-
-    /// Returns a mutable iterator over all [type data] in this registration.
-    ///
-    /// The iterator yields a tuple of the [`TypeId`] and its corresponding type data.
-    ///
-    /// [type data]: TypeData
-    pub fn iter_mut(&mut self) -> impl ExactSizeIterator<Item = (TypeId, &mut dyn TypeData)> {
-        self.data
-            .iter_mut()
-            .map(|(id, data)| (*id, data.deref_mut()))
-    }
 }
 
 impl Clone for TypeRegistration {
@@ -461,8 +388,7 @@ pub trait FromType<T> {
 /// # Example
 /// ```
 /// use bevy_reflect::{TypeRegistry, Reflect, ReflectFromPtr};
-/// use bevy_ptr::Ptr;
-/// use core::ptr::NonNull;
+/// use bevy_ptr::PtrMut;
 ///
 /// #[derive(Reflect)]
 /// struct Reflected(String);
@@ -471,19 +397,17 @@ pub trait FromType<T> {
 /// type_registry.register::<Reflected>();
 ///
 /// let mut value = Reflected("Hello world!".to_string());
-/// let value = Ptr::from(&value);
+/// let value = PtrMut::from(&mut value);
 ///
 /// let reflect_data = type_registry.get(core::any::TypeId::of::<Reflected>()).unwrap();
 /// let reflect_from_ptr = reflect_data.data::<ReflectFromPtr>().unwrap();
 /// // SAFE: `value` is of type `Reflected`, which the `ReflectFromPtr` was created for
-/// let value = unsafe { reflect_from_ptr.as_reflect(value) };
+/// let value = unsafe { reflect_from_ptr.as_reflect_mut(value) };
 ///
 /// assert_eq!(value.downcast_ref::<Reflected>().unwrap().0, "Hello world!");
 /// ```
 #[derive(Clone)]
 pub struct ReflectFromPtr {
-    type_id: TypeId,
-    from_ptr: unsafe fn(Ptr) -> &dyn Reflect,
     from_ptr_mut: unsafe fn(PtrMut) -> &mut dyn Reflect,
 }
 
@@ -492,28 +416,11 @@ pub struct ReflectFromPtr {
     reason = "We must interact with pointers here, which are inherently unsafe."
 )]
 impl ReflectFromPtr {
-    /// Returns the [`TypeId`] that the [`ReflectFromPtr`] was constructed for.
-    pub fn type_id(&self) -> TypeId {
-        self.type_id
-    }
-
-    /// Convert `Ptr` into `&dyn Reflect`.
-    ///
-    /// # Safety
-    ///
-    /// `val` must be a pointer to value of the type that the [`ReflectFromPtr`] was constructed for.
-    /// This can be verified by checking that the type id returned by [`ReflectFromPtr::type_id`] is the expected one.
-    pub unsafe fn as_reflect<'a>(&self, val: Ptr<'a>) -> &'a dyn Reflect {
-        // SAFETY: contract uphold by the caller.
-        unsafe { (self.from_ptr)(val) }
-    }
-
     /// Convert `PtrMut` into `&mut dyn Reflect`.
     ///
     /// # Safety
     ///
-    /// `val` must be a pointer to a value of the type that the [`ReflectFromPtr`] was constructed for
-    /// This can be verified by checking that the type id returned by [`ReflectFromPtr::type_id`] is the expected one.
+    /// `val` must be a pointer to a value of the type that the [`ReflectFromPtr`] was constructed for.
     pub unsafe fn as_reflect_mut<'a>(&self, val: PtrMut<'a>) -> &'a mut dyn Reflect {
         // SAFETY: contract uphold by the caller.
         unsafe { (self.from_ptr_mut)(val) }
@@ -527,15 +434,9 @@ impl ReflectFromPtr {
 impl<T: Reflect> FromType<T> for ReflectFromPtr {
     fn from_type() -> Self {
         ReflectFromPtr {
-            type_id: TypeId::of::<T>(),
-            from_ptr: |ptr| {
-                // SAFETY: `from_ptr_mut` is either called in `ReflectFromPtr::as_reflect`
-                // or returned by `ReflectFromPtr::from_ptr`, both lay out the invariants
-                // required by `deref`
-                unsafe { ptr.deref::<T>() as &dyn Reflect }
-            },
             from_ptr_mut: |ptr| {
-                // SAFETY: same as above, but for `as_reflect_mut`, `from_ptr_mut` and `deref_mut`.
+                // SAFETY: `from_ptr_mut` is only called in `ReflectFromPtr::as_reflect_mut`, which
+                // lays out the invariants required by `deref_mut`
                 unsafe { ptr.deref_mut::<T>() as &mut dyn Reflect }
             },
         }
@@ -560,11 +461,6 @@ mod test {
         let foo_registration = <Foo as GetTypeRegistration>::get_type_registration();
         let reflect_from_ptr = foo_registration.data::<ReflectFromPtr>().unwrap();
 
-        // not required in this situation because we no nobody messed with the TypeRegistry,
-        // but in the general case somebody could have replaced the ReflectFromPtr with an
-        // instance for another type, so then we'd need to check that the type is the expected one
-        assert_eq!(reflect_from_ptr.type_id(), TypeId::of::<Foo>());
-
         let mut value = Foo { a: 1.0 };
         {
             let value = PtrMut::from(&mut value);
@@ -578,64 +474,6 @@ mod test {
             }
         }
 
-        {
-            // SAFETY: reflect_from_ptr was constructed for the correct type
-            let dyn_reflect = unsafe { reflect_from_ptr.as_reflect(Ptr::from(&value)) };
-            match dyn_reflect.reflect_ref() {
-                bevy_reflect::ReflectRef::Struct(strukt) => {
-                    let a = strukt
-                        .field("a")
-                        .unwrap()
-                        .try_downcast_ref::<f32>()
-                        .unwrap();
-                    assert_eq!(*a, 2.0);
-                }
-                _ => panic!("invalid reflection"),
-            }
-        }
-    }
-
-    #[test]
-    fn type_data_iter() {
-        #[derive(Reflect)]
-        struct Foo;
-
-        #[derive(Clone)]
-        struct DataA(i32);
-
-        let mut registration = TypeRegistration::of::<Foo>();
-        registration.insert(DataA(123));
-
-        let mut iter = registration.iter();
-
-        let (id, data) = iter.next().unwrap();
-        assert_eq!(id, TypeId::of::<DataA>());
-        assert_eq!(data.downcast_ref::<DataA>().unwrap().0, 123);
-
-        assert!(iter.next().is_none());
-    }
-
-    #[test]
-    fn type_data_iter_mut() {
-        #[derive(Reflect)]
-        struct Foo;
-
-        #[derive(Clone)]
-        struct DataA(i32);
-
-        let mut registration = TypeRegistration::of::<Foo>();
-        registration.insert(DataA(123));
-
-        {
-            let mut iter = registration.iter_mut();
-
-            let (_, data) = iter.next().unwrap();
-            data.downcast_mut::<DataA>().unwrap().0 = 456;
-
-            assert!(iter.next().is_none());
-        }
-
-        let data = registration.data::<DataA>().unwrap();
-        assert_eq!(data.0, 456);
+        assert_eq!(value.a, 2.0);
     }
 }

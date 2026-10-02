@@ -71,21 +71,6 @@ pub struct DynamicEnum {
 }
 
 impl DynamicEnum {
-    /// Create a new [`DynamicEnum`] to represent an enum at runtime.
-    ///
-    /// # Arguments
-    ///
-    /// * `variant_name`: The name of the variant to set
-    /// * `variant`: The variant data
-    pub fn new<I: Into<String>, V: Into<DynamicVariant>>(variant_name: I, variant: V) -> Self {
-        Self {
-            represented_type: None,
-            variant_index: 0,
-            variant_name: variant_name.into(),
-            variant: variant.into(),
-        }
-    }
-
     /// Create a new [`DynamicEnum`] with a variant index to represent an enum at runtime.
     ///
     /// # Arguments
@@ -131,15 +116,6 @@ impl DynamicEnum {
     }
 
     /// Create a [`DynamicEnum`] from an existing one.
-    ///
-    /// This is functionally the same as [`DynamicEnum::from_ref`] except it takes an owned value.
-    pub fn from<TEnum: Enum>(value: TEnum) -> Self {
-        Self::from_ref(&value)
-    }
-
-    /// Create a [`DynamicEnum`] from an existing one.
-    ///
-    /// This is functionally the same as [`DynamicEnum::from`] except it takes a reference.
     pub fn from_ref<TEnum: Enum + ?Sized>(value: &TEnum) -> Self {
         let type_info = value.get_represented_type_info();
         let mut dyn_enum = match value.variant_type() {

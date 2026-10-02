@@ -211,11 +211,9 @@ pub fn derive_map_entities(input: TokenStream) -> TokenStream {
 
     let map_entities_impl = map_entities(
         &ast.data,
-        &ecs_path,
         Ident::new("self", Span::call_site()),
         false,
         false,
-        None,
     );
 
     let struct_name = &ast.ident;
@@ -490,7 +488,7 @@ pub(crate) fn bevy_ecs_path() -> syn::Path {
 }
 
 /// Implement the `Event` trait.
-#[proc_macro_derive(Event, attributes(event))]
+#[proc_macro_derive(Event)]
 pub fn derive_event(input: TokenStream) -> TokenStream {
     event::derive_event(input)
 }

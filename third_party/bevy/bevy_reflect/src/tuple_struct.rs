@@ -86,11 +86,6 @@ impl TupleStructInfo {
         }
     }
 
-    /// Get the field at the given index.
-    pub fn field_at(&self, index: usize) -> Option<&UnnamedField> {
-        self.fields.get(index)
-    }
-
     /// The total number of fields in this struct.
     pub fn field_len(&self) -> usize {
         self.fields.len()
@@ -215,11 +210,6 @@ impl DynamicTupleStruct {
     /// Appends an element with value `value` to the tuple struct.
     pub fn insert_boxed(&mut self, value: Box<dyn PartialReflect>) {
         self.fields.push(value);
-    }
-
-    /// Appends a typed element with value `value` to the tuple struct.
-    pub fn insert<T: PartialReflect>(&mut self, value: T) {
-        self.insert_boxed(Box::new(value));
     }
 }
 

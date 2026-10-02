@@ -219,24 +219,4 @@ impl TypePathTable {
     pub fn path(&self) -> &'static str {
         self.type_path
     }
-
-    /// See [`TypePath::short_type_path`].
-    pub fn short_path(&self) -> &'static str {
-        (self.short_type_path)()
-    }
-
-    /// See [`TypePath::type_ident`].
-    pub fn ident(&self) -> Option<&'static str> {
-        (self.type_ident)()
-    }
-
-    /// See [`TypePath::crate_name`].
-    pub fn crate_name(&self) -> Option<&'static str> {
-        (self.crate_name)()
-    }
-
-    /// See [`TypePath::module_path`].
-    pub fn module_path(&self) -> Option<&'static str> {
-        (self.module_path)()
-    }
 }

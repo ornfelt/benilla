@@ -1,7 +1,6 @@
 use crate::type_info::impl_type_methods;
-use crate::{Reflect, Type, TypePath};
+use crate::{Type, TypePath};
 use alloc::{borrow::Cow, boxed::Box};
-use bevy_platform::sync::Arc;
 use core::ops::Deref;
 use derive_more::derive::From;
 
@@ -29,15 +28,6 @@ impl Generics {
     /// Creates an empty set of generics.
     pub fn new() -> Self {
         Self(Box::new([]))
-    }
-
-    /// Finds the generic parameter with the given name.
-    ///
-    /// Returns `None` if no such parameter exists.
-    pub fn get_named(&self, name: &str) -> Option<&GenericInfo> {
-        // For small sets of generics (the most common case),
-        // a linear search is often faster using a `HashMap`.
-        self.0.iter().find(|info| info.name() == name)
     }
 }
 
@@ -77,14 +67,6 @@ impl GenericInfo {
         }
     }
 
-    /// Whether the generic parameter is a const parameter.
-    pub fn is_const(&self) -> bool {
-        match self {
-            Self::Type(_) => false,
-            Self::Const(_) => true,
-        }
-    }
-
     impl_type_methods!(self => {
         match self {
             Self::Type(info) => info.ty(),
@@ -100,7 +82,6 @@ impl GenericInfo {
 pub struct TypeParamInfo {
     name: Cow<'static, str>,
     ty: Type,
-    default: Option<Type>,
 }
 
 impl TypeParamInfo {
@@ -109,41 +90,12 @@ impl TypeParamInfo {
         Self {
             name: name.into(),
             ty: Type::of::<T>(),
-            default: None,
         }
-    }
-
-    /// Sets the default type for the parameter.
-    pub fn with_default<T: TypePath + ?Sized>(mut self) -> Self {
-        self.default = Some(Type::of::<T>());
-        self
     }
 
     /// The name of the type parameter.
     pub fn name(&self) -> &Cow<'static, str> {
         &self.name
-    }
-
-    /// The default type for the parameter, if any.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_reflect::{GenericInfo, Reflect, Typed};
-    /// #[derive(Reflect)]
-    /// struct Foo<T = f32>(T);
-    ///
-    /// let generics = Foo::<String>::type_info().generics();
-    /// let GenericInfo::Type(info) = generics.get_named("T").unwrap() else {
-    ///     panic!("expected a type parameter");
-    /// };
-    ///
-    /// let default = info.default().unwrap();
-    ///
-    /// assert!(default.is::<f32>());
-    /// ```
-    pub fn default(&self) -> Option<&Type> {
-        self.default.as_ref()
     }
 
     impl_type_methods!(ty);
@@ -156,9 +108,6 @@ impl TypeParamInfo {
 pub struct ConstParamInfo {
     name: Cow<'static, str>,
     ty: Type,
-    // Rust currently only allows certain primitive types in const generic position,
-    // meaning that `Reflect` is guaranteed to be implemented for the default value.
-    default: Option<Arc<dyn Reflect>>,
 }
 
 impl ConstParamInfo {
@@ -167,53 +116,12 @@ impl ConstParamInfo {
         Self {
             name: name.into(),
             ty: Type::of::<T>(),
-            default: None,
         }
-    }
-
-    /// Sets the default value for the parameter.
-    pub fn with_default<T: Reflect + 'static>(mut self, default: T) -> Self {
-        let arc = Arc::new(default);
-
-        #[cfg(not(target_has_atomic = "ptr"))]
-        #[expect(
-            unsafe_code,
-            reason = "unsized coercion is an unstable feature for non-std types"
-        )]
-        // SAFETY:
-        // - Coercion from `T` to `dyn Reflect` is valid as `T: Reflect + 'static`
-        // - `Arc::from_raw` receives a valid pointer from a previous call to `Arc::into_raw`
-        let arc = unsafe { Arc::from_raw(Arc::into_raw(arc) as *const dyn Reflect) };
-
-        self.default = Some(arc);
-        self
     }
 
     /// The name of the const parameter.
     pub fn name(&self) -> &Cow<'static, str> {
         &self.name
-    }
-
-    /// The default value for the parameter, if any.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_reflect::{GenericInfo, Reflect, Typed};
-    /// #[derive(Reflect)]
-    /// struct Foo<const N: usize = 10>([u8; N]);
-    ///
-    /// let generics = Foo::<5>::type_info().generics();
-    /// let GenericInfo::Const(info) = generics.get_named("N").unwrap() else {
-    ///    panic!("expected a const parameter");
-    /// };
-    ///
-    /// let default = info.default().unwrap();
-    ///
-    /// assert_eq!(default.downcast_ref::<usize>().unwrap(), &10);
-    /// ```
-    pub fn default(&self) -> Option<&dyn Reflect> {
-        self.default.as_deref()
     }
 
     impl_type_methods!(ty);
@@ -243,7 +151,7 @@ pub(crate) use impl_generic_info_methods;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     use crate::{Reflect, Typed};
     use alloc::string::String;
     use core::fmt::Debug;
@@ -265,67 +173,15 @@ mod tests {
         let t = iter.next().unwrap();
         assert_eq!(t.name(), "T");
         assert!(t.ty().is::<f32>());
-        assert!(!t.is_const());
 
         let u = iter.next().unwrap();
         assert_eq!(u.name(), "U");
         assert!(u.ty().is::<String>());
-        assert!(!u.is_const());
 
         let n = iter.next().unwrap();
         assert_eq!(n.name(), "N");
         assert!(n.ty().is::<usize>());
-        assert!(n.is_const());
 
         assert!(iter.next().is_none());
-    }
-
-    #[test]
-    fn should_get_by_name() {
-        #[derive(Reflect)]
-        enum Test<T, U: Debug, const N: usize> {
-            Array([(T, U); N]),
-        }
-
-        let generics = <Test<f32, String, 10> as Typed>::type_info()
-            .as_enum()
-            .unwrap()
-            .generics();
-
-        let t = generics.get_named("T").unwrap();
-        assert_eq!(t.name(), "T");
-        assert!(t.ty().is::<f32>());
-        assert!(!t.is_const());
-
-        let u = generics.get_named("U").unwrap();
-        assert_eq!(u.name(), "U");
-        assert!(u.ty().is::<String>());
-        assert!(!u.is_const());
-
-        let n = generics.get_named("N").unwrap();
-        assert_eq!(n.name(), "N");
-        assert!(n.ty().is::<usize>());
-        assert!(n.is_const());
-    }
-
-    #[test]
-    fn should_store_defaults() {
-        #[derive(Reflect)]
-        struct Test<T, U: Debug = String, const N: usize = 10>([(T, U); N]);
-
-        let generics = <Test<f32> as Typed>::type_info()
-            .as_tuple_struct()
-            .unwrap()
-            .generics();
-
-        let GenericInfo::Type(u) = generics.get_named("U").unwrap() else {
-            panic!("expected a type parameter");
-        };
-        assert_eq!(u.default().unwrap(), &Type::of::<String>());
-
-        let GenericInfo::Const(n) = generics.get_named("N").unwrap() else {
-            panic!("expected a const parameter");
-        };
-        assert_eq!(n.default().unwrap().downcast_ref::<usize>().unwrap(), &10);
     }
 }

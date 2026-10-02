@@ -250,30 +250,11 @@ impl TypeInfo {
         self.ty().id()
     }
 
-    /// A representation of the type path of the underlying type.
-    ///
-    /// Provides dynamic access to all methods on [`TypePath`].
-    pub fn type_path_table(&self) -> &TypePathTable {
-        self.ty().type_path_table()
-    }
-
     /// The [stable, full type path] of the underlying type.
     ///
-    /// Use [`type_path_table`] if you need access to the other methods on [`TypePath`].
-    ///
     /// [stable, full type path]: TypePath
-    /// [`type_path_table`]: Self::type_path_table
     pub fn type_path(&self) -> &'static str {
         self.ty().path()
-    }
-
-    /// Check if the given type matches this one.
-    ///
-    /// This only compares the [`TypeId`] of the types
-    /// and does not verify they share the same [`TypePath`]
-    /// (though it implies they do).
-    pub fn is<T: Any>(&self) -> bool {
-        self.ty().is::<T>()
     }
 
     /// Returns the [kind] of this `TypeInfo`.
@@ -328,7 +309,6 @@ impl TypeInfo {
     impl_cast_method!(as_list: List => ListInfo);
     impl_cast_method!(as_array: Array => ArrayInfo);
     impl_cast_method!(as_enum: Enum => EnumInfo);
-    impl_cast_method!(as_opaque: Opaque => OpaqueInfo);
 }
 
 /// The base representation of a Rust type.
@@ -468,44 +448,6 @@ macro_rules! impl_type_methods {
         /// [type]: crate::type_info::Type
         pub fn ty(&$self) -> &$crate::type_info::Type {
             $expr
-        }
-
-        /// The [`TypeId`] of this type.
-        ///
-        /// [`TypeId`]: core::any::TypeId
-        pub fn type_id(&self) -> ::core::any::TypeId {
-            self.ty().id()
-        }
-
-        /// The [stable, full type path] of this type.
-        ///
-        /// Use [`type_path_table`] if you need access to the other methods on [`TypePath`].
-        ///
-        /// [stable, full type path]: TypePath
-        /// [`type_path_table`]: Self::type_path_table
-        pub fn type_path(&self) -> &'static str {
-            self.ty().path()
-        }
-
-        /// A representation of the type path of this type.
-        ///
-        /// Provides dynamic access to all methods on [`TypePath`].
-        ///
-        /// [`TypePath`]: crate::type_path::TypePath
-        pub fn type_path_table(&self) -> &$crate::type_path::TypePathTable {
-            &self.ty().type_path_table()
-        }
-
-        /// Check if the given type matches this one.
-        ///
-        /// This only compares the [`TypeId`] of the types
-        /// and does not verify they share the same [`TypePath`]
-        /// (though it implies they do).
-        ///
-        /// [`TypeId`]: core::any::TypeId
-        /// [`TypePath`]: crate::type_path::TypePath
-        pub fn is<T: ::core::any::Any>(&self) -> bool {
-            self.ty().is::<T>()
         }
     };
 }

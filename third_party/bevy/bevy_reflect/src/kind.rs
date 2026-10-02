@@ -274,11 +274,6 @@ pub enum ReflectOwned {
 
 impl_reflect_kind_conversions!(ReflectOwned);
 
-impl ReflectOwned {
-    impl_cast_method!(into_struct: Struct => Box<dyn Struct>);
-    impl_cast_method!(into_enum: Enum => Box<dyn Enum>);
-}
-
 #[cfg(test)]
 mod tests {
     use alloc::vec;
@@ -298,25 +293,6 @@ mod tests {
             Err(ReflectKindMismatchError {
                 expected: ReflectKind::Array,
                 received: ReflectKind::List
-            })
-        ));
-    }
-
-    #[test]
-    fn should_cast_owned() {
-        let value = Box::new(Some(123));
-
-        let result = value.reflect_owned().into_enum();
-        assert!(result.is_ok());
-
-        let value = Box::new(Some(123));
-
-        let result = value.reflect_owned().into_struct();
-        assert!(matches!(
-            result,
-            Err(ReflectKindMismatchError {
-                expected: ReflectKind::Struct,
-                received: ReflectKind::Enum
             })
         ));
     }

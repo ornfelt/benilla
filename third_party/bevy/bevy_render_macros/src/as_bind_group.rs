@@ -1,4 +1,4 @@
-use bevy_macro_utils::{get_lit_bool, get_lit_str, BevyManifest, Symbol};
+use bevy_macro_utils::{get_lit_str, BevyManifest, Symbol};
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens};
@@ -436,7 +436,6 @@ pub fn derive_as_bind_group(ast: syn::DeriveInput) -> Result<TokenStream> {
                     let TextureAttrs {
                         dimension,
                         sample_type,
-                        multisampled,
                         visibility,
                     } = tex_attrs.as_ref().unwrap();
 
@@ -471,7 +470,7 @@ pub fn derive_as_bind_group(ast: syn::DeriveInput) -> Result<TokenStream> {
                                 binding: #binding_index,
                                 visibility: #visibility,
                                 ty: #render_path::render_resource::BindingType::Texture {
-                                    multisampled: #multisampled,
+                                    multisampled: false,
                                     sample_type: #render_path::render_resource::#sample_type,
                                     view_dimension: #render_path::render_resource::#dimension,
                                 },
@@ -481,11 +480,6 @@ pub fn derive_as_bind_group(ast: syn::DeriveInput) -> Result<TokenStream> {
                     });
 
                     let bindless_resource_type = match *dimension {
-                        BindingTextureDimension::D1 => {
-                            quote! {
-                                #render_path::render_resource::BindlessResourceType::Texture1d
-                            }
-                        }
                         BindingTextureDimension::D2 => {
                             quote! {
                                 #render_path::render_resource::BindlessResourceType::Texture2d
@@ -494,21 +488,6 @@ pub fn derive_as_bind_group(ast: syn::DeriveInput) -> Result<TokenStream> {
                         BindingTextureDimension::D2Array => {
                             quote! {
                                 #render_path::render_resource::BindlessResourceType::Texture2dArray
-                            }
-                        }
-                        BindingTextureDimension::Cube => {
-                            quote! {
-                                #render_path::render_resource::BindlessResourceType::TextureCube
-                            }
-                        }
-                        BindingTextureDimension::CubeArray => {
-                            quote! {
-                                #render_path::render_resource::BindlessResourceType::TextureCubeArray
-                            }
-                        }
-                        BindingTextureDimension::D3 => {
-                            quote! {
-                                #render_path::render_resource::BindlessResourceType::Texture3d
                             }
                         }
                     };
@@ -524,11 +503,7 @@ pub fn derive_as_bind_group(ast: syn::DeriveInput) -> Result<TokenStream> {
                 }
 
                 BindingType::Sampler => {
-                    let SamplerAttrs {
-                        sampler_binding_type,
-                        visibility,
-                        ..
-                    } = get_sampler_attrs(nested_meta_items)?;
+                    let SamplerAttrs { visibility } = get_sampler_attrs(nested_meta_items)?;
                     let TextureAttrs { dimension, .. } = tex_attrs
                         .as_ref()
                         .expect("sampler attribute must have matching texture attribute");
@@ -538,19 +513,7 @@ pub fn derive_as_bind_group(ast: syn::DeriveInput) -> Result<TokenStream> {
 
                     let fallback_image = get_fallback_image(&render_path, *dimension);
 
-                    let expected_samplers = match sampler_binding_type {
-                        SamplerBindingType::Filtering => {
-                            quote!( [#render_path::render_resource::TextureSampleType::Float { filterable: true }] )
-                        }
-                        SamplerBindingType::NonFiltering => quote!([
-                            #render_path::render_resource::TextureSampleType::Float { filterable: false },
-                            #render_path::render_resource::TextureSampleType::Sint,
-                            #render_path::render_resource::TextureSampleType::Uint,
-                        ]),
-                        SamplerBindingType::Comparison => {
-                            quote!( [#render_path::render_resource::TextureSampleType::Depth] )
-                        }
-                    };
+                    let expected_samplers = quote!( [#render_path::render_resource::TextureSampleType::Float { filterable: true }] );
 
                     // insert fallible texture-based entries at 0 so that if we fail here, we exit before allocating any buffers
                     binding_impls.insert(0, quote! {
@@ -596,7 +559,7 @@ pub fn derive_as_bind_group(ast: syn::DeriveInput) -> Result<TokenStream> {
                             #render_path::render_resource::BindGroupLayoutEntry {
                                 binding: #binding_index,
                                 visibility: #visibility,
-                                ty: #render_path::render_resource::BindingType::Sampler(#render_path::render_resource::#sampler_binding_type),
+                                ty: #render_path::render_resource::BindingType::Sampler(#render_path::render_resource::SamplerBindingType::Filtering),
                                 count: #actual_bindless_slot_count,
                             }
                         );
@@ -1250,31 +1213,23 @@ fn get_visibility_flag_value(meta_list: &MetaList) -> Result<ShaderStageVisibili
 
 #[derive(Clone, Copy, Default)]
 enum BindingTextureDimension {
-    D1,
     #[default]
     D2,
     D2Array,
-    Cube,
-    CubeArray,
-    D3,
 }
 
+#[derive(Default)]
 enum BindingTextureSampleType {
-    Float { filterable: bool },
-    Depth,
-    Sint,
+    #[default]
+    Float,
     Uint,
 }
 
 impl ToTokens for BindingTextureDimension {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         tokens.extend(match self {
-            BindingTextureDimension::D1 => quote! { TextureViewDimension::D1 },
             BindingTextureDimension::D2 => quote! { TextureViewDimension::D2 },
             BindingTextureDimension::D2Array => quote! { TextureViewDimension::D2Array },
-            BindingTextureDimension::Cube => quote! { TextureViewDimension::Cube },
-            BindingTextureDimension::CubeArray => quote! { TextureViewDimension::CubeArray },
-            BindingTextureDimension::D3 => quote! { TextureViewDimension::D3 },
         });
     }
 }
@@ -1282,11 +1237,9 @@ impl ToTokens for BindingTextureDimension {
 impl ToTokens for BindingTextureSampleType {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         tokens.extend(match self {
-            BindingTextureSampleType::Float { filterable } => {
-                quote! { TextureSampleType::Float { filterable: #filterable } }
+            BindingTextureSampleType::Float => {
+                quote! { TextureSampleType::Float { filterable: true } }
             }
-            BindingTextureSampleType::Depth => quote! { TextureSampleType::Depth },
-            BindingTextureSampleType::Sint => quote! { TextureSampleType::Sint },
             BindingTextureSampleType::Uint => quote! { TextureSampleType::Uint },
         });
     }
@@ -1295,52 +1248,23 @@ impl ToTokens for BindingTextureSampleType {
 struct TextureAttrs {
     dimension: BindingTextureDimension,
     sample_type: BindingTextureSampleType,
-    multisampled: bool,
     visibility: ShaderStageVisibility,
-}
-
-impl Default for BindingTextureSampleType {
-    fn default() -> Self {
-        BindingTextureSampleType::Float { filterable: true }
-    }
-}
-
-impl Default for TextureAttrs {
-    fn default() -> Self {
-        Self {
-            dimension: Default::default(),
-            sample_type: Default::default(),
-            multisampled: true,
-            visibility: Default::default(),
-        }
-    }
 }
 
 const DIMENSION: Symbol = Symbol("dimension");
 const SAMPLE_TYPE: Symbol = Symbol("sample_type");
-const FILTERABLE: Symbol = Symbol("filterable");
-const MULTISAMPLED: Symbol = Symbol("multisampled");
 
 // Values for `dimension` attribute.
-const DIM_1D: &str = "1d";
 const DIM_2D: &str = "2d";
-const DIM_3D: &str = "3d";
 const DIM_2D_ARRAY: &str = "2d_array";
-const DIM_CUBE: &str = "cube";
-const DIM_CUBE_ARRAY: &str = "cube_array";
 
 // Values for sample `type` attribute.
 const FLOAT: &str = "float";
-const DEPTH: &str = "depth";
-const S_INT: &str = "s_int";
 const U_INT: &str = "u_int";
 
 fn get_texture_attrs(metas: Vec<Meta>) -> Result<TextureAttrs> {
     let mut dimension = Default::default();
     let mut sample_type = Default::default();
-    let mut multisampled = Default::default();
-    let mut filterable = None;
-    let mut filterable_ident = None;
 
     let mut visibility = ShaderStageVisibility::vertex_fragment();
 
@@ -1357,15 +1281,6 @@ fn get_texture_attrs(metas: Vec<Meta>) -> Result<TextureAttrs> {
                 let value = get_lit_str(SAMPLE_TYPE, &m.value)?;
                 sample_type = get_texture_sample_type_value(value)?;
             }
-            // Parse #[texture(0, multisampled = "...")].
-            NameValue(m) if m.path == MULTISAMPLED => {
-                multisampled = get_lit_bool(MULTISAMPLED, &m.value)?;
-            }
-            // Parse #[texture(0, filterable = "...")].
-            NameValue(m) if m.path == FILTERABLE => {
-                filterable = get_lit_bool(FILTERABLE, &m.value)?.into();
-                filterable_ident = m.path.into();
-            }
             // Parse #[texture(0, visibility(...))].
             List(m) if m.path == VISIBILITY => {
                 visibility = get_visibility_flag_value(&m)?;
@@ -1373,7 +1288,7 @@ fn get_texture_attrs(metas: Vec<Meta>) -> Result<TextureAttrs> {
             NameValue(m) => {
                 return Err(Error::new_spanned(
                     m.path,
-                    "Not a valid name. Available attributes: `dimension`, `sample_type`, `multisampled`, or `filterable`."
+                    "Not a valid name. Available attributes: `dimension` or `sample_type`.",
                 ));
             }
             _ => {
@@ -1385,103 +1300,48 @@ fn get_texture_attrs(metas: Vec<Meta>) -> Result<TextureAttrs> {
         }
     }
 
-    // Resolve `filterable` since the float
-    // sample type is the one that contains the value.
-    if let Some(filterable) = filterable {
-        let path = filterable_ident.unwrap();
-        match sample_type {
-            BindingTextureSampleType::Float { filterable: _ } => {
-                sample_type = BindingTextureSampleType::Float { filterable }
-            }
-            _ => {
-                return Err(Error::new_spanned(
-                    path,
-                    "Type must be `float` to use the `filterable` attribute.",
-                ));
-            }
-        };
-    }
-
     Ok(TextureAttrs {
         dimension,
         sample_type,
-        multisampled,
         visibility,
     })
 }
 
 fn get_texture_dimension_value(lit_str: &LitStr) -> Result<BindingTextureDimension> {
     match lit_str.value().as_str() {
-        DIM_1D => Ok(BindingTextureDimension::D1),
         DIM_2D => Ok(BindingTextureDimension::D2),
         DIM_2D_ARRAY => Ok(BindingTextureDimension::D2Array),
-        DIM_3D => Ok(BindingTextureDimension::D3),
-        DIM_CUBE => Ok(BindingTextureDimension::Cube),
-        DIM_CUBE_ARRAY => Ok(BindingTextureDimension::CubeArray),
 
         _ => Err(Error::new_spanned(
             lit_str,
-            "Not a valid dimension. Must be `1d`, `2d`, `2d_array`, `3d`, `cube` or `cube_array`.",
+            "Not a valid dimension. Must be `2d` or `2d_array`.",
         )),
     }
 }
 
 fn get_texture_sample_type_value(lit_str: &LitStr) -> Result<BindingTextureSampleType> {
     match lit_str.value().as_str() {
-        FLOAT => Ok(BindingTextureSampleType::Float { filterable: true }),
-        DEPTH => Ok(BindingTextureSampleType::Depth),
-        S_INT => Ok(BindingTextureSampleType::Sint),
+        FLOAT => Ok(BindingTextureSampleType::Float),
         U_INT => Ok(BindingTextureSampleType::Uint),
 
         _ => Err(Error::new_spanned(
             lit_str,
-            "Not a valid sample type. Must be `float`, `depth`, `s_int` or `u_int`.",
+            "Not a valid sample type. Must be `float` or `u_int`.",
         )),
     }
 }
 
 #[derive(Default)]
 struct SamplerAttrs {
-    sampler_binding_type: SamplerBindingType,
     visibility: ShaderStageVisibility,
 }
 
-#[derive(Default)]
-enum SamplerBindingType {
-    #[default]
-    Filtering,
-    NonFiltering,
-    Comparison,
-}
-
-impl ToTokens for SamplerBindingType {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        tokens.extend(match self {
-            SamplerBindingType::Filtering => quote! { SamplerBindingType::Filtering },
-            SamplerBindingType::NonFiltering => quote! { SamplerBindingType::NonFiltering },
-            SamplerBindingType::Comparison => quote! { SamplerBindingType::Comparison },
-        });
-    }
-}
-
-const SAMPLER_TYPE: Symbol = Symbol("sampler_type");
-
-const FILTERING: &str = "filtering";
-const NON_FILTERING: &str = "non_filtering";
-const COMPARISON: &str = "comparison";
-
 fn get_sampler_attrs(metas: Vec<Meta>) -> Result<SamplerAttrs> {
-    let mut sampler_binding_type = Default::default();
     let mut visibility = ShaderStageVisibility::vertex_fragment();
 
     for meta in metas {
         use syn::Meta::{List, NameValue};
         match meta {
-            // Parse #[sampler(0, sampler_type = "..."))].
-            NameValue(m) if m.path == SAMPLER_TYPE => {
-                let value = get_lit_str(DIMENSION, &m.value)?;
-                sampler_binding_type = get_sampler_binding_type_value(value)?;
-            }
             // Parse #[sampler(0, visibility(...))].
             List(m) if m.path == VISIBILITY => {
                 visibility = get_visibility_flag_value(&m)?;
@@ -1489,7 +1349,7 @@ fn get_sampler_attrs(metas: Vec<Meta>) -> Result<SamplerAttrs> {
             NameValue(m) => {
                 return Err(Error::new_spanned(
                     m.path,
-                    "Not a valid name. Available attributes: `sampler_type`.",
+                    "Not a valid name. The only available attribute is `visibility`.",
                 ));
             }
             _ => {
@@ -1501,21 +1361,5 @@ fn get_sampler_attrs(metas: Vec<Meta>) -> Result<SamplerAttrs> {
         }
     }
 
-    Ok(SamplerAttrs {
-        sampler_binding_type,
-        visibility,
-    })
-}
-
-fn get_sampler_binding_type_value(lit_str: &LitStr) -> Result<SamplerBindingType> {
-    match lit_str.value().as_str() {
-        FILTERING => Ok(SamplerBindingType::Filtering),
-        NON_FILTERING => Ok(SamplerBindingType::NonFiltering),
-        COMPARISON => Ok(SamplerBindingType::Comparison),
-
-        _ => Err(Error::new_spanned(
-            lit_str,
-            "Not a valid dimension. Must be `filtering`, `non_filtering`, or `comparison`.",
-        )),
-    }
+    Ok(SamplerAttrs { visibility })
 }

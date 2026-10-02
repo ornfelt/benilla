@@ -639,8 +639,8 @@ mod tests {
 
         // patch Foo with a dynamic struct
         let mut dynamic_struct = DynamicStruct::default();
-        dynamic_struct.insert("a", 123u32);
-        dynamic_struct.insert("should_be_ignored", 456);
+        dynamic_struct.insert_boxed("a", Box::new(123u32));
+        dynamic_struct.insert_boxed("should_be_ignored", Box::new(456));
 
         foo.apply(&dynamic_struct);
         assert_eq!(foo.a, 123);
@@ -656,8 +656,8 @@ mod tests {
         assert_eq!(2, *foo.get_field::<u64>(1).unwrap());
 
         let mut patch = DynamicTupleStruct::default();
-        patch.insert(3u32);
-        patch.insert(4u64);
+        patch.insert_boxed(Box::new(3u32));
+        patch.insert_boxed(Box::new(4u64));
         assert_eq!(
             3,
             *patch.field(0).unwrap().try_downcast_ref::<u32>().unwrap()
@@ -1050,7 +1050,7 @@ mod tests {
 
         // Call from_reflect
         let mut dynamic_struct = DynamicStruct::default();
-        dynamic_struct.insert("foo", 123usize);
+        dynamic_struct.insert_boxed("foo", Box::new(123usize));
         let reflected = rfr
             .from_reflect(&dynamic_struct)
             .expect("the type should be properly reflected");
@@ -1074,8 +1074,8 @@ mod tests {
         let expected = MyTupleStruct(1, 0, 3);
 
         let mut dyn_tuple_struct = DynamicTupleStruct::default();
-        dyn_tuple_struct.insert(1_i8);
-        dyn_tuple_struct.insert(3_i32);
+        dyn_tuple_struct.insert_boxed(Box::new(1_i8));
+        dyn_tuple_struct.insert_boxed(Box::new(3_i32));
         let my_tuple_struct = <MyTupleStruct as FromReflect>::from_reflect(&dyn_tuple_struct);
 
         assert_eq!(Some(expected), my_tuple_struct);
@@ -1088,8 +1088,8 @@ mod tests {
         let expected = MyEnum::Tuple(1, 0, 3);
 
         let mut dyn_tuple = DynamicTuple::default();
-        dyn_tuple.insert(1_i8);
-        dyn_tuple.insert(3_i32);
+        dyn_tuple.insert_boxed(Box::new(1_i8));
+        dyn_tuple.insert_boxed(Box::new(3_i32));
 
         let mut dyn_enum = DynamicEnum::default();
         dyn_enum.set_variant("Tuple", dyn_tuple);
@@ -1155,7 +1155,7 @@ mod tests {
 
         let expected = MyEnum::Foo(String::default());
 
-        let dyn_enum = DynamicEnum::new("Foo", DynamicTuple::default());
+        let dyn_enum = DynamicEnum::new_with_index(0, "Foo", DynamicTuple::default());
         let my_enum = <MyEnum as FromReflect>::from_reflect(&dyn_enum);
 
         assert_eq!(Some(expected), my_enum);
@@ -1164,7 +1164,7 @@ mod tests {
             baz: get_baz_default(),
         };
 
-        let dyn_enum = DynamicEnum::new("Bar", DynamicStruct::default());
+        let dyn_enum = DynamicEnum::new_with_index(0, "Bar", DynamicStruct::default());
         let my_enum = <MyEnum as FromReflect>::from_reflect(&dyn_enum);
 
         assert_eq!(Some(expected), my_enum);
@@ -1235,39 +1235,39 @@ mod tests {
         };
 
         let mut foo_patch = DynamicStruct::default();
-        foo_patch.insert("a", 2u32);
-        foo_patch.insert("b", 2u32); // this should be ignored
+        foo_patch.insert_boxed("a", Box::new(2u32));
+        foo_patch.insert_boxed("b", Box::new(2u32)); // this should be ignored
 
         let mut list = DynamicList::default();
-        list.push(3isize);
-        list.push(4isize);
-        list.push(5isize);
-        foo_patch.insert("c", list.to_dynamic_list());
+        list.push_box(Box::new(3isize));
+        list.push_box(Box::new(4isize));
+        list.push_box(Box::new(5isize));
+        foo_patch.insert_boxed("c", Box::new(list.to_dynamic_list()));
 
         let mut bar_patch = DynamicStruct::default();
-        bar_patch.insert("x", 2u32);
-        foo_patch.insert("e", bar_patch.to_dynamic_struct());
+        bar_patch.insert_boxed("x", Box::new(2u32));
+        foo_patch.insert_boxed("e", Box::new(bar_patch.to_dynamic_struct()));
 
         let mut tuple = DynamicTuple::default();
-        tuple.insert(2i32);
-        tuple.insert(list);
-        tuple.insert(bar_patch);
-        foo_patch.insert("f", tuple);
+        tuple.insert_boxed(Box::new(2i32));
+        tuple.insert_boxed(Box::new(list));
+        tuple.insert_boxed(Box::new(bar_patch));
+        foo_patch.insert_boxed("f", Box::new(tuple));
 
         let mut composite = DynamicList::default();
-        composite.push({
+        composite.push_box(Box::new({
             let mut tuple = DynamicTuple::default();
-            tuple.insert({
+            tuple.insert_boxed(Box::new({
                 let mut tuple_struct = DynamicTupleStruct::default();
-                tuple_struct.insert("new_string".to_string());
+                tuple_struct.insert_boxed(Box::new("new_string".to_string()));
                 tuple_struct
-            });
+            }));
             tuple
-        });
-        foo_patch.insert("g", composite);
+        }));
+        foo_patch.insert_boxed("g", Box::new(composite));
 
         let array = DynamicArray::from_iter([2u32, 2u32]);
-        foo_patch.insert("h", array);
+        foo_patch.insert_boxed("h", Box::new(array));
 
         foo.apply(&foo_patch);
 
@@ -1319,7 +1319,7 @@ mod tests {
         registry.register::<Foo>();
 
         assert!(
-            registry.contains(TypeId::of::<Bar>()),
+            registry.get(TypeId::of::<Bar>()).is_some(),
             "registry should contain auto-registered `Bar` from `Foo`"
         );
 
@@ -1328,7 +1328,7 @@ mod tests {
         registry.register::<Option<Foo>>();
 
         assert!(
-            registry.contains(TypeId::of::<Bar>()),
+            registry.get(TypeId::of::<Bar>()).is_some(),
             "registry should contain auto-registered `Bar` from `Option<Foo>`"
         );
 
@@ -1337,7 +1337,7 @@ mod tests {
         registry.register::<(Foo, Foo)>();
 
         assert!(
-            registry.contains(TypeId::of::<Bar>()),
+            registry.get(TypeId::of::<Bar>()).is_some(),
             "registry should contain auto-registered `Bar` from `(Foo, Foo)`"
         );
 
@@ -1346,7 +1346,7 @@ mod tests {
         registry.register::<[Foo; 3]>();
 
         assert!(
-            registry.contains(TypeId::of::<Bar>()),
+            registry.get(TypeId::of::<Bar>()).is_some(),
             "registry should contain auto-registered `Bar` from `[Foo; 3]`"
         );
 
@@ -1355,7 +1355,7 @@ mod tests {
         registry.register::<Vec<Foo>>();
 
         assert!(
-            registry.contains(TypeId::of::<Bar>()),
+            registry.get(TypeId::of::<Bar>()).is_some(),
             "registry should contain auto-registered `Bar` from `Vec<Foo>`"
         );
     }
@@ -1379,9 +1379,8 @@ mod tests {
         let mut registry = TypeRegistry::empty();
         registry.register::<MyStruct>();
 
-        assert_eq!(2, registry.iter().count());
-        assert!(registry.contains(TypeId::of::<MyStruct>()));
-        assert!(registry.contains(TypeId::of::<i32>()));
+        assert!(registry.get(TypeId::of::<MyStruct>()).is_some());
+        assert!(registry.get(TypeId::of::<i32>()).is_some());
     }
 
     #[test]
@@ -1396,7 +1395,10 @@ mod tests {
 
         let mut registry = TypeRegistry::empty();
         registry.register::<Bar>();
-        registry.register_type_data::<Bar, ReflectDefault>();
+        registry
+            .get_mut(TypeId::of::<Bar>())
+            .unwrap()
+            .register_type_data::<ReflectDefault, Bar>();
         registry.register::<Foo>();
 
         assert!(
@@ -1483,7 +1485,7 @@ mod tests {
 
         let tuple = (0usize, "1".to_string(), 2.0f32);
         let mut dyn_tuple = tuple.to_dynamic_tuple();
-        dyn_tuple.insert::<usize>(3);
+        dyn_tuple.insert_boxed(Box::<usize>::new(3));
         assert_ne!(
             dyn_tuple.reflect_type_path(),
             <(usize, String, f32, usize)>::type_path()
@@ -1604,193 +1606,6 @@ mod tests {
     }
 
     #[test]
-    fn reflect_type_info() {
-        // TypeInfo
-        let info = i32::type_info();
-        assert_eq!(i32::type_path(), info.type_path());
-        assert_eq!(TypeId::of::<i32>(), info.type_id());
-
-        // TypeInfo (unsized)
-        assert_eq!(
-            TypeId::of::<dyn Reflect>(),
-            <dyn Reflect as Typed>::type_info().type_id()
-        );
-
-        // TypeInfo (instance)
-        let value: &dyn Reflect = &123_i32;
-        let info = value.reflect_type_info();
-        assert!(info.is::<i32>());
-
-        // Struct
-        #[derive(Reflect)]
-        struct MyStruct {
-            foo: i32,
-            bar: usize,
-        }
-
-        let info = MyStruct::type_info().as_struct().unwrap();
-        assert!(info.is::<MyStruct>());
-        assert_eq!(MyStruct::type_path(), info.type_path());
-        assert_eq!(i32::type_path(), info.field("foo").unwrap().type_path());
-        assert_eq!(TypeId::of::<i32>(), info.field("foo").unwrap().type_id());
-        assert!(info.field("foo").unwrap().type_info().unwrap().is::<i32>());
-        assert!(info.field("foo").unwrap().is::<i32>());
-        assert_eq!("foo", info.field("foo").unwrap().name());
-        assert_eq!(usize::type_path(), info.field_at(1).unwrap().type_path());
-
-        let value: &dyn Reflect = &MyStruct { foo: 123, bar: 321 };
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyStruct>());
-
-        // Struct (generic)
-        #[derive(Reflect)]
-        struct MyGenericStruct<T> {
-            foo: T,
-            bar: usize,
-        }
-
-        let info = <MyGenericStruct<i32>>::type_info().as_struct().unwrap();
-        assert!(info.is::<MyGenericStruct<i32>>());
-        assert_eq!(MyGenericStruct::<i32>::type_path(), info.type_path());
-        assert_eq!(i32::type_path(), info.field("foo").unwrap().type_path());
-        assert_eq!("foo", info.field("foo").unwrap().name());
-        assert!(info.field("foo").unwrap().type_info().unwrap().is::<i32>());
-        assert_eq!(usize::type_path(), info.field_at(1).unwrap().type_path());
-
-        let value: &dyn Reflect = &MyGenericStruct {
-            foo: String::from("Hello!"),
-            bar: 321,
-        };
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyGenericStruct<String>>());
-
-        // Struct (dynamic field)
-        #[derive(Reflect)]
-        #[reflect(from_reflect = false)]
-        struct MyDynamicStruct {
-            foo: DynamicStruct,
-            bar: usize,
-        }
-
-        let info = MyDynamicStruct::type_info();
-        if let TypeInfo::Struct(info) = info {
-            assert!(info.is::<MyDynamicStruct>());
-            assert_eq!(MyDynamicStruct::type_path(), info.type_path());
-            assert_eq!(
-                DynamicStruct::type_path(),
-                info.field("foo").unwrap().type_path()
-            );
-            assert_eq!("foo", info.field("foo").unwrap().name());
-            assert!(info.field("foo").unwrap().type_info().is_none());
-            assert_eq!(usize::type_path(), info.field_at(1).unwrap().type_path());
-        } else {
-            panic!("Expected `TypeInfo::Struct`");
-        }
-
-        let value: &dyn Reflect = &MyDynamicStruct {
-            foo: DynamicStruct::default(),
-            bar: 321,
-        };
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyDynamicStruct>());
-
-        // Tuple Struct
-        #[derive(Reflect)]
-        struct MyTupleStruct(usize, i32, MyStruct);
-
-        let info = MyTupleStruct::type_info().as_tuple_struct().unwrap();
-
-        assert!(info.is::<MyTupleStruct>());
-        assert_eq!(MyTupleStruct::type_path(), info.type_path());
-        assert_eq!(i32::type_path(), info.field_at(1).unwrap().type_path());
-        assert!(info.field_at(1).unwrap().type_info().unwrap().is::<i32>());
-        assert!(info.field_at(1).unwrap().is::<i32>());
-
-        // Tuple
-        type MyTuple = (u32, f32, String);
-
-        let info = MyTuple::type_info().as_tuple().unwrap();
-
-        assert!(info.is::<MyTuple>());
-        assert_eq!(MyTuple::type_path(), info.type_path());
-        assert_eq!(f32::type_path(), info.field_at(1).unwrap().type_path());
-        assert!(info.field_at(1).unwrap().type_info().unwrap().is::<f32>());
-
-        let value: &dyn Reflect = &(123_u32, 1.23_f32, String::from("Hello!"));
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyTuple>());
-
-        // List
-        type MyList = Vec<usize>;
-
-        let info = MyList::type_info().as_list().unwrap();
-
-        assert!(info.is::<MyList>());
-        assert!(info.item_ty().is::<usize>());
-        assert!(info.item_info().unwrap().is::<usize>());
-        assert_eq!(MyList::type_path(), info.type_path());
-        assert_eq!(usize::type_path(), info.item_ty().path());
-
-        let value: &dyn Reflect = &vec![123_usize];
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyList>());
-
-        // Array
-        type MyArray = [usize; 3];
-
-        let info = MyArray::type_info().as_array().unwrap();
-        assert!(info.is::<MyArray>());
-        assert!(info.item_ty().is::<usize>());
-        assert!(info.item_info().unwrap().is::<usize>());
-        assert_eq!(MyArray::type_path(), info.type_path());
-        assert_eq!(usize::type_path(), info.item_ty().path());
-        assert_eq!(3, info.capacity());
-
-        let value: &dyn Reflect = &[1usize, 2usize, 3usize];
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyArray>());
-
-        // Cow<'static, str>
-        type MyCowStr = Cow<'static, str>;
-
-        let info = MyCowStr::type_info().as_opaque().unwrap();
-
-        assert!(info.is::<MyCowStr>());
-        assert_eq!("alloc::borrow::Cow<str>", info.type_path());
-
-        let value: &dyn Reflect = &Cow::<'static, str>::Owned("Hello!".to_string());
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyCowStr>());
-
-        // Cow<'static, [u8]>
-        type MyCowSlice = Cow<'static, [u8]>;
-
-        let info = MyCowSlice::type_info().as_list().unwrap();
-
-        assert!(info.is::<MyCowSlice>());
-        assert!(info.item_ty().is::<u8>());
-        assert!(info.item_info().unwrap().is::<u8>());
-        assert_eq!("alloc::borrow::Cow<[u8]>", info.type_path());
-        assert_eq!("u8", info.item_ty().path());
-
-        let value: &dyn Reflect = &Cow::<'static, [u8]>::Owned(vec![0, 1, 2, 3]);
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyCowSlice>());
-
-        // Value
-        type MyValue = String;
-
-        let info = MyValue::type_info().as_opaque().unwrap();
-
-        assert!(info.is::<MyValue>());
-        assert_eq!(MyValue::type_path(), info.type_path());
-
-        let value: &dyn Reflect = &String::from("Hello!");
-        let info = value.reflect_type_info();
-        assert!(info.is::<MyValue>());
-    }
-
-    #[test]
     fn get_represented_kind_info() {
         #[derive(Reflect)]
         struct SomeStruct;
@@ -1841,21 +1656,6 @@ mod tests {
 
         fn get_type_registration<T: GetTypeRegistration>() {}
         get_type_registration::<TestStruct>();
-    }
-
-    #[test]
-    fn should_permit_valid_represented_type_for_dynamic() {
-        let type_info = <[i32; 2] as Typed>::type_info();
-        let mut dynamic_array = [123; 2].to_dynamic_array();
-        dynamic_array.set_represented_type(Some(type_info));
-    }
-
-    #[test]
-    #[should_panic(expected = "expected TypeInfo::Array but received")]
-    fn should_prohibit_invalid_represented_type_for_dynamic() {
-        let type_info = <(i32, i32) as Typed>::type_info();
-        let mut dynamic_array = [123; 2].to_dynamic_array();
-        dynamic_array.set_represented_type(Some(type_info));
     }
 
     #[test]
@@ -2168,8 +1968,8 @@ bevy_reflect::tests::Test {
         }
 
         registry.register::<RecurseA>();
-        assert!(registry.contains(TypeId::of::<RecurseA>()));
-        assert!(registry.contains(TypeId::of::<RecurseB>()));
+        assert!(registry.get(TypeId::of::<RecurseA>()).is_some());
+        assert!(registry.get(TypeId::of::<RecurseB>()).is_some());
     }
 
     #[test]
@@ -2214,11 +2014,7 @@ bevy_reflect::tests::Test {
         let mut registry = TypeRegistry::default();
         registry.register::<Foo<NotTypePath>>();
 
-        let registration = registry.get(TypeId::of::<Foo<NotTypePath>>()).unwrap();
-        assert_eq!(
-            "Foo<NotTypePath>",
-            registration.type_info().type_path_table().short_path()
-        );
+        assert!(registry.get(TypeId::of::<Foo<NotTypePath>>()).is_some());
     }
 
     #[test]
@@ -2260,12 +2056,12 @@ bevy_reflect::tests::Test {
 
         // test unknown DynamicStruct
         let mut test_unknown_struct = DynamicStruct::default();
-        test_unknown_struct.insert("a", 13);
-        test_struct.insert("unknown_struct", test_unknown_struct);
+        test_unknown_struct.insert_boxed("a", Box::new(13));
+        test_struct.insert_boxed("unknown_struct", Box::new(test_unknown_struct));
         // test unknown DynamicTupleStruct
         let mut test_unknown_tuple_struct = DynamicTupleStruct::default();
-        test_unknown_tuple_struct.insert(14);
-        test_struct.insert("unknown_tuplestruct", test_unknown_tuple_struct);
+        test_unknown_tuple_struct.insert_boxed(Box::new(14));
+        test_struct.insert_boxed("unknown_tuplestruct", Box::new(test_unknown_tuple_struct));
         assert_eq!(
             format!("{test_struct:?}"),
             "DynamicStruct(bevy_reflect::tests::TestStruct { \
@@ -2338,9 +2134,9 @@ bevy_reflect::tests::Test {
             let mut v = vec3(3.0, 3.0, 3.0);
 
             let mut d = DynamicStruct::default();
-            d.insert("x", 4.0f32);
-            d.insert("y", 2.0f32);
-            d.insert("z", 1.0f32);
+            d.insert_boxed("x", Box::new(4.0f32));
+            d.insert_boxed("y", Box::new(2.0f32));
+            d.insert_boxed("z", Box::new(1.0f32));
 
             v.apply(&d);
 

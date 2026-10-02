@@ -3703,7 +3703,6 @@ mod tests {
                 }),
                 true,
                 ComponentCloneBehavior::Default,
-                None,
             )
         };
 

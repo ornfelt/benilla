@@ -9,9 +9,8 @@ use bevy_reflect_derive::impl_type_path;
 
 use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, FromReflect, Generics,
-    MaybeTyped, PartialReflect, Reflect, ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type,
-    TypeInfo, TypePath,
+    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, Generics, PartialReflect,
+    Reflect, ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
 };
 
 /// A trait used to power [list-like] operations via [reflection].
@@ -122,37 +121,18 @@ pub trait List: PartialReflect {
 pub struct ListInfo {
     ty: Type,
     generics: Generics,
-    item_info: fn() -> Option<&'static TypeInfo>,
-    item_ty: Type,
 }
 
 impl ListInfo {
     /// Create a new [`ListInfo`].
-    pub fn new<TList: List + TypePath, TItem: FromReflect + MaybeTyped + TypePath>() -> Self {
+    pub fn new<TList: List + TypePath>() -> Self {
         Self {
             ty: Type::of::<TList>(),
             generics: Generics::new(),
-            item_info: TItem::maybe_type_info,
-            item_ty: Type::of::<TItem>(),
         }
     }
 
     impl_type_methods!(ty);
-
-    /// The [`TypeInfo`] of the list item.
-    ///
-    /// Returns `None` if the list item does not contain static type information,
-    /// such as for dynamic types.
-    pub fn item_info(&self) -> Option<&'static TypeInfo> {
-        (self.item_info)()
-    }
-
-    /// The [type] of the list item.
-    ///
-    /// [type]: Type
-    pub fn item_ty(&self) -> Type {
-        self.item_ty
-    }
 
     impl_generic_info_methods!(generics);
 }
@@ -165,11 +145,6 @@ pub struct DynamicList {
 }
 
 impl DynamicList {
-    /// Appends a typed value to the list.
-    pub fn push<T: PartialReflect>(&mut self, value: T) {
-        self.values.push(Box::new(value));
-    }
-
     /// Appends a [`Reflect`] trait object to the list.
     pub fn push_box(&mut self, value: Box<dyn PartialReflect>) {
         self.values.push(value);
@@ -491,9 +466,9 @@ mod tests {
     #[test]
     fn test_into_iter() {
         let mut list = DynamicList::default();
-        list.push(0usize);
-        list.push(1usize);
-        list.push(2usize);
+        list.push_box(Box::new(0usize));
+        list.push_box(Box::new(1usize));
+        list.push_box(Box::new(2usize));
         let items = list.into_iter();
         for (index, item) in items.into_iter().enumerate() {
             let value = item

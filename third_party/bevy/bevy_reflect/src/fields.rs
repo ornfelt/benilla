@@ -1,4 +1,4 @@
-use crate::{type_info::impl_type_methods, MaybeTyped, PartialReflect, Type, TypeInfo, TypePath};
+use crate::{type_info::impl_type_methods, MaybeTyped, PartialReflect, Type, TypePath};
 use alloc::borrow::Cow;
 use core::fmt::{Display, Formatter};
 
@@ -6,7 +6,6 @@ use core::fmt::{Display, Formatter};
 #[derive(Clone, Debug)]
 pub struct NamedField {
     name: &'static str,
-    type_info: fn() -> Option<&'static TypeInfo>,
     ty: Type,
 }
 
@@ -15,7 +14,6 @@ impl NamedField {
     pub fn new<T: PartialReflect + MaybeTyped + TypePath>(name: &'static str) -> Self {
         Self {
             name,
-            type_info: T::maybe_type_info,
             ty: Type::of::<T>(),
         }
     }
@@ -25,22 +23,12 @@ impl NamedField {
         self.name
     }
 
-    /// The [`TypeInfo`] of the field.
-    ///
-    ///
-    /// Returns `None` if the field does not contain static type information,
-    /// such as for dynamic types.
-    pub fn type_info(&self) -> Option<&'static TypeInfo> {
-        (self.type_info)()
-    }
-
     impl_type_methods!(ty);
 }
 
 /// The unnamed field of a reflected tuple or tuple struct.
 #[derive(Clone, Debug)]
 pub struct UnnamedField {
-    type_info: fn() -> Option<&'static TypeInfo>,
     ty: Type,
 }
 
@@ -48,18 +36,8 @@ impl UnnamedField {
     /// Create a new [`UnnamedField`].
     pub fn new<T: PartialReflect + MaybeTyped + TypePath>(_index: usize) -> Self {
         Self {
-            type_info: T::maybe_type_info,
             ty: Type::of::<T>(),
         }
-    }
-
-    /// The [`TypeInfo`] of the field.
-    ///
-    ///
-    /// Returns `None` if the field does not contain static type information,
-    /// such as for dynamic types.
-    pub fn type_info(&self) -> Option<&'static TypeInfo> {
-        (self.type_info)()
     }
 
     impl_type_methods!(ty);

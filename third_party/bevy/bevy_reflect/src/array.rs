@@ -1,8 +1,7 @@
 use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, Generics, MaybeTyped,
-    PartialReflect, Reflect, ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo,
-    TypePath,
+    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, Generics, PartialReflect,
+    Reflect, ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
 };
 use alloc::{boxed::Box, vec::Vec};
 use bevy_reflect_derive::impl_type_path;
@@ -87,50 +86,18 @@ pub trait Array: PartialReflect {
 pub struct ArrayInfo {
     ty: Type,
     generics: Generics,
-    item_info: fn() -> Option<&'static TypeInfo>,
-    item_ty: Type,
-    capacity: usize,
 }
 
 impl ArrayInfo {
     /// Create a new [`ArrayInfo`].
-    ///
-    /// # Arguments
-    ///
-    /// * `capacity`: The maximum capacity of the underlying array.
-    pub fn new<TArray: Array + TypePath, TItem: Reflect + MaybeTyped + TypePath>(
-        capacity: usize,
-    ) -> Self {
+    pub fn new<TArray: Array + TypePath>() -> Self {
         Self {
             ty: Type::of::<TArray>(),
             generics: Generics::new(),
-            item_info: TItem::maybe_type_info,
-            item_ty: Type::of::<TItem>(),
-            capacity,
         }
     }
 
-    /// The compile-time capacity of the array.
-    pub fn capacity(&self) -> usize {
-        self.capacity
-    }
-
     impl_type_methods!(ty);
-
-    /// The [`TypeInfo`] of the array item.
-    ///
-    /// Returns `None` if the array item does not contain static type information,
-    /// such as for dynamic types.
-    pub fn item_info(&self) -> Option<&'static TypeInfo> {
-        (self.item_info)()
-    }
-
-    /// The [type] of the array item.
-    ///
-    /// [type]: Type
-    pub fn item_ty(&self) -> Type {
-        self.item_ty
-    }
 
     impl_generic_info_methods!(generics);
 }
@@ -150,25 +117,7 @@ pub struct DynamicArray {
     pub(crate) values: Box<[Box<dyn PartialReflect>]>,
 }
 
-impl DynamicArray {
-    /// Sets the [type] to be represented by this `DynamicArray`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the given [type] is not a [`TypeInfo::Array`].
-    ///
-    /// [type]: TypeInfo
-    pub fn set_represented_type(&mut self, represented_type: Option<&'static TypeInfo>) {
-        if let Some(represented_type) = represented_type {
-            assert!(
-                matches!(represented_type, TypeInfo::Array(_)),
-                "expected TypeInfo::Array but received: {represented_type:?}"
-            );
-        }
-
-        self.represented_type = represented_type;
-    }
-}
+impl DynamicArray {}
 
 impl PartialReflect for DynamicArray {
     #[inline]

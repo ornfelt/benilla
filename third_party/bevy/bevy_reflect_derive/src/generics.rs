@@ -24,38 +24,22 @@ pub(crate) fn generate_generics(meta: &ReflectMeta) -> Option<TokenStream> {
             GenericParam::Type(ty_param) => {
                 let ident = &ty_param.ident;
                 let name = ident.to_string();
-                let with_default = ty_param
-                    .default
-                    .as_ref()
-                    .map(|default_ty| quote!(.with_default::<#default_ty>()));
-
                 Some(quote! {
                     #bevy_reflect_path::GenericInfo::Type(
                         #bevy_reflect_path::TypeParamInfo::new::<#ident>(
                             #bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(#name),
                         )
-                        #with_default
                     )
                 })
             }
             GenericParam::Const(const_param) => {
                 let ty = &const_param.ty;
                 let name = const_param.ident.to_string();
-                let with_default = const_param.default.as_ref().map(|default| {
-                    // We add the `as #ty` to ensure that the correct type is inferred.
-                    quote!(.with_default(#default as #ty))
-                });
-
                 Some(quote! {
-                    #[allow(
-                        clippy::unnecessary_cast,
-                        reason = "reflection requires an explicit type hint for const generics"
-                    )]
                     #bevy_reflect_path::GenericInfo::Const(
                         #bevy_reflect_path::ConstParamInfo::new::<#ty>(
                             #bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(#name),
                         )
-                        #with_default
                     )
                 })
             }

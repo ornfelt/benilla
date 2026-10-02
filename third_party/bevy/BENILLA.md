@@ -610,6 +610,34 @@ the same repository's.
   tests lose their map parts and keep their other assertions (`reflect_complex_patch` keeps its
   tuple-of-one `g` field); `reflect_map*` and `kind.rs`' `should_cast_mut` go whole. The default
   registry never held a map, so no registry changes.
+- **`bevy_reflect`'s test-only methods and the type info nothing reads.** Every `pub fn` of
+  bevy_reflect was marked `#[deprecated]` on HEAD and four builds checked (the workspace with
+  `--all-targets`, `benilla` with `trace_chrome`, and the tests of 32 vendored crates with and
+  without it); 70 methods were reached only from bevy_reflect's own tests, and two from nowhere.
+  The lint does not fire inside derive output in other crates, so a removed method the derive
+  emits fails to compile instead (none re-resolves: the derive names `Any::type_id` fully
+  qualified, `DynamicEnum` has no `From` impl, and no trait gives the infos an `is`, `type_path`
+  or `variant`); the four `impl_reflect!` emits (`TupleStructInfo::new`, `StructVariantInfo::new`,
+  `TupleStructFieldIter::new`, `DynamicTupleStruct::set_represented_type`) stay or went with
+  their type. Gone: the info macro's `type_id`, `type_path`, `type_path_table` and `is` (every
+  info keeps `ty`), the infos' field and variant accessors (`field`, `field_at`, `variant*`,
+  `item_*`, `capacity`, `get_named`, `is_const`, the param infos' `default` and `with_default`
+  with the derive's emission of generic defaults), `TypeInfo::is`/`type_path_table`/`as_opaque`,
+  `TypePathTable`'s four path parts, `ReflectOwned::into_struct`/`into_enum`,
+  `ReflectFromPtr::as_reflect`/`type_id`, `TypeRegistry::contains`/`iter`/`register_type_data`/
+  `get_with_type_path`, `TypeRegistration::iter`/`iter_mut`, and the dynamic types' typed
+  conveniences (`DynamicStruct`/`DynamicTuple`/`DynamicTupleStruct::insert`, `DynamicList::push`,
+  `DynamicEnum::new`/`from`, `DynamicArray::set_represented_type`). What only those read goes
+  too: `EnumInfo`'s variants with `VariantInfo`, the three variant infos and `VariantInfoError`
+  (the derive no longer builds them: `EnumInfo::new` takes no variants), `ArrayInfo`'s and
+  `ListInfo`'s item info and capacity, `TupleInfo`'s and `StructInfo`'s field lists (`StructInfo`
+  keeps its name index, which `index_of` reads), the field infos' `type_info`, and
+  `ReflectFromPtr`'s `type_id` and `from_ptr`. The tests that exercised the removed accessors go
+  (`reflect_type_info`, `should_get_enum_type_info`, `option_should_impl_typed`, ...); the ones
+  that built patches with the typed conveniences use the boxed forms they forwarded to
+  (`insert_boxed(name, Box::new(v))`, `push_box`, `DynamicEnum::new_with_index(0, ..)`,
+  `from_ref`) and keep their assertions. Nothing on benilla's path read any of it; a type info's
+  `Debug` output is shorter.
 - **`bevy_ecs`'s and `bevy_app`'s off features and platform code.** The features nothing in the
   build can enable go with their code: `bevy_debug_stepping` (the `Stepping` resource and module,
   `bevy_app`'s `Stepping::begin_frame` system, the executors' skip list, so
@@ -918,6 +946,20 @@ the same repository's.
   build uses (no longer declared, so a use would not compile; every other input expands as
   before). `bevy_log`'s off `trace_tracy_memory` feature (nothing forwards it) goes with its
   `tracy-client` dependency and global allocator.
+- **The derives' unused options, second part, and the relationship accessor.** Options no input
+  in the build uses, removed from the parsers so a use no longer compiles: `Component`'s
+  `#[component(on_despawn = ..)]` (bevy_ecs's `spawned_by_set_before_flush` test was its one
+  user and goes; a `linked_spawn` target still gets its despawn hook) and
+  `#[component(map_entities)]` (docs only), `Event`'s `#[event(trigger = ..)]` (every `Event` is
+  global-triggered), and `AsBindGroup`'s texture `multisampled` and `filterable`, the `1d`, `3d`,
+  `cube` and `cube_array` dimensions, the `depth` and `s_int` sample types and the sampler's
+  `sampler_type` (every input expands to the same tokens: `multisampled: false`, a filterable
+  float or `u_int` texture, a filtering sampler); `bevy_macro_utils`' `get_lit_bool` with them.
+  The relationship accessor goes whole: `RelationshipAccessor`, `ComponentRelationshipAccessor`,
+  `Component::relationship_accessor` and the derive's implementation of it, the
+  `ComponentDescriptor` field with `ComponentInfo::relationship_accessor` and
+  `ComponentDescriptor::new_with_layout`'s last parameter. Only its own test
+  (`dynamically_traverse_hierarchy`) read it; a component descriptor's `Debug` output is shorter.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

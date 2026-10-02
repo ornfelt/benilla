@@ -674,15 +674,8 @@ impl<'a> ReflectEnum<'a> {
     pub fn to_info_tokens(&self) -> proc_macro2::TokenStream {
         let bevy_reflect_path = self.meta().bevy_reflect_path();
 
-        let variants = self
-            .variants
-            .iter()
-            .map(|variant| variant.to_info_tokens(bevy_reflect_path));
-
         let mut info = quote! {
-            #bevy_reflect_path::EnumInfo::new::<Self>(&[
-                #(#variants),*
-            ])
+            #bevy_reflect_path::EnumInfo::new::<Self>()
         };
 
         if let Some(generics) = generate_generics(self.meta()) {
@@ -750,45 +743,6 @@ impl<'a> EnumVariant<'a> {
         match &self.fields {
             EnumVariantFields::Named(fields) | EnumVariantFields::Unnamed(fields) => fields,
             EnumVariantFields::Unit => &[],
-        }
-    }
-
-    /// Generates a `TokenStream` for `VariantInfo` construction.
-    pub fn to_info_tokens(&self, bevy_reflect_path: &Path) -> proc_macro2::TokenStream {
-        let variant_name = &self.data.ident.to_string();
-
-        let (info_variant, info_struct) = match &self.fields {
-            EnumVariantFields::Unit => (
-                Ident::new("Unit", Span::call_site()),
-                Ident::new("UnitVariantInfo", Span::call_site()),
-            ),
-            EnumVariantFields::Unnamed(..) => (
-                Ident::new("Tuple", Span::call_site()),
-                Ident::new("TupleVariantInfo", Span::call_site()),
-            ),
-            EnumVariantFields::Named(..) => (
-                Ident::new("Struct", Span::call_site()),
-                Ident::new("StructVariantInfo", Span::call_site()),
-            ),
-        };
-
-        let fields = self
-            .active_fields()
-            .map(|field| field.to_info_tokens(bevy_reflect_path));
-
-        let args = match &self.fields {
-            EnumVariantFields::Unit => quote!(#variant_name),
-            _ => {
-                quote!( #variant_name , &[#(#fields),*] )
-            }
-        };
-
-        let info = quote! {
-            #bevy_reflect_path::#info_struct::new(#args)
-        };
-
-        quote! {
-            #bevy_reflect_path::VariantInfo::#info_variant(#info)
         }
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     type_info::impl_type_methods, utility::GenericTypePathCell, ApplyError, FromReflect, Generics,
     GetTypeRegistration, MaybeTyped, PartialReflect, Reflect, ReflectCloneError, ReflectKind,
     ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath, TypeRegistration, TypeRegistry,
-    Typed, UnnamedField,
+    Typed,
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::{
@@ -145,26 +145,15 @@ impl GetTupleField for dyn Tuple {
 pub struct TupleInfo {
     ty: Type,
     generics: Generics,
-    fields: Box<[UnnamedField]>,
 }
 
 impl TupleInfo {
     /// Create a new [`TupleInfo`].
-    ///
-    /// # Arguments
-    ///
-    /// * `fields`: The fields of this tuple in the order they are defined
-    pub fn new<T: Reflect + TypePath>(fields: &[UnnamedField]) -> Self {
+    pub fn new<T: Reflect + TypePath>() -> Self {
         Self {
             ty: Type::of::<T>(),
             generics: Generics::new(),
-            fields: fields.to_vec().into_boxed_slice(),
         }
-    }
-
-    /// Get the field at the given index.
-    pub fn field_at(&self, index: usize) -> Option<&UnnamedField> {
-        self.fields.get(index)
     }
 
     impl_type_methods!(ty);
@@ -184,12 +173,6 @@ impl DynamicTuple {
     pub fn insert_boxed(&mut self, value: Box<dyn PartialReflect>) {
         self.represented_type = None;
         self.fields.push(value);
-    }
-
-    /// Appends a typed element with value `value` to the tuple.
-    pub fn insert<T: PartialReflect>(&mut self, value: T) {
-        self.represented_type = None;
-        self.insert_boxed(Box::new(value));
     }
 }
 
@@ -557,13 +540,7 @@ macro_rules! impl_reflect_tuple {
         impl <$($name: Reflect + MaybeTyped + TypePath + GetTypeRegistration),*> Typed for ($($name,)*) {
             fn type_info() -> &'static TypeInfo {
                 static CELL: $crate::utility::GenericTypeInfoCell = $crate::utility::GenericTypeInfoCell::new();
-                CELL.get_or_insert::<Self, _>(|| {
-                    let fields = [
-                        $(UnnamedField::new::<$name>($index),)*
-                    ];
-                    let info = TupleInfo::new::<Self>(&fields);
-                    TypeInfo::Tuple(info)
-                })
+                CELL.get_or_insert::<Self, _>(|| TypeInfo::Tuple(TupleInfo::new::<Self>()))
             }
         }
 

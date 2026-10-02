@@ -86,7 +86,6 @@ pub trait Struct: PartialReflect {
 pub struct StructInfo {
     ty: Type,
     generics: Generics,
-    fields: Box<[NamedField]>,
     field_indices: HashMap<&'static str, usize>,
 }
 
@@ -106,21 +105,8 @@ impl StructInfo {
         Self {
             ty: Type::of::<T>(),
             generics: Generics::new(),
-            fields: fields.to_vec().into_boxed_slice(),
             field_indices,
         }
-    }
-
-    /// Get the field with the given name.
-    pub fn field(&self, name: &str) -> Option<&NamedField> {
-        self.field_indices
-            .get(name)
-            .map(|index| &self.fields[*index])
-    }
-
-    /// Get the field at the given index.
-    pub fn field_at(&self, index: usize) -> Option<&NamedField> {
-        self.fields.get(index)
     }
 
     /// Get the index of the field with the given name.
@@ -265,13 +251,6 @@ impl DynamicStruct {
                 .insert(Cow::Owned(name.clone().into_owned()), self.fields.len() - 1);
             self.field_names.push(Cow::Owned(name.into_owned()));
         }
-    }
-
-    /// Inserts a field named `name` with the typed value `value` into the struct.
-    ///
-    /// If the field already exists, it is overwritten.
-    pub fn insert<'a, T: PartialReflect>(&mut self, name: impl Into<Cow<'a, str>>, value: T) {
-        self.insert_boxed(name, Box::new(value));
     }
 
     /// Gets the index of the field with the given name.

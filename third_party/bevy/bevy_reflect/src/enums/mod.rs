@@ -21,82 +21,16 @@ mod tests {
     }
 
     #[test]
-    fn should_get_enum_type_info() {
-        let info = MyEnum::type_info();
-        if let TypeInfo::Enum(info) = info {
-            assert!(info.is::<MyEnum>(), "expected type to be `MyEnum`");
-            assert_eq!(MyEnum::type_path(), info.type_path());
-            assert_eq!(MyEnum::type_path(), info.type_path_table().path());
-            assert_eq!(MyEnum::type_ident(), info.type_path_table().ident());
-            assert_eq!(MyEnum::module_path(), info.type_path_table().module_path());
-            assert_eq!(MyEnum::crate_name(), info.type_path_table().crate_name());
-            assert_eq!(
-                MyEnum::short_type_path(),
-                info.type_path_table().short_path()
-            );
-
-            // === MyEnum::A === //
-            assert_eq!("A", info.variant_at(0).unwrap().name());
-            assert_eq!("A", info.variant("A").unwrap().name());
-            if let VariantInfo::Unit(variant) = info.variant("A").unwrap() {
-                assert_eq!("A", variant.name());
-            } else {
-                panic!("Expected `VariantInfo::Unit`");
-            }
-
-            // === MyEnum::B === //
-            assert_eq!("B", info.variant_at(1).unwrap().name());
-            assert_eq!("B", info.variant("B").unwrap().name());
-            if let VariantInfo::Tuple(variant) = info.variant("B").unwrap() {
-                assert!(variant.field_at(0).unwrap().is::<usize>());
-                assert!(variant.field_at(1).unwrap().is::<i32>());
-                assert!(variant
-                    .field_at(0)
-                    .unwrap()
-                    .type_info()
-                    .unwrap()
-                    .is::<usize>());
-                assert!(variant
-                    .field_at(1)
-                    .unwrap()
-                    .type_info()
-                    .unwrap()
-                    .is::<i32>());
-            } else {
-                panic!("Expected `VariantInfo::Tuple`");
-            }
-
-            // === MyEnum::C === //
-            assert_eq!("C", info.variant_at(2).unwrap().name());
-            assert_eq!("C", info.variant("C").unwrap().name());
-            if let VariantInfo::Struct(variant) = info.variant("C").unwrap() {
-                assert!(variant.field_at(0).unwrap().is::<f32>());
-                assert!(variant.field("foo").unwrap().is::<f32>());
-                assert!(variant
-                    .field("foo")
-                    .unwrap()
-                    .type_info()
-                    .unwrap()
-                    .is::<f32>());
-            } else {
-                panic!("Expected `VariantInfo::Struct`");
-            }
-        } else {
-            panic!("Expected `TypeInfo::Enum`");
-        }
-    }
-
-    #[test]
     fn dynamic_enum_should_set_variant_fields() {
         // === Unit === //
         let mut value = MyEnum::A;
-        let dyn_enum = DynamicEnum::from(MyEnum::A);
+        let dyn_enum = DynamicEnum::from_ref(&MyEnum::A);
         value.apply(&dyn_enum);
         assert_eq!(MyEnum::A, value);
 
         // === Tuple === //
         let mut value = MyEnum::B(0, 0);
-        let dyn_enum = DynamicEnum::from(MyEnum::B(123, 321));
+        let dyn_enum = DynamicEnum::from_ref(&MyEnum::B(123, 321));
         value.apply(&dyn_enum);
         assert_eq!(MyEnum::B(123, 321), value);
 
@@ -105,7 +39,7 @@ mod tests {
             foo: 0.0,
             bar: false,
         };
-        let dyn_enum = DynamicEnum::from(MyEnum::C {
+        let dyn_enum = DynamicEnum::from_ref(&MyEnum::C {
             foo: 1.23,
             bar: true,
         });
@@ -125,7 +59,7 @@ mod tests {
         let mut value = MyEnum::B(0, 0);
 
         let mut data = DynamicTuple::default();
-        data.insert(123usize);
+        data.insert_boxed(Box::new(123usize));
 
         let mut dyn_enum = DynamicEnum::default();
         dyn_enum.set_variant("B", data);
@@ -139,7 +73,7 @@ mod tests {
         };
 
         let mut data = DynamicStruct::default();
-        data.insert("bar", true);
+        data.insert_boxed("bar", Box::new(true));
 
         let mut dyn_enum = DynamicEnum::default();
         dyn_enum.set_variant("C", data);
@@ -155,8 +89,8 @@ mod tests {
 
     #[test]
     fn dynamic_enum_should_apply_dynamic_enum() {
-        let mut a = DynamicEnum::from(MyEnum::B(123, 321));
-        let b = DynamicEnum::from(MyEnum::B(123, 321));
+        let mut a = DynamicEnum::from_ref(&MyEnum::B(123, 321));
+        let b = DynamicEnum::from_ref(&MyEnum::B(123, 321));
 
         // Sanity check that equality check works
         assert!(
@@ -179,14 +113,14 @@ mod tests {
         let mut value = MyEnum::A;
 
         // === MyEnum::A -> MyEnum::B === //
-        let mut dyn_enum = DynamicEnum::from(MyEnum::B(123, 321));
+        let mut dyn_enum = DynamicEnum::from_ref(&MyEnum::B(123, 321));
         value.apply(&dyn_enum);
         assert_eq!(MyEnum::B(123, 321), value);
 
         // === MyEnum::B -> MyEnum::C === //
         let mut data = DynamicStruct::default();
-        data.insert("foo", 1.23_f32);
-        data.insert("bar", true);
+        data.insert_boxed("foo", Box::new(1.23_f32));
+        data.insert_boxed("bar", Box::new(true));
         dyn_enum.set_variant("C", data);
         value.apply(&dyn_enum);
         assert_eq!(
@@ -199,8 +133,8 @@ mod tests {
 
         // === MyEnum::C -> MyEnum::B === //
         let mut data = DynamicTuple::default();
-        data.insert(123_usize);
-        data.insert(321_i32);
+        data.insert_boxed(Box::new(123_usize));
+        data.insert_boxed(Box::new(321_i32));
         dyn_enum.set_variant("B", data);
         value.apply(&dyn_enum);
         assert_eq!(MyEnum::B(123, 321), value);
@@ -213,7 +147,7 @@ mod tests {
 
     #[test]
     fn dynamic_enum_should_return_is_dynamic() {
-        let dyn_enum = DynamicEnum::from(MyEnum::B(123, 321));
+        let dyn_enum = DynamicEnum::from_ref(&MyEnum::B(123, 321));
         assert!(dyn_enum.is_dynamic());
     }
 
@@ -313,7 +247,7 @@ mod tests {
     fn applying_non_enum_should_panic() {
         let mut value = MyEnum::B(0, 0);
         let mut dyn_tuple = DynamicTuple::default();
-        dyn_tuple.insert((123_usize, 321_i32));
+        dyn_tuple.insert_boxed(Box::new((123_usize, 321_i32)));
         value.apply(&dyn_tuple);
     }
 
@@ -350,36 +284,6 @@ mod tests {
     }
 
     #[test]
-    fn should_skip_ignored_fields() {
-        #[derive(Reflect, Debug, PartialEq)]
-        enum TestEnum {
-            A,
-            B,
-            C {
-                #[reflect(ignore)]
-                foo: f32,
-                bar: bool,
-            },
-        }
-
-        if let TypeInfo::Enum(info) = TestEnum::type_info() {
-            assert_eq!(3, info.variant_len());
-            if let VariantInfo::Struct(variant) = info.variant("C").unwrap() {
-                assert_eq!(
-                    1,
-                    variant.field_len(),
-                    "expected one of the fields to be ignored"
-                );
-                assert!(variant.field_at(0).unwrap().is::<bool>());
-            } else {
-                panic!("expected `VariantInfo::Struct`");
-            }
-        } else {
-            panic!("expected `TypeInfo::Enum`");
-        }
-    }
-
-    #[test]
     fn enum_should_allow_generics() {
         #[derive(Reflect, Debug, PartialEq)]
         enum TestEnum<T: FromReflect> {
@@ -388,34 +292,19 @@ mod tests {
             C { value: T },
         }
 
-        if let TypeInfo::Enum(info) = TestEnum::<f32>::type_info() {
-            if let VariantInfo::Tuple(variant) = info.variant("B").unwrap() {
-                assert!(variant.field_at(0).unwrap().is::<f32>());
-            } else {
-                panic!("expected `VariantInfo::Struct`");
-            }
-            if let VariantInfo::Struct(variant) = info.variant("C").unwrap() {
-                assert!(variant.field("value").unwrap().is::<f32>());
-            } else {
-                panic!("expected `VariantInfo::Struct`");
-            }
-        } else {
-            panic!("expected `TypeInfo::Enum`");
-        }
-
         let mut value = TestEnum::<f32>::A;
 
         // === Tuple === //
         let mut data = DynamicTuple::default();
-        data.insert(1.23_f32);
-        let dyn_enum = DynamicEnum::new("B", data);
+        data.insert_boxed(Box::new(1.23_f32));
+        let dyn_enum = DynamicEnum::new_with_index(0, "B", data);
         value.apply(&dyn_enum);
         assert_eq!(TestEnum::B(1.23), value);
 
         // === Struct === //
         let mut data = DynamicStruct::default();
-        data.insert("value", 1.23_f32);
-        let dyn_enum = DynamicEnum::new("C", data);
+        data.insert_boxed("value", Box::new(1.23_f32));
+        let dyn_enum = DynamicEnum::new_with_index(0, "C", data);
         value.apply(&dyn_enum);
         assert_eq!(TestEnum::C { value: 1.23 }, value);
     }
@@ -436,15 +325,15 @@ mod tests {
 
         // === Tuple === //
         let mut data = DynamicTuple::default();
-        data.insert(TestStruct(123));
-        let dyn_enum = DynamicEnum::new("B", data);
+        data.insert_boxed(Box::new(TestStruct(123)));
+        let dyn_enum = DynamicEnum::new_with_index(0, "B", data);
         value.apply(&dyn_enum);
         assert_eq!(TestEnum::B(TestStruct(123)), value);
 
         // === Struct === //
         let mut data = DynamicStruct::default();
-        data.insert("value", TestStruct(123));
-        let dyn_enum = DynamicEnum::new("C", data);
+        data.insert_boxed("value", Box::new(TestStruct(123)));
+        let dyn_enum = DynamicEnum::new_with_index(0, "C", data);
         value.apply(&dyn_enum);
         assert_eq!(
             TestEnum::C {
@@ -474,15 +363,15 @@ mod tests {
 
         // === Tuple === //
         let mut data = DynamicTuple::default();
-        data.insert(OtherEnum::B(123));
-        let dyn_enum = DynamicEnum::new("B", data);
+        data.insert_boxed(Box::new(OtherEnum::B(123)));
+        let dyn_enum = DynamicEnum::new_with_index(0, "B", data);
         value.apply(&dyn_enum);
         assert_eq!(TestEnum::B(OtherEnum::B(123)), value);
 
         // === Struct === //
         let mut data = DynamicStruct::default();
-        data.insert("value", OtherEnum::C { value: 1.23 });
-        let dyn_enum = DynamicEnum::new("C", data);
+        data.insert_boxed("value", Box::new(OtherEnum::C { value: 1.23 }));
+        let dyn_enum = DynamicEnum::new_with_index(0, "C", data);
         value.apply(&dyn_enum);
         assert_eq!(
             TestEnum::C {

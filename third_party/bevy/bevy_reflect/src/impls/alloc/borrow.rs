@@ -266,7 +266,7 @@ impl<T: FromReflect + MaybeTyped + Clone + TypePath + GetTypeRegistration> Typed
 {
     fn type_info() -> &'static TypeInfo {
         static CELL: GenericTypeInfoCell = GenericTypeInfoCell::new();
-        CELL.get_or_insert::<Self, _>(|| TypeInfo::List(ListInfo::new::<Self, T>()))
+        CELL.get_or_insert::<Self, _>(|| TypeInfo::List(ListInfo::new::<Self>()))
     }
 }
 

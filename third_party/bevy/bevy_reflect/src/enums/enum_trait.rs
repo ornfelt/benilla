@@ -1,10 +1,9 @@
 use crate::generics::impl_generic_info_methods;
 use crate::{
     type_info::impl_type_methods, DynamicEnum, Generics, PartialReflect, Type, TypePath,
-    VariantInfo, VariantType,
+    VariantType,
 };
-use alloc::{boxed::Box, format, string::String};
-use bevy_platform::collections::HashMap;
+use alloc::{format, string::String};
 
 /// A trait used to power [enum-like] operations via [reflection].
 ///
@@ -147,46 +146,15 @@ pub trait Enum: PartialReflect {
 pub struct EnumInfo {
     ty: Type,
     generics: Generics,
-    variants: Box<[VariantInfo]>,
-    variant_indices: HashMap<&'static str, usize>,
 }
 
 impl EnumInfo {
     /// Create a new [`EnumInfo`].
-    ///
-    /// # Arguments
-    ///
-    /// * `variants`: The variants of this enum in the order they are defined
-    pub fn new<TEnum: Enum + TypePath>(variants: &[VariantInfo]) -> Self {
-        let variant_indices = variants
-            .iter()
-            .enumerate()
-            .map(|(index, variant)| (variant.name(), index))
-            .collect::<HashMap<_, _>>();
-
+    pub fn new<TEnum: Enum + TypePath>() -> Self {
         Self {
             ty: Type::of::<TEnum>(),
             generics: Generics::new(),
-            variants: variants.to_vec().into_boxed_slice(),
-            variant_indices,
         }
-    }
-
-    /// Get a variant with the given name.
-    pub fn variant(&self, name: &str) -> Option<&VariantInfo> {
-        self.variant_indices
-            .get(name)
-            .map(|index| &self.variants[*index])
-    }
-
-    /// Get a variant at the given index.
-    pub fn variant_at(&self, index: usize) -> Option<&VariantInfo> {
-        self.variants.get(index)
-    }
-
-    /// The number of variants in this enum.
-    pub fn variant_len(&self) -> usize {
-        self.variants.len()
     }
 
     impl_type_methods!(ty);
