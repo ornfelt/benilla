@@ -22,11 +22,6 @@ use core::error::Error;
 
 mod once;
 
-#[cfg(feature = "trace_tracy_memory")]
-#[global_allocator]
-static GLOBAL: tracy_client::ProfiledAllocator<std::alloc::System> =
-    tracy_client::ProfiledAllocator::new(std::alloc::System, 100);
-
 /// The log prelude.
 ///
 /// This includes the most common types in this crate, re-exported for your convenience.

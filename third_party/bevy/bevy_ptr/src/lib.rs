@@ -43,20 +43,6 @@ pub trait IsAligned: sealed::Sealed {
     #[doc(hidden)]
     unsafe fn read_ptr<T>(ptr: *const T) -> T;
 
-    /// Copies `count * size_of::<T>()` bytes from `src` to `dst`. The source
-    /// and destination must *not* overlap.
-    ///
-    /// # Safety
-    ///  - `src` must be valid for reads of `count * size_of::<T>()` bytes.
-    ///  - `dst` must be valid for writes of `count * size_of::<T>()` bytes.
-    ///  - The region of memory beginning at `src` with a size of `count *
-    ///    size_of::<T>()` bytes must *not* overlap with the region of memory
-    ///    beginning at `dst` with the same size.
-    ///  - If this type is [`Aligned`], then both `src` and `dst` must properly
-    ///    be aligned for values of type `T`.
-    #[doc(hidden)]
-    unsafe fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize);
-
     /// Reads the value pointed to by `ptr`.
     ///
     /// # Safety
@@ -83,19 +69,6 @@ impl IsAligned for Aligned {
     }
 
     #[inline]
-    unsafe fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize) {
-        // SAFETY:
-        //  - The caller is required to ensure that `src` must be valid for reads.
-        //  - The caller is required to ensure that `dst` must be valid for writes.
-        //  - The caller is required to ensure that `src` and `dst` are aligned.
-        //  - The caller is required to ensure that the memory region covered by `src`
-        //    and `dst`, fitting up to `count` elements do not overlap.
-        unsafe {
-            ptr::copy_nonoverlapping(src, dst, count);
-        }
-    }
-
-    #[inline]
     unsafe fn drop_in_place<T>(ptr: *mut T) {
         // SAFETY:
         //  - The caller is required to ensure that `ptr` must be valid for reads and writes.
@@ -117,24 +90,6 @@ impl IsAligned for Unaligned {
         //  - The caller is required to ensure that `src` must be valid for reads.
         //  - The caller is required to ensure that `src` points to a valid instance of type `T`.
         unsafe { ptr.read_unaligned() }
-    }
-
-    #[inline]
-    unsafe fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize) {
-        // SAFETY:
-        //  - The caller is required to ensure that `src` must be valid for reads.
-        //  - The caller is required to ensure that `dst` must be valid for writes.
-        //  - This is doing a byte-wise copy. `src` and `dst` are always guaranteed to be
-        //    aligned.
-        //  - The caller is required to ensure that the memory region covered by `src`
-        //    and `dst`, fitting up to `count` elements do not overlap.
-        unsafe {
-            ptr::copy_nonoverlapping::<u8>(
-                src.cast::<u8>(),
-                dst.cast::<u8>(),
-                count * size_of::<T>(),
-            );
-        }
     }
 
     #[inline]
@@ -166,53 +121,6 @@ mod sealed {
 pub struct ConstNonNull<T: ?Sized>(NonNull<T>);
 
 impl<T: ?Sized> ConstNonNull<T> {
-    /// Creates a new `ConstNonNull` if `ptr` is non-null.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bevy_ptr::ConstNonNull;
-    ///
-    /// let x = 0u32;
-    /// let ptr = ConstNonNull::<u32>::new(&x as *const _).expect("ptr is null!");
-    ///
-    /// if let Some(ptr) = ConstNonNull::<u32>::new(core::ptr::null()) {
-    ///     unreachable!();
-    /// }
-    /// ```
-    pub fn new(ptr: *const T) -> Option<Self> {
-        NonNull::new(ptr.cast_mut()).map(Self)
-    }
-
-    /// Creates a new `ConstNonNull`.
-    ///
-    /// # Safety
-    ///
-    /// `ptr` must be non-null.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bevy_ptr::ConstNonNull;
-    ///
-    /// let x = 0u32;
-    /// let ptr = unsafe { ConstNonNull::new_unchecked(&x as *const _) };
-    /// ```
-    ///
-    /// *Incorrect* usage of this function:
-    ///
-    /// ```rust,no_run
-    /// use bevy_ptr::ConstNonNull;
-    ///
-    /// // NEVER DO THAT!!! This is undefined behavior. ⚠️
-    /// let ptr = unsafe { ConstNonNull::<u32>::new_unchecked(core::ptr::null()) };
-    /// ```
-    pub const unsafe fn new_unchecked(ptr: *const T) -> Self {
-        // SAFETY: This function's safety invariants are identical to `NonNull::new_unchecked`
-        // The caller must satisfy all of them.
-        unsafe { Self(NonNull::new_unchecked(ptr.cast_mut())) }
-    }
-
     /// Returns a shared reference to the value.
     ///
     /// # Safety
@@ -240,7 +148,7 @@ impl<T: ?Sized> ConstNonNull<T> {
     /// use bevy_ptr::ConstNonNull;
     ///
     /// let mut x = 0u32;
-    /// let ptr = ConstNonNull::new(&mut x as *mut _).expect("ptr is null!");
+    /// let ptr = ConstNonNull::from(&mut x);
     ///
     /// let ref_x = unsafe { ptr.as_ref() };
     /// println!("{ref_x}");
@@ -354,13 +262,6 @@ pub struct MovingPtr<'a, T, A: IsAligned = Aligned>(NonNull<T>, PhantomData<(&'a
 
 macro_rules! impl_ptr {
     ($ptr:ident) => {
-        impl<'a> $ptr<'a, Aligned> {
-            /// Removes the alignment requirement of this pointer
-            pub fn to_unaligned(self) -> $ptr<'a, Unaligned> {
-                $ptr(self.0, PhantomData)
-            }
-        }
-
         impl<'a, A: IsAligned> From<$ptr<'a, A>> for NonNull<u8> {
             fn from(ptr: $ptr<'a, A>) -> Self {
                 ptr.0
@@ -368,28 +269,6 @@ macro_rules! impl_ptr {
         }
 
         impl<A: IsAligned> $ptr<'_, A> {
-            /// Calculates the offset from a pointer.
-            /// As the pointer is type-erased, there is no size information available. The provided
-            /// `count` parameter is in raw bytes.
-            ///
-            /// *See also: [`ptr::offset`][ptr_offset]*
-            ///
-            /// # Safety
-            /// - The offset cannot make the existing ptr null, or take it out of bounds for its allocation.
-            /// - If the `A` type parameter is [`Aligned`] then the offset must not make the resulting pointer
-            ///   be unaligned for the pointee type.
-            /// - The value pointed by the resulting pointer must outlive the lifetime of this pointer.
-            ///
-            /// [ptr_offset]: https://doc.rust-lang.org/std/primitive.pointer.html#method.offset
-            #[inline]
-            pub unsafe fn byte_offset(self, count: isize) -> Self {
-                Self(
-                    // SAFETY: The caller upholds safety for `offset` and ensures the result is not null.
-                    unsafe { NonNull::new_unchecked(self.as_ptr().offset(count)) },
-                    PhantomData,
-                )
-            }
-
             /// Calculates the offset from a pointer (convenience for `.offset(count as isize)`).
             /// As the pointer is type-erased, there is no size information available. The provided
             /// `count` parameter is in raw bytes.
@@ -441,14 +320,6 @@ impl_ptr!(PtrMut);
 impl_ptr!(OwningPtr);
 
 impl<'a, T> MovingPtr<'a, T, Aligned> {
-    /// Removes the alignment requirement of this pointer
-    #[inline]
-    pub fn to_unaligned(self) -> MovingPtr<'a, T, Unaligned> {
-        let value = MovingPtr(self.0, PhantomData);
-        mem::forget(self);
-        value
-    }
-
     /// Creates a [`MovingPtr`] from a provided value of type `T`.
     ///
     /// For a safer alternative, it is strongly advised to use [`move_as_ptr`] where possible.
@@ -467,23 +338,6 @@ impl<'a, T> MovingPtr<'a, T, Aligned> {
 }
 
 impl<'a, T, A: IsAligned> MovingPtr<'a, T, A> {
-    /// Creates a new instance from a raw pointer.
-    ///
-    /// For a safer alternative, it is strongly advised to use [`move_as_ptr`] where possible.
-    ///
-    /// # Safety
-    /// - `inner` must point to valid value of `T`.
-    /// - If the `A` type parameter is [`Aligned`] then `inner` must be [properly aligned] for `T`.
-    /// - `inner` must have correct provenance to allow read and writes of the pointee type.
-    /// - The lifetime `'a` must be constrained such that this [`MovingPtr`] will stay valid and nothing
-    ///   else can read or mutate the pointee while this [`MovingPtr`] is live.
-    ///
-    /// [properly aligned]: https://doc.rust-lang.org/std/ptr/index.html#alignment
-    #[inline]
-    pub unsafe fn new(inner: NonNull<T>) -> Self {
-        Self(inner, PhantomData)
-    }
-
     /// Partially moves out some fields inside of `self`.
     ///
     /// The partially returned value is returned back pointing to [`MaybeUninit<T>`].
@@ -565,48 +419,6 @@ impl<'a, T, A: IsAligned> MovingPtr<'a, T, A> {
         let value = unsafe { A::read_ptr(self.0.as_ptr()) };
         mem::forget(self);
         value
-    }
-
-    /// Writes the value pointed to by this pointer to a provided location.
-    ///
-    /// This does *not* drop the value stored at `dst` and it's the caller's responsibility
-    /// to ensure that it's properly dropped.
-    ///
-    /// # Safety
-    ///  - `dst` must be valid for writes.
-    ///  - If the `A` type parameter is [`Aligned`] then `dst` must be [properly aligned] for `T`.
-    ///
-    /// [properly aligned]: https://doc.rust-lang.org/std/ptr/index.html#alignment
-    #[inline]
-    pub unsafe fn write_to(self, dst: *mut T) {
-        let src = self.0.as_ptr();
-        mem::forget(self);
-        // SAFETY:
-        //  - `src` must be valid for reads as this pointer is considered to own the value it points to.
-        //  - The caller is required to ensure that `dst` must be valid for writes.
-        //  - As `A` is `Aligned`, the caller is required to ensure that `dst` is aligned and `src` must
-        //    be aligned by the type's invariants.
-        unsafe { A::copy_nonoverlapping(src, dst, 1) };
-    }
-
-    /// Writes the value pointed to by this pointer into `dst`.
-    ///
-    /// The value previously stored at `dst` will be dropped.
-    #[inline]
-    pub fn assign_to(self, dst: &mut T) {
-        // SAFETY:
-        // - `dst` is a mutable borrow, it must point to a valid instance of `T`.
-        // - `dst` is a mutable borrow, it must point to value that is valid for dropping.
-        // - `dst` is a mutable borrow, it must not alias any other access.
-        unsafe {
-            ptr::drop_in_place(dst);
-        }
-        // SAFETY:
-        // - `dst` is a mutable borrow, it must be valid for writes.
-        // - `dst` is a mutable borrow, it must always be aligned.
-        unsafe {
-            self.write_to(dst);
-        }
     }
 
     /// Creates a [`MovingPtr`] for a specific field within `self`.
@@ -923,13 +735,6 @@ impl<'a, A: IsAligned> PtrMut<'a, A> {
         // SAFETY: the ptrmut we're borrowing from is assumed to be valid
         unsafe { PtrMut::new(self.0) }
     }
-
-    /// Gets an immutable reference from this mutable reference
-    #[inline]
-    pub fn as_ref(&self) -> Ptr<'_, A> {
-        // SAFETY: The `PtrMut` type's guarantees about the validity of this pointer are a superset of `Ptr` s guarantees
-        unsafe { Ptr::new(self.0) }
-    }
 }
 
 impl<'a, T: ?Sized> From<&'a mut T> for PtrMut<'a> {
@@ -994,15 +799,6 @@ impl<'a, A: IsAligned> OwningPtr<'a, A> {
         unsafe { ptr.read() }
     }
 
-    /// Casts to a concrete type as a [`MovingPtr`].
-    ///
-    /// # Safety
-    /// - `T` must be the erased pointee type for this [`OwningPtr`].
-    #[inline]
-    pub unsafe fn cast<T>(self) -> MovingPtr<'a, T, A> {
-        MovingPtr(self.0.cast::<T>(), PhantomData)
-    }
-
     /// Consumes the [`OwningPtr`] to drop the underlying data of type `T`.
     ///
     /// # Safety
@@ -1027,20 +823,6 @@ impl<'a, A: IsAligned> OwningPtr<'a, A> {
     #[inline]
     pub fn as_ptr(&self) -> *mut u8 {
         self.0.as_ptr()
-    }
-
-    /// Gets an immutable pointer from this owned pointer.
-    #[inline]
-    pub fn as_ref(&self) -> Ptr<'_, A> {
-        // SAFETY: The `Owning` type's guarantees about the validity of this pointer are a superset of `Ptr` s guarantees
-        unsafe { Ptr::new(self.0) }
-    }
-
-    /// Gets a mutable pointer from this owned pointer.
-    #[inline]
-    pub fn as_mut(&mut self) -> PtrMut<'_, A> {
-        // SAFETY: The `Owning` type's guarantees about the validity of this pointer are a superset of `Ptr` s guarantees
-        unsafe { PtrMut::new(self.0) }
     }
 }
 
@@ -1102,17 +884,6 @@ impl<'a, T> ThinSlicePtr<'a, T> {
         // SAFETY: The caller guarantees `index` is in-bounds so that the resulting pointer is
         // valid to dereference.
         unsafe { &*self.ptr.add(index).as_ptr() }
-    }
-
-    /// Indexes the slice without performing bounds checks.
-    ///
-    /// # Safety
-    ///
-    /// `index` must be in-bounds.
-    #[deprecated(since = "0.18.0", note = "use get_unchecked() instead")]
-    pub unsafe fn get(self, index: usize) -> &'a T {
-        // SAFETY: The caller guarantees that `index` is in-bounds.
-        unsafe { self.get_unchecked(index) }
     }
 }
 
@@ -1302,9 +1073,9 @@ macro_rules! get_pattern {
 ///   let Parent { field_a, field_b, field_c } = parent;
 /// });
 ///
-/// field_a.assign_to(&mut target_a);
-/// field_b.assign_to(&mut target_b);
-/// field_c.assign_to(&mut target_c);
+/// target_a = field_a.read();
+/// target_b = field_b.read();
+/// target_c = field_c.read();
 ///
 /// assert_eq!(target_a.0, 11);
 /// assert_eq!(target_b.0, 22);
@@ -1346,9 +1117,9 @@ macro_rules! get_pattern {
 ///   let tuple { 0: field_a, 1: field_b, 2: field_c } = parent;
 /// });
 ///
-/// field_a.assign_to(&mut target_a);
-/// field_b.assign_to(&mut target_b);
-/// field_c.assign_to(&mut target_c);
+/// target_a = field_a.read();
+/// target_b = field_b.read();
+/// target_c = field_c.read();
 ///
 /// assert_eq!(target_a.0, 11);
 /// assert_eq!(target_b.0, 22);
@@ -1390,9 +1161,9 @@ macro_rules! get_pattern {
 ///   let MaybeUninit::<Parent> { field_a, field_b, field_c } = parent;
 /// });
 ///
-/// field_a.assign_to(&mut target_a);
-/// field_b.assign_to(&mut target_b);
-/// field_c.assign_to(&mut target_c);
+/// target_a = field_a.read();
+/// target_b = field_b.read();
+/// target_c = field_c.read();
 ///
 /// unsafe {
 ///   assert_eq!(target_a.assume_init().0, 11);
@@ -1400,8 +1171,6 @@ macro_rules! get_pattern {
 ///   assert_eq!(target_c.assume_init().0, 33);
 /// }
 /// ```
-///
-/// [`assign_to`]: MovingPtr::assign_to
 #[macro_export]
 macro_rules! deconstruct_moving_ptr {
     ({ let tuple { $($field_index:tt: $pattern:pat),* $(,)? } = $ptr:expr ;}) => {

@@ -36,7 +36,6 @@ all-features = true
 
 [features]
 trace = ["tracing-error"]
-trace_tracy_memory = ["dep:tracy-client"]
 
 [lib]
 name = "bevy_log"
@@ -79,10 +78,6 @@ features = [
 
 [dependencies.tracing-tracy]
 version = "0.11.4"
-optional = true
-
-[dependencies.tracy-client]
-version = "0.18.3"
 optional = true
 
 [lints.clippy]

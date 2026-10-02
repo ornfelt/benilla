@@ -417,8 +417,7 @@ impl Clone for TypeRegistration {
 ///
 /// Type data can be registered to the [`TypeRegistry`] and stored on a type's [`TypeRegistration`].
 ///
-/// While type data is often generated using the [`#[reflect_trait]`](crate::reflect_trait) macro,
-/// almost any type that implements [`Clone`] can be considered "type data".
+/// Almost any type that implements [`Clone`] can be considered "type data".
 /// This is because it has a blanket implementation over all `T` where `T: Clone + Send + Sync + 'static`.
 ///
 /// See the [crate-level documentation] for more information on type data and type registration.

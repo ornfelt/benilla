@@ -873,6 +873,25 @@ the same repository's.
   the 8- and 16-bit and pointer-sized atomics, ...), `FixedState`'s re-export, and
   `SyncCell::to_inner`/`read`/`from_mut` and `SyncUnsafeCell::into_inner`/`get_mut`/`raw_get`
   with its `Default` and `From` impls (no caller; neither type has a `Deref`).
+- **The leaf crates' uncalled API and the derives' unused options.** Every `pub fn` of
+  `bevy_ptr`, `bevy_utils` and `bevy_macro_utils` was marked `#[deprecated]` on HEAD and the
+  workspace (`--all-targets`) and the `trace_chrome` build checked; what no site called goes:
+  `bevy_ptr`'s `ConstNonNull::new`/`new_unchecked`, every pointer's `to_unaligned` and
+  `byte_offset`, `MovingPtr::new`, `assign_to` and `write_to` (with `IsAligned::copy_nonoverlapping`,
+  which only `write_to` called), `PtrMut::as_ref`, `OwningPtr::cast`/`as_ref`/`as_mut` and the
+  already-deprecated `ThinSlicePtr::get` (the macros' doc examples read the fields with `read`
+  instead of `assign_to`); `bevy_utils`' `TypeIdMapExt`, `Parallel::clear`/`drain` and
+  `DebugName::as_string` (its one caller, `bevy_ecs`'s `SystemName` tests under `trace` and
+  `debug`, has not compiled since A4ax took `SystemName::name`, and goes with it); and
+  `bevy_macro_utils`' `require_named` and `FQBox`. `bevy_utils`' `debug` and `parallel` features
+  are always on, so the code they gated is unconditional and the `not(feature = "debug")`
+  placeholder name is gone (the features stay, for what they enable). Unused macros go:
+  `bevy_derive`'s `#[bevy_main]` (and its prelude re-export), `bevy_reflect_derive`'s
+  `#[reflect_trait]` (and its prelude re-export) and `impl_from_reflect_opaque!`, and the
+  `AsBindGroup` derive's `storage` and `storage_texture` field attributes, which no derive in the
+  build uses (no longer declared, so a use would not compile; every other input expands as
+  before). `bevy_log`'s off `trace_tracy_memory` feature (nothing forwards it) goes with its
+  `tracy-client` dependency and global allocator.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

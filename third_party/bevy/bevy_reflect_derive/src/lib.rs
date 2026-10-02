@@ -7,12 +7,11 @@
 //! such as `Struct`, `GetTypeRegistration`, and more— all with a single derive!
 //!
 //! Some other noteworthy exports include the derive macros for [`FromReflect`] and
-//! [`TypePath`], as well as the [`reflect_trait`] attribute macro.
+//! [`TypePath`].
 //!
 //! [`Reflect`]: crate::derive_reflect
 //! [`FromReflect`]: crate::derive_from_reflect
 //! [`TypePath`]: crate::derive_type_path
-//! [`reflect_trait`]: macro@reflect_trait
 
 extern crate proc_macro;
 
@@ -30,7 +29,6 @@ mod registration;
 mod serialization;
 mod string_expr;
 mod struct_utility;
-mod trait_reflection;
 mod type_path;
 mod where_clause_options;
 
@@ -130,9 +128,6 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 /// For example, `#[reflect(Foo, Bar)]` would add two registrations:
 /// one for `ReflectFoo` and another for `ReflectBar`.
 /// This assumes these types are indeed in-scope wherever this macro is called.
-///
-/// This is often used with traits that have been marked by the [`#[reflect_trait]`](macro@reflect_trait)
-/// macro in order to register the type's implementation of that trait.
 ///
 /// ### Default Registrations
 ///
@@ -315,8 +310,6 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 /// where `my_clone_func` matches the signature `(&Self) -> Self`.
 ///
 /// This attribute does nothing if the containing struct/enum has the `#[reflect(Clone)]` attribute.
-///
-/// [`reflect_trait`]: macro@reflect_trait
 #[proc_macro_derive(Reflect, attributes(reflect, type_path, type_name))]
 pub fn derive_reflect(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
@@ -418,59 +411,6 @@ pub fn derive_type_path(input: TokenStream) -> TokenStream {
     })
 }
 
-/// A macro that automatically generates type data for traits, which their implementors can then register.
-///
-/// The output of this macro is a struct that takes reflected instances of the implementor's type
-/// and returns the value as a trait object.
-/// Because of this, **it can only be used on [object-safe] traits.**
-///
-/// For a trait named `MyTrait`, this will generate the struct `ReflectMyTrait`.
-/// The generated struct can be created using `FromType` with any type that implements the trait.
-/// The creation and registration of this generated struct as type data can be automatically handled
-/// by [`#[derive(Reflect)]`](Reflect).
-///
-/// # Example
-///
-/// ```ignore (bevy_reflect is not accessible from this crate)
-/// # use std::any::TypeId;
-/// # use bevy_reflect_derive::{Reflect, reflect_trait};
-/// #[reflect_trait] // Generates `ReflectMyTrait`
-/// trait MyTrait {
-///   fn print(&self) -> &str;
-/// }
-///
-/// #[derive(Reflect)]
-/// #[reflect(MyTrait)] // Automatically registers `ReflectMyTrait`
-/// struct SomeStruct;
-///
-/// impl MyTrait for SomeStruct {
-///   fn print(&self) -> &str {
-///     "Hello, World!"
-///   }
-/// }
-///
-/// // We can create the type data manually if we wanted:
-/// let my_trait: ReflectMyTrait = FromType::<SomeStruct>::from_type();
-///
-/// // Or we can simply get it from the registry:
-/// let mut registry = TypeRegistry::default();
-/// registry.register::<SomeStruct>();
-/// let my_trait = registry
-///   .get_type_data::<ReflectMyTrait>(TypeId::of::<SomeStruct>())
-///   .unwrap();
-///
-/// // Then use it on reflected data
-/// let reflected: Box<dyn Reflect> = Box::new(SomeStruct);
-/// let reflected_my_trait: &dyn MyTrait = my_trait.get(&*reflected).unwrap();
-/// assert_eq!("Hello, World!", reflected_my_trait.print());
-/// ```
-///
-/// [object-safe]: https://doc.rust-lang.org/reference/items/traits.html#object-safety
-#[proc_macro_attribute]
-pub fn reflect_trait(args: TokenStream, input: TokenStream) -> TokenStream {
-    trait_reflection::reflect_trait(&args, input)
-}
-
 /// A macro used to generate reflection trait implementations for the given type.
 ///
 /// This is functionally the same as [deriving `Reflect`] using the `#[reflect(opaque)]` container attribute.
@@ -534,8 +474,8 @@ pub fn impl_reflect_opaque(input: TokenStream) -> TokenStream {
 /// A replacement for `#[derive(Reflect)]` to be used with foreign types which
 /// the definitions of cannot be altered.
 ///
-/// This macro is an alternative to [`impl_reflect_opaque!`] and [`impl_from_reflect_opaque!`]
-/// which implement foreign types as Opaque types. Note that there is no `impl_from_reflect`,
+/// This macro is an alternative to [`impl_reflect_opaque!`],
+/// which implements foreign types as Opaque types. Note that there is no `impl_from_reflect`,
 /// as this macro will do the job of both. This macro implements them using one of the reflect
 /// variant traits (`bevy_reflect::{Struct, TupleStruct, Enum}`, etc.),
 /// which have greater functionality. The type being reflected must be in scope, as you cannot
@@ -568,54 +508,6 @@ pub fn impl_reflect_opaque(input: TokenStream) -> TokenStream {
 pub fn impl_reflect(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     match_reflect_impls(ast, ReflectImplSource::ImplRemoteType)
-}
-
-/// A macro used to generate a `FromReflect` trait implementation for the given type.
-///
-/// This is functionally the same as [deriving `FromReflect`] on a type that [derives `Reflect`] using
-/// the `#[reflect(opaque)]` container attribute.
-///
-/// The only reason this macro exists is so that `bevy_reflect` can easily implement `FromReflect` on
-/// primitives and other opaque types internally.
-///
-/// Please note that this macro will not work with any type that [derives `Reflect`] normally
-/// or makes use of the [`impl_reflect_opaque!`] macro, as those macros also implement `FromReflect`
-/// by default.
-///
-/// # Examples
-///
-/// ```ignore (bevy_reflect is not accessible from this crate)
-/// impl_from_reflect_opaque!(foo<T1, T2: Baz> where T1: Bar);
-/// ```
-///
-/// [deriving `FromReflect`]: FromReflect
-/// [derives `Reflect`]: Reflect
-#[proc_macro]
-pub fn impl_from_reflect_opaque(input: TokenStream) -> TokenStream {
-    let def = parse_macro_input!(input with ReflectOpaqueDef::parse_from_reflect);
-
-    let default_name = &def.type_path.segments.last().unwrap().ident;
-    let type_path = if def.type_path.leading_colon.is_none()
-        && def.custom_path.is_none()
-        && def.generics.params.is_empty()
-    {
-        ReflectTypePath::Primitive(default_name)
-    } else {
-        ReflectTypePath::External {
-            path: &def.type_path,
-            custom_path: def.custom_path.map(|alias| alias.into_path(default_name)),
-            generics: &def.generics,
-        }
-    };
-
-    let from_reflect_impl =
-        from_reflect::impl_opaque(&ReflectMeta::new(type_path, def.traits.unwrap_or_default()));
-
-    TokenStream::from(quote! {
-        const _: () = {
-            #from_reflect_impl
-        };
-    })
 }
 
 /// A replacement for [deriving `TypePath`] for use on foreign types.

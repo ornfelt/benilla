@@ -101,7 +101,6 @@ impl Deref for BindGroup {
 /// # use bevy_image::Image;
 /// # use bevy_color::LinearRgba;
 /// # use bevy_asset::Handle;
-/// # use bevy_render::storage::ShaderStorageBuffer;
 ///
 /// #[derive(AsBindGroup)]
 /// struct CoolMaterial {
@@ -110,12 +109,6 @@ impl Deref for BindGroup {
 ///     #[texture(1)]
 ///     #[sampler(2)]
 ///     color_texture: Handle<Image>,
-///     #[storage(3, read_only)]
-///     storage_buffer: Handle<ShaderStorageBuffer>,
-///     #[storage(4, read_only, buffer)]
-///     raw_buffer: Buffer,
-///     #[storage_texture(5)]
-///     storage_texture: Handle<Image>,
 /// }
 /// ```
 ///
@@ -125,9 +118,6 @@ impl Deref for BindGroup {
 /// @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> color: vec4<f32>;
 /// @group(#{MATERIAL_BIND_GROUP}) @binding(1) var color_texture: texture_2d<f32>;
 /// @group(#{MATERIAL_BIND_GROUP}) @binding(2) var color_sampler: sampler;
-/// @group(#{MATERIAL_BIND_GROUP}) @binding(3) var<storage> storage_buffer: array<f32>;
-/// @group(#{MATERIAL_BIND_GROUP}) @binding(4) var<storage> raw_buffer: array<f32>;
-/// @group(#{MATERIAL_BIND_GROUP}) @binding(5) var storage_texture: texture_storage_2d<rgba8unorm, read_write>;
 /// ```
 /// Note that the "group" index is determined by the usage context. It is not defined in [`AsBindGroup`]. For example, in Bevy material bind groups
 /// are generally bound to group 2.
@@ -156,20 +146,6 @@ impl Deref for BindGroup {
 /// | `multisampled` = ...  | `true`, `false`                                                         | `false`              |
 /// | `visibility(...)`     | `all`, `none`, or a list-combination of `vertex`, `fragment`, `compute` | `vertex`, `fragment` |
 ///
-/// ## `storage_texture(BINDING_INDEX, arguments)`
-///
-/// * This field's [`Handle<Image>`](bevy_asset::Handle) will be used to look up the matching [`Texture`](crate::render_resource::Texture)
-///   GPU resource, which will be bound as a storage texture in shaders. The field will be assumed to implement [`Into<Option<Handle<Image>>>`]. In practice,
-///   most fields should be a [`Handle<Image>`](bevy_asset::Handle) or [`Option<Handle<Image>>`]. If the value of an [`Option<Handle<Image>>`] is
-///   [`None`], the [`crate::texture::FallbackImage`] resource will be used instead.
-///
-/// | Arguments              | Values                                                                                     | Default       |
-/// |------------------------|--------------------------------------------------------------------------------------------|---------------|
-/// | `dimension` = "..."    | `"1d"`, `"2d"`, `"2d_array"`, `"3d"`, `"cube"`, `"cube_array"`                             | `"2d"`        |
-/// | `image_format` = ...   | any member of [`TextureFormat`](crate::render_resource::TextureFormat)                     | `Rgba8Unorm`  |
-/// | `access` = ...         | any member of [`StorageTextureAccess`](crate::render_resource::StorageTextureAccess)       | `ReadWrite`   |
-/// | `visibility(...)`      | `all`, `none`, or a list-combination of `vertex`, `fragment`, `compute`                    | `compute`     |
-///
 /// ## `sampler(BINDING_INDEX, arguments)`
 ///
 /// * This field's [`Handle<Image>`](bevy_asset::Handle) will be used to look up the matching [`Sampler`] GPU
@@ -182,22 +158,6 @@ impl Deref for BindGroup {
 /// |------------------------|-------------------------------------------------------------------------|------------------------|
 /// | `sampler_type` = "..." | `"filtering"`, `"non_filtering"`, `"comparison"`.                       |  `"filtering"`         |
 /// | `visibility(...)`      | `all`, `none`, or a list-combination of `vertex`, `fragment`, `compute` |   `vertex`, `fragment` |
-///
-/// ## `storage(BINDING_INDEX, arguments)`
-///
-/// * The field's [`Handle<Storage>`](bevy_asset::Handle) will be used to look
-///   up the matching [`Buffer`] GPU resource, which will be bound as a storage
-///   buffer in shaders. If the `storage` attribute is used, the field is expected
-///   a raw buffer, and the buffer will be bound as a storage buffer in shaders.
-///   In bindless mode, `binding_array()` argument that specifies the binding
-///   number of the resulting storage buffer binding array must be present.
-///
-/// | Arguments              | Values                                                                  | Default                |
-/// |------------------------|-------------------------------------------------------------------------|------------------------|
-/// | `visibility(...)`      | `all`, `none`, or a list-combination of `vertex`, `fragment`, `compute` | `vertex`, `fragment`   |
-/// | `read_only`            | if present then value is true, otherwise false                          | `false`                |
-/// | `buffer`               | if present then the field will be assumed to be a raw wgpu buffer       |                        |
-/// | `binding_array(...)`   | the binding number of the binding array, for bindless mode              | bindless mode disabled |
 ///
 /// Note that fields without field-level binding attributes will be ignored.
 /// ```

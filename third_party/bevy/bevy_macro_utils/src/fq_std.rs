@@ -41,8 +41,6 @@ use quote::{quote, ToTokens};
 
 /// Fully Qualified (FQ) short name for [`std::any::Any`]
 pub struct FQAny;
-/// Fully Qualified (FQ) short name for [`Box`]
-pub struct FQBox;
 /// Fully Qualified (FQ) short name for [`Clone`]
 pub struct FQClone;
 /// Fully Qualified (FQ) short name for [`Default`]
@@ -59,12 +57,6 @@ pub struct FQSync;
 impl ToTokens for FQAny {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         quote!(::core::any::Any).to_tokens(tokens);
-    }
-}
-
-impl ToTokens for FQBox {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        quote!(::std::boxed::Box).to_tokens(tokens);
     }
 }
 

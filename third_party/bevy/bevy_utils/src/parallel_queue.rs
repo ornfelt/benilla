@@ -15,11 +15,6 @@ impl<T: Send> Parallel<T> {
         self.locals.iter_mut().map(RefCell::get_mut)
     }
 
-    /// Clears all of the stored thread local values.
-    pub fn clear(&mut self) {
-        self.locals.clear();
-    }
-
     /// Retrieves the thread-local value for the current thread and runs `f` on it.
     ///
     /// If there is no thread-local value, it will be initialized to the result
@@ -53,22 +48,6 @@ impl<T: Default + Send> Parallel<T> {
     /// If there is no thread-local value, it will be initialized to its default.
     pub fn borrow_local_mut(&self) -> impl DerefMut<Target = T> + '_ {
         self.borrow_local_mut_or(Default::default)
-    }
-}
-
-impl<T, I> Parallel<I>
-where
-    I: IntoIterator<Item = T> + Default + Send + 'static,
-{
-    /// Drains all enqueued items from all threads and returns an iterator over them.
-    ///
-    /// Unlike [`Vec::drain`], this will piecemeal remove chunks of the data stored.
-    /// If iteration is terminated part way, the rest of the enqueued items in the same
-    /// chunk will be dropped, and the rest of the undrained elements will remain.
-    ///
-    /// The ordering is not guaranteed.
-    pub fn drain(&mut self) -> impl Iterator<Item = T> + '_ {
-        self.locals.iter_mut().flat_map(|item| item.take())
     }
 }
 

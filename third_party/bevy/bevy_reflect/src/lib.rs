@@ -333,29 +333,6 @@
 //! }
 //! ```
 //!
-//! ## Reflecting Traits
-//!
-//! Type data doesn't have to be tied to a trait, but it's often extremely useful to create trait type data.
-//! These allow traits to be used directly on a `dyn Reflect` (and not a `dyn PartialReflect`)
-//! while utilizing the underlying type's implementation.
-//!
-//! For any [object-safe] trait, we can easily generate a corresponding `ReflectTrait` type for our trait
-//! using the [`#[reflect_trait]`](reflect_trait) macro.
-//!
-//! ```
-//! # use bevy_reflect::{Reflect, reflect_trait, TypeRegistry};
-//! #[reflect_trait] // Generates a `ReflectMyTrait` type
-//! pub trait MyTrait {}
-//! impl<T: Reflect> MyTrait for T {}
-//!
-//! let mut registry = TypeRegistry::new();
-//! registry.register_type_data::<i32, ReflectMyTrait>();
-//! ```
-//!
-//! The generated type data can be used to convert a valid `dyn Reflect` into a `dyn MyTrait`.
-//! See the [dynamic types example](https://github.com/bevyengine/bevy/blob/latest/examples/reflection/dynamic_types.rs)
-//! for more information and usage details.
-//!
 //! # Limitations
 //!
 //! While this crate offers a lot in terms of adding reflection to Rust,
@@ -478,8 +455,8 @@ pub mod prelude {
 
     #[doc(hidden)]
     pub use crate::{
-        reflect_trait, FromReflect, GetField, GetTupleStructField, PartialReflect, Reflect,
-        ReflectDeserialize, ReflectFromReflect, ReflectSerialize, Struct, TupleStruct, TypePath,
+        FromReflect, GetField, GetTupleStructField, PartialReflect, Reflect, ReflectDeserialize,
+        ReflectFromReflect, ReflectSerialize, Struct, TupleStruct, TypePath,
     };
 }
 

@@ -15,9 +15,7 @@ extern crate std;
 mod map;
 pub use map::*;
 
-#[cfg(feature = "parallel")]
 mod parallel_queue;
-#[cfg(feature = "parallel")]
 pub use parallel_queue::*;
 
 /// The utilities prelude.

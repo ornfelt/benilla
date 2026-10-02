@@ -9,7 +9,6 @@
 
 extern crate proc_macro;
 
-mod bevy_main;
 mod derefs;
 mod enum_variant_meta;
 
@@ -187,12 +186,6 @@ pub fn derive_deref(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(DerefMut, attributes(deref))]
 pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
     derefs::derive_deref_mut(input)
-}
-
-/// Generates the required main function boilerplate for Android.
-#[proc_macro_attribute]
-pub fn bevy_main(attr: TokenStream, item: TokenStream) -> TokenStream {
-    bevy_main::bevy_main(attr, item)
 }
 
 /// Adds `enum_variant_index` and `enum_variant_name` functions to enums.

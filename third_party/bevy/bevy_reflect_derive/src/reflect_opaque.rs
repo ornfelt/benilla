@@ -18,7 +18,7 @@ use syn::{parenthesized, parse::ParseStream, token::Paren, Attribute, Generics, 
 /// // With generics and where clause
 /// ::my_crate::foo::Bar<T1, T2> where T1: Bar (TraitA, TraitB)
 ///
-/// // With a custom path (not with impl_from_reflect_opaque)
+/// // With a custom path
 /// (in my_crate::bar) Bar(TraitA, TraitB)
 /// ```
 pub(crate) struct ReflectOpaqueDef {
@@ -31,10 +31,6 @@ pub(crate) struct ReflectOpaqueDef {
 impl ReflectOpaqueDef {
     pub fn parse_reflect(input: ParseStream) -> syn::Result<Self> {
         Self::parse(input, ReflectTraitToImpl::Reflect)
-    }
-
-    pub fn parse_from_reflect(input: ParseStream) -> syn::Result<Self> {
-        Self::parse(input, ReflectTraitToImpl::FromReflect)
     }
 
     fn parse(input: ParseStream, trait_: ReflectTraitToImpl) -> syn::Result<Self> {

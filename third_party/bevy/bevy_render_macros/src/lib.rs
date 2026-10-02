@@ -55,11 +55,9 @@ pub fn derive_extract_component(input: TokenStream) -> TokenStream {
     AsBindGroup,
     attributes(
         uniform,
-        storage_texture,
         texture,
         sampler,
         bind_group_data,
-        storage,
         bindless,
         data
     )
