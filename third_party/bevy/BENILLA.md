@@ -1046,6 +1046,26 @@ the same repository's.
   of them. `Rect::center` stays for `bevy_ui`'s own tests. The kept tests stay; the keyframe test
   now checks `UnevenCore::sample_with` (the path `bevy_animation` samples through) instead of the
   removed `sample_interp`.
+- **`bevy_color`, down to sRGB, linear RGB and XYZ.** Nothing in the build constructs a `Color`
+  of another space (every constructor it calls is `srgb*` or `linear_rgb*`, and nothing
+  deserializes one), so `Hsla`, `Hsva`, `Hwba`, `Laba`, `Lcha`, `Oklaba` and `Oklcha` go whole,
+  with `Color`'s variants, constructors and conversions for them, `Color`'s `Luminance`, `Hue`,
+  `Saturation`, `Mix`, `EuclideanDistance` and `TryStableInterpolate` impls, the
+  `Luminance`/`Hue`/`Saturation`/`EuclideanDistance` traits, `ColorRange`, the `css` and
+  `tailwind` palettes, the `StandardColor` marker and the docs' model graph. `Xyza` stays as a
+  type with `new` and `From<LinearRgba>` (`bevy_image`'s `set_color_at`, which bevy_egui calls,
+  takes the luminance of grey formats through it). The componentwise arithmetic and the
+  `VectorSpace`/`StableInterpolate` impls on the colours go (nothing adds, scales or lerps a
+  colour), and with them `bevy_math`'s `common_traits` (`VectorSpace`, `ScalarField`,
+  `NormedVectorSpace`, `StableInterpolate`, `TryStableInterpolate`, `MismatchedUnitsError`;
+  `bevy_ui`'s `Val` impl of the last had no caller). Then the function pass as for `bevy_math`
+  (`Srgba`'s hex parsing and `u8` constructors with `HexColorError`, the unused named
+  constants, `basic` but `RED`, `GREEN` and `BLUE`, which `bevy_gizmos`' light config reads),
+  the trait members nothing calls (`Alpha::is_fully_opaque`, `Mix::mix_assign`,
+  `ColorToComponents`' `to_f32_array_no_alpha`, `from_vec3`, `from_vec4`), `Srgba`'s
+  `ColorToPacked` impl, and the `ops` functions only the removed code called (`exp`, `cbrt`,
+  `hypot`, `rem_euclid`, `floor`, `FloatPow::squared`). `LinearRgba::new` and `ColorToPacked`'s
+  members stay for the kept `to_and_from_u8` test.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

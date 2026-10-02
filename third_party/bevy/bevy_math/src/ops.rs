@@ -33,14 +33,6 @@ mod std_ops {
         f32::powf(x, y)
     }
 
-    /// Returns `e^(self)`, (the exponential function).
-    ///
-    /// Precision is specified when the `libm` feature is enabled.
-    #[inline]
-    pub fn exp(x: f32) -> f32 {
-        f32::exp(x)
-    }
-
     /// Returns `2^(self)`.
     ///
     /// Precision is specified when the `libm` feature is enabled.
@@ -55,23 +47,6 @@ mod std_ops {
     #[inline]
     pub fn ln(x: f32) -> f32 {
         f32::ln(x)
-    }
-
-    /// Returns the cube root of a number.
-    ///
-    /// Precision is specified when the `libm` feature is enabled.
-    #[inline]
-    pub fn cbrt(x: f32) -> f32 {
-        f32::cbrt(x)
-    }
-
-    /// Compute the distance between the origin and a point `(x, y)` on the Euclidean plane.
-    /// Equivalently, compute the length of the hypotenuse of a right-angle triangle with other sides having length `x.abs()` and `y.abs()`.
-    ///
-    /// Precision is specified when the `libm` feature is enabled.
-    #[inline]
-    pub fn hypot(x: f32, y: f32) -> f32 {
-        f32::hypot(x, y)
     }
 
     /// Computes the sine of a number (in radians).
@@ -141,14 +116,6 @@ mod std_ops_for_no_std {
     //! On `std` platforms, this forwards directly to the implementations provided
     //! by [`std`].
 
-    /// Calculates the least nonnegative remainder of `x (mod y)`.
-    ///
-    /// The result of this operation is guaranteed to be the rounded infinite-precision result.
-    #[inline]
-    pub fn rem_euclid(x: f32, y: f32) -> f32 {
-        f32::rem_euclid(x, y)
-    }
-
     /// Computes the absolute value of x.
     ///
     /// This function always returns the precise result.
@@ -183,14 +150,6 @@ mod std_ops_for_no_std {
     pub fn round(x: f32) -> f32 {
         f32::round(x)
     }
-
-    /// Returns the largest integer less than or equal to `x`.
-    ///
-    /// This function always returns the precise result.
-    #[inline]
-    pub fn floor(x: f32) -> f32 {
-        f32::floor(x)
-    }
 }
 
 pub use std_ops::*;
@@ -200,17 +159,11 @@ pub use std_ops_for_no_std::*;
 /// This extension trait covers shortfall in determinacy from the lack of a `libm` counterpart
 /// to `f32::powi`. Use this for the common small exponents.
 pub trait FloatPow {
-    /// Squares the f32
-    fn squared(self) -> Self;
     /// Cubes the f32
     fn cubed(self) -> Self;
 }
 
 impl FloatPow for f32 {
-    #[inline]
-    fn squared(self) -> Self {
-        self * self
-    }
     #[inline]
     fn cubed(self) -> Self {
         self * self * self
