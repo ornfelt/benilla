@@ -960,6 +960,19 @@ the same repository's.
   `ComponentDescriptor` field with `ComponentInfo::relationship_accessor` and
   `ComponentDescriptor::new_with_layout`'s last parameter. Only its own test
   (`dynamically_traverse_hierarchy`) read it; a component descriptor's `Debug` output is shorter.
+- **The derives' unused options, third part, and event propagation.** Options only the derive
+  crates' own tests used, removed from the parsers so a use no longer compiles, with those tests:
+  `EntityEvent`'s `#[entity_event(propagate)]`, `propagate = ..` and `auto_propagate` (no event
+  in the build propagates) with what only they reached, `PropagateEntityTrigger`,
+  `SetEntityEventTarget`, the `traversal` module (`Traversal` and its relationship impl) and
+  `On::propagate`/`original_event_target`; `Bundle`'s `#[bundle(ignore)]` and
+  `#[bundle(ignore_from_components)]` (every derived bundle keeps all its fields and its
+  `BundleFromComponents` impl); `Reflect`'s `#[reflect(where ..)]`, `no_field_bounds`,
+  `type_path = false`, the custom trait functions (`Clone(f)`, `Debug(f)`, `PartialEq(f)`,
+  `Hash(f)`; the plain idents stay) and the field options `clone`, `clone = ".."`, `default` and
+  `default = ".."`. `#[reflect(opaque)]` stays (`Entity` uses it, behind `cfg_attr`), and so does
+  `from_reflect = false` (bevy_animation). Every crate in the build expands to the same tokens as
+  before, checked with `-Zunpretty=expanded` under the build's own features.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

@@ -8,11 +8,6 @@ use syn::{GenericParam, Token};
 ///
 /// Returns `None` if `Generics` cannot or should not be generated.
 pub(crate) fn generate_generics(meta: &ReflectMeta) -> Option<TokenStream> {
-    if !meta.attrs().type_path_attrs().should_auto_derive() {
-        // Cannot verify that all generic parameters implement `TypePath`
-        return None;
-    }
-
     let bevy_reflect_path = meta.bevy_reflect_path();
 
     let generics = meta

@@ -1,9 +1,6 @@
-use crate::field_attributes::CloneBehavior;
-use crate::{
-    derive_data::ReflectEnum, derive_data::StructField, field_attributes::DefaultBehavior,
-};
+use crate::{derive_data::ReflectEnum, derive_data::StructField};
 use bevy_macro_utils::as_member;
-use bevy_macro_utils::fq_std::{FQClone, FQDefault, FQOption, FQResult};
+use bevy_macro_utils::fq_std::{FQDefault, FQOption, FQResult};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 
@@ -85,43 +82,22 @@ pub(crate) trait VariantBuilder: Sized {
         let alias = field.alias;
         let field_constructor = self.construct_field(field);
 
-        match &field.field.attrs.default {
-            DefaultBehavior::Func(path) => quote! {
-                if let #FQOption::Some(#alias) = #field_accessor {
-                    #field_constructor
-                } else {
-                    #path()
-                }
-            },
-            DefaultBehavior::Default => quote! {
-                if let #FQOption::Some(#alias) = #field_accessor {
-                    #field_constructor
-                } else {
-                    #FQDefault::default()
-                }
-            },
-            DefaultBehavior::Required => {
-                let field_unwrapper = self.unwrap_field(field);
+        let field_unwrapper = self.unwrap_field(field);
 
-                quote! {{
-                    // `#alias` is used by both the unwrapper and constructor
-                    let #alias = #field_accessor;
-                    let #alias = #field_unwrapper;
-                    #field_constructor
-                }}
-            }
-        }
+        quote! {{
+            // `#alias` is used by both the unwrapper and constructor
+            let #alias = #field_accessor;
+            let #alias = #field_unwrapper;
+            #field_constructor
+        }}
     }
 
     /// Returns a token stream that constructs an instance of an ignored field.
     ///
     /// # Parameters
     /// * `field`: The field to access
-    fn on_ignored_field(&self, field: VariantField) -> TokenStream {
-        match &field.field.attrs.default {
-            DefaultBehavior::Func(path) => quote! { #path() },
-            _ => quote! { #FQDefault::default() },
-        }
+    fn on_ignored_field(&self, _field: VariantField) -> TokenStream {
+        quote! { #FQDefault::default() }
     }
 
     /// Builds the enum variant output data.
@@ -309,22 +285,8 @@ impl<'a> VariantBuilder for ReflectCloneVariantBuilder<'a> {
         let field_ty = field.field.reflected_type();
         let alias = field.alias.to_token_stream();
 
-        match &field.field.attrs.clone {
-            CloneBehavior::Default => {
-                quote! {
-                    <#field_ty as #bevy_reflect_path::PartialReflect>::reflect_clone_and_take(#alias)?
-                }
-            }
-            CloneBehavior::Trait => {
-                quote! {
-                    #FQClone::clone(#alias)
-                }
-            }
-            CloneBehavior::Func(clone_fn) => {
-                quote! {
-                    #clone_fn(#alias)
-                }
-            }
+        quote! {
+            <#field_ty as #bevy_reflect_path::PartialReflect>::reflect_clone_and_take(#alias)?
         }
     }
 
@@ -335,24 +297,16 @@ impl<'a> VariantBuilder for ReflectCloneVariantBuilder<'a> {
     fn on_ignored_field(&self, field: VariantField) -> TokenStream {
         let bevy_reflect_path = self.reflect_enum.meta().bevy_reflect_path();
         let variant_name = field.variant_name;
-        let alias = field.alias;
+        let field_id = field.field.field_id(bevy_reflect_path);
 
-        match &field.field.attrs.clone {
-            CloneBehavior::Default => {
-                let field_id = field.field.field_id(bevy_reflect_path);
-
-                quote! {
-                    return #FQResult::Err(
-                        #bevy_reflect_path::ReflectCloneError::FieldNotCloneable {
-                            field: #field_id,
-                            variant: #FQOption::Some(#bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(#variant_name)),
-                            container_type_path: #bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(<Self as #bevy_reflect_path::TypePath>::type_path())
-                        }
-                    )
+        quote! {
+            return #FQResult::Err(
+                #bevy_reflect_path::ReflectCloneError::FieldNotCloneable {
+                    field: #field_id,
+                    variant: #FQOption::Some(#bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(#variant_name)),
+                    container_type_path: #bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(<Self as #bevy_reflect_path::TypePath>::type_path())
                 }
-            }
-            CloneBehavior::Trait => quote! { #FQClone::clone(#alias) },
-            CloneBehavior::Func(clone_fn) => quote! { #clone_fn() },
+            )
         }
     }
 }

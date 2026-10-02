@@ -1,14 +1,11 @@
-use crate::event::SetEntityEventTarget;
 use crate::{
     component::ComponentId,
     entity::Entity,
     event::{EntityEvent, Event},
     observer::{CachedObservers, TriggerContext},
-    traversal::Traversal,
     world::DeferredWorld,
 };
 use bevy_ptr::PtrMut;
-use core::{fmt, marker::PhantomData};
 
 /// [`Trigger`] determines _how_ an [`Event`] is triggered when [`World::trigger`](crate::world::World::trigger) is called.
 /// This decides which [`Observer`](crate::observer::Observer)s will run, what data gets passed to them, and the order they will
@@ -20,7 +17,6 @@ use core::{fmt, marker::PhantomData};
 /// Bevy comes with a number of built-in [`Trigger`] implementations (see their documentation for more info):
 /// - [`GlobalTrigger`]: The [`Event`] derive defaults to using this
 /// - [`EntityTrigger`]: The [`EntityEvent`] derive defaults to using this
-/// - [`PropagateEntityTrigger`]: The [`EntityEvent`] derive uses this when propagation is enabled.
 /// - [`EntityComponentsTrigger`]: Used by Bevy's [component lifecycle events](crate::lifecycle).
 ///
 /// # Safety
@@ -170,7 +166,6 @@ unsafe impl<E: EntityEvent + for<'a> Event<Trigger<'a> = Self>> Trigger<E> for E
 /// - `trigger` must correspond to the [`Event::Trigger`] type expected by the `event`
 /// - `trigger_context`'s [`TriggerContext::event_key`] must correspond to the `event` type.
 /// - Read, understand, and abide by the [`Trigger`] safety documentation
-// Note: this is not an EntityTrigger method because we want to reuse this logic for the entity propagation trigger
 #[inline(never)]
 pub unsafe fn trigger_entity_internal(
     mut world: DeferredWorld,
@@ -215,115 +210,6 @@ pub unsafe fn trigger_entity_internal(
                     trigger_context,
                     event.reborrow(),
                     trigger.reborrow(),
-                );
-            }
-        }
-    }
-}
-
-/// An [`EntityEvent`] [`Trigger`] that behaves like [`EntityTrigger`], but "propagates" the event
-/// using an [`Entity`] [`Traversal`]. At each step in the propagation, the [`EntityTrigger`] logic will
-/// be run, until [`PropagateEntityTrigger::propagate`] is false, or there are no entities left to traverse.
-///
-/// This is used by the [`EntityEvent`] derive when `#[entity_event(propagate)]` is enabled. It is usable by every
-/// [`EntityEvent`] type.
-///
-/// If `AUTO_PROPAGATE` is `true`, [`PropagateEntityTrigger::propagate`] will default to `true`.
-pub struct PropagateEntityTrigger<const AUTO_PROPAGATE: bool, E: EntityEvent, T: Traversal<E>> {
-    /// The original [`Entity`] the [`Event`] was _first_ triggered for.
-    pub original_event_target: Entity,
-
-    /// Whether or not to continue propagating using the `T` [`Traversal`]. If this is false,
-    /// The [`Traversal`] will stop on the current entity.
-    pub propagate: bool,
-
-    _marker: PhantomData<(E, T)>,
-}
-
-impl<const AUTO_PROPAGATE: bool, E: EntityEvent, T: Traversal<E>> Default
-    for PropagateEntityTrigger<AUTO_PROPAGATE, E, T>
-{
-    fn default() -> Self {
-        Self {
-            original_event_target: Entity::PLACEHOLDER,
-            propagate: AUTO_PROPAGATE,
-            _marker: Default::default(),
-        }
-    }
-}
-
-impl<const AUTO_PROPAGATE: bool, E: EntityEvent, T: Traversal<E>> fmt::Debug
-    for PropagateEntityTrigger<AUTO_PROPAGATE, E, T>
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PropagateEntityTrigger")
-            .field("original_event_target", &self.original_event_target)
-            .field("propagate", &self.propagate)
-            .field("_marker", &self._marker)
-            .finish()
-    }
-}
-
-// SAFETY:
-// - `E`'s [`Event::Trigger`] is constrained to [`PropagateEntityTrigger<E>`]
-unsafe impl<
-        const AUTO_PROPAGATE: bool,
-        E: EntityEvent + SetEntityEventTarget + for<'a> Event<Trigger<'a> = Self>,
-        T: Traversal<E>,
-    > Trigger<E> for PropagateEntityTrigger<AUTO_PROPAGATE, E, T>
-{
-    unsafe fn trigger(
-        &mut self,
-        mut world: DeferredWorld,
-        observers: &CachedObservers,
-        trigger_context: &TriggerContext,
-        event: &mut E,
-    ) {
-        let mut current_entity = event.event_target();
-        self.original_event_target = current_entity;
-        // SAFETY:
-        // - `observers` come from `world` and match the event type `E`, enforced by the call to `trigger`
-        // - the passed in event pointer comes from `event`, which is an `Event`
-        // - `trigger` is a matching trigger type, as it comes from `self`, which is the Trigger for `E`
-        // - `trigger_context`'s event_key matches `E`, enforced by the call to `trigger`
-        unsafe {
-            trigger_entity_internal(
-                world.reborrow(),
-                observers,
-                event.into(),
-                self.into(),
-                current_entity,
-                trigger_context,
-            );
-        }
-
-        loop {
-            if !self.propagate {
-                return;
-            }
-            if let Ok(entity) = world.get_entity(current_entity)
-                && let Ok(item) = entity.get_components::<T>()
-                && let Some(traverse_to) = T::traverse(item, event)
-            {
-                current_entity = traverse_to;
-            } else {
-                break;
-            }
-
-            event.set_event_target(current_entity);
-            // SAFETY:
-            // - `observers` come from `world` and match the event type `E`, enforced by the call to `trigger`
-            // - the passed in event pointer comes from `event`, which is an `Event`
-            // - `trigger` is a matching trigger type, as it comes from `self`, which is the Trigger for `E`
-            // - `trigger_context`'s event_key matches `E`, enforced by the call to `trigger`
-            unsafe {
-                trigger_entity_internal(
-                    world.reborrow(),
-                    observers,
-                    event.into(),
-                    self.into(),
-                    current_entity,
-                    trigger_context,
                 );
             }
         }

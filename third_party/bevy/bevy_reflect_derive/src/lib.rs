@@ -141,23 +141,12 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 ///
 /// * `#[reflect(Clone)]` will force the implementation of `Reflect::reflect_clone` to rely on
 ///   the type's [`Clone`] implementation.
-///   A custom implementation may be provided using `#[reflect(Clone(my_clone_func))]` where
-///   `my_clone_func` is the path to a function matching the signature:
-///   `(&Self) -> Self`.
 /// * `#[reflect(Debug)]` will force the implementation of `Reflect::reflect_debug` to rely on
 ///   the type's [`Debug`] implementation.
-///   A custom implementation may be provided using `#[reflect(Debug(my_debug_func))]` where
-///   `my_debug_func` is the path to a function matching the signature:
-///   `(&Self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result`.
 /// * `#[reflect(PartialEq)]` will force the implementation of `Reflect::reflect_partial_eq` to rely on
 ///   the type's [`PartialEq`] implementation.
-///   A custom implementation may be provided using `#[reflect(PartialEq(my_partial_eq_func))]` where
-///   `my_partial_eq_func` is the path to a function matching the signature:
-///   `(&Self, value: &dyn #bevy_reflect_path::Reflect) -> bool`.
 /// * `#[reflect(Hash)]` will force the implementation of `Reflect::reflect_hash` to rely on
 ///   the type's [`Hash`] implementation.
-///   A custom implementation may be provided using `#[reflect(Hash(my_hash_func))]` where
-///   `my_hash_func` is the path to a function matching the signature: `(&Self) -> u64`.
 /// * `#[reflect(Default)]` will register the `ReflectDefault` type data as normal.
 ///   However, it will also affect how certain other operations are performed in order
 ///   to improve performance and/or robustness.
@@ -183,95 +172,6 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 ///
 /// Note that in the latter case, `ReflectFromReflect` will no longer be automatically registered.
 ///
-/// ## `#[reflect(type_path = false)]`
-///
-/// This attribute will opt-out of the default `TypePath` implementation.
-///
-/// This is useful for when a type can't or shouldn't implement `TypePath`,
-/// or if a manual implementation is desired.
-///
-/// ## `#[reflect(no_field_bounds)]`
-///
-/// This attribute will opt-out of the default trait bounds added to all field types
-/// for the generated reflection trait impls.
-///
-/// Normally, all fields will have the bounds `TypePath`, and either `FromReflect` or `Reflect`
-/// depending on if `#[reflect(from_reflect = false)]` is used.
-/// However, this might not always be desirable, and so this attribute may be used to remove those bounds.
-///
-/// ### Example
-///
-/// If a type is recursive the default bounds will cause an overflow error when building:
-///
-/// ```ignore (bevy_reflect is not accessible from this crate)
-/// #[derive(Reflect)] // ERROR: overflow evaluating the requirement `Foo: FromReflect`
-/// struct Foo {
-///   foo: Vec<Foo>,
-/// }
-///
-/// // Generates a where clause like:
-/// // impl bevy_reflect::Reflect for Foo
-/// // where
-/// //   Foo: Any + Send + Sync,
-/// //   Vec<Foo>: FromReflect + TypePath + MaybeTyped + RegisterForReflection,
-/// ```
-///
-/// In this case, `Foo` is given the bounds `Vec<Foo>: FromReflect + ...`,
-/// which requires that `Foo` implements `FromReflect`,
-/// which requires that `Vec<Foo>` implements `FromReflect`,
-/// and so on, resulting in the error.
-///
-/// To fix this, we can add `#[reflect(no_field_bounds)]` to `Foo` to remove the bounds on `Vec<Foo>`:
-///
-/// ```ignore (bevy_reflect is not accessible from this crate)
-/// #[derive(Reflect)]
-/// #[reflect(no_field_bounds)]
-/// struct Foo {
-///   foo: Vec<Foo>,
-/// }
-///
-/// // Generates a where clause like:
-/// // impl bevy_reflect::Reflect for Foo
-/// // where
-/// //   Self: Any + Send + Sync,
-/// ```
-///
-/// ## `#[reflect(where T: Trait, U::Assoc: Trait, ...)]`
-///
-/// This attribute can be used to add additional bounds to the generated reflection trait impls.
-///
-/// This is useful for when a type needs certain bounds only applied to the reflection impls
-/// that are not otherwise automatically added by the derive macro.
-///
-/// ### Example
-///
-/// In the example below, we want to enforce that `T::Assoc: List` is required in order for
-/// `Foo<T>` to be reflectable, but we don't want it to prevent `Foo<T>` from being used
-/// in places where `T::Assoc: List` is not required.
-///
-/// ```ignore
-/// trait Trait {
-///   type Assoc;
-/// }
-///
-/// #[derive(Reflect)]
-/// #[reflect(where T::Assoc: List)]
-/// struct Foo<T: Trait> where T::Assoc: Default {
-///   value: T::Assoc,
-/// }
-///
-/// // Generates a where clause like:
-/// //
-/// // impl<T: Trait> bevy_reflect::Reflect for Foo<T>
-/// // where
-/// //   Foo<T>: Any + Send + Sync,
-/// //   T::Assoc: Default,
-/// //   T: TypePath,
-/// //   T::Assoc: FromReflect + TypePath + MaybeTyped + RegisterForReflection,
-/// //   T::Assoc: List,
-/// // {/* ... */}
-/// ```
-///
 /// # Field Attributes
 ///
 /// Along with the container attributes, this macro comes with some attributes that may be applied
@@ -284,18 +184,6 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 /// This allows fields to completely opt-out of reflection,
 /// which may be useful for maintaining invariants, keeping certain data private,
 /// or allowing the use of types that do not implement `Reflect` within the container.
-///
-/// ## `#[reflect(clone)]`
-///
-/// This attribute affects the `Reflect::reflect_clone` implementation.
-///
-/// Without this attribute, the implementation will rely on the field's own `Reflect::reflect_clone` implementation.
-/// When this attribute is present, the implementation will instead use the field's `Clone` implementation directly.
-///
-/// The attribute may also take the path to a custom function like `#[reflect(clone = "path::to::my_clone_func")]`,
-/// where `my_clone_func` matches the signature `(&Self) -> Self`.
-///
-/// This attribute does nothing if the containing struct/enum has the `#[reflect(Clone)]` attribute.
 #[proc_macro_derive(Reflect, attributes(reflect, type_path, type_name))]
 pub fn derive_reflect(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
@@ -314,20 +202,6 @@ pub fn derive_reflect(input: TokenStream) -> TokenStream {
 /// The only major difference is that using it with this derive requires that the field implements [`Default`].
 /// Without this requirement, there would be no way for `FromReflect` to automatically construct missing fields
 /// that have been ignored.
-///
-/// ## `#[reflect(default)]`
-///
-/// If a field cannot be read, this attribute specifies a default value to be used in its place.
-///
-/// By default, this attribute denotes that the field's type implements [`Default`].
-/// However, it can also take in a path string to a user-defined function that will return the default value.
-/// This takes the form: `#[reflect(default = "path::to::my_function")]` where `my_function` is a parameterless
-/// function that must return some default value for the type.
-///
-/// Specifying a custom default can be used to give different fields their own specialized defaults,
-/// or to remove the `Default` requirement on fields marked with `#[reflect(ignore)]`.
-/// Additionally, either form of this attribute can be used to fill in fields that are simply missing,
-/// such as when converting a partially-constructed dynamic type to a concrete one.
 #[proc_macro_derive(FromReflect, attributes(reflect))]
 pub fn derive_from_reflect(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);

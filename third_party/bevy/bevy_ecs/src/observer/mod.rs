@@ -241,7 +241,6 @@ mod tests {
     use crate::{
         change_detection::MaybeLocation,
         event::{EntityComponentsTrigger, Event, GlobalTrigger},
-        hierarchy::ChildOf,
         observer::{Observer, Replace},
         prelude::*,
         world::DeferredWorld,
@@ -281,10 +280,6 @@ mod tests {
             self.0.push(name);
         }
     }
-
-    #[derive(Component, EntityEvent)]
-    #[entity_event(propagate, auto_propagate)]
-    struct EventPropagating(Entity);
 
     #[test]
     fn observer_order_spawn_despawn() {
@@ -680,258 +675,13 @@ mod tests {
         assert_eq!(vec!["event_a"], world.resource::<Order>().0);
     }
 
-    #[test]
-    fn observer_propagating() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        let parent = world.spawn_empty().id();
-        let child = world.spawn(ChildOf(parent)).id();
-
-        world.entity_mut(parent).observe(
-            move |event: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("parent");
-
-                assert_eq!(event.event_target(), parent);
-                assert_eq!(event.original_event_target(), child);
-            },
-        );
-
-        world.entity_mut(child).observe(
-            move |event: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child");
-                assert_eq!(event.event_target(), child);
-                assert_eq!(event.original_event_target(), child);
-            },
-        );
-
-        world.trigger(EventPropagating(child));
-
-        assert_eq!(vec!["child", "parent"], world.resource::<Order>().0);
-    }
-
-    #[test]
-    fn observer_propagating_redundant_dispatch_same_entity() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        let parent = world
-            .spawn_empty()
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("parent");
-            })
-            .id();
-
-        let child = world
-            .spawn(ChildOf(parent))
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child");
-            })
-            .id();
-
-        world.trigger(EventPropagating(child));
-        world.trigger(EventPropagating(child));
-
-        assert_eq!(
-            vec!["child", "parent", "child", "parent"],
-            world.resource::<Order>().0
-        );
-    }
-
-    #[test]
-    fn observer_propagating_redundant_dispatch_parent_child() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        let parent = world
-            .spawn_empty()
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("parent");
-            })
-            .id();
-
-        let child = world
-            .spawn(ChildOf(parent))
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child");
-            })
-            .id();
-
-        world.trigger(EventPropagating(child));
-        world.trigger(EventPropagating(parent));
-
-        assert_eq!(
-            vec!["child", "parent", "parent"],
-            world.resource::<Order>().0
-        );
-    }
-
-    #[test]
-    fn observer_propagating_halt() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        let parent = world
-            .spawn_empty()
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("parent");
-            })
-            .id();
-
-        let child = world
-            .spawn(ChildOf(parent))
-            .observe(|mut event: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child");
-                event.propagate(false);
-            })
-            .id();
-
-        world.trigger(EventPropagating(child));
-
-        assert_eq!(vec!["child"], world.resource::<Order>().0);
-    }
-
-    #[test]
-    fn observer_propagating_join() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        let parent = world
-            .spawn_empty()
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("parent");
-            })
-            .id();
-
-        let child_a = world
-            .spawn(ChildOf(parent))
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child_a");
-            })
-            .id();
-
-        let child_b = world
-            .spawn(ChildOf(parent))
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child_b");
-            })
-            .id();
-
-        world.trigger(EventPropagating(child_a));
-        world.trigger(EventPropagating(child_b));
-
-        assert_eq!(
-            vec!["child_a", "parent", "child_b", "parent"],
-            world.resource::<Order>().0
-        );
-    }
-
-    #[test]
-    fn observer_propagating_no_next() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        let entity = world
-            .spawn_empty()
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("event");
-            })
-            .id();
-
-        world.trigger(EventPropagating(entity));
-        assert_eq!(vec!["event"], world.resource::<Order>().0);
-    }
-
-    #[test]
-    fn observer_propagating_parallel_propagation() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        let parent_a = world
-            .spawn_empty()
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("parent_a");
-            })
-            .id();
-
-        let child_a = world
-            .spawn(ChildOf(parent_a))
-            .observe(|mut event: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child_a");
-                event.propagate(false);
-            })
-            .id();
-
-        let parent_b = world
-            .spawn_empty()
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("parent_b");
-            })
-            .id();
-
-        let child_b = world
-            .spawn(ChildOf(parent_b))
-            .observe(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-                res.observed("child_b");
-            })
-            .id();
-
-        world.trigger(EventPropagating(child_a));
-        world.trigger(EventPropagating(child_b));
-
-        assert_eq!(
-            vec!["child_a", "child_b", "parent_b"],
-            world.resource::<Order>().0
-        );
-    }
-
-    #[test]
-    fn observer_propagating_world() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        world.add_observer(|_: On<EventPropagating>, mut res: ResMut<Order>| {
-            res.observed("event");
-        });
-
-        let grandparent = world.spawn_empty().id();
-        let parent = world.spawn(ChildOf(grandparent)).id();
-        let child = world.spawn(ChildOf(parent)).id();
-
-        world.trigger(EventPropagating(child));
-
-        assert_eq!(vec!["event", "event", "event"], world.resource::<Order>().0);
-    }
-
-    #[test]
-    fn observer_propagating_world_skipping() {
-        let mut world = World::new();
-        world.init_resource::<Order>();
-
-        world.add_observer(
-            |event: On<EventPropagating>, query: Query<&A>, mut res: ResMut<Order>| {
-                if query.get(event.event_target()).is_ok() {
-                    res.observed("event");
-                }
-            },
-        );
-
-        let grandparent = world.spawn(A).id();
-        let parent = world.spawn(ChildOf(grandparent)).id();
-        let child = world.spawn((A, ChildOf(parent))).id();
-
-        world.trigger(EventPropagating(child));
-
-        assert_eq!(vec!["event", "event"], world.resource::<Order>().0);
-    }
-
     // Originally for https://github.com/bevyengine/bevy/issues/18452
     #[test]
     fn observer_modifies_relationship() {
         fn on_add(add: On<Add, A>, mut commands: Commands) {
             commands
                 .entity(add.entity)
-                .with_related_entities::<crate::hierarchy::ChildOf>(|rsc| {
+                .with_related_entities::<ChildOf>(|rsc| {
                     rsc.spawn_empty();
                 });
         }

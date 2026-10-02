@@ -52,10 +52,6 @@ pub(crate) enum TypedProperty {
 pub(crate) fn impl_type_path(meta: &ReflectMeta) -> TokenStream {
     let where_clause_options = WhereClauseOptions::new(meta);
 
-    if !meta.attrs().type_path_attrs().should_auto_derive() {
-        return TokenStream::new();
-    }
-
     let type_path = meta.type_path();
     let bevy_reflect_path = meta.bevy_reflect_path();
 

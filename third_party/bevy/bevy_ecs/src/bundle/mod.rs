@@ -23,52 +23,6 @@ pub use info::*;
 /// You can apply this derive macro to structs that are
 /// composed of [`Component`](crate::component::Component)s or
 /// other [`Bundle`]s.
-///
-/// ## Attributes
-///
-/// Sometimes parts of the Bundle should not be inserted.
-/// Those can be marked with `#[bundle(ignore)]`, and they will be skipped.
-/// In that case, the field needs to implement [`Default`] unless you also ignore
-/// the [`BundleFromComponents`] implementation.
-///
-/// ```rust
-/// # use bevy_ecs::prelude::{Component, Bundle};
-/// # #[derive(Component)]
-/// # struct Hitpoint;
-/// #
-/// #[derive(Bundle)]
-/// struct HitpointMarker {
-///     hitpoints: Hitpoint,
-///
-///     #[bundle(ignore)]
-///     creator: Option<String>
-/// }
-/// ```
-///
-/// Some fields may be bundles that do not implement
-/// [`BundleFromComponents`]. This happens for bundles that cannot be extracted.
-/// For example with [`SpawnRelatedBundle`](bevy_ecs::spawn::SpawnRelatedBundle), see below for an
-/// example usage.
-/// In those cases you can either ignore it as above,
-/// or you can opt out the whole Struct by marking it as ignored with
-/// `#[bundle(ignore_from_components)]`.
-///
-/// ```rust
-/// # use bevy_ecs::prelude::{Component, Bundle, ChildOf, Spawn};
-/// # #[derive(Component)]
-/// # struct Hitpoint;
-/// # #[derive(Component)]
-/// # struct Marker;
-/// #
-/// use bevy_ecs::spawn::SpawnRelatedBundle;
-///
-/// #[derive(Bundle)]
-/// #[bundle(ignore_from_components)]
-/// struct HitpointMarker {
-///     hitpoints: Hitpoint,
-///     related_spawner: SpawnRelatedBundle<ChildOf, Spawn<Marker>>,
-/// }
-/// ```
 pub use bevy_ecs_macros::Bundle;
 
 use crate::{
@@ -141,43 +95,6 @@ use bevy_ptr::OwningPtr;
 /// The derived `Bundle` implementation contains the items of its fields, which all must
 /// implement `Bundle`.
 /// As explained above, this includes any [`Component`] type, and other derived bundles.
-///
-/// If you want to add `PhantomData` to your `Bundle` you have to mark it with `#[bundle(ignore)]`.
-/// ```
-/// # use std::marker::PhantomData;
-/// use bevy_ecs::{component::Component, bundle::Bundle};
-///
-/// #[derive(Component)]
-/// struct XPosition(i32);
-/// #[derive(Component)]
-/// struct YPosition(i32);
-///
-/// #[derive(Bundle)]
-/// struct PositionBundle {
-///     // A bundle can contain components
-///     x: XPosition,
-///     y: YPosition,
-/// }
-///
-/// // You have to implement `Default` for ignored field types in bundle structs.
-/// #[derive(Default)]
-/// struct Other(f32);
-///
-/// #[derive(Bundle)]
-/// struct NamedPointBundle<T: Send + Sync + 'static> {
-///     // Or other bundles
-///     a: PositionBundle,
-///     // In addition to more components
-///     z: PointName,
-///
-///     // when you need to use `PhantomData` you have to mark it as ignored
-///     #[bundle(ignore)]
-///     _phantom_data: PhantomData<T>
-/// }
-///
-/// #[derive(Component)]
-/// struct PointName(String);
-/// ```
 ///
 /// # Safety
 ///

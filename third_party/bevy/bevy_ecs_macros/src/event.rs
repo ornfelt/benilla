@@ -2,12 +2,10 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
     parse_macro_input, parse_quote, spanned::Spanned, Data, DataStruct, DeriveInput, Fields, Index,
-    Member, Path, Result, Token, Type,
+    Member, Path, Result, Type,
 };
 
 pub const ENTITY_EVENT: &str = "entity_event";
-pub const PROPAGATE: &str = "propagate";
-pub const AUTO_PROPAGATE: &str = "auto_propagate";
 pub const TRIGGER: &str = "trigger";
 pub const EVENT_TARGET: &str = "event_target";
 
@@ -38,9 +36,6 @@ pub fn derive_entity_event(input: TokenStream) -> TokenStream {
         .predicates
         .push(parse_quote! { Self: Send + Sync + 'static });
 
-    let mut auto_propagate = false;
-    let mut propagate = false;
-    let mut traversal: Option<Type> = None;
     let mut trigger: Option<Type> = None;
     let bevy_ecs_path: Path = crate::bevy_ecs_path();
 
@@ -55,20 +50,6 @@ pub fn derive_entity_event(input: TokenStream) -> TokenStream {
             Some(ident) if processed_attrs.iter().any(|i| ident == i) => {
                 Err(meta.error(format!("duplicate attribute: {ident}")))
             }
-            Some(ident) if ident == AUTO_PROPAGATE => {
-                propagate = true;
-                auto_propagate = true;
-                processed_attrs.push(AUTO_PROPAGATE);
-                Ok(())
-            }
-            Some(ident) if ident == PROPAGATE => {
-                propagate = true;
-                if meta.input.peek(Token![=]) {
-                    traversal = Some(meta.value()?.parse()?);
-                }
-                processed_attrs.push(PROPAGATE);
-                Ok(())
-            }
             Some(ident) if ident == TRIGGER => {
                 trigger = Some(meta.value()?.parse()?);
                 processed_attrs.push(TRIGGER);
@@ -81,15 +62,6 @@ pub fn derive_entity_event(input: TokenStream) -> TokenStream {
         }
     }
 
-    if trigger.is_some() && propagate {
-        return syn::Error::new(
-            ast.span(),
-            "Cannot define both #[entity_event(trigger)] and #[entity_event(propagate)]",
-        )
-        .into_compile_error()
-        .into();
-    }
-
     let entity_field = match get_event_target_field(&ast) {
         Ok(value) => value,
         Err(err) => return err.into_compile_error().into(),
@@ -100,24 +72,8 @@ pub fn derive_entity_event(input: TokenStream) -> TokenStream {
 
     let trigger = if let Some(trigger) = trigger {
         quote! {#trigger}
-    } else if propagate {
-        let traversal = traversal
-            .unwrap_or_else(|| parse_quote! { &'static #bevy_ecs_path::hierarchy::ChildOf});
-        quote! {#bevy_ecs_path::event::PropagateEntityTrigger<#auto_propagate, Self, #traversal>}
     } else {
         quote! {#bevy_ecs_path::event::EntityTrigger}
-    };
-
-    let set_entity_event_target_impl = if propagate {
-        quote! {
-            impl #impl_generics #bevy_ecs_path::event::SetEntityEventTarget for #struct_name #type_generics #where_clause {
-                fn set_event_target(&mut self, entity: #bevy_ecs_path::entity::Entity) {
-                    self.#entity_field = Into::into(entity);
-                }
-            }
-        }
-    } else {
-        quote! {}
     };
 
     TokenStream::from(quote! {
@@ -130,8 +86,6 @@ pub fn derive_entity_event(input: TokenStream) -> TokenStream {
                 #bevy_ecs_path::entity::ContainsEntity::entity(&self.#entity_field)
             }
         }
-
-        #set_entity_event_target_impl
     })
 }
 

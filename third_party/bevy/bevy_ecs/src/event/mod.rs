@@ -151,17 +151,6 @@ pub trait Event: Send + Sync + Sized + 'static {
 /// struct Explode(Bomb);
 /// ```
 ///
-/// By default, an [`EntityEvent`] is immutable. This means the event data, including the target, does not change while the event
-/// is triggered. However, to support event propagation, your event must also implement the [`SetEntityEventTarget`] trait.
-///
-/// This trait is automatically implemented for you if you enable event propagation:
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #[derive(EntityEvent)]
-/// #[entity_event(propagate)]
-/// struct Explode(Entity);
-/// ```
-///
 /// ## Trigger Behavior
 ///
 /// When derived, [`EntityEvent`] defaults to setting [`Event::Trigger`] to [`EntityTrigger`], which will run all normal "untargeted"
@@ -187,88 +176,6 @@ pub trait Event: Send + Sync + Sized + 'static {
 ///
 /// world.entity_mut(e2).observe(|event: On<Explode>, mut commands: Commands| {
 ///     println!("The explosion fizzles! This entity is immune!");
-/// });
-/// ```
-///
-/// ## [`EntityEvent`] Propagation
-///
-/// When deriving [`EntityEvent`], you can enable "event propagation" (also known as "event bubbling") by
-/// specifying the `#[entity_event(propagate)]` attribute:
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #[derive(EntityEvent)]
-/// #[entity_event(propagate)]
-/// struct Click {
-///     entity: Entity,
-/// }
-/// ```
-///
-/// This will default to using the [`ChildOf`](crate::hierarchy::ChildOf) component to propagate the [`Event`] "up"
-/// the hierarchy (from child to parent).
-///
-/// You can also specify your own [`Traversal`](crate::traversal::Traversal) implementation. A common pattern is to use
-/// [`Relationship`](crate::relationship::Relationship) components, which will follow the relationships to their root
-/// (just be sure to avoid cycles ... these aren't detected for performance reasons):
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #[derive(Component)]
-/// #[relationship(relationship_target = ClickableBy)]
-/// struct Clickable(Entity);
-///
-/// #[derive(Component)]
-/// #[relationship_target(relationship = Clickable)]
-/// struct ClickableBy(Vec<Entity>);
-///
-/// #[derive(EntityEvent)]
-/// #[entity_event(propagate = &'static Clickable)]
-/// struct Click {
-///     entity: Entity,
-/// }
-/// ```
-///
-/// By default, propagation requires observers to opt-in:
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #[derive(EntityEvent)]
-/// #[entity_event(propagate)]
-/// struct Click {
-///     entity: Entity,
-/// }
-///
-/// # let mut world = World::default();
-/// world.add_observer(|mut click: On<Click>| {
-///   // this will propagate the event up to the parent, using `ChildOf`
-///   click.propagate(true);
-/// });
-/// ```
-///
-/// But you can enable auto propagation using the `#[entity_event(auto_propagate)]` attribute:
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #[derive(EntityEvent)]
-/// #[entity_event(propagate, auto_propagate)]
-/// struct Click {
-///     entity: Entity,
-/// }
-/// ```
-///
-/// You can also _stop_ propagation like this:
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// # #[derive(EntityEvent)]
-/// # #[entity_event(propagate)]
-/// # struct Click {
-/// #    entity: Entity,
-/// # }
-/// # fn is_finished_propagating() -> bool { true }
-/// # let mut world = World::default();
-/// world.add_observer(|mut click: On<Click>| {
-///   if is_finished_propagating() {
-///     click.propagate(false);
-///   }
 /// });
 /// ```
 ///
@@ -310,21 +217,6 @@ pub trait Event: Send + Sync + Sized + 'static {
 pub trait EntityEvent: Event {
     /// The [`Entity`] "target" of this [`EntityEvent`]. When triggered, this will run observers that watch for this specific entity.
     fn event_target(&self) -> Entity;
-}
-
-/// A trait which is used to set the target of an [`EntityEvent`].
-///
-/// By default, entity events are immutable; meaning their target does not change during the lifetime of the event. However, some events
-/// may require mutable access to provide features such as event propagation.
-///
-/// You should never need to implement this trait manually if you use `#[derive(EntityEvent)]`. It is automatically implemented for you if you
-/// use `#[entity_event(propagate)]`.
-pub trait SetEntityEventTarget: EntityEvent {
-    /// Sets the [`Entity`] "target" of this [`EntityEvent`]. When triggered, this will run observers that watch for this specific entity.
-    ///
-    /// Note: In general, this should not be called from within an [`Observer`](crate::observer::Observer), as this will not "retarget"
-    /// the event in any of Bevy's built-in [`Trigger`] implementations.
-    fn set_event_target(&mut self, entity: Entity);
 }
 
 impl World {
@@ -978,35 +870,11 @@ mod tests {
             }
         }
 
-        struct MutableEntitoid(Entity);
-
-        impl ContainsEntity for MutableEntitoid {
-            fn entity(&self) -> Entity {
-                self.0
-            }
-        }
-
-        impl From<Entity> for MutableEntitoid {
-            fn from(value: Entity) -> Self {
-                Self(value)
-            }
-        }
-
         #[derive(EntityEvent)]
         struct A(Entity);
 
         #[derive(EntityEvent)]
-        #[entity_event(propagate)]
-        struct AP(Entity);
-
-        #[derive(EntityEvent)]
         struct B {
-            entity: Entity,
-        }
-
-        #[derive(EntityEvent)]
-        #[entity_event(propagate)]
-        struct BP {
             entity: Entity,
         }
 
@@ -1017,31 +885,12 @@ mod tests {
         }
 
         #[derive(EntityEvent)]
-        #[entity_event(propagate)]
-        struct CP {
-            #[event_target]
-            target: Entity,
-        }
-
-        #[derive(EntityEvent)]
         struct D(Entitoid);
-
-        // SHOULD NOT COMPILE:
-        // #[derive(EntityEvent)]
-        // #[entity_event(propagate)]
-        // struct DP(Entitoid);
 
         #[derive(EntityEvent)]
         struct E {
             entity: Entitoid,
         }
-
-        // SHOULD NOT COMPILE:
-        // #[derive(EntityEvent)]
-        // #[entity_event(propagate)]
-        // struct EP {
-        //     entity: Entitoid,
-        // }
 
         #[derive(EntityEvent)]
         struct F {
@@ -1049,33 +898,12 @@ mod tests {
             target: Entitoid,
         }
 
-        // SHOULD NOT COMPILE:
-        // #[derive(EntityEvent)]
-        // #[entity_event(propagate)]
-        // struct FP {
-        //     #[event_target]
-        //     target: Entitoid,
-        // }
-
-        #[derive(EntityEvent)]
-        #[entity_event(propagate)]
-        struct G(MutableEntitoid);
-
-        impl From<Entity> for G {
-            fn from(value: Entity) -> Self {
-                Self(value.into())
-            }
-        }
-
         let mut world = World::new();
         let entity = world.spawn_empty().id();
 
         world.entity_mut(entity).trigger(A);
-        world.entity_mut(entity).trigger(AP);
         world.trigger(B { entity });
-        world.trigger(BP { entity });
         world.trigger(C { target: entity });
-        world.trigger(CP { target: entity });
         world.trigger(D(Entitoid(entity)));
         world.trigger(E {
             entity: Entitoid(entity),
@@ -1083,8 +911,6 @@ mod tests {
         world.trigger(F {
             target: Entitoid(entity),
         });
-        world.trigger(G(MutableEntitoid(entity)));
-        world.entity_mut(entity).trigger(G::from);
 
         // No asserts; test just needs to compile
     }

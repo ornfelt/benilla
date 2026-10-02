@@ -3,7 +3,7 @@ use indexmap::IndexSet;
 use proc_macro2::Span;
 
 use crate::{
-    container_attributes::{ContainerAttributes, FromReflectAttrs, TypePathAttrs},
+    container_attributes::{ContainerAttributes, FromReflectAttrs},
     field_attributes::FieldAttributes,
     string_expr::StringExpr,
     type_path::parse_path_no_leading_colon,
@@ -15,9 +15,8 @@ use quote::{quote, ToTokens};
 use syn::{token::Comma, MacroDelimiter};
 
 use crate::enum_utility::{EnumVariantOutputData, ReflectCloneVariantBuilder, VariantBuilder};
-use crate::field_attributes::CloneBehavior;
 use crate::generics::generate_generics;
-use bevy_macro_utils::fq_std::{FQClone, FQOption, FQResult};
+use bevy_macro_utils::fq_std::{FQOption, FQResult};
 use syn::{
     parse_str, punctuated::Punctuated, spanned::Spanned, Data, DeriveInput, Field, Fields,
     GenericParam, Generics, Ident, LitStr, Member, Meta, Path, PathSegment, Type, TypeParam,
@@ -242,7 +241,6 @@ impl<'a> ReflectDerive<'a> {
         let meta = ReflectMeta::new(type_path, container_attributes);
 
         if provenance.source == ReflectImplSource::ImplRemoteType
-            && meta.type_path_attrs().should_auto_derive()
             && !meta.type_path().has_custom_path()
         {
             return Err(syn::Error::new(
@@ -364,11 +362,6 @@ impl<'a> ReflectMeta<'a> {
     )]
     pub fn from_reflect(&self) -> &FromReflectAttrs {
         self.attrs.from_reflect_attrs()
-    }
-
-    /// The `TypePath` attributes on this type.
-    pub fn type_path_attrs(&self) -> &TypePathAttrs {
-        self.attrs.type_path_attrs()
     }
 
     /// The path to this type.
@@ -550,41 +543,27 @@ impl<'a> ReflectStruct<'a> {
             let member = field.to_member();
             let accessor = self.access_for_field(field, false);
 
-            match &field.attrs.clone {
-                CloneBehavior::Default => {
-                    let value = if field.attrs.ignore.is_ignored() {
-                        let field_id = field.field_id(bevy_reflect_path);
+            let value = if field.attrs.ignore.is_ignored() {
+                let field_id = field.field_id(bevy_reflect_path);
 
-                        quote! {
-                            return #FQResult::Err(#bevy_reflect_path::ReflectCloneError::FieldNotCloneable {
-                                field: #field_id,
-                                variant: #FQOption::None,
-                                container_type_path:  #bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(
-                                    <Self as #bevy_reflect_path::TypePath>::type_path()
-                                )
-                            })
-                        }
-                    } else {
-                        quote! {
-                            <#field_ty as #bevy_reflect_path::PartialReflect>::reflect_clone_and_take(#accessor)?
-                        }
-                    };
+                quote! {
+                    return #FQResult::Err(#bevy_reflect_path::ReflectCloneError::FieldNotCloneable {
+                        field: #field_id,
+                        variant: #FQOption::None,
+                        container_type_path:  #bevy_reflect_path::__macro_exports::alloc_utils::Cow::Borrowed(
+                            <Self as #bevy_reflect_path::TypePath>::type_path()
+                        )
+                    })
+                }
+            } else {
+                quote! {
+                    <#field_ty as #bevy_reflect_path::PartialReflect>::reflect_clone_and_take(#accessor)?
+                }
+            };
 
-                    tokens.extend(quote! {
-                        #member: #value,
-                    });
-                }
-                CloneBehavior::Trait => {
-                    tokens.extend(quote! {
-                        #member: #FQClone::clone(#accessor),
-                    });
-                }
-                CloneBehavior::Func(clone_fn) => {
-                    tokens.extend(quote! {
-                        #member: #clone_fn(#accessor),
-                    });
-                }
-            }
+            tokens.extend(quote! {
+                #member: #value,
+            });
         }
 
         let ctor = quote! {

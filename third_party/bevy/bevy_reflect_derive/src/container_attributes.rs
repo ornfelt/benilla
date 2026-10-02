@@ -13,18 +13,16 @@ use bevy_macro_utils::{
 use proc_macro2::{Ident, Span};
 use quote::quote_spanned;
 use syn::{
-    ext::IdentExt, parenthesized, parse::ParseStream, spanned::Spanned, token, Expr, LitBool,
-    MetaList, MetaNameValue, Path, Token, WhereClause,
+    ext::IdentExt, parse::ParseStream, spanned::Spanned, token, Expr, LitBool, MetaList,
+    MetaNameValue, Path, Token,
 };
 
 mod kw {
     syn::custom_keyword!(from_reflect);
-    syn::custom_keyword!(type_path);
     syn::custom_keyword!(Debug);
     syn::custom_keyword!(PartialEq);
     syn::custom_keyword!(Hash);
     syn::custom_keyword!(Clone);
-    syn::custom_keyword!(no_field_bounds);
     syn::custom_keyword!(opaque);
 }
 
@@ -41,9 +39,6 @@ pub(crate) const REFLECT_DEFAULT: &str = "ReflectDefault";
 // Attributes for `FromReflect` implementation
 const FROM_REFLECT_ATTR: &str = "from_reflect";
 
-// Attributes for `TypePath` implementation
-const TYPE_PATH_ATTR: &str = "type_path";
-
 // The error message to show when a trait/type is specified multiple times
 const CONFLICTING_TYPE_DATA_MESSAGE: &str = "conflicting type data registration";
 
@@ -56,29 +51,6 @@ pub(crate) enum TraitImpl {
 
     /// The trait is registered as implemented.
     Implemented(Span),
-
-    /// The trait is registered with a custom function rather than an actual implementation.
-    Custom(Path, Span),
-}
-
-impl TraitImpl {
-    /// Merges this [`TraitImpl`] with another.
-    ///
-    /// Update `self` with whichever value is not [`TraitImpl::NotImplemented`].
-    /// If `other` is [`TraitImpl::NotImplemented`], then `self` is not modified.
-    /// An error is returned if neither value is [`TraitImpl::NotImplemented`].
-    pub fn merge(&mut self, other: TraitImpl) -> Result<(), syn::Error> {
-        match (&self, other) {
-            (TraitImpl::NotImplemented, value) => {
-                *self = value;
-                Ok(())
-            }
-            (_, TraitImpl::NotImplemented) => Ok(()),
-            (_, TraitImpl::Implemented(span) | TraitImpl::Custom(_, span)) => {
-                Err(syn::Error::new(span, CONFLICTING_TYPE_DATA_MESSAGE))
-            }
-        }
-    }
 }
 
 /// A collection of attributes used for deriving `FromReflect`.
@@ -89,26 +61,6 @@ pub(crate) struct FromReflectAttrs {
 
 impl FromReflectAttrs {
     /// Returns true if `FromReflect` should be automatically derived as part of the `Reflect` derive.
-    pub fn should_auto_derive(&self) -> bool {
-        self.auto_derive.as_ref().is_none_or(LitBool::value)
-    }
-}
-
-/// A collection of attributes used for deriving `TypePath` via the `Reflect` derive.
-///
-/// Note that this differs from the attributes used by the `TypePath` derive itself,
-/// which look like `[type_path = "my_crate::foo"]`.
-/// The attributes used by reflection take the form `#[reflect(type_path = false)]`.
-///
-/// These attributes should only be used for `TypePath` configuration specific to
-/// deriving `Reflect`.
-#[derive(Clone, Default)]
-pub(crate) struct TypePathAttrs {
-    auto_derive: Option<LitBool>,
-}
-
-impl TypePathAttrs {
-    /// Returns true if `TypePath` should be automatically derived as part of the `Reflect` derive.
     pub fn should_auto_derive(&self) -> bool {
         self.auto_derive.as_ref().is_none_or(LitBool::value)
     }
@@ -131,9 +83,6 @@ impl TypePathAttrs {
 ///   needs `bevy_reflect::prelude::ReflectDefault` in scope.
 /// * Traits must be single path identifiers. This means you _must_ use `Default`
 ///   instead of `std::default::Default` (otherwise it will try to register `Reflectstd`!)
-/// * A custom function may be supplied in place of an actual implementation
-///   for the special traits (but still follows the same single-path identifier
-///   rules as normal).
 ///
 /// # Example
 ///
@@ -157,23 +106,6 @@ impl TypePathAttrs {
 /// #[reflect(Hash)]
 /// struct Foo;
 /// ```
-///
-/// Registering the `Hash` implementation using a custom function:
-///
-/// ```ignore (bevy_reflect is not accessible from this crate)
-/// // This function acts as our `Hash` implementation and
-/// // corresponds to the `Reflect::reflect_hash` method.
-/// fn get_hash(foo: &Foo) -> Option<u64> {
-///   Some(123)
-/// }
-///
-/// #[derive(Reflect)]
-/// // Register the custom `Hash` function
-/// #[reflect(Hash(get_hash))]
-/// struct Foo;
-/// ```
-///
-/// > __Note:__ Registering a custom function only works for special traits.
 #[derive(Default, Clone)]
 pub(crate) struct ContainerAttributes {
     clone: TraitImpl,
@@ -181,9 +113,6 @@ pub(crate) struct ContainerAttributes {
     hash: TraitImpl,
     partial_eq: TraitImpl,
     from_reflect_attrs: FromReflectAttrs,
-    type_path_attrs: TypePathAttrs,
-    custom_where: Option<WhereClause>,
-    no_field_bounds: bool,
     is_opaque: bool,
     idents: Vec<Ident>,
 }
@@ -192,7 +121,7 @@ impl ContainerAttributes {
     /// Parse a comma-separated list of container attributes.
     ///
     /// # Example
-    /// - `Hash, Debug(custom_debug), MyTrait`
+    /// - `Hash, Debug, MyTrait`
     pub fn parse_terminated(
         &mut self,
         input: ParseStream,
@@ -208,8 +137,7 @@ impl ContainerAttributes {
     /// Parse the contents of a `#[reflect(...)]` attribute into a [`ContainerAttributes`] instance.
     ///
     /// # Example
-    /// - `#[reflect(Hash, Debug(custom_debug), MyTrait)]`
-    /// - `#[reflect(no_field_bounds)]`
+    /// - `#[reflect(Hash, Debug, MyTrait)]`
     pub fn parse_meta_list(
         &mut self,
         meta: &MetaList,
@@ -225,16 +153,10 @@ impl ContainerAttributes {
         trait_: ReflectTraitToImpl,
     ) -> syn::Result<()> {
         let lookahead = input.lookahead1();
-        if lookahead.peek(Token![where]) {
-            self.parse_custom_where(input)
-        } else if lookahead.peek(kw::from_reflect) {
+        if lookahead.peek(kw::from_reflect) {
             self.parse_from_reflect(input, trait_)
-        } else if lookahead.peek(kw::type_path) {
-            self.parse_type_path(input, trait_)
         } else if lookahead.peek(kw::opaque) {
             self.parse_opaque(input)
-        } else if lookahead.peek(kw::no_field_bounds) {
-            self.parse_no_field_bounds(input)
         } else if lookahead.peek(kw::Clone) {
             self.parse_clone(input)
         } else if lookahead.peek(kw::Debug) {
@@ -279,19 +201,9 @@ impl ContainerAttributes {
     ///
     /// Examples:
     /// - `#[reflect(Clone)]`
-    /// - `#[reflect(Clone(custom_clone_fn))]`
     fn parse_clone(&mut self, input: ParseStream) -> syn::Result<()> {
         let ident = input.parse::<kw::Clone>()?;
-
-        if input.peek(token::Paren) {
-            let content;
-            parenthesized!(content in input);
-            let path = content.parse::<Path>()?;
-            self.clone.merge(TraitImpl::Custom(path, ident.span))?;
-        } else {
-            self.clone = TraitImpl::Implemented(ident.span);
-        }
-
+        self.clone = TraitImpl::Implemented(ident.span);
         Ok(())
     }
 
@@ -299,19 +211,9 @@ impl ContainerAttributes {
     ///
     /// Examples:
     /// - `#[reflect(Debug)]`
-    /// - `#[reflect(Debug(custom_debug_fn))]`
     fn parse_debug(&mut self, input: ParseStream) -> syn::Result<()> {
         let ident = input.parse::<kw::Debug>()?;
-
-        if input.peek(token::Paren) {
-            let content;
-            parenthesized!(content in input);
-            let path = content.parse::<Path>()?;
-            self.debug.merge(TraitImpl::Custom(path, ident.span))?;
-        } else {
-            self.debug = TraitImpl::Implemented(ident.span);
-        }
-
+        self.debug = TraitImpl::Implemented(ident.span);
         Ok(())
     }
 
@@ -319,19 +221,9 @@ impl ContainerAttributes {
     ///
     /// Examples:
     /// - `#[reflect(PartialEq)]`
-    /// - `#[reflect(PartialEq(custom_partial_eq_fn))]`
     fn parse_partial_eq(&mut self, input: ParseStream) -> syn::Result<()> {
         let ident = input.parse::<kw::PartialEq>()?;
-
-        if input.peek(token::Paren) {
-            let content;
-            parenthesized!(content in input);
-            let path = content.parse::<Path>()?;
-            self.partial_eq.merge(TraitImpl::Custom(path, ident.span))?;
-        } else {
-            self.partial_eq = TraitImpl::Implemented(ident.span);
-        }
-
+        self.partial_eq = TraitImpl::Implemented(ident.span);
         Ok(())
     }
 
@@ -339,19 +231,9 @@ impl ContainerAttributes {
     ///
     /// Examples:
     /// - `#[reflect(Hash)]`
-    /// - `#[reflect(Hash(custom_hash_fn))]`
     fn parse_hash(&mut self, input: ParseStream) -> syn::Result<()> {
         let ident = input.parse::<kw::Hash>()?;
-
-        if input.peek(token::Paren) {
-            let content;
-            parenthesized!(content in input);
-            let path = content.parse::<Path>()?;
-            self.hash.merge(TraitImpl::Custom(path, ident.span))?;
-        } else {
-            self.hash = TraitImpl::Implemented(ident.span);
-        }
-
+        self.hash = TraitImpl::Implemented(ident.span);
         Ok(())
     }
 
@@ -362,25 +244,6 @@ impl ContainerAttributes {
     fn parse_opaque(&mut self, input: ParseStream) -> syn::Result<()> {
         input.parse::<kw::opaque>()?;
         self.is_opaque = true;
-        Ok(())
-    }
-
-    /// Parse `no_field_bounds` attribute.
-    ///
-    /// Examples:
-    /// - `#[reflect(no_field_bounds)]`
-    fn parse_no_field_bounds(&mut self, input: ParseStream) -> syn::Result<()> {
-        input.parse::<kw::no_field_bounds>()?;
-        self.no_field_bounds = true;
-        Ok(())
-    }
-
-    /// Parse `where` attribute.
-    ///
-    /// Examples:
-    /// - `#[reflect(where T: Debug)]`
-    fn parse_custom_where(&mut self, input: ParseStream) -> syn::Result<()> {
-        self.custom_where = Some(input.parse()?);
         Ok(())
     }
 
@@ -419,41 +282,6 @@ impl ContainerAttributes {
         Ok(())
     }
 
-    /// Parse `type_path` attribute.
-    ///
-    /// Examples:
-    /// - `#[reflect(type_path = false)]`
-    fn parse_type_path(
-        &mut self,
-        input: ParseStream,
-        trait_: ReflectTraitToImpl,
-    ) -> syn::Result<()> {
-        let pair = input.parse::<MetaNameValue>()?;
-        let extracted_bool = extract_bool(&pair.value, |lit| {
-            // Override `lit` if this is a `FromReflect` derive.
-            // This typically means a user is opting out of the default implementation
-            // from the `Reflect` derive and using the `FromReflect` derive directly instead.
-            if trait_ == ReflectTraitToImpl::TypePath {
-                LitBool::new(true, Span::call_site())
-            } else {
-                lit.clone()
-            }
-        })?;
-
-        if let Some(existing) = &self.type_path_attrs.auto_derive {
-            if existing.value() != extracted_bool.value() {
-                return Err(syn::Error::new(
-                    extracted_bool.span(),
-                    format!("`{TYPE_PATH_ATTR}` already set to {}", existing.value()),
-                ));
-            }
-        } else {
-            self.type_path_attrs.auto_derive = Some(extracted_bool);
-        }
-
-        Ok(())
-    }
-
     /// Returns true if the given reflected trait name (i.e. `ReflectDefault` for `Default`)
     /// is registered for this type.
     pub fn contains(&self, name: &str) -> bool {
@@ -474,11 +302,6 @@ impl ContainerAttributes {
         &self.from_reflect_attrs
     }
 
-    /// The `TypePath` configuration found within `#[reflect(...)]` attributes on this type.
-    pub fn type_path_attrs(&self) -> &TypePathAttrs {
-        &self.type_path_attrs
-    }
-
     /// Returns the implementation of `PartialReflect::reflect_hash` as a `TokenStream`.
     ///
     /// If `Hash` was not registered, returns `None`.
@@ -491,11 +314,6 @@ impl ContainerAttributes {
                     Hash::hash(&#FQAny::type_id(self), &mut hasher);
                     Hash::hash(self, &mut hasher);
                     #FQOption::Some(Hasher::finish(&hasher))
-                }
-            }),
-            &TraitImpl::Custom(ref impl_fn, span) => Some(quote_spanned! {span=>
-                fn reflect_hash(&self) -> #FQOption<u64> {
-                    #FQOption::Some(#impl_fn(self))
                 }
             }),
             TraitImpl::NotImplemented => None,
@@ -520,11 +338,6 @@ impl ContainerAttributes {
                     }
                 }
             }),
-            &TraitImpl::Custom(ref impl_fn, span) => Some(quote_spanned! {span=>
-                fn reflect_partial_eq(&self, value: &dyn #bevy_reflect_path::PartialReflect) -> #FQOption<bool> {
-                    #FQOption::Some(#impl_fn(self, value))
-                }
-            }),
             TraitImpl::NotImplemented => None,
         }
     }
@@ -539,11 +352,6 @@ impl ContainerAttributes {
                     ::core::fmt::Debug::fmt(self, f)
                 }
             }),
-            &TraitImpl::Custom(ref impl_fn, span) => Some(quote_spanned! {span=>
-                fn debug(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                    #impl_fn(self, f)
-                }
-            }),
             TraitImpl::NotImplemented => None,
         }
     }
@@ -556,24 +364,8 @@ impl ContainerAttributes {
                     #FQResult::Ok(#bevy_reflect_path::__macro_exports::alloc_utils::Box::new(#FQClone::clone(self)))
                 }
             }),
-            &TraitImpl::Custom(ref impl_fn, span) => Some(quote_spanned! {span=>
-                #[inline]
-                fn reflect_clone(&self) -> #FQResult<#bevy_reflect_path::__macro_exports::alloc_utils::Box<dyn #bevy_reflect_path::Reflect>, #bevy_reflect_path::ReflectCloneError> {
-                    #FQResult::Ok(#bevy_reflect_path::__macro_exports::alloc_utils::Box::new(#impl_fn(self)))
-                }
-            }),
             TraitImpl::NotImplemented => None,
         }
-    }
-
-    /// The custom where configuration found within `#[reflect(...)]` attributes on this type.
-    pub fn custom_where(&self) -> Option<&WhereClause> {
-        self.custom_where.as_ref()
-    }
-
-    /// Returns true if the `no_field_bounds` attribute was found on this type.
-    pub fn no_field_bounds(&self) -> bool {
-        self.no_field_bounds
     }
 
     /// Returns true if the `opaque` attribute was found on this type.

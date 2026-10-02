@@ -24,104 +24,28 @@ use syn::{
     DeriveInput, GenericParam, TypeParam,
 };
 
-enum BundleFieldKind {
-    Component,
-    Ignore,
-}
-
-const BUNDLE_ATTRIBUTE_NAME: &str = "bundle";
-const BUNDLE_ATTRIBUTE_IGNORE_NAME: &str = "ignore";
-const BUNDLE_ATTRIBUTE_NO_FROM_COMPONENTS: &str = "ignore_from_components";
-
-#[derive(Debug)]
-struct BundleAttributes {
-    impl_from_components: bool,
-}
-
-impl Default for BundleAttributes {
-    fn default() -> Self {
-        Self {
-            impl_from_components: true,
-        }
-    }
-}
-
 /// Implement the `Bundle` trait.
-#[proc_macro_derive(Bundle, attributes(bundle))]
+#[proc_macro_derive(Bundle)]
 pub fn derive_bundle(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let ecs_path = bevy_ecs_path();
-
-    let mut attributes = BundleAttributes::default();
-
-    for attr in &ast.attrs {
-        if attr.path().is_ident(BUNDLE_ATTRIBUTE_NAME) {
-            let parsing = attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident(BUNDLE_ATTRIBUTE_NO_FROM_COMPONENTS) {
-                    attributes.impl_from_components = false;
-                    return Ok(());
-                }
-
-                Err(meta.error(format!("Invalid bundle container attribute. Allowed attributes: `{BUNDLE_ATTRIBUTE_NO_FROM_COMPONENTS}`")))
-            });
-
-            if let Err(e) = parsing {
-                return e.into_compile_error().into();
-            }
-        }
-    }
 
     let fields = match get_struct_fields(&ast.data, "derive(Bundle)") {
         Ok(fields) => fields,
         Err(e) => return e.into_compile_error().into(),
     };
 
-    let mut field_kinds = Vec::with_capacity(fields.len());
-
-    for field in fields {
-        let mut kind = BundleFieldKind::Component;
-
-        for attr in field
-            .attrs
-            .iter()
-            .filter(|a| a.path().is_ident(BUNDLE_ATTRIBUTE_NAME))
-        {
-            if let Err(error) = attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident(BUNDLE_ATTRIBUTE_IGNORE_NAME) {
-                    kind = BundleFieldKind::Ignore;
-                    Ok(())
-                } else {
-                    Err(meta.error(format!(
-                        "Invalid bundle attribute. Use `{BUNDLE_ATTRIBUTE_IGNORE_NAME}`"
-                    )))
-                }
-            }) {
-                return error.into_compile_error().into();
-            }
-        }
-
-        field_kinds.push(kind);
-    }
-
     let field_types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
 
     let mut active_field_types = Vec::new();
     let mut active_field_members = Vec::new();
     let mut active_field_locals = Vec::new();
-    let mut inactive_field_members = Vec::new();
-    for ((field_member, field_type), field_kind) in
-        fields.members().zip(field_types).zip(field_kinds)
-    {
+    for (field_member, field_type) in fields.members().zip(field_types) {
         let field_local = format_ident!("field_{}", field_member);
 
-        match field_kind {
-            BundleFieldKind::Component => {
-                active_field_types.push(field_type);
-                active_field_locals.push(field_local);
-                active_field_members.push(field_member);
-            }
-            BundleFieldKind::Ignore => inactive_field_members.push(field_member),
-        }
+        active_field_types.push(field_type);
+        active_field_locals.push(field_local);
+        active_field_members.push(field_member);
     }
     let generics = ast.generics;
     let generics_ty_list = generics.type_params().map(|p| p.ident.clone());
@@ -160,7 +84,7 @@ pub fn derive_bundle(input: TokenStream) -> TokenStream {
                 use #ecs_path::__macro_exports::DebugCheckedUnwrap;
 
                 #ecs_path::ptr::deconstruct_moving_ptr!({
-                    let #struct_name { #(#active_field_members: #active_field_locals,)* #(#inactive_field_members: _,)* } = ptr;
+                    let #struct_name { #(#active_field_members: #active_field_locals,)* } = ptr;
                 });
                 #(
                     <#active_field_types as #ecs_path::bundle::DynamicBundle>::get_components(
@@ -180,7 +104,7 @@ pub fn derive_bundle(input: TokenStream) -> TokenStream {
         }
     };
 
-    let from_components_impl = attributes.impl_from_components.then(|| quote! {
+    let from_components_impl = quote! {
         // SAFETY:
         // - ComponentId is returned in field-definition-order. [from_components] uses field-definition-order
         unsafe impl #impl_generics #ecs_path::bundle::BundleFromComponents for #struct_name #ty_generics #where_clause {
@@ -191,11 +115,10 @@ pub fn derive_bundle(input: TokenStream) -> TokenStream {
             {
                 Self {
                     #(#active_field_members: <#active_field_types as #ecs_path::bundle::BundleFromComponents>::from_components(ctx, &mut *func),)*
-                    #(#inactive_field_members: ::core::default::Default::default(),)*
                 }
             }
         }
-    });
+    };
     TokenStream::from(quote! {
         #bundle_impl
         #from_components_impl
@@ -493,19 +416,7 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
     event::derive_event(input)
 }
 
-/// Cheat sheet for derive syntax,
-/// see full explanation on `EntityEvent` trait docs.
-///
-/// ```ignore
-/// #[derive(EntityEvent)]
-/// /// Enable propagation, which defaults to using the ChildOf component
-/// #[entity_event(propagate)]
-/// /// Enable propagation using the given Traversal implementation
-/// #[entity_event(propagate = &'static ChildOf)]
-/// /// Always propagate
-/// #[entity_event(auto_propagate)]
-/// struct MyEvent;
-/// ```
+/// Implement the `EntityEvent` trait.
 #[proc_macro_derive(EntityEvent, attributes(entity_event, event_target))]
 pub fn derive_entity_event(input: TokenStream) -> TokenStream {
     event::derive_entity_event(input)

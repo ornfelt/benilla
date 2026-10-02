@@ -36,15 +36,10 @@ impl<'a, 'b> WhereClauseOptions<'a, 'b> {
     ///   - An `Any` bound, if generic over lifetimes but not types
     ///   - No bounds, if generic over neither types nor lifetimes
     /// - Any given bounds in a `where` clause on the type
-    /// - Type parameters have the bound `TypePath` unless `#[reflect(type_path = false)]` is
-    ///   present
+    /// - Type parameters have the bound `TypePath`
     /// - Active fields with non-generic types have the bounds `TypePath`, either `PartialReflect`
     ///   if `#[reflect(from_reflect = false)]` is present or `FromReflect` otherwise,
-    ///   `MaybeTyped`, and `RegisterForReflection` (or no bounds at all if
-    ///   `#[reflect(no_field_bounds)]` is present)
-    ///
-    /// When the derive is used with `#[reflect(where)]`, the bounds specified in the attribute are
-    /// added as well.
+    ///   `MaybeTyped`, and `RegisterForReflection`
     ///
     /// # Example
     ///
@@ -69,37 +64,6 @@ impl<'a, 'b> WhereClauseOptions<'a, 'b> {
     ///   // Active non-generic field bounds
     ///   T: FromReflect + TypePath + MaybeTyped + RegisterForReflection,
     ///
-    /// ```
-    ///
-    /// If we add various things to the type:
-    ///
-    /// ```ignore (bevy_reflect is not accessible from this crate)
-    /// #[derive(Reflect)]
-    /// #[reflect(where T: MyTrait)]
-    /// #[reflect(no_field_bounds)]
-    /// struct Foo<T, U>
-    ///     where T: Clone
-    /// {
-    ///   a: T,
-    ///   #[reflect(ignore)]
-    ///   b: U
-    /// }
-    /// ```
-    ///
-    /// It will instead generate the following where clause:
-    ///
-    /// ```ignore (bevy_reflect is not accessible from this crate)
-    /// where
-    ///   // `Self` bounds:
-    ///   Foo<T, U>: Any + Send + Sync,
-    ///   // Given bounds:
-    ///   T: Clone,
-    ///   // Type parameter bounds:
-    ///   T: TypePath,
-    ///   U: TypePath,
-    ///   // No active non-generic field bounds
-    ///   // Custom bounds
-    ///   T: MyTrait,
     /// ```
     pub fn extend_where_clause(&self, where_clause: Option<&WhereClause>) -> TokenStream {
         let mut generic_where_clause = quote! { where };
@@ -145,10 +109,6 @@ impl<'a, 'b> WhereClauseOptions<'a, 'b> {
             predicates.extend(field_predicates);
         }
 
-        if let Some(custom_where) = self.meta.attrs().custom_where() {
-            predicates.push(custom_where.predicates.to_token_stream());
-        }
-
         predicates
     }
 
@@ -170,65 +130,60 @@ impl<'a, 'b> WhereClauseOptions<'a, 'b> {
 
     /// Returns an iterator over the where clause predicates for the active fields.
     fn active_field_predicates(&self) -> Option<impl Iterator<Item = TokenStream> + '_> {
-        if self.meta.attrs().no_field_bounds() {
-            None
-        } else {
-            let bevy_reflect_path = self.meta.bevy_reflect_path();
-            let reflect_bound = self.reflect_bound();
+        let bevy_reflect_path = self.meta.bevy_reflect_path();
+        let reflect_bound = self.reflect_bound();
 
-            // Get the identifiers of all type parameters.
-            let type_param_idents = self
-                .meta
-                .type_path()
-                .generics()
-                .type_params()
-                .map(|type_param| type_param.ident.clone())
-                .collect::<Vec<Ident>>();
+        // Get the identifiers of all type parameters.
+        let type_param_idents = self
+            .meta
+            .type_path()
+            .generics()
+            .type_params()
+            .map(|type_param| type_param.ident.clone())
+            .collect::<Vec<Ident>>();
 
-            // Do any of the identifiers in `idents` appear in `token_stream`?
-            fn is_any_ident_in_token_stream(idents: &[Ident], token_stream: TokenStream) -> bool {
-                for token_tree in token_stream {
-                    match token_tree {
-                        TokenTree::Ident(ident) => {
-                            if idents.contains(&ident) {
-                                return true;
-                            }
+        // Do any of the identifiers in `idents` appear in `token_stream`?
+        fn is_any_ident_in_token_stream(idents: &[Ident], token_stream: TokenStream) -> bool {
+            for token_tree in token_stream {
+                match token_tree {
+                    TokenTree::Ident(ident) => {
+                        if idents.contains(&ident) {
+                            return true;
                         }
-                        TokenTree::Group(group) => {
-                            if is_any_ident_in_token_stream(idents, group.stream()) {
-                                return true;
-                            }
-                        }
-                        TokenTree::Punct(_) | TokenTree::Literal(_) => {}
                     }
+                    TokenTree::Group(group) => {
+                        if is_any_ident_in_token_stream(idents, group.stream()) {
+                            return true;
+                        }
+                    }
+                    TokenTree::Punct(_) | TokenTree::Literal(_) => {}
                 }
-                false
             }
-
-            Some(self.active_types.iter().filter_map(move |ty| {
-                // Field type bounds are only required if `ty` is generic. How to determine that?
-                // Search `ty`s token stream for identifiers that match the identifiers from the
-                // function's type params. E.g. if `T` and `U` are the type param identifiers and
-                // `ty` is `Vec<[T; 4]>` then the `T` identifiers match. This is a bit hacky, but
-                // it works.
-                let is_generic =
-                    is_any_ident_in_token_stream(&type_param_idents, ty.to_token_stream());
-
-                is_generic.then(|| {
-                    quote!(
-                        #ty: #reflect_bound
-                            // Needed to construct `NamedField` and `UnnamedField` instances for
-                            // the `Typed` impl.
-                            + #bevy_reflect_path::TypePath
-                            // Needed for `Typed` impls
-                            + #bevy_reflect_path::MaybeTyped
-                            // Needed for registering type dependencies in the
-                            // `GetTypeRegistration` impl.
-                            + #bevy_reflect_path::__macro_exports::RegisterForReflection
-                    )
-                })
-            }))
+            false
         }
+
+        Some(self.active_types.iter().filter_map(move |ty| {
+            // Field type bounds are only required if `ty` is generic. How to determine that?
+            // Search `ty`s token stream for identifiers that match the identifiers from the
+            // function's type params. E.g. if `T` and `U` are the type param identifiers and
+            // `ty` is `Vec<[T; 4]>` then the `T` identifiers match. This is a bit hacky, but
+            // it works.
+            let is_generic = is_any_ident_in_token_stream(&type_param_idents, ty.to_token_stream());
+
+            is_generic.then(|| {
+                quote!(
+                    #ty: #reflect_bound
+                        // Needed to construct `NamedField` and `UnnamedField` instances for
+                        // the `Typed` impl.
+                        + #bevy_reflect_path::TypePath
+                        // Needed for `Typed` impls
+                        + #bevy_reflect_path::MaybeTyped
+                        // Needed for registering type dependencies in the
+                        // `GetTypeRegistration` impl.
+                        + #bevy_reflect_path::__macro_exports::RegisterForReflection
+                )
+            })
+        }))
     }
 
     /// The `PartialReflect` or `FromReflect` bound to use based on `#[reflect(from_reflect = false)]`.
@@ -242,13 +197,9 @@ impl<'a, 'b> WhereClauseOptions<'a, 'b> {
         }
     }
 
-    /// The `TypePath` bounds to use based on `#[reflect(type_path = false)]`.
+    /// The `TypePath` bound for the type parameters.
     fn type_path_bound(&self) -> Option<TokenStream> {
-        if self.meta.type_path_attrs().should_auto_derive() {
-            let bevy_reflect_path = self.meta.bevy_reflect_path();
-            Some(quote!(#bevy_reflect_path::TypePath))
-        } else {
-            None
-        }
+        let bevy_reflect_path = self.meta.bevy_reflect_path();
+        Some(quote!(#bevy_reflect_path::TypePath))
     }
 }

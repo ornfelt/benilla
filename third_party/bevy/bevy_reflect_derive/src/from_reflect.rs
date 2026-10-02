@@ -2,7 +2,6 @@ use crate::{
     container_attributes::REFLECT_DEFAULT,
     derive_data::ReflectEnum,
     enum_utility::{EnumVariantOutputData, FromReflectVariantBuilder, VariantBuilder},
-    field_attributes::DefaultBehavior,
     where_clause_options::WhereClauseOptions,
     ReflectMeta, ReflectStruct,
 };
@@ -184,10 +183,7 @@ fn get_ignored_fields(reflect_struct: &ReflectStruct) -> MemberValuePair {
             .map(|field| {
                 let member = as_member(field.data.ident.as_ref(), field.declaration_index);
 
-                let value = match &field.attrs.default {
-                    DefaultBehavior::Func(path) => quote! {#path()},
-                    _ => quote! {#FQDefault::default()},
-                };
+                let value = quote! {#FQDefault::default()};
 
                 (member, value)
             })
@@ -223,38 +219,12 @@ fn get_active_fields(
                     #bevy_reflect_path::#struct_type::field(#dyn_struct_name, #accessor)
                 };
 
-                let value = match &field.attrs.default {
-                    DefaultBehavior::Func(path) => {
-                        let value = quote! {
-                            <#ty as #bevy_reflect_path::FromReflect>::from_reflect(field)
-                        };
-                        quote! {
-                            if let #FQOption::Some(field) = #get_field {
-                                #value
-                            } else {
-                                #FQOption::Some(#path())
-                            }
-                        }
-                    }
-                    DefaultBehavior::Default => {
-                        let value = quote! {
-                            <#ty as #bevy_reflect_path::FromReflect>::from_reflect(field)
-                        };
-                        quote! {
-                            if let #FQOption::Some(field) = #get_field {
-                                #value
-                            } else {
-                                #FQOption::Some(#FQDefault::default())
-                            }
-                        }
-                    }
-                    DefaultBehavior::Required => {
-                        let value = quote! {
-                            <#ty as #bevy_reflect_path::FromReflect>::from_reflect(#get_field?)
-                        };
-                        quote! {
-                            #value
-                        }
+                let value = {
+                    let value = quote! {
+                        <#ty as #bevy_reflect_path::FromReflect>::from_reflect(#get_field?)
+                    };
+                    quote! {
+                        #value
                     }
                 };
 

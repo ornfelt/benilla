@@ -54,7 +54,6 @@ pub mod schedule;
 pub mod spawn;
 pub mod storage;
 pub mod system;
-pub mod traversal;
 pub mod world;
 
 pub use bevy_ptr as ptr;
@@ -297,40 +296,6 @@ mod tests {
                     y: SparseStored(789),
                 },
                 b: B(2),
-            }
-        );
-
-        #[derive(Default, Component, PartialEq, Debug)]
-        struct Ignored;
-
-        #[derive(Bundle, PartialEq, Debug)]
-        struct BundleWithIgnored {
-            c: C,
-            #[bundle(ignore)]
-            ignored: Ignored,
-        }
-
-        let ids: Vec<_> =
-            <BundleWithIgnored as Bundle>::component_ids(&mut world.components_registrator())
-                .collect();
-
-        assert_eq!(ids, &[world.register_component::<C>(),]);
-
-        let e4 = world
-            .spawn(BundleWithIgnored {
-                c: C,
-                ignored: Ignored,
-            })
-            .id();
-
-        assert_eq!(world.get::<C>(e4).unwrap(), &C);
-        assert_eq!(world.get::<Ignored>(e4), None);
-
-        assert_eq!(
-            world.entity_mut(e4).take::<BundleWithIgnored>().unwrap(),
-            BundleWithIgnored {
-                c: C,
-                ignored: Ignored,
             }
         );
     }

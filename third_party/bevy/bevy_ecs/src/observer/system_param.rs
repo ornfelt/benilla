@@ -3,9 +3,8 @@
 use crate::{
     bundle::Bundle,
     change_detection::MaybeLocation,
-    event::{Event, EventKey, PropagateEntityTrigger},
+    event::{Event, EventKey},
     prelude::*,
-    traversal::Traversal,
 };
 use core::{
     fmt::Debug,
@@ -16,8 +15,7 @@ use core::{
 /// A [system parameter] used by an observer to process events. See [`Observer`] and [`Event`] for examples.
 ///
 /// `On` contains the triggered [`Event`] data for a given run of an `Observer`. It also provides access to the
-/// [`Trigger`](crate::event::Trigger), which for things like [`EntityEvent`] with a [`PropagateEntityTrigger`],
-/// includes control over event propagation.
+/// [`Trigger`](crate::event::Trigger).
 ///
 /// The generic `B: Bundle` is used to further specialize the events that this observer is interested in.
 /// The entity involved *does not* have to have these components, but the observer will only be
@@ -96,39 +94,6 @@ impl<'w, 't, E: Event, B: Bundle> On<'w, 't, E, B> {
     /// Returns the source code location that triggered this observer, if the `track_location` cargo feature is enabled.
     pub fn caller(&self) -> MaybeLocation {
         self.trigger_context.caller
-    }
-}
-
-impl<
-        'w,
-        't,
-        const AUTO_PROPAGATE: bool,
-        E: EntityEvent + for<'a> Event<Trigger<'a> = PropagateEntityTrigger<AUTO_PROPAGATE, E, T>>,
-        B: Bundle,
-        T: Traversal<E>,
-    > On<'w, 't, E, B>
-{
-    /// Returns the original [`Entity`] that this [`EntityEvent`] targeted via [`EntityEvent::event_target`] when it was _first_ triggered,
-    /// prior to any propagation logic.
-    pub fn original_event_target(&self) -> Entity {
-        self.trigger.original_event_target
-    }
-
-    /// Enables or disables event propagation, allowing the same event to trigger observers on a chain of different entities.
-    ///
-    /// The path an [`EntityEvent`] will propagate along is specified by the [`Traversal`] component defined in [`PropagateEntityTrigger`].
-    ///
-    /// [`EntityEvent`] does not propagate by default. To enable propagation, you must:
-    /// + Enable propagation in [`EntityEvent`] using `#[entity_event(propagate)]`. See [`EntityEvent`] for details.
-    /// + Either call `propagate(true)` in the first observer or in the [`EntityEvent`] derive add `#[entity_event(auto_propagate)]`.
-    ///
-    /// You can prevent an event from propagating further using `propagate(false)`. This will prevent the event from triggering on the next
-    /// [`Entity`] in the [`Traversal`], but note that all remaining observers for the _current_ entity will still run.
-    ///
-    ///
-    /// [`Traversal`]: crate::traversal::Traversal
-    pub fn propagate(&mut self, should_propagate: bool) {
-        self.trigger.propagate = should_propagate;
     }
 }
 

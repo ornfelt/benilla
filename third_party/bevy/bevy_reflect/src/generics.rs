@@ -15,9 +15,6 @@ use derive_more::derive::From;
 ///
 /// If the type has no generics, this will be empty.
 ///
-/// If the type is marked with `#[reflect(type_path = false)]`,
-/// the generics will be empty even if the type has generics.
-///
 /// [`Reflect` derive macro]: bevy_reflect_derive::Reflect
 /// [`TypeInfo`]: crate::type_info::TypeInfo
 /// [`Typed::type_info`]: crate::Typed::type_info

@@ -279,9 +279,7 @@
 //!
 //! When deriving, all active fields and sub-elements must also implement `FromReflect`.
 //!
-//! Fields can be given default values for when a field is missing in the passed value or even ignored.
-//! Ignored fields must either implement [`Default`] or have a default function specified
-//! using `#[reflect(default = "path::to::function")]`.
+//! Ignored fields must implement [`Default`].
 //!
 //! See the [derive macro documentation](derive@crate::FromReflect) for details.
 //!
@@ -550,11 +548,9 @@ mod tests {
         hash::Hash,
         marker::PhantomData,
     };
-    use disqualified::ShortName;
-    use static_assertions::{assert_impl_all, assert_not_impl_all};
+    use static_assertions::assert_impl_all;
 
     use super::{prelude::*, *};
-    use crate::utility::GenericTypePathCell;
 
     #[test]
     fn try_apply_should_detect_kinds() {
@@ -758,103 +754,6 @@ mod tests {
     }
 
     #[test]
-    fn should_reflect_clone_generic_type() {
-        #[derive(Reflect, Debug, PartialEq)]
-        struct Foo<T, U>(T, #[reflect(ignore, clone)] PhantomData<U>);
-        #[derive(TypePath, Debug, PartialEq)]
-        struct Bar;
-
-        // `usize` will be cloned via `Reflect::reflect_clone`
-        // `PhantomData<Bar>` will be cloned via `Clone::clone`
-        let value = Foo::<usize, Bar>(123, PhantomData);
-        let clone = value
-            .reflect_clone()
-            .expect("should reflect_clone generic struct");
-        assert_eq!(value, clone.take::<Foo<usize, Bar>>().unwrap());
-    }
-
-    #[test]
-    fn should_reflect_clone_with_clone() {
-        // A custom clone function to verify that the `#[reflect(Clone)]` container attribute
-        // takes precedence over the `#[reflect(clone)]` field attribute.
-        #[expect(
-            dead_code,
-            reason = "if things are working correctly, this function should never be called"
-        )]
-        fn custom_clone(_value: &usize) -> usize {
-            panic!("should not be called");
-        }
-
-        // Tuple Struct
-        #[derive(Reflect, Clone, Debug, PartialEq)]
-        #[reflect(Clone)]
-        struct Foo(#[reflect(clone = "custom_clone")] usize);
-
-        let value = Foo(123);
-        let clone = value
-            .reflect_clone()
-            .expect("should reflect_clone tuple struct");
-        assert_eq!(value, clone.take::<Foo>().unwrap());
-
-        // Struct
-        #[derive(Reflect, Clone, Debug, PartialEq)]
-        #[reflect(Clone)]
-        struct Bar {
-            #[reflect(clone = "custom_clone")]
-            value: usize,
-        }
-
-        let value = Bar { value: 123 };
-        let clone = value.reflect_clone().expect("should reflect_clone struct");
-        assert_eq!(value, clone.take::<Bar>().unwrap());
-
-        // Enum
-        #[derive(Reflect, Clone, Debug, PartialEq)]
-        #[reflect(Clone)]
-        enum Baz {
-            Unit,
-            Tuple(#[reflect(clone = "custom_clone")] usize),
-            Struct {
-                #[reflect(clone = "custom_clone")]
-                value: usize,
-            },
-        }
-
-        let value = Baz::Unit;
-        let clone = value
-            .reflect_clone()
-            .expect("should reflect_clone unit variant");
-        assert_eq!(value, clone.take::<Baz>().unwrap());
-
-        let value = Baz::Tuple(123);
-        let clone = value
-            .reflect_clone()
-            .expect("should reflect_clone tuple variant");
-        assert_eq!(value, clone.take::<Baz>().unwrap());
-
-        let value = Baz::Struct { value: 123 };
-        let clone = value
-            .reflect_clone()
-            .expect("should reflect_clone struct variant");
-        assert_eq!(value, clone.take::<Baz>().unwrap());
-    }
-
-    #[test]
-    fn should_custom_reflect_clone() {
-        #[derive(Reflect, Debug, PartialEq)]
-        #[reflect(Clone(clone_foo))]
-        struct Foo(usize);
-
-        fn clone_foo(foo: &Foo) -> Foo {
-            Foo(foo.0 + 198)
-        }
-
-        let foo = Foo(123);
-        let clone = foo.reflect_clone().unwrap();
-        assert_eq!(Foo(321), clone.take::<Foo>().unwrap());
-    }
-
-    #[test]
     fn should_not_clone_ignored_fields() {
         // Tuple Struct
         #[derive(Reflect, Clone, Debug, PartialEq)]
@@ -923,115 +822,6 @@ mod tests {
     }
 
     #[test]
-    fn should_clone_ignored_fields_with_clone_attributes() {
-        #[derive(Reflect, Clone, Debug, PartialEq)]
-        struct Foo(#[reflect(ignore, clone)] usize);
-
-        let foo = Foo(123);
-        let clone = foo.reflect_clone().unwrap();
-        assert_eq!(Foo(123), clone.take::<Foo>().unwrap());
-
-        #[derive(Reflect, Clone, Debug, PartialEq)]
-        struct Bar(#[reflect(ignore, clone = "clone_usize")] usize);
-
-        fn clone_usize(this: &usize) -> usize {
-            *this + 198
-        }
-
-        let bar = Bar(123);
-        let clone = bar.reflect_clone().unwrap();
-        assert_eq!(Bar(321), clone.take::<Bar>().unwrap());
-    }
-
-    #[test]
-    fn should_composite_reflect_clone() {
-        #[derive(Reflect, Debug, PartialEq)]
-        enum MyEnum {
-            Unit,
-            Tuple(
-                Foo,
-                #[reflect(ignore, clone)] Bar,
-                #[reflect(clone = "clone_baz")] Baz,
-            ),
-            Struct {
-                foo: Foo,
-                #[reflect(ignore, clone)]
-                bar: Bar,
-                #[reflect(clone = "clone_baz")]
-                baz: Baz,
-            },
-        }
-
-        #[derive(Reflect, Debug, PartialEq)]
-        struct Foo {
-            #[reflect(clone = "clone_bar")]
-            bar: Bar,
-            baz: Baz,
-        }
-
-        #[derive(Reflect, Default, Clone, Debug, PartialEq)]
-        #[reflect(Clone)]
-        struct Bar(String);
-
-        #[derive(Reflect, Debug, PartialEq)]
-        struct Baz(String);
-
-        fn clone_bar(bar: &Bar) -> Bar {
-            Bar(format!("{}!", bar.0))
-        }
-
-        fn clone_baz(baz: &Baz) -> Baz {
-            Baz(format!("{}!", baz.0))
-        }
-
-        let my_enum = MyEnum::Unit;
-        let clone = my_enum.reflect_clone().unwrap();
-        assert_eq!(MyEnum::Unit, clone.take::<MyEnum>().unwrap());
-
-        let my_enum = MyEnum::Tuple(
-            Foo {
-                bar: Bar("bar".to_string()),
-                baz: Baz("baz".to_string()),
-            },
-            Bar("bar".to_string()),
-            Baz("baz".to_string()),
-        );
-        let clone = my_enum.reflect_clone().unwrap();
-        assert_eq!(
-            MyEnum::Tuple(
-                Foo {
-                    bar: Bar("bar!".to_string()),
-                    baz: Baz("baz".to_string()),
-                },
-                Bar("bar".to_string()),
-                Baz("baz!".to_string()),
-            ),
-            clone.take::<MyEnum>().unwrap()
-        );
-
-        let my_enum = MyEnum::Struct {
-            foo: Foo {
-                bar: Bar("bar".to_string()),
-                baz: Baz("baz".to_string()),
-            },
-            bar: Bar("bar".to_string()),
-            baz: Baz("baz".to_string()),
-        };
-        let clone = my_enum.reflect_clone().unwrap();
-        assert_eq!(
-            MyEnum::Struct {
-                foo: Foo {
-                    bar: Bar("bar!".to_string()),
-                    baz: Baz("baz".to_string()),
-                },
-                bar: Bar("bar".to_string()),
-                baz: Baz("baz!".to_string()),
-            },
-            clone.take::<MyEnum>().unwrap()
-        );
-    }
-
-    #[test]
     fn should_call_from_reflect_dynamically() {
         #[derive(Reflect)]
         struct MyStruct {
@@ -1094,77 +884,6 @@ mod tests {
         let mut dyn_enum = DynamicEnum::default();
         dyn_enum.set_variant("Tuple", dyn_tuple);
 
-        let my_enum = <MyEnum as FromReflect>::from_reflect(&dyn_enum);
-
-        assert_eq!(Some(expected), my_enum);
-    }
-
-    #[test]
-    fn from_reflect_should_use_default_field_attributes() {
-        #[derive(Reflect, Eq, PartialEq, Debug)]
-        struct MyStruct {
-            // Use `Default::default()`
-            // Note that this isn't an ignored field
-            #[reflect(default)]
-            foo: String,
-
-            // Use `get_bar_default()`
-            #[reflect(ignore)]
-            #[reflect(default = "get_bar_default")]
-            bar: NotReflect,
-
-            // Ensure attributes can be combined
-            #[reflect(ignore, default = "get_bar_default")]
-            baz: NotReflect,
-        }
-
-        #[derive(Eq, PartialEq, Debug)]
-        struct NotReflect(usize);
-
-        fn get_bar_default() -> NotReflect {
-            NotReflect(123)
-        }
-
-        let expected = MyStruct {
-            foo: String::default(),
-            bar: NotReflect(123),
-            baz: NotReflect(123),
-        };
-
-        let dyn_struct = DynamicStruct::default();
-        let my_struct = <MyStruct as FromReflect>::from_reflect(&dyn_struct);
-
-        assert_eq!(Some(expected), my_struct);
-    }
-
-    #[test]
-    fn from_reflect_should_use_default_variant_field_attributes() {
-        #[derive(Reflect, Eq, PartialEq, Debug)]
-        enum MyEnum {
-            Foo(#[reflect(default)] String),
-            Bar {
-                #[reflect(default = "get_baz_default")]
-                #[reflect(ignore)]
-                baz: usize,
-            },
-        }
-
-        fn get_baz_default() -> usize {
-            123
-        }
-
-        let expected = MyEnum::Foo(String::default());
-
-        let dyn_enum = DynamicEnum::new_with_index(0, "Foo", DynamicTuple::default());
-        let my_enum = <MyEnum as FromReflect>::from_reflect(&dyn_enum);
-
-        assert_eq!(Some(expected), my_enum);
-
-        let expected = MyEnum::Bar {
-            baz: get_baz_default(),
-        };
-
-        let dyn_enum = DynamicEnum::new_with_index(0, "Bar", DynamicStruct::default());
         let my_enum = <MyEnum as FromReflect>::from_reflect(&dyn_enum);
 
         assert_eq!(Some(expected), my_enum);
@@ -1800,103 +1519,6 @@ bevy_reflect::tests::Test {
     }
 
     #[test]
-    fn custom_debug_function() {
-        #[derive(Reflect)]
-        #[reflect(Debug(custom_debug))]
-        struct Foo {
-            a: u32,
-        }
-
-        fn custom_debug(_x: &Foo, f: &mut Formatter<'_>) -> core::fmt::Result {
-            write!(f, "123")
-        }
-
-        let foo = Foo { a: 1 };
-        let foo: &dyn Reflect = &foo;
-
-        assert_eq!("123", format!("{foo:?}"));
-    }
-
-    #[test]
-    fn should_allow_custom_where() {
-        #[derive(Reflect)]
-        #[reflect(where T: Default)]
-        struct Foo<T>(String, #[reflect(ignore)] PhantomData<T>);
-
-        #[derive(Default, TypePath)]
-        struct Bar;
-
-        #[derive(TypePath)]
-        struct Baz;
-
-        assert_impl_all!(Foo<Bar>: Reflect);
-        assert_not_impl_all!(Foo<Baz>: Reflect);
-    }
-
-    #[test]
-    fn should_allow_empty_custom_where() {
-        #[derive(Reflect)]
-        #[reflect(where)]
-        struct Foo<T>(String, #[reflect(ignore)] PhantomData<T>);
-
-        #[derive(TypePath)]
-        struct Bar;
-
-        assert_impl_all!(Foo<Bar>: Reflect);
-    }
-
-    #[test]
-    fn should_allow_multiple_custom_where() {
-        #[derive(Reflect)]
-        #[reflect(where T: Default)]
-        #[reflect(where U: core::ops::Add<T>)]
-        struct Foo<T, U>(T, U);
-
-        #[allow(
-            clippy::allow_attributes,
-            dead_code,
-            reason = "This struct is used as a compilation test to test the derive macros, and as such is intentionally never constructed."
-        )]
-        #[derive(Reflect)]
-        struct Baz {
-            a: Foo<i32, i32>,
-            b: Foo<u32, u32>,
-        }
-
-        assert_impl_all!(Foo<i32, i32>: Reflect);
-        assert_not_impl_all!(Foo<i32, usize>: Reflect);
-    }
-
-    #[test]
-    fn should_allow_custom_where_with_assoc_type() {
-        trait Trait {
-            type Assoc;
-        }
-
-        // We don't need `T` to be `Reflect` since we only care about `T::Assoc`
-        #[derive(Reflect)]
-        #[reflect(where T::Assoc: core::fmt::Display)]
-        struct Foo<T: Trait>(T::Assoc);
-
-        #[derive(TypePath)]
-        struct Bar;
-
-        impl Trait for Bar {
-            type Assoc = usize;
-        }
-
-        #[derive(TypePath)]
-        struct Baz;
-
-        impl Trait for Baz {
-            type Assoc = (f32, f32);
-        }
-
-        assert_impl_all!(Foo<Bar>: Reflect);
-        assert_not_impl_all!(Foo<Baz>: Reflect);
-    }
-
-    #[test]
     fn should_allow_empty_enums() {
         #[derive(Reflect)]
         enum Empty {}
@@ -1911,32 +1533,6 @@ bevy_reflect::tests::Test {
 
         let _ = <Recurse<Recurse<()>> as Typed>::type_info();
         let _ = <Recurse<Recurse<()>> as TypePath>::type_path();
-
-        #[derive(Reflect)]
-        #[reflect(no_field_bounds)]
-        struct SelfRecurse {
-            recurse: Vec<SelfRecurse>,
-        }
-
-        let _ = <SelfRecurse as Typed>::type_info();
-        let _ = <SelfRecurse as TypePath>::type_path();
-
-        #[derive(Reflect)]
-        #[reflect(no_field_bounds)]
-        enum RecurseA {
-            Recurse(RecurseB),
-        }
-
-        #[derive(Reflect)]
-        // `#[reflect(no_field_bounds)]` not needed since already added to `RecurseA`
-        struct RecurseB {
-            vector: Vec<RecurseA>,
-        }
-
-        let _ = <RecurseA as Typed>::type_info();
-        let _ = <RecurseA as TypePath>::type_path();
-        let _ = <RecurseB as Typed>::type_info();
-        let _ = <RecurseB as TypePath>::type_path();
     }
 
     #[test]
@@ -1947,74 +1543,6 @@ bevy_reflect::tests::Test {
         let mut registry = TypeRegistry::empty();
 
         registry.register::<Recurse<Recurse<()>>>();
-
-        #[derive(Reflect)]
-        #[reflect(no_field_bounds)]
-        struct SelfRecurse {
-            recurse: Vec<SelfRecurse>,
-        }
-
-        registry.register::<SelfRecurse>();
-
-        #[derive(Reflect)]
-        #[reflect(no_field_bounds)]
-        enum RecurseA {
-            Recurse(RecurseB),
-        }
-
-        #[derive(Reflect)]
-        struct RecurseB {
-            vector: Vec<RecurseA>,
-        }
-
-        registry.register::<RecurseA>();
-        assert!(registry.get(TypeId::of::<RecurseA>()).is_some());
-        assert!(registry.get(TypeId::of::<RecurseB>()).is_some());
-    }
-
-    #[test]
-    fn can_opt_out_type_path() {
-        #[derive(Reflect)]
-        #[reflect(type_path = false)]
-        struct Foo<T> {
-            #[reflect(ignore)]
-            _marker: PhantomData<T>,
-        }
-
-        struct NotTypePath;
-
-        impl<T: 'static> TypePath for Foo<T> {
-            fn type_path() -> &'static str {
-                core::any::type_name::<Self>()
-            }
-
-            fn short_type_path() -> &'static str {
-                static CELL: GenericTypePathCell = GenericTypePathCell::new();
-                CELL.get_or_insert::<Self, _>(|| ShortName::of::<Self>().to_string())
-            }
-
-            fn type_ident() -> Option<&'static str> {
-                Some("Foo")
-            }
-
-            fn crate_name() -> Option<&'static str> {
-                Some("bevy_reflect")
-            }
-
-            fn module_path() -> Option<&'static str> {
-                Some("bevy_reflect::tests")
-            }
-        }
-
-        // Can use `TypePath`
-        let path = <Foo<NotTypePath> as TypePath>::type_path();
-        assert_eq!("bevy_reflect::tests::can_opt_out_type_path::Foo<bevy_reflect::tests::can_opt_out_type_path::NotTypePath>", path);
-
-        // Can register the type
-        let mut registry = TypeRegistry::default();
-        registry.register::<Foo<NotTypePath>>();
-
-        assert!(registry.get(TypeId::of::<Foo<NotTypePath>>()).is_some());
     }
 
     #[test]

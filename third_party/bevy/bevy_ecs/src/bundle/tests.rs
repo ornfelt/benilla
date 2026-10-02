@@ -48,26 +48,6 @@ impl R {
     }
 }
 
-#[derive(Bundle)]
-#[bundle(ignore_from_components)]
-struct BundleNoExtract {
-    b: B,
-    no_from_comp: crate::spawn::SpawnRelatedBundle<ChildOf, Spawn<C>>,
-}
-
-#[test]
-fn can_spawn_bundle_without_extract() {
-    let mut world = World::new();
-    let id = world
-        .spawn(BundleNoExtract {
-            b: B,
-            no_from_comp: Children::spawn(Spawn(C)),
-        })
-        .id();
-
-    assert!(world.entity(id).get::<Children>().is_some());
-}
-
 #[test]
 fn component_hook_order_spawn_despawn() {
     let mut world = World::new();
@@ -253,13 +233,4 @@ fn new_archetype_created() {
     e.insert(A);
 
     assert_eq!(world.resource::<Count>().0, 3);
-}
-
-#[derive(Bundle)]
-#[expect(unused, reason = "tests the output of the derive macro is valid")]
-struct Ignore {
-    #[bundle(ignore)]
-    foo: i32,
-    #[bundle(ignore)]
-    bar: i32,
 }
