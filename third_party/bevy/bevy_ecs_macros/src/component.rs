@@ -1,16 +1,16 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use std::collections::HashSet;
 use syn::{
-    braced, parenthesized,
+    parenthesized,
     parse::Parse,
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    token::{Brace, Comma, Paren},
-    Data, DataEnum, DataStruct, DeriveInput, Expr, ExprCall, ExprPath, Field, Fields, Ident,
-    LitStr, Member, Path, Result, Token, Type, Visibility,
+    token::{Comma, Paren},
+    Data, DataEnum, DataStruct, DeriveInput, Expr, ExprPath, Field, Fields, Ident, LitStr, Member,
+    Path, Result, Token, Type, Visibility,
 };
 
 pub fn derive_resource(input: TokenStream) -> TokenStream {
@@ -79,12 +79,8 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
 
     let storage = storage_path(&bevy_ecs_path, attrs.storage);
 
-    let on_add_path = attrs
-        .on_add
-        .map(|path| path.to_token_stream(&bevy_ecs_path));
-    let on_remove_path = attrs
-        .on_remove
-        .map(|path| path.to_token_stream(&bevy_ecs_path));
+    let on_add_path = attrs.on_add.map(|path| path.to_token_stream());
+    let on_remove_path = attrs.on_remove.map(|path| path.to_token_stream());
 
     let on_insert_path = if relationship.is_some() {
         if attrs.on_insert.is_some() {
@@ -98,9 +94,7 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
 
         Some(quote!(<Self as #bevy_ecs_path::relationship::Relationship>::on_insert))
     } else {
-        attrs
-            .on_insert
-            .map(|path| path.to_token_stream(&bevy_ecs_path))
+        attrs.on_insert.map(|path| path.to_token_stream())
     };
 
     let on_replace_path = if relationship.is_some() {
@@ -126,9 +120,7 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
 
         Some(quote!(<Self as #bevy_ecs_path::relationship::RelationshipTarget>::on_replace))
     } else {
-        attrs
-            .on_replace
-            .map(|path| path.to_token_stream(&bevy_ecs_path))
+        attrs.on_replace.map(|path| path.to_token_stream())
     };
 
     let on_despawn_path = if attrs
@@ -272,47 +264,12 @@ pub(crate) fn map_entities(
                 #(#map)*
             ))
         }
-        Data::Enum(DataEnum { variants, .. }) => {
-            let mut map = Vec::with_capacity(variants.len());
-
-            for variant in variants.iter() {
-                let field_members = variant
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, field)| field.attrs.iter().any(|a| a.path().is_ident(ENTITIES)))
-                    .map(|(index, field)| {
-                        field
-                            .ident
-                            .clone()
-                            .map_or(Member::from(index), Member::Named)
-                    })
-                    .collect::<Vec<_>>();
-
-                let ident = &variant.ident;
-                let field_idents = field_members
-                    .iter()
-                    .map(|member| format_ident!("__self{}", member))
-                    .collect::<Vec<_>>();
-
-                map.push(
-                    quote!(Self::#ident {#(#field_members: #field_idents,)* ..} => {
-                        #(#field_idents.map_entities(mapper);)*
-                    }),
-                );
-            }
-
-            if map.is_empty() {
-                return None;
-            };
-
-            Some(quote!(
-                match #self_ident {
-                    #(#map,)*
-                    _ => {}
-                }
-            ))
-        }
+        // `#[entities]` on an enum's fields is not supported: no enum component maps entities
+        Data::Enum(DataEnum { variants, .. }) => variants
+            .iter()
+            .flat_map(|variant| variant.fields.iter())
+            .any(|field| field.attrs.iter().any(|a| a.path().is_ident(ENTITIES)))
+            .then(|| quote!(compile_error!("`#[entities]` is not supported on enum fields");)),
         Data::Union(_) => None,
     }
 }
@@ -331,73 +288,13 @@ pub const ON_REMOVE: &str = "on_remove";
 pub const IMMUTABLE: &str = "immutable";
 pub const CLONE_BEHAVIOR: &str = "clone_behavior";
 
-/// All allowed attribute value expression kinds for component hooks.
-/// This doesn't simply use general expressions because of conflicting needs:
-/// - we want to be able to use `Self` & generic parameters in paths
-/// - call expressions producing a closure need to be wrapped in a function
-///   to turn them into function pointers, which prevents access to the outer generic params
-#[derive(Debug)]
-enum HookAttributeKind {
-    /// expressions like function or struct names
-    ///
-    /// structs will throw compile errors on the code generation so this is safe
-    Path(ExprPath),
-    /// function call like expressions
-    Call(ExprCall),
-}
-
-impl HookAttributeKind {
-    fn parse(
-        input: syn::parse::ParseStream,
-        default_hook_path: impl FnOnce() -> ExprPath,
-    ) -> Result<Self> {
-        if input.peek(Token![=]) {
-            input.parse::<Token![=]>()?;
-            input.parse::<Expr>().and_then(Self::from_expr)
-        } else {
-            Ok(Self::Path(default_hook_path()))
-        }
-    }
-
-    fn from_expr(value: Expr) -> Result<Self> {
-        match value {
-            Expr::Path(path) => Ok(HookAttributeKind::Path(path)),
-            Expr::Call(call) => Ok(HookAttributeKind::Call(call)),
-            // throw meaningful error on all other expressions
-            _ => Err(syn::Error::new(
-                value.span(),
-                [
-                    "Not supported in this position, please use one of the following:",
-                    "- path to function",
-                    "- call to function yielding closure",
-                ]
-                .join("\n"),
-            )),
-        }
-    }
-
-    fn to_token_stream(&self, bevy_ecs_path: &Path) -> TokenStream2 {
-        match self {
-            HookAttributeKind::Path(path) => path.to_token_stream(),
-            HookAttributeKind::Call(call) => {
-                quote!({
-                    fn _internal_hook(world: #bevy_ecs_path::world::DeferredWorld, ctx: #bevy_ecs_path::lifecycle::HookContext) {
-                        (#call)(world, ctx)
-                    }
-                    _internal_hook
-                })
-            }
-        }
-    }
-}
-
 struct Attrs {
     storage: StorageTy,
     requires: Option<Punctuated<Require, Comma>>,
-    on_add: Option<HookAttributeKind>,
-    on_insert: Option<HookAttributeKind>,
-    on_replace: Option<HookAttributeKind>,
-    on_remove: Option<HookAttributeKind>,
+    on_add: Option<ExprPath>,
+    on_insert: Option<ExprPath>,
+    on_replace: Option<ExprPath>,
+    on_remove: Option<ExprPath>,
     relationship: Option<Relationship>,
     relationship_target: Option<RelationshipTarget>,
     immutable: bool,
@@ -458,24 +355,16 @@ fn parse_component_attr(ast: &DeriveInput) -> Result<Attrs> {
                     };
                     Ok(())
                 } else if nested.path.is_ident(ON_ADD) {
-                    attrs.on_add = Some(HookAttributeKind::parse(nested.input, || {
-                        parse_quote! { Self::on_add }
-                    })?);
+                    attrs.on_add = Some(nested.value()?.parse()?);
                     Ok(())
                 } else if nested.path.is_ident(ON_INSERT) {
-                    attrs.on_insert = Some(HookAttributeKind::parse(nested.input, || {
-                        parse_quote! { Self::on_insert }
-                    })?);
+                    attrs.on_insert = Some(nested.value()?.parse()?);
                     Ok(())
                 } else if nested.path.is_ident(ON_REPLACE) {
-                    attrs.on_replace = Some(HookAttributeKind::parse(nested.input, || {
-                        parse_quote! { Self::on_replace }
-                    })?);
+                    attrs.on_replace = Some(nested.value()?.parse()?);
                     Ok(())
                 } else if nested.path.is_ident(ON_REMOVE) {
-                    attrs.on_remove = Some(HookAttributeKind::parse(nested.input, || {
-                        parse_quote! { Self::on_remove }
-                    })?);
+                    attrs.on_remove = Some(nested.value()?.parse()?);
                     Ok(())
                 } else if nested.path.is_ident(IMMUTABLE) {
                     attrs.immutable = true;
@@ -525,8 +414,6 @@ fn parse_component_attr(ast: &DeriveInput) -> Result<Attrs> {
 impl Parse for Require {
     fn parse(input: syn::parse::ParseStream) -> Result<Self> {
         let mut path = input.parse::<Path>()?;
-        let mut last_segment_is_lower = false;
-        let mut is_constructor_call = false;
 
         // Use the case of the type name to check if it's an enum
         // This doesn't match everything that can be an enum according to the rust spec
@@ -545,7 +432,6 @@ impl Parse for Require {
                         false
                     }
                 } else {
-                    last_segment_is_lower = true;
                     false
                 }
             } else {
@@ -558,18 +444,11 @@ impl Parse for Require {
             input.parse::<Token![=]>()?;
             let expr: Expr = input.parse()?;
             Some(quote!(|| #expr ))
-        } else if input.peek(Brace) {
-            // This is a "value style" named-struct-like require
-            let content;
-            braced!(content in input);
-            let content = content.parse::<TokenStream2>()?;
-            Some(quote!(|| #path { #content }))
         } else if input.peek(Paren) {
             // This is a "value style" tuple-struct-like require
             let content;
             parenthesized!(content in input);
             let content = content.parse::<TokenStream2>()?;
-            is_constructor_call = last_segment_is_lower;
             Some(quote!(|| #path (#content)))
         } else if is_enum {
             // if this is an enum, then it is an inline enum component declaration
@@ -578,7 +457,7 @@ impl Parse for Require {
             // if this isn't any of the above, then it is a component ident, which will use Default
             None
         };
-        if is_enum || is_constructor_call {
+        if is_enum {
             path.segments.pop();
             path.segments.pop_punct();
         }

@@ -118,23 +118,6 @@ pub trait Event: Send + Sync + Sized + 'static {
 /// struct Explode(Entity);
 /// ```
 ///
-/// The [`EntityEvent::event_target`] can also be manually set using the `#[event_target]` field attribute:
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #[derive(EntityEvent)]
-/// struct Explode {
-///     #[event_target]
-///     exploded_entity: Entity,
-/// }
-/// ```
-///
-/// ```
-/// # use bevy_ecs::prelude::*;
-/// #[derive(EntityEvent)]
-/// struct Explode(#[event_target] Entity);
-/// ```
-///
 /// You may also use any type which implements [`ContainsEntity`](crate::entity::ContainsEntity) as the event target:
 ///
 /// ```
@@ -879,12 +862,6 @@ mod tests {
         }
 
         #[derive(EntityEvent)]
-        struct C {
-            #[event_target]
-            target: Entity,
-        }
-
-        #[derive(EntityEvent)]
         struct D(Entitoid);
 
         #[derive(EntityEvent)]
@@ -892,24 +869,14 @@ mod tests {
             entity: Entitoid,
         }
 
-        #[derive(EntityEvent)]
-        struct F {
-            #[event_target]
-            target: Entitoid,
-        }
-
         let mut world = World::new();
         let entity = world.spawn_empty().id();
 
         world.entity_mut(entity).trigger(A);
         world.trigger(B { entity });
-        world.trigger(C { target: entity });
         world.trigger(D(Entitoid(entity)));
         world.trigger(E {
             entity: Entitoid(entity),
-        });
-        world.trigger(F {
-            target: Entitoid(entity),
         });
 
         // No asserts; test just needs to compile

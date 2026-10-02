@@ -20,8 +20,8 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parse_macro_input, parse_quote, punctuated::Punctuated, token::Comma, ConstParam, Data,
-    DeriveInput, GenericParam, TypeParam,
+    parse_macro_input, parse_quote, punctuated::Punctuated, token::Comma, ConstParam, DeriveInput,
+    GenericParam, TypeParam,
 };
 
 /// Implement the `Bundle` trait.
@@ -417,7 +417,7 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
 }
 
 /// Implement the `EntityEvent` trait.
-#[proc_macro_derive(EntityEvent, attributes(entity_event, event_target))]
+#[proc_macro_derive(EntityEvent, attributes(entity_event))]
 pub fn derive_entity_event(input: TokenStream) -> TokenStream {
     event::derive_entity_event(input)
 }
@@ -460,17 +460,10 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
 ///     A,
 ///     // tuple structs
 ///     B(1),
-///     // named-field structs
-///     C {
-///         x: 1,
-///         ..default()
-///     },
 ///     // unit structs/variants
 ///     D::One,
 ///     // associated consts
 ///     E::ONE,
-///     // constructors
-///     F::new(1),
 ///     // arbitrary expressions
 ///     G = make(1, 2, 3)
 /// )]
@@ -507,10 +500,7 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
 /// struct MyComponent;
 /// ```
 /// where `hook_name` is `on_add`, `on_insert`, `on_replace` or `on_remove`;  
-/// `function` can be either a path, e.g. `some_function::<Self>`,
-/// or a function call that returns a function that can be turned into
-/// a `ComponentHook`, e.g. `get_closure("Hi!")`.
-/// `function` can be elided if the path is `Self::on_add`, `Self::on_insert` etc.
+/// `function` is a path, e.g. `some_function::<Self>`.
 ///
 /// ## Ignore this component when cloning an entity
 /// ```ignore
@@ -524,63 +514,4 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
 )]
 pub fn derive_component(input: TokenStream) -> TokenStream {
     component::derive_component(input)
-}
-
-/// Implement the `FromWorld` trait.
-#[proc_macro_derive(FromWorld, attributes(from_world))]
-pub fn derive_from_world(input: TokenStream) -> TokenStream {
-    let bevy_ecs_path = bevy_ecs_path();
-    let ast = parse_macro_input!(input as DeriveInput);
-    let name = ast.ident;
-    let (impl_generics, ty_generics, where_clauses) = ast.generics.split_for_impl();
-
-    let (fields, variant_ident) = match &ast.data {
-        Data::Struct(data) => (&data.fields, None),
-        Data::Enum(data) => {
-            match data.variants.iter().find(|variant| {
-                variant
-                    .attrs
-                    .iter()
-                    .any(|attr| attr.path().is_ident("from_world"))
-            }) {
-                Some(variant) => (&variant.fields, Some(&variant.ident)),
-                None => {
-                    return syn::Error::new(
-                        Span::call_site(),
-                        "No variant found with the `#[from_world]` attribute",
-                    )
-                    .into_compile_error()
-                    .into();
-                }
-            }
-        }
-        Data::Union(_) => {
-            return syn::Error::new(
-                Span::call_site(),
-                "#[derive(FromWorld)]` does not support unions",
-            )
-            .into_compile_error()
-            .into();
-        }
-    };
-
-    let field_init_expr = quote!(#bevy_ecs_path::world::FromWorld::from_world(world));
-    let members = fields.members();
-
-    let field_initializers = match variant_ident {
-        Some(variant_ident) => quote!( Self::#variant_ident {
-            #(#members: #field_init_expr),*
-        }),
-        None => quote!( Self {
-            #(#members: #field_init_expr),*
-        }),
-    };
-
-    TokenStream::from(quote! {
-            impl #impl_generics #bevy_ecs_path::world::FromWorld for #name #ty_generics #where_clauses {
-                fn from_world(world: &mut #bevy_ecs_path::world::World) -> Self {
-                    #field_initializers
-                }
-            }
-    })
 }

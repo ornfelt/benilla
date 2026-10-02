@@ -15,7 +15,6 @@ use quote::{quote, ToTokens};
 use syn::{token::Comma, MacroDelimiter};
 
 use crate::enum_utility::{EnumVariantOutputData, ReflectCloneVariantBuilder, VariantBuilder};
-use crate::generics::generate_generics;
 use bevy_macro_utils::fq_std::{FQOption, FQResult};
 use syn::{
     parse_str, punctuated::Punctuated, spanned::Spanned, Data, DeriveInput, Field, Fields,
@@ -512,17 +511,11 @@ impl<'a> ReflectStruct<'a> {
             .active_fields()
             .map(|field| field.to_info_tokens(bevy_reflect_path));
 
-        let mut info = quote! {
+        let info = quote! {
             #bevy_reflect_path::#info_struct::new::<Self>(&[
                 #(#field_infos),*
             ])
         };
-
-        if let Some(generics) = generate_generics(self.meta()) {
-            info.extend(quote! {
-                .with_generics(#generics)
-            });
-        }
 
         quote! {
             #bevy_reflect_path::TypeInfo::#info_variant(#info)
@@ -653,15 +646,9 @@ impl<'a> ReflectEnum<'a> {
     pub fn to_info_tokens(&self) -> proc_macro2::TokenStream {
         let bevy_reflect_path = self.meta().bevy_reflect_path();
 
-        let mut info = quote! {
+        let info = quote! {
             #bevy_reflect_path::EnumInfo::new::<Self>()
         };
-
-        if let Some(generics) = generate_generics(self.meta()) {
-            info.extend(quote! {
-                .with_generics(#generics)
-            });
-        }
 
         quote! {
             #bevy_reflect_path::TypeInfo::Enum(#info)

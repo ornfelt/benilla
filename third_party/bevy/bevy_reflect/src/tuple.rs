@@ -1,9 +1,8 @@
 use bevy_reflect_derive::impl_type_path;
 use variadics_please::all_tuples;
 
-use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, utility::GenericTypePathCell, ApplyError, FromReflect, Generics,
+    type_info::impl_type_methods, utility::GenericTypePathCell, ApplyError, FromReflect,
     GetTypeRegistration, MaybeTyped, PartialReflect, Reflect, ReflectCloneError, ReflectKind,
     ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath, TypeRegistration, TypeRegistry,
     Typed,
@@ -144,7 +143,6 @@ impl GetTupleField for dyn Tuple {
 #[derive(Clone, Debug)]
 pub struct TupleInfo {
     ty: Type,
-    generics: Generics,
 }
 
 impl TupleInfo {
@@ -152,13 +150,10 @@ impl TupleInfo {
     pub fn new<T: Reflect + TypePath>() -> Self {
         Self {
             ty: Type::of::<T>(),
-            generics: Generics::new(),
         }
     }
 
     impl_type_methods!(ty);
-
-    impl_generic_info_methods!(generics);
 }
 
 /// A tuple which allows fields to be added at runtime.

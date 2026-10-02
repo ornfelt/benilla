@@ -1,7 +1,6 @@
-use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, Generics, PartialReflect,
-    Reflect, ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
+    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, PartialReflect, Reflect,
+    ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
 };
 use alloc::{boxed::Box, vec::Vec};
 use bevy_reflect_derive::impl_type_path;
@@ -85,7 +84,6 @@ pub trait Array: PartialReflect {
 #[derive(Clone, Debug)]
 pub struct ArrayInfo {
     ty: Type,
-    generics: Generics,
 }
 
 impl ArrayInfo {
@@ -93,13 +91,10 @@ impl ArrayInfo {
     pub fn new<TArray: Array + TypePath>() -> Self {
         Self {
             ty: Type::of::<TArray>(),
-            generics: Generics::new(),
         }
     }
 
     impl_type_methods!(ty);
-
-    impl_generic_info_methods!(generics);
 }
 
 /// A fixed-size list of reflected values.

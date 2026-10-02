@@ -1826,44 +1826,6 @@ mod tests {
         assert_eq!(&mapper.0, &[e1, e2, e3]);
     }
 
-    #[test]
-    fn map_enum_entities() {
-        #[derive(Component)]
-        #[expect(
-            unused,
-            reason = "extra fields are used to ensure the derive works properly"
-        )]
-        enum Foo {
-            Bar(usize, #[entities] Entity),
-            Baz {
-                #[entities]
-                a: Entity,
-                b: usize,
-                #[entities]
-                c: Vec<Entity>,
-            },
-        }
-
-        let mut world = World::new();
-        let e1 = world.spawn_empty().id();
-        let e2 = world.spawn_empty().id();
-        let e3 = world.spawn_empty().id();
-
-        let mut foo = Foo::Bar(1, e1);
-        let mut mapper = CaptureMapper::default();
-        Component::map_entities(&mut foo, &mut mapper);
-        assert_eq!(&mapper.0, &[e1]);
-
-        let mut foo = Foo::Baz {
-            a: e1,
-            b: 1,
-            c: vec![e2, e3],
-        };
-        let mut mapper = CaptureMapper::default();
-        Component::map_entities(&mut foo, &mut mapper);
-        assert_eq!(&mapper.0, &[e1, e2, e3]);
-    }
-
     #[expect(
         dead_code,
         reason = "This struct is used as a compilation test to test the derive macros, and as such is intentionally never constructed."

@@ -148,24 +148,13 @@ use core::{fmt::Debug, marker::PhantomData, ops::Deref};
 /// #[derive(Component)]
 /// #[require(
 ///     B(1), // tuple structs
-///     C { // named-field structs
-///         x: 1,
-///         ..Default::default()
-///     },
 ///     D::One, // enum variants
 ///     E::ONE, // associated consts
-///     F::new(1) // constructors
 /// )]
 /// struct A;
 ///
 /// #[derive(Component, PartialEq, Eq, Debug)]
 /// struct B(u8);
-///
-/// #[derive(Component, PartialEq, Eq, Debug, Default)]
-/// struct C {
-///     x: u8,
-///     y: u8,
-/// }
 ///
 /// #[derive(Component, PartialEq, Eq, Debug)]
 /// enum D {
@@ -180,22 +169,11 @@ use core::{fmt::Debug, marker::PhantomData, ops::Deref};
 ///     pub const ONE: Self = Self(1);
 /// }
 ///
-/// #[derive(Component, PartialEq, Eq, Debug)]
-/// struct F(u8);
-///
-/// impl F {
-///     fn new(value: u8) -> Self {
-///         Self(value)
-///     }
-/// }
-///
 /// # let mut world = World::default();
 /// let id = world.spawn(A).id();
 /// assert_eq!(&B(1), world.entity(id).get::<B>().unwrap());
-/// assert_eq!(&C { x: 1, y: 0 }, world.entity(id).get::<C>().unwrap());
 /// assert_eq!(&D::One, world.entity(id).get::<D>().unwrap());
 /// assert_eq!(&E(1), world.entity(id).get::<E>().unwrap());
-/// assert_eq!(&F(1), world.entity(id).get::<F>().unwrap());
 /// ````
 ///
 ///
@@ -382,49 +360,6 @@ use core::{fmt::Debug, marker::PhantomData, ops::Deref};
 /// fn my_on_insert_hook(world: DeferredWorld, HookContext { caller, .. }: HookContext) {
 ///     // ...
 /// }
-/// ```
-///
-/// This also supports function calls that yield closures
-///
-/// ```
-/// # use bevy_ecs::component::Component;
-/// # use bevy_ecs::lifecycle::HookContext;
-/// # use bevy_ecs::world::DeferredWorld;
-/// #
-/// #[derive(Component)]
-/// #[component(on_add = my_msg_hook("hello"))]
-/// #[component(on_remove = my_msg_hook("yoink"))]
-/// struct ComponentA;
-///
-/// // a hook closure generating function
-/// fn my_msg_hook(message: &'static str) -> impl Fn(DeferredWorld, HookContext) {
-///     move |_world, _ctx| {
-///         println!("{message}");
-///     }
-/// }
-///
-/// ```
-///
-/// A hook's function path can be elided if it is `Self::on_add`, `Self::on_insert` etc.
-/// ```
-/// # use bevy_ecs::lifecycle::HookContext;
-/// # use bevy_ecs::prelude::*;
-/// # use bevy_ecs::world::DeferredWorld;
-/// #
-/// #[derive(Component, Debug)]
-/// #[component(on_add)]
-/// struct DoubleOnSpawn(usize);
-///
-/// impl DoubleOnSpawn {
-///     fn on_add(mut world: DeferredWorld, context: HookContext) {
-///         let mut entity = world.get_mut::<Self>(context.entity).unwrap();
-///         entity.0 *= 2;
-///     }
-/// }
-/// #
-/// # let mut world = World::new();
-/// # let entity = world.spawn(DoubleOnSpawn(2));
-/// # assert_eq!(entity.get::<DoubleOnSpawn>().unwrap().0, 4);
 /// ```
 ///
 /// # Setting the clone behavior

@@ -1,7 +1,6 @@
-use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, ApplyError, Generics, NamedField, PartialReflect, Reflect,
-    ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
+    type_info::impl_type_methods, ApplyError, NamedField, PartialReflect, Reflect, ReflectKind,
+    ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
 };
 use alloc::{borrow::Cow, boxed::Box, vec::Vec};
 use bevy_platform::collections::HashMap;
@@ -85,7 +84,6 @@ pub trait Struct: PartialReflect {
 #[derive(Clone, Debug)]
 pub struct StructInfo {
     ty: Type,
-    generics: Generics,
     field_indices: HashMap<&'static str, usize>,
 }
 
@@ -104,7 +102,6 @@ impl StructInfo {
 
         Self {
             ty: Type::of::<T>(),
-            generics: Generics::new(),
             field_indices,
         }
     }
@@ -115,8 +112,6 @@ impl StructInfo {
     }
 
     impl_type_methods!(ty);
-
-    impl_generic_info_methods!(generics);
 }
 
 /// An iterator over the field values of a struct.

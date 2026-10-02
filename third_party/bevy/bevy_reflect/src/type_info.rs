@@ -1,10 +1,10 @@
 use crate::{
     ArrayInfo, DynamicArray, DynamicEnum, DynamicList, DynamicStruct, DynamicTuple,
-    DynamicTupleStruct, EnumInfo, Generics, ListInfo, PartialReflect, Reflect, ReflectKind,
-    StructInfo, TupleInfo, TupleStructInfo, TypePath, TypePathTable,
+    DynamicTupleStruct, EnumInfo, ListInfo, PartialReflect, Reflect, ReflectKind, StructInfo,
+    TupleInfo, TupleStructInfo, TypePath, TypePathTable,
 };
 use core::{
-    any::{Any, TypeId},
+    any::TypeId,
     fmt::{Debug, Formatter},
     hash::Hash,
 };
@@ -271,18 +271,6 @@ impl TypeInfo {
             Self::Opaque(_) => ReflectKind::Opaque,
         }
     }
-
-    impl_generic_info_methods!(self => {
-        match self {
-            Self::Struct(info) => info.generics(),
-            Self::TupleStruct(info) => info.generics(),
-            Self::Tuple(info) => info.generics(),
-            Self::List(info) => info.generics(),
-            Self::Array(info) => info.generics(),
-            Self::Enum(info) => info.generics(),
-            Self::Opaque(info) => info.generics(),
-        }
-    });
 }
 
 macro_rules! impl_cast_method {
@@ -380,22 +368,6 @@ impl Type {
     pub fn path(&self) -> &'static str {
         self.type_path_table.path()
     }
-
-    /// A representation of the type path of this.
-    ///
-    /// Provides dynamic access to all methods on [`TypePath`].
-    pub fn type_path_table(&self) -> &TypePathTable {
-        &self.type_path_table
-    }
-
-    /// Check if the given type matches this one.
-    ///
-    /// This only compares the [`TypeId`] of the types
-    /// and does not verify they share the same [`TypePath`]
-    /// (though it implies they do).
-    pub fn is<T: Any>(&self) -> bool {
-        TypeId::of::<T>() == self.type_id
-    }
 }
 
 /// This implementation will only output the [type path] of the type.
@@ -452,7 +424,6 @@ macro_rules! impl_type_methods {
     };
 }
 
-use crate::generics::impl_generic_info_methods;
 pub(crate) use impl_type_methods;
 
 /// A container for compile-time info related to reflection-opaque types, including primitives.
@@ -468,7 +439,6 @@ pub(crate) use impl_type_methods;
 #[derive(Debug, Clone)]
 pub struct OpaqueInfo {
     ty: Type,
-    generics: Generics,
 }
 
 impl OpaqueInfo {
@@ -476,13 +446,10 @@ impl OpaqueInfo {
     pub fn new<T: Reflect + TypePath + ?Sized>() -> Self {
         Self {
             ty: Type::of::<T>(),
-            generics: Generics::new(),
         }
     }
 
     impl_type_methods!(ty);
-
-    impl_generic_info_methods!(generics);
 }
 
 #[cfg(test)]

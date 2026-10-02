@@ -973,6 +973,21 @@ the same repository's.
   `default = ".."`. `#[reflect(opaque)]` stays (`Entity` uses it, behind `cfg_attr`), and so does
   `from_reflect = false` (bevy_animation). Every crate in the build expands to the same tokens as
   before, checked with `-Zunpretty=expanded` under the build's own features.
+- **The derives' unused options, fourth part, and `bevy_reflect`'s generics info.** Options only
+  docs and the derive crates' own tests used, removed from the parsers so a use no longer
+  compiles: a component hook given as a call yielding a closure (`on_add = f(..)`) or with its
+  path elided (`#[component(on_add)]`; every hook in the build names a path), `#[require(..)]`'s
+  named-field value (`C { .. }`) and constructor call (`F::new(..)`) forms (tuple values, enum
+  variants, associated consts and `= expr` stay), `EntityEvent`'s `#[event_target]` (every
+  entity event targets its `entity` field or its only field), and the `FromWorld` derive whole.
+  `#[entities]` on an enum's fields is now a compile error (only a test used it); an enum
+  component without it no longer gets a `map_entities` whose arms were all empty, so the trait's
+  default, also empty, runs instead (36 enums in the build). `bevy_reflect` loses its generics
+  info, which only its own tests read (`GenericInfo::name`/`ty`; `TypeInfo::generics` had no
+  caller): `Generics`, `GenericInfo`, `TypeParamInfo`, `ConstParamInfo`, the infos' `generics`
+  field with `generics`/`with_generics`, and the derive's `generate_generics`, so a generic type's
+  info is built without it (3 types in the build, and `Vec`'s); also `Type::is` (tests only) and
+  `Type::type_path_table` (no caller). Every other crate in the build expands to the same tokens.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

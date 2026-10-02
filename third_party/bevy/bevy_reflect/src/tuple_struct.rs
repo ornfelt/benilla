@@ -1,10 +1,8 @@
 use bevy_reflect_derive::impl_type_path;
 
-use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, ApplyError, DynamicTuple, Generics, PartialReflect, Reflect,
-    ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Tuple, Type, TypeInfo, TypePath,
-    UnnamedField,
+    type_info::impl_type_methods, ApplyError, DynamicTuple, PartialReflect, Reflect, ReflectKind,
+    ReflectMut, ReflectOwned, ReflectRef, Tuple, Type, TypeInfo, TypePath, UnnamedField,
 };
 use alloc::{boxed::Box, vec::Vec};
 use core::fmt::{Debug, Formatter};
@@ -68,7 +66,6 @@ pub trait TupleStruct: PartialReflect {
 #[derive(Clone, Debug)]
 pub struct TupleStructInfo {
     ty: Type,
-    generics: Generics,
     fields: Box<[UnnamedField]>,
 }
 
@@ -81,7 +78,6 @@ impl TupleStructInfo {
     pub fn new<T: Reflect + TypePath>(fields: &[UnnamedField]) -> Self {
         Self {
             ty: Type::of::<T>(),
-            generics: Generics::new(),
             fields: fields.to_vec().into_boxed_slice(),
         }
     }
@@ -92,8 +88,6 @@ impl TupleStructInfo {
     }
 
     impl_type_methods!(ty);
-
-    impl_generic_info_methods!(generics);
 }
 
 /// An iterator over the field values of a tuple struct.

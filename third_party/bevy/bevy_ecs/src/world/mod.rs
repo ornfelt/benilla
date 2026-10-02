@@ -14,7 +14,6 @@ pub use crate::{
     change_detection::{Mut, Ref, CHECK_TICK_THRESHOLD},
     world::command_queue::CommandQueue,
 };
-pub use bevy_ecs_macros::FromWorld;
 pub use deferred_world::DeferredWorld;
 pub use entity_access::{
     ComponentEntry, DynamicComponentFetch, EntityMut, EntityMutExcept, EntityRef, EntityRefExcept,
@@ -3355,37 +3354,7 @@ unsafe impl Sync for World {}
 ///
 /// This can be helpful for complex initialization or context-aware defaults.
 ///
-/// [`FromWorld`] is automatically implemented for any type implementing [`Default`]
-/// and may also be derived for:
-/// - any struct whose fields all implement `FromWorld`
-/// - any enum where one variant has the attribute `#[from_world]`
-///
-/// ```rs
-///
-/// #[derive(Default)]
-/// struct A;
-///
-/// #[derive(Default)]
-/// struct B(Option<u32>)
-///
-/// struct C;
-///
-/// impl FromWorld for C {
-///     fn from_world(_world: &mut World) -> Self {
-///         Self
-///     }
-/// }
-///
-/// #[derive(FromWorld)]
-/// struct D(A, B, C);
-///
-/// #[derive(FromWorld)]
-/// enum E {
-///     #[from_world]
-///     F,
-///     G
-/// }
-/// ```
+/// [`FromWorld`] is automatically implemented for any type implementing [`Default`].
 pub trait FromWorld {
     /// Creates `Self` using data from the given [`World`].
     fn from_world(world: &mut World) -> Self;

@@ -430,7 +430,6 @@ mod impls {
 }
 
 mod enums;
-mod generics;
 pub mod std_traits;
 pub mod utility;
 
@@ -452,7 +451,6 @@ pub use enums::*;
 pub use error::*;
 pub use fields::*;
 pub use from_reflect::*;
-pub use generics::*;
 pub use is::*;
 pub use kind::*;
 pub use list::*;

@@ -7,7 +7,6 @@ use syn::{
 
 pub const ENTITY_EVENT: &str = "entity_event";
 pub const TRIGGER: &str = "trigger";
-pub const EVENT_TARGET: &str = "event_target";
 
 pub fn derive_event(input: TokenStream) -> TokenStream {
     let mut ast = parse_macro_input!(input as DeriveInput);
@@ -89,8 +88,7 @@ pub fn derive_entity_event(input: TokenStream) -> TokenStream {
     })
 }
 
-/// Returns the field with the `#[event_target]` attribute, the only field if unnamed,
-/// or the field with the name "entity".
+/// Returns the field named "entity", or a tuple struct's only field.
 fn get_event_target_field(ast: &DeriveInput) -> Result<Member> {
     let Data::Struct(DataStruct { fields, .. }) = &ast.data else {
         return Err(syn::Error::new(
@@ -100,33 +98,20 @@ fn get_event_target_field(ast: &DeriveInput) -> Result<Member> {
     };
     match fields {
         Fields::Named(fields) => fields.named.iter().find_map(|field| {
-            if field.ident.as_ref().is_some_and(|i| i == "entity") || field
-                .attrs
-                .iter()
-                .any(|attr| attr.path().is_ident(EVENT_TARGET)) {
+            if field.ident.as_ref().is_some_and(|i| i == "entity") {
                     Some(Member::Named(field.ident.clone()?))
                 } else {
                     None
                 }
         }).ok_or(syn::Error::new(
             fields.span(),
-            "EntityEvent derive expected a field name 'entity' or a field annotated with #[event_target]."
+            "EntityEvent derive expected a field name 'entity'."
         )),
         Fields::Unnamed(fields) if fields.unnamed.len() == 1 => Ok(Member::Unnamed(Index::from(0))),
-        Fields::Unnamed(fields) => fields.unnamed.iter().enumerate().find_map(|(index, field)| {
-                if field
-                    .attrs
-                    .iter()
-                    .any(|attr| attr.path().is_ident(EVENT_TARGET)) {
-                        Some(Member::Unnamed(Index::from(index)))
-                    } else {
-                        None
-                    }
-            })
-            .ok_or(syn::Error::new(
-                fields.span(),
-                "EntityEvent derive expected unnamed structs with one field or with a field annotated with #[event_target].",
-            )),
+        Fields::Unnamed(fields) => Err(syn::Error::new(
+            fields.span(),
+            "EntityEvent derive expected unnamed structs with one field.",
+        )),
         Fields::Unit => Err(syn::Error::new(
             fields.span(),
             "EntityEvent derive does not work on unit structs. Your type must have a field to store the `Entity` target, such as `Attack(Entity)` or `Attack { entity: Entity }`.",

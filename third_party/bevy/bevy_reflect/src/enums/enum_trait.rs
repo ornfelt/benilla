@@ -1,7 +1,5 @@
-use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, DynamicEnum, Generics, PartialReflect, Type, TypePath,
-    VariantType,
+    type_info::impl_type_methods, DynamicEnum, PartialReflect, Type, TypePath, VariantType,
 };
 use alloc::{format, string::String};
 
@@ -145,7 +143,6 @@ pub trait Enum: PartialReflect {
 #[derive(Clone, Debug)]
 pub struct EnumInfo {
     ty: Type,
-    generics: Generics,
 }
 
 impl EnumInfo {
@@ -153,13 +150,10 @@ impl EnumInfo {
     pub fn new<TEnum: Enum + TypePath>() -> Self {
         Self {
             ty: Type::of::<TEnum>(),
-            generics: Generics::new(),
         }
     }
 
     impl_type_methods!(ty);
-
-    impl_generic_info_methods!(generics);
 }
 
 /// An iterator over the fields in the current enum variant.

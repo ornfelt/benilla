@@ -7,10 +7,9 @@ use core::{
 
 use bevy_reflect_derive::impl_type_path;
 
-use crate::generics::impl_generic_info_methods;
 use crate::{
-    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, Generics, PartialReflect,
-    Reflect, ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
+    type_info::impl_type_methods, utility::reflect_hasher, ApplyError, PartialReflect, Reflect,
+    ReflectKind, ReflectMut, ReflectOwned, ReflectRef, Type, TypeInfo, TypePath,
 };
 
 /// A trait used to power [list-like] operations via [reflection].
@@ -120,7 +119,6 @@ pub trait List: PartialReflect {
 #[derive(Clone, Debug)]
 pub struct ListInfo {
     ty: Type,
-    generics: Generics,
 }
 
 impl ListInfo {
@@ -128,13 +126,10 @@ impl ListInfo {
     pub fn new<TList: List + TypePath>() -> Self {
         Self {
             ty: Type::of::<TList>(),
-            generics: Generics::new(),
         }
     }
 
     impl_type_methods!(ty);
-
-    impl_generic_info_methods!(generics);
 }
 
 /// A list of reflected values.
