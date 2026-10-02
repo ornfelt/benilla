@@ -14,8 +14,6 @@ use std::path::PathBuf;
 #[cfg(not(feature = "std"))]
 use alloc::string::String as PathBuf;
 
-use crate::WindowTheme;
-
 /// A window event that is sent whenever a window's logical size has changed.
 #[derive(Message, Debug, Clone, PartialEq)]
 pub struct WindowResized {
@@ -246,35 +244,6 @@ pub struct WindowMoved {
     pub position: IVec2,
 }
 
-/// An event sent when the system theme changes for a window.
-///
-/// This event is only sent when the window is relying on the system theme to control its appearance.
-/// i.e. It is only sent when [`Window::window_theme`](crate::window::Window::window_theme) is `None` and the system theme changes.
-#[derive(Message, Debug, Clone, PartialEq, Eq)]
-pub struct WindowThemeChanged {
-    /// Window for which the system theme has changed.
-    pub window: Entity,
-    /// The new system theme.
-    pub theme: WindowTheme,
-}
-
-/// Application lifetime events
-#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppLifecycle {
-    /// The application is not started yet.
-    Idle,
-    /// The application is running.
-    Running,
-    /// The application is going to be suspended.
-    /// Applications have one frame to react to this event before being paused in the background.
-    WillSuspend,
-    /// The application was suspended.
-    Suspended,
-    /// The application is going to be resumed.
-    /// Applications have one extra frame to react to this event before being fully resumed.
-    WillResume,
-}
-
 /// Wraps all `bevy_window` and `bevy_input` events in a common enum.
 ///
 /// Read these events with `MessageReader<WindowEvent>` if you need to
@@ -283,8 +252,6 @@ pub enum AppLifecycle {
 /// readable with `MessageReader<E>` (e.g. `MessageReader<KeyboardInput>`).
 #[derive(Message, Debug, Clone, PartialEq)]
 pub enum WindowEvent {
-    /// An application lifecycle event.
-    AppLifecycle(AppLifecycle),
     /// The user's cursor has entered a window.
     CursorEntered(CursorEntered),
     ///The user's cursor has left a window.
@@ -315,8 +282,6 @@ pub enum WindowEvent {
     WindowResized(WindowResized),
     /// A window's scale factor has changed.
     WindowScaleFactorChanged(WindowScaleFactorChanged),
-    /// Sent for windows that are using the system theme when the system theme changes.
-    WindowThemeChanged(WindowThemeChanged),
 
     /// The state of a mouse button has changed.
     MouseButtonInput(MouseButtonInput),
@@ -343,12 +308,6 @@ pub enum WindowEvent {
     ///
     /// Used to clear pressed key state.
     KeyboardFocusLost(KeyboardFocusLost),
-}
-
-impl From<AppLifecycle> for WindowEvent {
-    fn from(e: AppLifecycle) -> Self {
-        Self::AppLifecycle(e)
-    }
 }
 
 impl From<CursorEntered> for WindowEvent {
@@ -438,12 +397,6 @@ impl From<WindowResized> for WindowEvent {
 impl From<WindowScaleFactorChanged> for WindowEvent {
     fn from(e: WindowScaleFactorChanged) -> Self {
         Self::WindowScaleFactorChanged(e)
-    }
-}
-
-impl From<WindowThemeChanged> for WindowEvent {
-    fn from(e: WindowThemeChanged) -> Self {
-        Self::WindowThemeChanged(e)
     }
 }
 

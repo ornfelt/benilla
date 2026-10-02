@@ -18,9 +18,7 @@ pub struct ScreenSpaceReflectionsPlugin;
 /// but deferred rendering itself is not automatically enabled.
 ///
 /// SSR currently performs no roughness filtering for glossy reflections, so
-/// only very smooth surfaces will reflect objects in screen space. You can
-/// adjust the `perceptual_roughness_threshold` in order to tune the threshold
-/// below which screen-space reflections will be traced.
+/// only very smooth surfaces will reflect objects in screen space.
 ///
 /// As with all screen-space techniques, SSR can only reflect objects on screen.
 /// When objects leave the camera, they will disappear from reflections.
@@ -29,75 +27,18 @@ pub struct ScreenSpaceReflectionsPlugin;
 /// that it can reflect all objects, not just static ones.
 ///
 /// SSR is an approximation technique and produces artifacts in some situations.
-/// Hand-tuning the settings in this component will likely be useful.
 ///
 /// Screen-space reflections are presently unsupported on WebGL 2 because of a
 /// bug whereby Naga doesn't generate correct GLSL when sampling depth buffers,
 /// which is required for screen-space raymarching.
-#[derive(Clone, Copy, Component)]
+#[derive(Clone, Copy, Component, Default)]
 #[require(DepthPrepass, DeferredPrepass)]
 #[doc(alias = "Ssr")]
-pub struct ScreenSpaceReflections {
-    /// The maximum PBR roughness level that will enable screen space
-    /// reflections.
-    pub perceptual_roughness_threshold: f32,
-
-    /// When marching the depth buffer, we only have 2.5D information and don't
-    /// know how thick surfaces are. We shall assume that the depth buffer
-    /// fragments are cuboids with a constant thickness defined by this
-    /// parameter.
-    pub thickness: f32,
-
-    /// The number of steps to be taken at regular intervals to find an initial
-    /// intersection. Must not be zero.
-    ///
-    /// Higher values result in higher-quality reflections, because the
-    /// raymarching shader is less likely to miss objects. However, they take
-    /// more GPU time.
-    pub linear_steps: u32,
-
-    /// Exponent to be applied in the linear part of the march.
-    ///
-    /// A value of 1.0 will result in equidistant steps, and higher values will
-    /// compress the earlier steps, and expand the later ones. This might be
-    /// desirable in order to get more detail close to objects.
-    ///
-    /// For optimal performance, this should be a small unsigned integer, such
-    /// as 1 or 2.
-    pub linear_march_exponent: f32,
-
-    /// Number of steps in a bisection (binary search) to perform once the
-    /// linear search has found an intersection. Helps narrow down the hit,
-    /// increasing the chance of the secant method finding an accurate hit
-    /// point.
-    pub bisection_steps: u32,
-
-    /// Approximate the root position using the secant method—by solving for
-    /// line-line intersection between the ray approach rate and the surface
-    /// gradient.
-    pub use_secant: bool,
-}
+pub struct ScreenSpaceReflections;
 
 impl Plugin for ScreenSpaceReflectionsPlugin {
     fn build(&self, app: &mut App) {
         // `ExtractComponentPlugin`'s main-world half: no RenderApp exists under gfx.
         app.add_plugins(SyncComponentPlugin::<ScreenSpaceReflections>::default());
-    }
-}
-
-impl Default for ScreenSpaceReflections {
-    // Reasonable default values.
-    //
-    // These are from
-    // <https://gist.github.com/h3r2tic/9c8356bdaefbe80b1a22ae0aaee192db?permalink_comment_id=4552149#gistcomment-4552149>.
-    fn default() -> Self {
-        Self {
-            perceptual_roughness_threshold: 0.1,
-            linear_steps: 16,
-            bisection_steps: 4,
-            use_secant: true,
-            thickness: 0.25,
-            linear_march_exponent: 1.0,
-        }
     }
 }

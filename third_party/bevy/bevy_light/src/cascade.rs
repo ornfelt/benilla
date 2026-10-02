@@ -158,16 +158,10 @@ pub struct Cascades {
 
 #[derive(Clone, Debug, Default)]
 pub struct Cascade {
-    /// The transform of the light, i.e. the view to world matrix.
-    pub world_from_cascade: Mat4,
-    /// The orthographic projection for this cascade.
-    pub clip_from_cascade: Mat4,
     /// The view-projection matrix for this cascade, converting world space into light clip space.
     /// Importantly, this is derived and stored separately from `view_transform` and `projection` to
     /// ensure shadow stability.
     pub clip_from_world: Mat4,
-    /// Size of each shadow map texel in world units.
-    pub texel_size: f32,
 }
 
 pub fn clear_directional_light_cascades(mut lights: Query<(&DirectionalLight, &mut Cascades)>) {
@@ -293,12 +287,6 @@ fn calculate_cascade(
         world_from_light_transpose.z_axis,
         (-near_plane_center).extend(1.0),
     );
-    let world_from_cascade = Mat4::from_cols(
-        world_from_light.x_axis,
-        world_from_light.y_axis,
-        world_from_light.z_axis,
-        world_from_light * near_plane_center.extend(1.0),
-    );
 
     // Right-handed orthographic projection, centered at `near_plane_center`.
     // NOTE: This is different from the reference material, as we use reverse Z.
@@ -311,10 +299,5 @@ fn calculate_cascade(
     );
 
     let clip_from_world = clip_from_cascade * cascade_from_world;
-    Cascade {
-        world_from_cascade,
-        clip_from_cascade,
-        clip_from_world,
-        texel_size: cascade_texel_size,
-    }
+    Cascade { clip_from_world }
 }

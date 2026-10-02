@@ -36,7 +36,7 @@ pub mod cascade;
 use cascade::{build_directional_light_cascades, clear_directional_light_cascades};
 pub use cascade::{CascadeShadowConfig, CascadeShadowConfigBuilder, Cascades};
 mod point_light;
-pub use point_light::{update_point_light_frusta, PointLight, PointLightShadowMap};
+pub use point_light::{update_point_light_frusta, PointLight};
 mod spot_light;
 pub use spot_light::{
     orthonormalize, spot_light_clip_from_view, spot_light_world_from_view,
@@ -44,7 +44,7 @@ pub use spot_light::{
 };
 mod directional_light;
 pub use directional_light::{
-    update_directional_light_frusta, DirectionalLight, DirectionalLightShadowMap, SunDisk,
+    update_directional_light_frusta, DirectionalLight, DirectionalLightShadowMap,
 };
 
 /// The light prelude.
@@ -104,7 +104,6 @@ impl Plugin for LightPlugin {
         app.init_resource::<GlobalVisibleClusterableObjects>()
             .init_resource::<GlobalAmbientLight>()
             .init_resource::<DirectionalLightShadowMap>()
-            .init_resource::<PointLightShadowMap>()
             .configure_sets(
                 PostUpdate,
                 SimulationLightSystems::UpdateDirectionalLightCascades

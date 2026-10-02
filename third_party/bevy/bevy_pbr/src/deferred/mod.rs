@@ -7,31 +7,11 @@ pub struct DeferredPbrLightingPlugin;
 
 pub const DEFAULT_PBR_DEFERRED_LIGHTING_PASS_ID: u8 = 1;
 
-/// Component with a `depth_id` for specifying which corresponding materials should be rendered by this specific PBR deferred lighting pass.
+/// Component marking a view for the PBR deferred lighting pass.
 ///
 /// Will be automatically added to entities with the [`DeferredPrepass`] component that don't already have a [`PbrDeferredLightingDepthId`].
-#[derive(Component, Clone, Copy, ExtractComponent)]
-pub struct PbrDeferredLightingDepthId {
-    depth_id: u32,
-}
-
-impl PbrDeferredLightingDepthId {
-    pub fn set(&mut self, value: u8) {
-        self.depth_id = value as u32;
-    }
-
-    pub fn get(&self) -> u8 {
-        self.depth_id as u8
-    }
-}
-
-impl Default for PbrDeferredLightingDepthId {
-    fn default() -> Self {
-        PbrDeferredLightingDepthId {
-            depth_id: DEFAULT_PBR_DEFERRED_LIGHTING_PASS_ID as u32,
-        }
-    }
-}
+#[derive(Component, Clone, Copy, Default, ExtractComponent)]
+pub struct PbrDeferredLightingDepthId;
 
 impl Plugin for DeferredPbrLightingPlugin {
     fn build(&self, app: &mut App) {

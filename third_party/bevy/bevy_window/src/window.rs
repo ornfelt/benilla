@@ -142,8 +142,6 @@ pub struct Window {
     ///
     /// Notes: Changing this field during runtime will have no effect for now.
     pub name: Option<String>,
-    /// How the alpha channel of textures should be handled while compositing.
-    pub composite_alpha_mode: CompositeAlphaMode,
     /// The limits of the window's logical size
     /// (found in its [`resolution`](WindowResolution)) when resizing.
     pub resize_constraints: WindowResizeConstraints,
@@ -177,7 +175,6 @@ pub struct Window {
     /// - macOS: Not working as expected.
     ///
     /// macOS transparent works with winit out of the box, so this issue might be related to: <https://github.com/gfx-rs/wgpu/issues/687>.
-    /// You should also set the window `composite_alpha_mode` to `CompositeAlphaMode::PostMultiplied`.
     pub transparent: bool,
     /// Get/set whether the window is focused.
     ///
@@ -238,14 +235,6 @@ pub struct Window {
     ///
     /// - iOS / Android / Web: Unsupported.
     pub ime_position: Vec2,
-    /// Sets a specific theme for the window.
-    ///
-    /// If `None` is provided, the window will use the system theme.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - iOS / Android / Web: Unsupported.
-    pub window_theme: Option<WindowTheme>,
     /// Sets the window's visibility.
     ///
     /// If `false`, this will hide the window completely, it won't appear on the screen or in the task bar.
@@ -407,17 +396,6 @@ pub struct Window {
     ///
     /// [`WindowAttributesExtIOS::with_prefers_status_bar_hidden`]: https://docs.rs/winit/latest/x86_64-apple-darwin/winit/platform/ios/trait.WindowAttributesExtIOS.html#tymethod.with_prefers_status_bar_hidden
     pub prefers_status_bar_hidden: bool,
-    /// Sets screen edges for which you want your gestures to take precedence
-    /// over the system gestures.
-    ///
-    /// Corresponds to [`WindowAttributesExtIOS::with_preferred_screen_edges_deferring_system_gestures`].
-    ///
-    /// # Platform-specific
-    ///
-    /// - Only used on iOS.
-    ///
-    /// [`WindowAttributesExtIOS::with_preferred_screen_edges_deferring_system_gestures`]: https://docs.rs/winit/latest/x86_64-apple-darwin/winit/platform/ios/trait.WindowAttributesExtIOS.html#tymethod.with_preferred_screen_edges_deferring_system_gestures
-    pub preferred_screen_edges_deferring_system_gestures: ScreenEdge,
 }
 
 impl Default for Window {
@@ -430,7 +408,6 @@ impl Default for Window {
             position: Default::default(),
             resolution: Default::default(),
             internal: Default::default(),
-            composite_alpha_mode: Default::default(),
             resize_constraints: Default::default(),
             ime_enabled: Default::default(),
             ime_position: Default::default(),
@@ -443,7 +420,6 @@ impl Default for Window {
             fit_canvas_to_parent: false,
             prevent_default_event_handling: true,
             canvas: None,
-            window_theme: None,
             visible: true,
             skip_taskbar: false,
             clip_children: true,
@@ -461,7 +437,6 @@ impl Default for Window {
             titlebar_show_buttons: true,
             prefers_home_indicator_hidden: false,
             prefers_status_bar_hidden: false,
-            preferred_screen_edges_deferring_system_gestures: Default::default(),
         }
     }
 }
@@ -1008,36 +983,6 @@ pub enum PresentMode {
     Mailbox = 5,
 }
 
-/// Specifies how the alpha channel of the textures should be handled during compositing, for a [`Window`].
-#[repr(C)]
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CompositeAlphaMode {
-    /// Chooses either [`Opaque`](CompositeAlphaMode::Opaque) or [`Inherit`](CompositeAlphaMode::Inherit)
-    /// automatically, depending on the `alpha_mode` that the current surface can support.
-    #[default]
-    Auto = 0,
-    /// The alpha channel, if it exists, of the textures is ignored in the
-    /// compositing process. Instead, the textures is treated as if it has a
-    /// constant alpha of 1.0.
-    Opaque = 1,
-    /// The alpha channel, if it exists, of the textures is respected in the
-    /// compositing process. The non-alpha channels of the textures are
-    /// expected to already be multiplied by the alpha channel by the
-    /// application.
-    PreMultiplied = 2,
-    /// The alpha channel, if it exists, of the textures is respected in the
-    /// compositing process. The non-alpha channels of the textures are not
-    /// expected to already be multiplied by the alpha channel by the
-    /// application; instead, the compositor will multiply the non-alpha
-    /// channels of the texture by the alpha channel during compositing.
-    PostMultiplied = 3,
-    /// The alpha channel, if it exists, of the textures is unknown for processing
-    /// during compositing. Instead, the application is responsible for setting
-    /// the composite alpha blending mode using native WSI command. If not set,
-    /// then a platform-specific default will be used.
-    Inherit = 4,
-}
-
 /// Defines the way a [`Window`] is displayed.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowMode {
@@ -1090,16 +1035,6 @@ pub enum WindowLevel {
     AlwaysOnTop,
 }
 
-/// The [`Window`] theme variant to use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowTheme {
-    /// Use the light variant.
-    Light,
-
-    /// Use the dark variant.
-    Dark,
-}
-
 /// Specifies which [`Window`] control buttons should be enabled.
 ///
 /// ## Platform-specific
@@ -1137,30 +1072,6 @@ impl Default for EnabledButtons {
 /// is in the process of closing (on the next frame).
 #[derive(Component, Default)]
 pub struct ClosingWindow;
-
-/// The edges of a screen. Corresponds to [`winit::platform::ios::ScreenEdge`].
-///
-/// # Platform-specific
-///
-/// - Only used on iOS.
-///
-/// [`winit::platform::ios::ScreenEdge`]: https://docs.rs/winit/latest/x86_64-apple-darwin/winit/platform/ios/struct.ScreenEdge.html
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ScreenEdge {
-    #[default]
-    /// No edge.
-    None,
-    /// The top edge of the screen.
-    Top,
-    /// The left edge of the screen.
-    Left,
-    /// The bottom edge of the screen.
-    Bottom,
-    /// The right edge of the screen.
-    Right,
-    /// All edges of the screen.
-    All,
-}
 
 #[cfg(test)]
 mod tests {

@@ -5,7 +5,6 @@
 
 use alloc::sync::Arc;
 use bevy_ecs::prelude::Component;
-use bevy_platform::sync::Mutex;
 use core::{any::Any, marker::PhantomData, ops::Deref};
 use raw_window_handle::RawDisplayHandle;
 
@@ -52,7 +51,3 @@ impl RawHandleWrapper {
 unsafe impl Send for RawHandleWrapper {}
 // SAFETY: This is safe for the same reasons as the Send impl above.
 unsafe impl Sync for RawHandleWrapper {}
-
-/// Holder of the [`RawHandleWrapper`] with wrappers, to allow use in asynchronous context
-#[derive(Debug, Clone, Component)]
-pub struct RawHandleWrapperHolder(pub Arc<Mutex<Option<RawHandleWrapper>>>);

@@ -1,10 +1,8 @@
-use crate::{Asset, AssetId, AssetLoadError, AssetPath, UntypedAssetId};
+use crate::{Asset, AssetId, AssetLoadError, AssetPath};
 use bevy_ecs::message::Message;
 use core::fmt::Debug;
 
 /// A [`Message`] emitted when a specific [`Asset`] fails to load.
-///
-/// For an untyped equivalent, see [`UntypedAssetLoadFailedEvent`].
 #[derive(Message, Clone, Debug)]
 pub struct AssetLoadFailedEvent<A: Asset> {
     /// The stable identifier of the asset that failed to load.
@@ -13,27 +11,6 @@ pub struct AssetLoadFailedEvent<A: Asset> {
     pub path: AssetPath<'static>,
     /// Why the asset failed to load.
     pub error: AssetLoadError,
-}
-
-/// An untyped version of [`AssetLoadFailedEvent`].
-#[derive(Message, Clone, Debug)]
-pub struct UntypedAssetLoadFailedEvent {
-    /// The stable identifier of the asset that failed to load.
-    pub id: UntypedAssetId,
-    /// The asset path that was attempted.
-    pub path: AssetPath<'static>,
-    /// Why the asset failed to load.
-    pub error: AssetLoadError,
-}
-
-impl<A: Asset> From<&AssetLoadFailedEvent<A>> for UntypedAssetLoadFailedEvent {
-    fn from(value: &AssetLoadFailedEvent<A>) -> Self {
-        UntypedAssetLoadFailedEvent {
-            id: value.id.untyped(),
-            path: value.path.clone(),
-            error: value.error.clone(),
-        }
-    }
 }
 
 /// [`Message`]s that occur for a specific loaded [`Asset`], such as "value changed" events and "dependency" events.

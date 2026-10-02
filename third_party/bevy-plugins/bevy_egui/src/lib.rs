@@ -765,11 +765,6 @@ impl EguiUserTextures {
 /// A wrapper type for an image handle or an asset id to mimic weak handles.
 #[derive(Clone, Debug)]
 pub enum EguiTextureHandle {
-    /// Strong handle to an image.
-    ///
-    /// Passing strong handles to [`EguiUserTextures::add_image`] will imply that egui shares ownership of an image,
-    /// and you'll have to call [`EguiUserTextures::remove_image`] to remove an asset.
-    Strong(Handle<Image>),
     /// Weak handle to an image.
     Weak(AssetId<Image>),
 }
@@ -779,7 +774,6 @@ impl EguiTextureHandle {
     /// Returns an [`AssetId`] of a wrapped handle.
     pub fn asset_id(&self) -> AssetId<Image> {
         match self {
-            EguiTextureHandle::Strong(handle) => handle.id(),
             EguiTextureHandle::Weak(asset_id) => *asset_id,
         }
     }
@@ -859,9 +853,6 @@ impl Plugin for EguiPlugin {
             app.init_resource::<EguiManagedTextures>();
             app.init_resource::<EguiUserTextures>();
             app.add_plugins(ExtractResourcePlugin::<EguiUserTextures>::default());
-            app.add_plugins(ExtractResourcePlugin::<
-                render::systems::ExtractedEguiManagedTextures,
-            >::default());
         }
 
         #[cfg(feature = "manage_clipboard")]

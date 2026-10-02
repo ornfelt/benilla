@@ -3,74 +3,18 @@
 use bevy_math::*;
 use bevy_reflect::Reflect;
 
-/// An individual input for [`Animatable::blend`].
-pub struct BlendInput<T> {
-    /// The individual item's weight. This may not be bound to the range `[0.0, 1.0]`.
-    pub weight: f32,
-    /// The input value to be blended.
-    pub value: T,
-    /// Whether or not to additively blend this input into the final result.
-    pub additive: bool,
-}
-
 /// An animatable value type.
 pub trait Animatable: Reflect + Sized + Send + Sync + 'static {
     /// Interpolates between `a` and `b` with an interpolation factor of `time`.
     ///
     /// The `time` parameter here may not be clamped to the range `[0.0, 1.0]`.
     fn interpolate(a: &Self, b: &Self, time: f32) -> Self;
-
-    /// Blends one or more values together.
-    ///
-    /// Implementors should return a default value when no inputs are provided here.
-    fn blend(inputs: impl Iterator<Item = BlendInput<Self>>) -> Self;
 }
 
-macro_rules! impl_float_animatable {
-    ($ty: ty, $base: ty) => {
-        impl Animatable for $ty {
-            #[inline]
-            fn interpolate(a: &Self, b: &Self, t: f32) -> Self {
-                let t = <$base>::from(t);
-                (*a) * (1.0 - t) + (*b) * t
-            }
-
-            #[inline]
-            fn blend(inputs: impl Iterator<Item = BlendInput<Self>>) -> Self {
-                let mut value = Default::default();
-                for input in inputs {
-                    if input.additive {
-                        value += <$base>::from(input.weight) * input.value;
-                    } else {
-                        value = Self::interpolate(&value, &input.value, input.weight);
-                    }
-                }
-                value
-            }
-        }
-    };
-}
-
-impl_float_animatable!(Vec3A, f32);
-
-// Vec3 is special cased to use Vec3A internally for blending
 impl Animatable for Vec3 {
     #[inline]
     fn interpolate(a: &Self, b: &Self, t: f32) -> Self {
         (*a) * (1.0 - t) + (*b) * t
-    }
-
-    #[inline]
-    fn blend(inputs: impl Iterator<Item = BlendInput<Self>>) -> Self {
-        let mut value = Vec3A::ZERO;
-        for input in inputs {
-            if input.additive {
-                value += input.weight * Vec3A::from(input.value);
-            } else {
-                value = Vec3A::interpolate(&value, &Vec3A::from(input.value), input.weight);
-            }
-        }
-        Self::from(value)
     }
 }
 
@@ -81,23 +25,5 @@ impl Animatable for Quat {
         // We want to smoothly interpolate between the two quaternions by default,
         // rather than using a quicker but less correct linear interpolation.
         a.slerp(*b, t)
-    }
-
-    #[inline]
-    fn blend(inputs: impl Iterator<Item = BlendInput<Self>>) -> Self {
-        let mut value = Self::IDENTITY;
-        for BlendInput {
-            weight,
-            value: incoming_value,
-            additive,
-        } in inputs
-        {
-            if additive {
-                value = Self::slerp(Self::IDENTITY, incoming_value, weight) * value;
-            } else {
-                value = Self::interpolate(&value, &incoming_value, weight);
-            }
-        }
-        value
     }
 }

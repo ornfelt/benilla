@@ -50,7 +50,7 @@ pub mod prelude {
 
     #[doc(hidden)]
     #[cfg(feature = "bevy_light")]
-    pub use crate::light::{LightGizmoColor, LightGizmoConfigGroup};
+    pub use crate::light::LightGizmoConfigGroup;
 }
 
 use bevy_app::{App, FixedFirst, FixedLast, Last, Plugin, RunFixedMainLoop};

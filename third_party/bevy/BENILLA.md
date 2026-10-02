@@ -1151,6 +1151,40 @@ the same repository's.
   the only reader of `ForwardDecalMesh`, whose mesh the plugin adds to `Assets<Mesh>` at build),
   and the nested loader's immediate mode (`Immediate`, `LoadDirectError`; `bevy_asset`'s tests
   load through it). `bevy_ptr` and `bevy_platform` had no uncalled function left.
+- **The field-and-variant pass** (the type pass's dead-code warnings, each site read): a field
+  nothing reads goes with every write of it, a variant nothing constructs with its match arms, and
+  a type left with nothing in it goes when nothing else names it or stays empty when a plugin
+  registers it. `bevy_window`: the `AppLifecycle` and `WindowThemeChanged` messages (no writer, no
+  reader) with their `WindowEvent` variants, `WindowTheme`, `CompositeAlphaMode`, `ScreenEdge` and
+  the `Window` fields that held them, and the never-read `RawHandleWrapperHolder` the primary window
+  carried. `bevy_asset`: the processed mode (`AssetMode`, `AssetServerMode`, the processed readers
+  and watch warnings, `MissingProcessedAssetReaderError`, `processed_file_path`), `AssetMetaCheck`
+  (meta files are always read) and `UnapprovedPathMode` (an unapproved path is always refused,
+  logged as before; `load_override` and the `Deny`/`Allow` tests go), the unread
+  `UntypedAssetLoadFailedEvent` message, `DependencyLoadState::Failed`'s error. `bevy_animation`:
+  additive blend nodes (`AnimationNodeType::Add`, `AnimationCurveEvaluator::add`, the evaluator's
+  additive branches, `Animatable::blend`, `BlendInput`, `Vec3A`'s `Animatable`),
+  `AnimationEvaluationError::PropertyNotPresent`. `bevy_camera`: `ScreenSpaceTransmissionQuality`
+  and its `Camera3d` field. `bevy_core_pipeline`: `Skybox` and `SkyboxPlugin`. `bevy_gizmos`: the
+  light and AABB gizmo colour options, and with them `bevy_color`'s `palettes`. `bevy_light`:
+  `SunDisk`, `PointLightShadowMap`, `Cascade`'s three unread fields, `EnvironmentMapLight`'s fields
+  (the cluster pass's `Has<EnvironmentMapLight>` stays). `bevy_render`: `Readback`
+  (`GpuReadbackPlugin` stays, empty), `ShaderStorageBuffer`'s fields with its constructors (the
+  asset type stays, empty), `ManualTextureView`'s view and format, `ColorAttachment`'s resolve and history
+  targets, `DepthAttachment` with the `RenderPassDepthStencilAttachment` stub, `ColorGrading`'s
+  settings (the component stays required on `Camera3d`). `bevy_pbr`: the settings of `Atmosphere`,
+  `AtmosphereSettings`, `GpuAtmosphereSettings`, `ScatteringMedium` (its asset type stays),
+  `DistanceFog` with `FogFalloff`, `ScreenSpaceReflections`, `ScreenSpaceAmbientOcclusion` with its
+  quality levels, `PbrDeferredLightingDepthId`, `DefaultOpaqueRendererMethod`, `ShadowView` and
+  `PrepassPlugin`'s debug flags. `bevy_shader`: `ValidateShader`. `bevy_mesh`: `SphereKind::Uv`
+  (`uv()` stays). `bevy_sprite_render`: `SpriteSystems::ExtractSprites`. `bevy_ui`:
+  `NodeMeasure::Custom`. `bevy_egui`: `ExtractedEguiManagedTextures` and
+  `EguiTextureHandle::Strong`. Kept: `SystemInfo`'s fields (logged), `TonemappingLuts` (building it
+  adds three images to `Assets<Image>`), `TranscodeFormat::Uastc`'s format and
+  `AnimationEvaluationError`'s type ids (in logged errors), `WindowMode::Fullscreen` and
+  `VideoModeSelection` (benilla's gfx backend matches it), `bevy_ui`'s layout enums' variants and
+  `StandardMaterial`'s options (`UvChannel`, `ParallaxMappingMethod`,
+  `OpaqueRendererMethod::Deferred`), as options the C port carries.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

@@ -16,10 +16,7 @@ use bevy_app::{App, Plugin};
 use bevy_color::LinearRgba;
 use bevy_ecs::prelude::*;
 use bevy_render_macros::ExtractComponent;
-use core::{
-    ops::Range,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct ViewPlugin;
 
@@ -72,164 +69,9 @@ pub struct Hdr;
 /// Configures filmic color grading parameters to adjust the image appearance.
 ///
 /// Color grading is applied just before tonemapping for a given
-/// [`Camera`](bevy_camera::Camera) entity, with the sole exception of the
-/// `post_saturation` value in [`ColorGradingGlobal`], which is applied after
-/// tonemapping.
+/// [`Camera`](bevy_camera::Camera) entity.
 #[derive(Component, Debug, Default, Clone)]
-pub struct ColorGrading {
-    /// Filmic color grading values applied to the image as a whole (as opposed
-    /// to individual sections, like shadows and highlights).
-    pub global: ColorGradingGlobal,
-
-    /// Color grading values that are applied to the darker parts of the image.
-    ///
-    /// The cutoff points can be customized with the
-    /// [`ColorGradingGlobal::midtones_range`] field.
-    pub shadows: ColorGradingSection,
-
-    /// Color grading values that are applied to the parts of the image with
-    /// intermediate brightness.
-    ///
-    /// The cutoff points can be customized with the
-    /// [`ColorGradingGlobal::midtones_range`] field.
-    pub midtones: ColorGradingSection,
-
-    /// Color grading values that are applied to the lighter parts of the image.
-    ///
-    /// The cutoff points can be customized with the
-    /// [`ColorGradingGlobal::midtones_range`] field.
-    pub highlights: ColorGradingSection,
-}
-
-/// Filmic color grading values applied to the image as a whole (as opposed to
-/// individual sections, like shadows and highlights).
-#[derive(Clone, Debug)]
-pub struct ColorGradingGlobal {
-    /// Exposure value (EV) offset, measured in stops.
-    pub exposure: f32,
-
-    /// An adjustment made to the [CIE 1931] chromaticity *x* value.
-    ///
-    /// Positive values make the colors redder. Negative values make the colors
-    /// bluer. This has no effect on luminance (brightness).
-    ///
-    /// [CIE 1931]: https://en.wikipedia.org/wiki/CIE_1931_color_space#CIE_xy_chromaticity_diagram_and_the_CIE_xyY_color_space
-    pub temperature: f32,
-
-    /// An adjustment made to the [CIE 1931] chromaticity *y* value.
-    ///
-    /// Positive values make the colors more magenta. Negative values make the
-    /// colors greener. This has no effect on luminance (brightness).
-    ///
-    /// [CIE 1931]: https://en.wikipedia.org/wiki/CIE_1931_color_space#CIE_xy_chromaticity_diagram_and_the_CIE_xyY_color_space
-    pub tint: f32,
-
-    /// An adjustment to the [hue], in radians.
-    ///
-    /// Adjusting this value changes the perceived colors in the image: red to
-    /// yellow to green to blue, etc. It has no effect on the saturation or
-    /// brightness of the colors.
-    ///
-    /// [hue]: https://en.wikipedia.org/wiki/HSL_and_HSV#Formal_derivation
-    pub hue: f32,
-
-    /// Saturation adjustment applied after tonemapping.
-    /// Values below 1.0 desaturate, with a value of 0.0 resulting in a grayscale image
-    /// with luminance defined by ITU-R BT.709
-    /// Values above 1.0 increase saturation.
-    pub post_saturation: f32,
-
-    /// The luminance (brightness) ranges that are considered part of the
-    /// "midtones" of the image.
-    ///
-    /// This affects which [`ColorGradingSection`]s apply to which colors. Note
-    /// that the sections smoothly blend into one another, to avoid abrupt
-    /// transitions.
-    ///
-    /// The default value is 0.2 to 0.7.
-    pub midtones_range: Range<f32>,
-}
-
-/// A section of color grading values that can be selectively applied to
-/// shadows, midtones, and highlights.
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct ColorGradingSection {
-    /// Values below 1.0 desaturate, with a value of 0.0 resulting in a grayscale image
-    /// with luminance defined by ITU-R BT.709.
-    /// Values above 1.0 increase saturation.
-    pub saturation: f32,
-
-    /// Adjusts the range of colors.
-    ///
-    /// A value of 1.0 applies no changes. Values below 1.0 move the colors more
-    /// toward a neutral gray. Values above 1.0 spread the colors out away from
-    /// the neutral gray.
-    pub contrast: f32,
-
-    /// A nonlinear luminance adjustment, mainly affecting the high end of the
-    /// range.
-    ///
-    /// This is the *n* exponent in the standard [ASC CDL] formula for color
-    /// correction:
-    ///
-    /// ```text
-    /// out = (i × s + o)ⁿ
-    /// ```
-    ///
-    /// [ASC CDL]: https://en.wikipedia.org/wiki/ASC_CDL#Combined_Function
-    pub gamma: f32,
-
-    /// A linear luminance adjustment, mainly affecting the middle part of the
-    /// range.
-    ///
-    /// This is the *s* factor in the standard [ASC CDL] formula for color
-    /// correction:
-    ///
-    /// ```text
-    /// out = (i × s + o)ⁿ
-    /// ```
-    ///
-    /// [ASC CDL]: https://en.wikipedia.org/wiki/ASC_CDL#Combined_Function
-    pub gain: f32,
-
-    /// A fixed luminance adjustment, mainly affecting the lower part of the
-    /// range.
-    ///
-    /// This is the *o* term in the standard [ASC CDL] formula for color
-    /// correction:
-    ///
-    /// ```text
-    /// out = (i × s + o)ⁿ
-    /// ```
-    ///
-    /// [ASC CDL]: https://en.wikipedia.org/wiki/ASC_CDL#Combined_Function
-    pub lift: f32,
-}
-
-impl Default for ColorGradingGlobal {
-    fn default() -> Self {
-        Self {
-            exposure: 0.0,
-            temperature: 0.0,
-            tint: 0.0,
-            hue: 0.0,
-            post_saturation: 1.0,
-            midtones_range: 0.2..0.7,
-        }
-    }
-}
-
-impl Default for ColorGradingSection {
-    fn default() -> Self {
-        Self {
-            saturation: 1.0,
-            contrast: 1.0,
-            gamma: 1.0,
-            gain: 1.0,
-            lift: 0.0,
-        }
-    }
-}
+pub struct ColorGrading;
 
 #[derive(Component, Clone)]
 pub struct ViewTarget {

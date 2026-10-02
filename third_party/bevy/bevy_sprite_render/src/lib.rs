@@ -38,7 +38,6 @@ pub struct SpriteRenderPlugin;
 /// System set for sprite rendering.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum SpriteSystems {
-    ExtractSprites,
     ComputeSlices,
 }
 

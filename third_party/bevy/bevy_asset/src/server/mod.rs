@@ -3,8 +3,7 @@ mod loaders;
 
 use crate::{
     io::{
-        AssetReaderError, AssetSource, AssetSourceId, AssetSources, MissingAssetSourceError,
-        MissingProcessedAssetReaderError, Reader,
+        AssetReaderError, AssetSource, AssetSourceId, AssetSources, MissingAssetSourceError, Reader,
     },
     loader::{AssetLoader, ErasedAssetLoader, LoadContext, LoadedAsset},
     meta::{
@@ -12,9 +11,9 @@ use crate::{
         MetaTransform, Settings,
     },
     path::AssetPath,
-    Asset, AssetEvent, AssetHandleProvider, AssetIndex, AssetLoadFailedEvent, AssetMetaCheck,
-    Assets, DeserializeMetaError, ErasedAssetIndex, ErasedLoadedAsset, Handle, UnapprovedPathMode,
-    UntypedAssetId, UntypedAssetLoadFailedEvent, UntypedHandle,
+    Asset, AssetEvent, AssetHandleProvider, AssetIndex, AssetLoadFailedEvent, Assets,
+    DeserializeMetaError, ErasedAssetIndex, ErasedLoadedAsset, Handle, UntypedAssetId,
+    UntypedHandle,
 };
 use alloc::{borrow::ToOwned, boxed::Box, vec, vec::Vec};
 use alloc::{
@@ -62,18 +61,6 @@ pub(crate) struct AssetServerData {
     asset_event_sender: Sender<InternalAssetEvent>,
     asset_event_receiver: Receiver<InternalAssetEvent>,
     sources: Arc<AssetSources>,
-    mode: AssetServerMode,
-    meta_check: AssetMetaCheck,
-    unapproved_path_mode: UnapprovedPathMode,
-}
-
-/// The "asset mode" the server is currently in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AssetServerMode {
-    /// This server loads unprocessed assets.
-    Unprocessed,
-    /// This server loads processed assets.
-    Processed,
 }
 
 impl AssetServer {
@@ -82,30 +69,14 @@ impl AssetServer {
 
     /// Create a new instance of [`AssetServer`]. If `watching_for_changes` is true, the server runs as a watching
     /// server; no `AssetWatcher` exists in this build, so nothing is hot-reloaded.
-    pub fn new_with_meta_check(
-        sources: Arc<AssetSources>,
-        mode: AssetServerMode,
-        meta_check: AssetMetaCheck,
-        watching_for_changes: bool,
-        unapproved_path_mode: UnapprovedPathMode,
-    ) -> Self {
-        Self::new_with_loaders(
-            sources,
-            Default::default(),
-            mode,
-            meta_check,
-            watching_for_changes,
-            unapproved_path_mode,
-        )
+    pub fn new_with_meta_check(sources: Arc<AssetSources>, watching_for_changes: bool) -> Self {
+        Self::new_with_loaders(sources, Default::default(), watching_for_changes)
     }
 
     pub(crate) fn new_with_loaders(
         sources: Arc<AssetSources>,
         loaders: Arc<RwLock<AssetLoaders>>,
-        mode: AssetServerMode,
-        meta_check: AssetMetaCheck,
         watching_for_changes: bool,
-        unapproved_path_mode: UnapprovedPathMode,
     ) -> Self {
         let (asset_event_sender, asset_event_receiver) = crossbeam_channel::unbounded();
         let mut infos = AssetInfos::default();
@@ -113,13 +84,10 @@ impl AssetServer {
         Self {
             data: Arc::new(AssetServerData {
                 sources,
-                mode,
-                meta_check,
                 asset_event_sender,
                 asset_event_receiver,
                 loaders,
                 infos: RwLock::new(infos),
-                unapproved_path_mode,
             }),
         }
     }
@@ -266,16 +234,7 @@ impl AssetServer {
     /// The asset load will fail and an error will be printed to the logs if the asset stored at `path` is not of type `A`.
     #[must_use = "not using the returned strong handle may result in the unexpected release of the asset"]
     pub fn load<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> Handle<A> {
-        self.load_with_meta_transform(path, None, (), false)
-    }
-
-    /// Same as [`load`](AssetServer::load), but you can load assets from unapproved paths
-    /// if [`AssetPlugin::unapproved_path_mode`](super::AssetPlugin::unapproved_path_mode)
-    /// is [`Deny`](UnapprovedPathMode::Deny).
-    ///
-    /// See [`UnapprovedPathMode`] and [`AssetPath::is_unapproved`]
-    pub fn load_override<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> Handle<A> {
-        self.load_with_meta_transform(path, None, (), true)
+        self.load_with_meta_transform(path, None, ())
     }
 
     /// Begins loading an [`Asset`] of type `A` stored at `path`. The given `settings` function will override the asset's
@@ -287,12 +246,7 @@ impl AssetServer {
         path: impl Into<AssetPath<'a>>,
         settings: impl Fn(&mut S) + Send + Sync + 'static,
     ) -> Handle<A> {
-        self.load_with_meta_transform(
-            path,
-            Some(loader_settings_meta_transform(settings)),
-            (),
-            false,
-        )
+        self.load_with_meta_transform(path, Some(loader_settings_meta_transform(settings)), ())
     }
 
     pub(crate) fn load_with_meta_transform<'a, A: Asset, G: Send + Sync + 'static>(
@@ -300,18 +254,12 @@ impl AssetServer {
         path: impl Into<AssetPath<'a>>,
         meta_transform: Option<MetaTransform>,
         guard: G,
-        override_unapproved: bool,
     ) -> Handle<A> {
         let path = path.into().into_owned();
 
         if path.is_unapproved() {
-            match (&self.data.unapproved_path_mode, override_unapproved) {
-                (UnapprovedPathMode::Allow, _) | (UnapprovedPathMode::Deny, true) => {}
-                (UnapprovedPathMode::Deny, false) | (UnapprovedPathMode::Forbid, _) => {
-                    error!("Asset path {path} is unapproved. See UnapprovedPathMode for details.");
-                    return Handle::default();
-                }
-            }
+            error!("Asset path {path} is unapproved. See UnapprovedPathMode for details.");
+            return Handle::default();
         }
 
         let mut infos = self.write_infos();
@@ -704,11 +652,6 @@ impl AssetServer {
         Some(info.path.as_ref()?.clone())
     }
 
-    /// Returns the [`AssetServerMode`] this server is currently in.
-    pub fn mode(&self) -> AssetServerMode {
-        self.data.mode
-    }
-
     /// Pre-register a loader that will later be added.
     ///
     /// Assets loaded with matching extensions will be blocked until the
@@ -745,15 +688,7 @@ impl AssetServer {
         AssetLoadError,
     > {
         let source = self.get_source(asset_path.source())?;
-        let asset_reader = match self.data.mode {
-            AssetServerMode::Unprocessed => source.reader(),
-            AssetServerMode::Processed => source.processed_reader()?,
-        };
-        let read_meta = match &self.data.meta_check {
-            AssetMetaCheck::Always => true,
-            AssetMetaCheck::Paths(paths) => paths.contains(asset_path),
-            AssetMetaCheck::Never => false,
-        };
+        let asset_reader = source.reader();
 
         // Scope the meta reader up here. This allows the reader to be "transactional": for sources
         // that want to lock the asset before reading it (e.g., with a RwLock), this allows the meta
@@ -761,84 +696,64 @@ impl AssetServer {
         // can "take over" the RwLock before the meta reader gets dropped.
         let mut meta_reader;
 
-        let (meta, loader) = if read_meta {
-            match asset_reader.read_meta(asset_path.path()).await {
-                Ok(new_meta_reader) => {
-                    meta_reader = new_meta_reader;
-                    let mut meta_bytes = vec![];
-                    meta_reader
-                        .read_to_end(&mut meta_bytes)
-                        .await
-                        .map_err(|err| AssetLoadError::AssetReaderError(err.into()))?;
-                    // TODO: this isn't fully minimal yet. we only need the loader
-                    let minimal: AssetMetaMinimal =
-                        ron::de::from_bytes(&meta_bytes).map_err(|e| {
-                            AssetLoadError::DeserializeMeta {
-                                path: asset_path.clone_owned(),
-                                error: DeserializeMetaError::DeserializeMinimal(e).into(),
-                            }
-                        })?;
-                    let loader_name = match minimal.asset {
-                        AssetActionMinimal::Load { loader } => loader,
-                        AssetActionMinimal::Process { .. } => {
-                            return Err(AssetLoadError::CannotLoadProcessedAsset {
-                                path: asset_path.clone_owned(),
-                            })
-                        }
-                        AssetActionMinimal::Ignore => {
-                            return Err(AssetLoadError::CannotLoadIgnoredAsset {
-                                path: asset_path.clone_owned(),
-                            })
-                        }
-                    };
-                    let loader = self.get_asset_loader_with_type_name(&loader_name).await?;
-                    let meta = loader.deserialize_meta(&meta_bytes).map_err(|e| {
-                        AssetLoadError::DeserializeMeta {
+        let (meta, loader) = match asset_reader.read_meta(asset_path.path()).await {
+            Ok(new_meta_reader) => {
+                meta_reader = new_meta_reader;
+                let mut meta_bytes = vec![];
+                meta_reader
+                    .read_to_end(&mut meta_bytes)
+                    .await
+                    .map_err(|err| AssetLoadError::AssetReaderError(err.into()))?;
+                // TODO: this isn't fully minimal yet. we only need the loader
+                let minimal: AssetMetaMinimal = ron::de::from_bytes(&meta_bytes).map_err(|e| {
+                    AssetLoadError::DeserializeMeta {
+                        path: asset_path.clone_owned(),
+                        error: DeserializeMetaError::DeserializeMinimal(e).into(),
+                    }
+                })?;
+                let loader_name = match minimal.asset {
+                    AssetActionMinimal::Load { loader } => loader,
+                    AssetActionMinimal::Process { .. } => {
+                        return Err(AssetLoadError::CannotLoadProcessedAsset {
                             path: asset_path.clone_owned(),
-                            error: e.into(),
-                        }
-                    })?;
+                        })
+                    }
+                    AssetActionMinimal::Ignore => {
+                        return Err(AssetLoadError::CannotLoadIgnoredAsset {
+                            path: asset_path.clone_owned(),
+                        })
+                    }
+                };
+                let loader = self.get_asset_loader_with_type_name(&loader_name).await?;
+                let meta = loader.deserialize_meta(&meta_bytes).map_err(|e| {
+                    AssetLoadError::DeserializeMeta {
+                        path: asset_path.clone_owned(),
+                        error: e.into(),
+                    }
+                })?;
 
-                    (meta, loader)
-                }
-                Err(AssetReaderError::NotFound(_)) => {
-                    // TODO: Handle error transformation
-                    let loader = {
-                        self.read_loaders()
-                            .find(None, asset_type_id, None, Some(asset_path))
-                    };
-
-                    let error = || AssetLoadError::MissingAssetLoader {
-                        loader_name: None,
-                        asset_type_id,
-                        extension: None,
-                        asset_path: Some(asset_path.to_string()),
-                    };
-
-                    let loader = loader.ok_or_else(error)?.get().await.map_err(|_| error())?;
-
-                    let meta = loader.default_meta();
-                    (meta, loader)
-                }
-                Err(err) => return Err(err.into()),
+                (meta, loader)
             }
-        } else {
-            let loader = {
-                self.read_loaders()
-                    .find(None, asset_type_id, None, Some(asset_path))
-            };
+            Err(AssetReaderError::NotFound(_)) => {
+                // TODO: Handle error transformation
+                let loader = {
+                    self.read_loaders()
+                        .find(None, asset_type_id, None, Some(asset_path))
+                };
 
-            let error = || AssetLoadError::MissingAssetLoader {
-                loader_name: None,
-                asset_type_id,
-                extension: None,
-                asset_path: Some(asset_path.to_string()),
-            };
+                let error = || AssetLoadError::MissingAssetLoader {
+                    loader_name: None,
+                    asset_type_id,
+                    extension: None,
+                    asset_path: Some(asset_path.to_string()),
+                };
 
-            let loader = loader.ok_or_else(error)?.get().await.map_err(|_| error())?;
+                let loader = loader.ok_or_else(error)?.get().await.map_err(|_| error())?;
 
-            let meta = loader.default_meta();
-            (meta, loader)
+                let meta = loader.default_meta();
+                (meta, loader)
+            }
+            Err(err) => return Err(err.into()),
         };
         let reader = asset_reader.read(asset_path.path()).await?;
         Ok((meta, loader, reader))
@@ -876,8 +791,6 @@ impl AssetServer {
 pub fn handle_internal_asset_events(world: &mut World) {
     world.resource_scope(|world, server: Mut<AssetServer>| {
         let mut infos = server.write_infos();
-        let var_name = vec![];
-        let mut untyped_failures = var_name;
         for event in server.data.asset_event_receiver.try_iter() {
             match event {
                 InternalAssetEvent::Loaded {
@@ -901,13 +814,6 @@ pub fn handle_internal_asset_events(world: &mut World) {
                 InternalAssetEvent::Failed { index, path, error } => {
                     infos.process_asset_fail(index, error.clone());
 
-                    // Send untyped failure event
-                    untyped_failures.push(UntypedAssetLoadFailedEvent {
-                        id: index.into(),
-                        path: path.clone(),
-                        error: error.clone(),
-                    });
-
                     // Send typed failure event
                     let sender = infos
                         .dependency_failed_event_sender
@@ -916,10 +822,6 @@ pub fn handle_internal_asset_events(world: &mut World) {
                     sender(world, index.index, path, error);
                 }
             }
-        }
-
-        if !untyped_failures.is_empty() {
-            world.write_message_batch(untyped_failures);
         }
 
         // No `AssetWatcher` exists in this build, so a watching server has no source event to
@@ -1008,10 +910,8 @@ pub enum DependencyLoadState {
     /// Dependencies have all loaded
     Loaded,
 
-    /// One or more dependencies have failed to load. The underlying [`AssetLoadError`]
-    /// is referenced by [`Arc`] clones in all related [`LoadState`] and
-    /// [`RecursiveDependencyLoadState`]s in the asset's dependency tree.
-    Failed(Arc<AssetLoadError>),
+    /// One or more dependencies have failed to load.
+    Failed,
 }
 
 impl DependencyLoadState {
@@ -1027,7 +927,7 @@ impl DependencyLoadState {
 
     /// Returns `true` if this instance is [`DependencyLoadState::Failed`]
     pub fn is_failed(&self) -> bool {
-        matches!(self, Self::Failed(_))
+        matches!(self, Self::Failed)
     }
 }
 
@@ -1045,8 +945,7 @@ pub enum RecursiveDependencyLoadState {
 
     /// One or more dependencies have failed to load in this asset's dependency
     /// tree. The underlying [`AssetLoadError`] is referenced by [`Arc`] clones
-    /// in all related [`LoadState`]s and [`DependencyLoadState`]s in the asset's
-    /// dependency tree.
+    /// in all related [`LoadState`]s in the asset's dependency tree.
     Failed(Arc<AssetLoadError>),
 }
 
@@ -1094,8 +993,6 @@ pub enum AssetLoadError {
     AssetReaderError(#[from] AssetReaderError),
     #[error(transparent)]
     MissingAssetSourceError(#[from] MissingAssetSourceError),
-    #[error(transparent)]
-    MissingProcessedAssetReaderError(#[from] MissingProcessedAssetReaderError),
     #[error("Encountered an error while reading asset metadata bytes")]
     AssetMetaReadError,
     #[error("Failed to deserialize meta for asset {path}: {error}")]

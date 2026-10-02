@@ -1,7 +1,6 @@
 //! A module adding debug visualization of `Aabb`s.
 
 use bevy_app::{Plugin, PostUpdate};
-use bevy_color::Color;
 use bevy_ecs::{schedule::IntoScheduleConfigs, system::Res};
 use bevy_reflect::TypePath;
 use bevy_transform::TransformSystems;
@@ -37,12 +36,6 @@ pub struct AabbGizmoConfigGroup {
     ///
     /// Defaults to `false`.
     pub draw_all: bool,
-    /// The default color for bounding box gizmos.
-    ///
-    /// A random color is chosen per box if `None`.
-    ///
-    /// Defaults to `None`.
-    pub default_color: Option<Color>,
 }
 
 // Stand-in for `draw_aabbs`, which drew the `Aabb` of each entity with a `ShowAabbGizmo`.

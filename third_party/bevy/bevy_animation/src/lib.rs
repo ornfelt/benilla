@@ -232,10 +232,6 @@ pub enum AnimationEvaluationError {
     /// components that have animation curves.
     ComponentNotPresent(TypeId),
 
-    /// The component to be animated was present, but the property on the
-    /// component wasn't present.
-    PropertyNotPresent(TypeId),
-
     /// An internal error occurred in the implementation of
     /// [`AnimationCurveEvaluator`].
     ///
@@ -733,27 +729,6 @@ pub fn animate_targets(
                         }
                     }
 
-                    AnimationNodeType::Add => {
-                        // This is an additive blend node.
-                        for edge_index in threaded_animation_graph.sorted_edge_ranges
-                            [animation_graph_node_index.index()]
-                        .clone()
-                        {
-                            if let Err(err) = evaluation_state
-                                .add_all(threaded_animation_graph.sorted_edges[edge_index as usize])
-                            {
-                                warn!("Failed to blend animation: {:?}", err);
-                            }
-                        }
-
-                        if let Err(err) = evaluation_state.push_blend_register_all(
-                            animation_graph_node.weight,
-                            animation_graph_node_index,
-                        ) {
-                            warn!("Animation blending failed: {:?}", err);
-                        }
-                    }
-
                     AnimationNodeType::Clip(ref animation_clip_handle) => {
                         // This is a clip node.
                         let Some(active_animation) = animation_player
@@ -918,20 +893,6 @@ impl AnimationEvaluationState {
                 .get_mut(curve_evaluator_type)
                 .unwrap()
                 .blend(node_index)?;
-        }
-        Ok(())
-    }
-
-    /// Calls [`AnimationCurveEvaluator::add`] on all curve evaluator types
-    /// that we've been building up for a single target.
-    ///
-    /// The given `node_index` is the node that we're evaluating.
-    fn add_all(&mut self, node_index: AnimationNodeIndex) -> Result<(), AnimationEvaluationError> {
-        for curve_evaluator_type in self.current_evaluators.keys() {
-            self.evaluators
-                .get_mut(curve_evaluator_type)
-                .unwrap()
-                .add(node_index)?;
         }
         Ok(())
     }

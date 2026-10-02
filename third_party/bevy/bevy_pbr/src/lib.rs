@@ -52,7 +52,7 @@ pub use volumetric_fog::VolumetricFogPlugin;
 pub mod prelude {
     #[doc(hidden)]
     pub use crate::{
-        fog::{DistanceFog, FogFalloff},
+        fog::DistanceFog,
         material::{Material, MaterialPlugin},
         mesh_material::MeshMaterial3d,
         parallax::ParallaxMappingMethod,

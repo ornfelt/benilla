@@ -15,7 +15,6 @@ use tracing::warn;
 
 use crate::{
     prepass::DeferredPrepass,
-    skybox::SkyboxPlugin,
     tonemapping::{DebandDither, Tonemapping},
 };
 
@@ -30,7 +29,7 @@ impl Plugin for Core3dPlugin {
                 CameraRenderGraph::new(Core3d)
             })
             .register_required_components::<Camera3d, Tonemapping>()
-            .add_plugins((SkyboxPlugin, ExtractComponentPlugin::<Camera3d>::default()))
+            .add_plugins(ExtractComponentPlugin::<Camera3d>::default())
             .add_systems(PostUpdate, check_msaa);
     }
 }

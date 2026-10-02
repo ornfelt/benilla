@@ -1,7 +1,6 @@
 use crate::{EntitiesNeedingSpecialization, Material, MeshMaterial3d};
 use bevy_ecs::prelude::*;
 use bevy_light::NotShadowCaster;
-use bevy_render::texture::DepthAttachment;
 
 // These will be extracted in the material extraction, which will also clear the needs_specialization
 // collection.
@@ -24,7 +23,4 @@ pub fn check_light_entities_needing_specialization<M: Material>(
 }
 
 #[derive(Component)]
-pub struct ShadowView {
-    pub depth_attachment: DepthAttachment,
-    pub pass_name: String,
-}
+pub struct ShadowView;

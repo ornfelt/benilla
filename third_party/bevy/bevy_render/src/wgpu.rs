@@ -47,17 +47,6 @@ pub struct RenderPassColorAttachment<'tex> {
     pub ops: Operations<Color>,
 }
 
-/// The depth and stencil attachment of a render pass.
-#[derive(Clone, Debug)]
-pub struct RenderPassDepthStencilAttachment<'tex> {
-    /// The view to use as an attachment.
-    pub view: &'tex TextureView,
-    /// What operations will be performed on the depth part of the attachment.
-    pub depth_ops: Option<Operations<f32>>,
-    /// What operations will be performed on the stencil part of the attachment.
-    pub stencil_ops: Option<Operations<u32>>,
-}
-
 pub mod util {
     //! wgpu's `util` types that `bevy_render` names.
 

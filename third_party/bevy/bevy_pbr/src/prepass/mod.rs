@@ -5,21 +5,10 @@ use bevy_core_pipeline::prepass::PreviousViewData;
 use bevy_ecs::prelude::*;
 use bevy_math::{Affine3A, Mat4};
 use bevy_mesh::Mesh3d;
-use bevy_render::RenderDebugFlags;
 use bevy_transform::prelude::GlobalTransform;
 
 /// Sets up the prepasses for a material.
-pub struct PrepassPlugin {
-    /// Debugging flags that can optionally be set when constructing the renderer.
-    pub debug_flags: RenderDebugFlags,
-}
-
-impl PrepassPlugin {
-    /// Creates a new [`PrepassPlugin`] with the given debug flags.
-    pub fn new(debug_flags: RenderDebugFlags) -> Self {
-        PrepassPlugin { debug_flags }
-    }
-}
+pub struct PrepassPlugin;
 
 impl Plugin for PrepassPlugin {
     fn build(&self, app: &mut App) {

@@ -145,12 +145,12 @@ pub type AnimationNodeIndex = NodeIndex<u32>;
 /// An individual node within an animation graph.
 ///
 /// The [`AnimationGraphNode::node_type`] field specifies the type of node: one
-/// of a *clip node*, a *blend node*, or an *add node*. Clip nodes, the leaves
-/// of the graph, contain animation clips to play. Blend and add nodes describe
-/// how to combine their children to produce a final animation.
+/// of a *clip node* or a *blend node*. Clip nodes, the leaves of the graph,
+/// contain animation clips to play. Blend nodes describe how to combine their
+/// children to produce a final animation.
 #[derive(Clone, Debug)]
 pub struct AnimationGraphNode {
-    /// Animation node data specific to the type of node (clip, blend, or add).
+    /// Animation node data specific to the type of node (clip or blend).
     ///
     /// In the case of clip nodes, this contains the actual animation clip
     /// associated with the node.
@@ -167,7 +167,7 @@ pub struct AnimationGraphNode {
     /// The weight of this node, which signifies its contribution in blending.
     ///
     /// Note that this does not propagate down the graph hierarchy; rather,
-    /// each [Blend] and [Add] node uses the weights of its children to determine
+    /// each [Blend] node uses the weights of its children to determine
     /// the total animation that is accumulated at that node. The parent node's
     /// weight is used only to determine the contribution of that total animation
     /// in *further* blending.
@@ -180,12 +180,11 @@ pub struct AnimationGraphNode {
     /// before being applied.
     ///
     /// [Blend]: AnimationNodeType::Blend
-    /// [Add]: AnimationNodeType::Add
     /// [active animation weight]: crate::ActiveAnimation::weight
     pub weight: f32,
 }
 
-/// Animation node data specific to the type of node (clip, blend, or add).
+/// Animation node data specific to the type of node (clip or blend).
 ///
 /// In the case of clip nodes, this contains the actual animation clip
 /// associated with the node.
@@ -201,20 +200,6 @@ pub enum AnimationNodeType {
     /// The weights of all the children of this node are normalized to 1.0.
     #[default]
     Blend,
-
-    /// An *additive blend node*, which combines the animations of its children
-    /// additively.
-    ///
-    /// The weights of all the children of this node are *not* normalized to
-    /// 1.0. Rather, each child is multiplied by its respective weight and
-    /// added in sequence.
-    ///
-    /// Add nodes are primarily useful for superimposing an animation for a
-    /// portion of a rig on top of the main animation. For example, an add node
-    /// could superimpose a weapon attack animation for a character's limb on
-    /// top of a running animation to produce an animation of a character
-    /// attacking while running.
-    Add,
 }
 
 /// Acceleration structures for animation graphs that allows Bevy to evaluate

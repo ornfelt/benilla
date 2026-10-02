@@ -1,10 +1,10 @@
 use crate::{
-    io::{AssetReaderError, MissingAssetSourceError, MissingProcessedAssetReaderError, Reader},
+    io::{AssetReaderError, MissingAssetSourceError, Reader},
     loader_builders::{Deferred, NestedLoader, StaticTyped},
     meta::{AssetMeta, AssetMetaDyn, Settings},
     path::AssetPath,
-    Asset, AssetIndex, AssetLoadError, AssetServer, AssetServerMode, Assets, ErasedAssetIndex,
-    Handle, UntypedAssetId, UntypedHandle,
+    Asset, AssetIndex, AssetLoadError, AssetServer, Assets, ErasedAssetIndex, Handle,
+    UntypedAssetId, UntypedHandle,
 };
 use alloc::{
     boxed::Box,
@@ -376,10 +376,7 @@ impl<'a> LoadContext<'a> {
     ) -> Result<Vec<u8>, ReadAssetBytesError> {
         let path = path.into();
         let source = self.asset_server.get_source(path.source())?;
-        let asset_reader = match self.asset_server.mode() {
-            AssetServerMode::Unprocessed => source.reader(),
-            AssetServerMode::Processed => source.processed_reader()?,
-        };
+        let asset_reader = source.reader();
         let mut reader = asset_reader.read(path.path()).await?;
         let mut bytes = Vec::new();
         reader
@@ -442,8 +439,6 @@ pub enum ReadAssetBytesError {
     AssetReaderError(#[from] AssetReaderError),
     #[error(transparent)]
     MissingAssetSourceError(#[from] MissingAssetSourceError),
-    #[error(transparent)]
-    MissingProcessedAssetReaderError(#[from] MissingProcessedAssetReaderError),
     /// Encountered an I/O error while loading an asset.
     #[error("Encountered an io error while loading asset at `{}`: {source}", path.display())]
     Io {

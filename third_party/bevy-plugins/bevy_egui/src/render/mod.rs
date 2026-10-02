@@ -3,10 +3,6 @@ use bevy_image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSa
 use egui::{TextureFilter, TextureOptions};
 use wgpu_types::{Extent3d, TextureDimension, TextureFormat};
 
-/// Plugin systems for the render app.
-#[cfg(feature = "render")]
-pub mod systems;
-
 pub(crate) fn as_color_image(image: &egui::ImageData) -> egui::ColorImage {
     match image {
         egui::ImageData::Color(image) => (**image).clone(),

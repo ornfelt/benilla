@@ -149,7 +149,7 @@ impl NestedLoader<'_, '_, StaticTyped, Deferred> {
         let handle = if self.load_context.should_load_dependencies {
             self.load_context
                 .asset_server
-                .load_with_meta_transform(path, None, (), true)
+                .load_with_meta_transform(path, None, ())
         } else {
             self.load_context
                 .asset_server

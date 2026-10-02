@@ -156,7 +156,7 @@ pub mod prelude {
 
     #[doc(hidden)]
     pub use crate::{
-        Asset, AssetApp, AssetEvent, AssetId, AssetMode, AssetPlugin, AssetServer, Assets, Handle,
+        Asset, AssetApp, AssetEvent, AssetId, AssetPlugin, AssetServer, Assets, Handle,
         UntypedHandle,
     };
 }
@@ -210,15 +210,10 @@ use tracing::error;
 /// Provides "asset" loading and processing functionality. An [`Asset`] is a "runtime value" that is loaded from an [`AssetSource`],
 /// which can be something like a filesystem, a network, etc.
 ///
-/// Supports flexible "modes", such as [`AssetMode::Processed`] and
-/// [`AssetMode::Unprocessed`] that enable using the asset workflow that best suits your project.
-///
 /// [`AssetSource`]: io::AssetSource
 pub struct AssetPlugin {
     /// The default file path to use (relative to the project root) for unprocessed assets.
     pub file_path: String,
-    /// The default file path to use (relative to the project root) for processed assets.
-    pub processed_file_path: String,
     /// If set, will override the default "watch for changes" setting. By default "watch for changes" will be `false` unless
     /// the `watch` cargo feature is set. `watch` can be enabled manually, or it will be automatically enabled if a specific watcher
     /// like `file_watcher` is enabled.
@@ -226,99 +221,19 @@ pub struct AssetPlugin {
     /// Most use cases should leave this set to [`None`] and enable a specific watcher feature such as `file_watcher` to enable
     /// watching for dev-scenarios.
     pub watch_for_changes_override: Option<bool>,
-    /// The [`AssetMode`] to use for this server.
-    pub mode: AssetMode,
-    /// How/If asset meta files should be checked.
-    pub meta_check: AssetMetaCheck,
-    /// How to handle load requests of files that are outside the approved directories.
-    ///
-    /// Approved folders are [`AssetPlugin::file_path`] and the folder of each
-    /// [`AssetSource`](io::AssetSource). Subfolders within these folders are also valid.
-    pub unapproved_path_mode: UnapprovedPathMode,
-}
-
-/// Determines how to react to attempts to load assets not inside the approved folders.
-///
-/// Approved folders are [`AssetPlugin::file_path`] and the folder of each
-/// [`AssetSource`](io::AssetSource). Subfolders within these folders are also valid.
-///
-/// It is strongly discouraged to use [`Allow`](UnapprovedPathMode::Allow) if your
-/// app will include scripts or modding support, as it could allow arbitrary file
-/// access for malicious code.
-///
-/// The default value is [`Forbid`](UnapprovedPathMode::Forbid).
-///
-/// See [`AssetPath::is_unapproved`](crate::AssetPath::is_unapproved)
-#[derive(Clone, Default)]
-pub enum UnapprovedPathMode {
-    /// Unapproved asset loading is allowed. This is strongly discouraged.
-    Allow,
-    /// Fails to load any asset that is unapproved, unless an override method is used, like
-    /// [`AssetServer::load_override`].
-    Deny,
-    /// Fails to load any asset that is unapproved.
-    #[default]
-    Forbid,
-}
-
-/// Controls whether or not assets are pre-processed before being loaded.
-///
-/// This setting is controlled by setting [`AssetPlugin::mode`].
-///
-/// When building on web, asset preprocessing can cause problems due to the lack of filesystem access.
-/// See [bevy#10157](https://github.com/bevyengine/bevy/issues/10157) for context.
-#[derive(Debug)]
-pub enum AssetMode {
-    /// Loads assets from their [`AssetSource`]'s default [`AssetReader`] without any "preprocessing".
-    ///
-    /// [`AssetReader`]: io::AssetReader
-    /// [`AssetSource`]: io::AssetSource
-    Unprocessed,
-    /// Assets will be "pre-processed". This enables assets to be imported / converted / optimized ahead of time.
-    ///
-    /// Assets will be read from their unprocessed [`AssetSource`] (defaults to the `assets` folder),
-    /// processed according to their [`AssetMeta`], and written to their processed [`AssetSource`] (defaults to the `imported_assets/Default` folder).
-    ///
-    /// This build has no asset processor: this mode assumes the processor _has already been run_ and loads assets from their final
-    /// processed [`AssetReader`].
-    ///
-    /// [`AssetMeta`]: meta::AssetMeta
-    /// [`AssetSource`]: io::AssetSource
-    /// [`AssetReader`]: io::AssetReader
-    Processed,
-}
-
-/// Configures how / if meta files will be checked. If an asset's meta file is not checked, the default meta for the asset
-/// will be used.
-#[derive(Debug, Default, Clone)]
-pub enum AssetMetaCheck {
-    /// Always check if assets have meta files. If the meta does not exist, the default meta will be used.
-    #[default]
-    Always,
-    /// Only look up meta files for the provided paths. The default meta will be used for any paths not contained in this set.
-    Paths(HashSet<AssetPath<'static>>),
-    /// Never check if assets have meta files and always use the default meta. If meta files exist, they will be ignored and the default meta will be used.
-    Never,
 }
 
 impl Default for AssetPlugin {
     fn default() -> Self {
         Self {
-            mode: AssetMode::Unprocessed,
             file_path: Self::DEFAULT_UNPROCESSED_FILE_PATH.to_string(),
-            processed_file_path: Self::DEFAULT_PROCESSED_FILE_PATH.to_string(),
             watch_for_changes_override: None,
-            meta_check: AssetMetaCheck::default(),
-            unapproved_path_mode: UnapprovedPathMode::default(),
         }
     }
 }
 
 impl AssetPlugin {
     const DEFAULT_UNPROCESSED_FILE_PATH: &'static str = "assets";
-    /// NOTE: this is in the Default sub-folder to make this forward compatible with "import profiles"
-    /// and to allow us to put the "processor transaction log" at `imported_assets/log`
-    const DEFAULT_PROCESSED_FILE_PATH: &'static str = "imported_assets/Default";
 }
 
 impl Plugin for AssetPlugin {
@@ -328,46 +243,20 @@ impl Plugin for AssetPlugin {
             let mut sources = app
                 .world_mut()
                 .get_resource_or_init::<AssetSourceBuilders>();
-            sources.init_default_source(
-                &self.file_path,
-                (!matches!(self.mode, AssetMode::Unprocessed))
-                    .then_some(self.processed_file_path.as_str()),
-            );
+            sources.init_default_source(&self.file_path);
             embedded.register_source(&mut sources);
         }
         {
             let watch = self.watch_for_changes_override.unwrap_or(false);
-            match self.mode {
-                AssetMode::Unprocessed => {
-                    let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
-                    let sources = builders.build_sources(watch, false);
+            let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
+            let sources = builders.build_sources(watch);
 
-                    app.insert_resource(AssetServer::new_with_meta_check(
-                        Arc::new(sources),
-                        AssetServerMode::Unprocessed,
-                        self.meta_check.clone(),
-                        watch,
-                        self.unapproved_path_mode.clone(),
-                    ));
-                }
-                AssetMode::Processed => {
-                    let mut builders = app.world_mut().resource_mut::<AssetSourceBuilders>();
-                    let sources = builders.build_sources(false, watch);
-                    app.insert_resource(AssetServer::new_with_meta_check(
-                        Arc::new(sources),
-                        AssetServerMode::Processed,
-                        AssetMetaCheck::Always,
-                        watch,
-                        self.unapproved_path_mode.clone(),
-                    ));
-                }
-            }
+            app.insert_resource(AssetServer::new_with_meta_check(Arc::new(sources), watch));
         }
         app.insert_resource(embedded)
             .init_asset::<LoadedFolder>()
             .init_asset::<LoadedUntypedAsset>()
             .init_asset::<()>()
-            .add_message::<UntypedAssetLoadFailedEvent>()
             .configure_sets(
                 PreUpdate,
                 AssetTrackingSystems.after(handle_internal_asset_events),
@@ -609,7 +498,7 @@ mod tests {
         loader::{AssetLoader, LoadContext},
         Asset, AssetApp, AssetEvent, AssetId, AssetLoadError, AssetLoadFailedEvent, AssetPath,
         AssetPlugin, AssetServer, Assets, InvalidGenerationError, LoadState, LoadedAsset,
-        UnapprovedPathMode, UntypedHandle,
+        UntypedHandle,
     };
     use alloc::{
         boxed::Box,
@@ -1828,7 +1717,7 @@ mod tests {
     #[derive(Asset, TypePath)]
     pub struct TupleTestAsset(#[dependency] Handle<TestAsset>);
 
-    fn unapproved_path_setup(mode: UnapprovedPathMode) -> App {
+    fn unapproved_path_setup() -> App {
         let dir = Dir::default();
         let a_path = "../a.cool.ron";
         let a_ron = r#"
@@ -1847,13 +1736,7 @@ mod tests {
             AssetSourceId::Default,
             AssetSourceBuilder::new(move || Box::new(memory_reader.clone())),
         )
-        .add_plugins((
-            TaskPoolPlugin::default(),
-            AssetPlugin {
-                unapproved_path_mode: mode,
-                ..Default::default()
-            },
-        ));
+        .add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
         app.init_asset::<CoolText>();
 
         app
@@ -1866,48 +1749,10 @@ mod tests {
         }
     }
 
-    fn load_a_asset_override(assets: Res<AssetServer>) {
-        let a = assets.load_override::<CoolText>("../a.cool.ron");
-        if a == Handle::default() {
-            panic!()
-        }
-    }
-
     #[test]
     #[should_panic]
     fn unapproved_path_forbid_should_panic() {
-        let mut app = unapproved_path_setup(UnapprovedPathMode::Forbid);
-
-        fn uses_assets(_asset: ResMut<Assets<CoolText>>) {}
-        app.add_systems(Update, (uses_assets, load_a_asset_override));
-
-        app.world_mut().run_schedule(Update);
-    }
-
-    #[test]
-    #[should_panic]
-    fn unapproved_path_deny_should_panic() {
-        let mut app = unapproved_path_setup(UnapprovedPathMode::Deny);
-
-        fn uses_assets(_asset: ResMut<Assets<CoolText>>) {}
-        app.add_systems(Update, (uses_assets, load_a_asset));
-
-        app.world_mut().run_schedule(Update);
-    }
-
-    #[test]
-    fn unapproved_path_deny_should_finish() {
-        let mut app = unapproved_path_setup(UnapprovedPathMode::Deny);
-
-        fn uses_assets(_asset: ResMut<Assets<CoolText>>) {}
-        app.add_systems(Update, (uses_assets, load_a_asset_override));
-
-        app.world_mut().run_schedule(Update);
-    }
-
-    #[test]
-    fn unapproved_path_allow_should_finish() {
-        let mut app = unapproved_path_setup(UnapprovedPathMode::Allow);
+        let mut app = unapproved_path_setup();
 
         fn uses_assets(_asset: ResMut<Assets<CoolText>>) {}
         app.add_systems(Update, (uses_assets, load_a_asset));

@@ -23,10 +23,9 @@ pub use crate::wgpu::{
     BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState,
     BufferBindingType, BufferDescriptor, BufferUsages, ColorWrites, CompareFunction,
     DepthBiasState, Extent3d, Face, FilterMode, LoadOp, MultisampleState, Operations,
-    PrimitiveTopology, RenderPassColorAttachment, RenderPassDepthStencilAttachment,
-    SamplerBindingType, ShaderStages, StorageTextureAccess, StoreOp, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
-    TextureViewDimension, VertexFormat,
+    PrimitiveTopology, RenderPassColorAttachment, SamplerBindingType, ShaderStages,
+    StorageTextureAccess, StoreOp, TextureDescriptor, TextureDimension, TextureFormat,
+    TextureSampleType, TextureUsages, TextureViewDescriptor, TextureViewDimension, VertexFormat,
 };
 
 pub mod encase {

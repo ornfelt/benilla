@@ -89,9 +89,7 @@ use core::{
 };
 
 use crate::{
-    graph::AnimationNodeIndex,
-    prelude::{Animatable, BlendInput},
-    AnimationEntityMut, AnimationEvaluationError,
+    graph::AnimationNodeIndex, prelude::Animatable, AnimationEntityMut, AnimationEvaluationError,
 };
 use bevy_ecs::component::{Component, Mutable};
 use bevy_math::curve::{
@@ -389,11 +387,7 @@ where
 
 impl<A: Animatable> AnimationCurveEvaluator for AnimatableCurveEvaluator<A> {
     fn blend(&mut self, graph_node: AnimationNodeIndex) -> Result<(), AnimationEvaluationError> {
-        self.evaluator.combine(graph_node, /*additive=*/ false)
-    }
-
-    fn add(&mut self, graph_node: AnimationNodeIndex) -> Result<(), AnimationEvaluationError> {
-        self.evaluator.combine(graph_node, /*additive=*/ true)
+        self.evaluator.combine(graph_node)
     }
 
     fn push_blend_register(
@@ -450,11 +444,7 @@ impl<A> BasicAnimationCurveEvaluator<A>
 where
     A: Animatable,
 {
-    fn combine(
-        &mut self,
-        graph_node: AnimationNodeIndex,
-        additive: bool,
-    ) -> Result<(), AnimationEvaluationError> {
+    fn combine(&mut self, graph_node: AnimationNodeIndex) -> Result<(), AnimationEvaluationError> {
         let Some(top) = self.stack.last() else {
             return Ok(());
         };
@@ -470,56 +460,22 @@ where
 
         match self.blend_register.take() {
             None => {
-                self.initialize_blend_register(value_to_blend, weight_to_blend, additive);
+                self.blend_register = Some((value_to_blend, weight_to_blend));
             }
             Some((mut current_value, mut current_weight)) => {
                 current_weight += weight_to_blend;
 
-                if additive {
-                    current_value = A::blend(
-                        [
-                            BlendInput {
-                                weight: 1.0,
-                                value: current_value,
-                                additive: true,
-                            },
-                            BlendInput {
-                                weight: weight_to_blend,
-                                value: value_to_blend,
-                                additive: true,
-                            },
-                        ]
-                        .into_iter(),
-                    );
-                } else {
-                    current_value = A::interpolate(
-                        &current_value,
-                        &value_to_blend,
-                        weight_to_blend / current_weight,
-                    );
-                }
+                current_value = A::interpolate(
+                    &current_value,
+                    &value_to_blend,
+                    weight_to_blend / current_weight,
+                );
 
                 self.blend_register = Some((current_value, current_weight));
             }
         }
 
         Ok(())
-    }
-
-    fn initialize_blend_register(&mut self, value: A, weight: f32, additive: bool) {
-        if additive {
-            let scaled_value = A::blend(
-                [BlendInput {
-                    weight,
-                    value,
-                    additive: true,
-                }]
-                .into_iter(),
-            );
-            self.blend_register = Some((scaled_value, weight));
-        } else {
-            self.blend_register = Some((value, weight));
-        }
     }
 
     fn push_blend_register(
@@ -651,22 +607,6 @@ pub trait AnimationCurveEvaluator: Downcast + Send + Sync + 'static {
     ///
     /// 4. Return success.
     fn blend(&mut self, graph_node: AnimationNodeIndex) -> Result<(), AnimationEvaluationError>;
-
-    /// Additively blends the top element of the stack with the blend register.
-    ///
-    /// The semantics of this method are as follows:
-    ///
-    /// 1. Pop the top element of the stack. Call its value vₘ and its weight
-    ///    wₘ. If the stack was empty, return success.
-    ///
-    /// 2. If the blend register is empty, set the blend register value to vₘ
-    ///    and the blend register weight to wₘ; then, return success.
-    ///
-    /// 3. If the blend register is nonempty, call its current value vₙ.
-    ///    Then, set the value of the blend register to vₙ + vₘwₘ.
-    ///
-    /// 4. Return success.
-    fn add(&mut self, graph_node: AnimationNodeIndex) -> Result<(), AnimationEvaluationError>;
 
     /// Pushes the current value of the blend register onto the stack.
     ///

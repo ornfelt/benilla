@@ -12,10 +12,6 @@ pub mod oit;
 pub mod prepass;
 pub mod tonemapping;
 
-pub use skybox::Skybox;
-
-mod skybox;
-
 use crate::{core_2d::Core2dPlugin, core_3d::Core3dPlugin, tonemapping::TonemappingPlugin};
 use bevy_app::{App, Plugin};
 use oit::OrderIndependentTransparencyPlugin;

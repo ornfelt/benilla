@@ -66,7 +66,6 @@ extern crate alloc;
 mod color;
 mod color_ops;
 mod linear_rgba;
-pub mod palettes;
 mod srgba;
 #[cfg(test)]
 mod test_colors;

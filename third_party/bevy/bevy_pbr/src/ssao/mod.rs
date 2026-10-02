@@ -30,39 +30,7 @@ impl Plugin for ScreenSpaceAmbientOcclusionPlugin {
 /// Doing so greatly reduces SSAO noise.
 ///
 /// SSAO is not supported on `WebGL2`, and is not currently supported on `WebGPU`.
-#[derive(Component, ExtractComponent, PartialEq, Clone, Debug)]
+#[derive(Component, ExtractComponent, PartialEq, Clone, Debug, Default)]
 #[require(DepthPrepass, NormalPrepass)]
 #[doc(alias = "Ssao")]
-pub struct ScreenSpaceAmbientOcclusion {
-    /// Quality of the SSAO effect.
-    pub quality_level: ScreenSpaceAmbientOcclusionQualityLevel,
-    /// A constant estimated thickness of objects.
-    ///
-    /// This value is used to decide how far behind an object a ray of light needs to be in order
-    /// to pass behind it. Any ray closer than that will be occluded.
-    pub constant_object_thickness: f32,
-}
-
-impl Default for ScreenSpaceAmbientOcclusion {
-    fn default() -> Self {
-        Self {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::default(),
-            constant_object_thickness: 0.25,
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Default, Debug)]
-pub enum ScreenSpaceAmbientOcclusionQualityLevel {
-    Low,
-    Medium,
-    #[default]
-    High,
-    Ultra,
-    Custom {
-        /// Higher slice count means less noise, but worse performance.
-        slice_count: u32,
-        /// Samples per slice side is also tweakable, but recommended to be left at 2 or 3.
-        samples_per_slice_side: u32,
-    },
-}
+pub struct ScreenSpaceAmbientOcclusion;

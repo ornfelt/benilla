@@ -22,20 +22,9 @@ impl EmbeddedAssetRegistry {
     /// Registers the [`EMBEDDED`] [`AssetSource`](crate::io::AssetSource) with the given [`AssetSourceBuilders`].
     pub fn register_source(&self, sources: &mut AssetSourceBuilders) {
         let dir = self.dir.clone();
-        let processed_dir = self.dir.clone();
 
         let source =
-            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() }))
-                .with_processed_reader(move || {
-                    Box::new(MemoryAssetReader {
-                        root: processed_dir.clone(),
-                    })
-                })
-                // Note that we only add a processed watch warning because we don't want to warn
-                // noisily about embedded watching (which is niche) when users enable file watching.
-                .with_processed_watch_warning(
-                    "Consider enabling the `embedded_watcher` cargo feature.",
-                );
+            AssetSourceBuilder::new(move || Box::new(MemoryAssetReader { root: dir.clone() }));
 
         sources.insert(EMBEDDED, source);
     }

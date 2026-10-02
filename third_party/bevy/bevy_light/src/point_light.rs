@@ -33,8 +33,6 @@ use crate::{
 /// ## Shadows
 ///
 /// To enable shadows, set the `shadows_enabled` property to `true`.
-///
-/// To control the resolution of the shadow maps, use the [`PointLightShadowMap`] resource.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(
     CubemapFrusta,
@@ -143,28 +141,6 @@ impl PointLight {
     pub const DEFAULT_SHADOW_DEPTH_BIAS: f32 = 0.08;
     pub const DEFAULT_SHADOW_NORMAL_BIAS: f32 = 0.6;
     pub const DEFAULT_SHADOW_MAP_NEAR_Z: f32 = 0.1;
-}
-
-/// Controls the resolution of [`PointLight`] shadow maps.
-///
-/// ```
-/// # use bevy_app::prelude::*;
-/// # use bevy_light::PointLightShadowMap;
-/// App::new()
-///     .insert_resource(PointLightShadowMap { size: 2048 });
-/// ```
-#[derive(Resource, Clone, Debug)]
-pub struct PointLightShadowMap {
-    /// The width and height of each of the 6 faces of the cubemap.
-    ///
-    /// Defaults to `1024`.
-    pub size: usize,
-}
-
-impl Default for PointLightShadowMap {
-    fn default() -> Self {
-        Self { size: 1024 }
-    }
 }
 
 // NOTE: Run this after assign_lights_to_clusters!

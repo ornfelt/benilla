@@ -200,7 +200,7 @@ impl Plugin for MaterialsPlugin {
     fn build(&self, app: &mut App) {
         // The prepass pipeline plugin, the draw functions and the material pipelines only
         // reached the RenderApp.
-        app.add_plugins(PrepassPlugin::new(self.debug_flags));
+        app.add_plugins(PrepassPlugin);
     }
 }
 
@@ -333,25 +333,7 @@ pub fn check_entities_needing_specialization<M>(
 
 /// Default render method used for opaque materials.
 #[derive(Default, Resource, Clone, Debug, ExtractResource)]
-pub struct DefaultOpaqueRendererMethod(OpaqueRendererMethod);
-
-impl DefaultOpaqueRendererMethod {
-    pub fn forward() -> Self {
-        DefaultOpaqueRendererMethod(OpaqueRendererMethod::Forward)
-    }
-
-    pub fn deferred() -> Self {
-        DefaultOpaqueRendererMethod(OpaqueRendererMethod::Deferred)
-    }
-
-    pub fn set_to_forward(&mut self) {
-        self.0 = OpaqueRendererMethod::Forward;
-    }
-
-    pub fn set_to_deferred(&mut self) {
-        self.0 = OpaqueRendererMethod::Deferred;
-    }
-}
+pub struct DefaultOpaqueRendererMethod;
 
 /// Render method used for opaque materials.
 ///

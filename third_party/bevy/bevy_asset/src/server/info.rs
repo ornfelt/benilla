@@ -307,7 +307,6 @@ impl AssetInfos {
         loaded_asset.value.insert(loaded_asset_index.index, world);
         let mut loading_deps = loaded_asset.dependencies;
         let mut failed_deps = <HashSet<_>>::default();
-        let mut dep_error = None;
         let mut loading_rec_deps = loading_deps.clone();
         let mut failed_rec_deps = <HashSet<_>>::default();
         let mut rec_dep_error = None;
@@ -343,10 +342,7 @@ impl AssetInfos {
                         // If dependency is loaded, reduce our count by one
                         false
                     }
-                    LoadState::Failed(ref error) => {
-                        if dep_error.is_none() {
-                            dep_error = Some(error.clone());
-                        }
+                    LoadState::Failed(_) => {
                         failed_deps.insert(*dep_id);
                         false
                     }
@@ -364,7 +360,7 @@ impl AssetInfos {
         let dep_load_state = match (loading_deps.len(), failed_deps.len()) {
             (0, 0) => DependencyLoadState::Loaded,
             (_loading, 0) => DependencyLoadState::Loading,
-            (_loading, _failed) => DependencyLoadState::Failed(dep_error.unwrap()),
+            (_loading, _failed) => DependencyLoadState::Failed,
         };
 
         let rec_dep_load_state = match (loading_rec_deps.len(), failed_rec_deps.len()) {
@@ -512,7 +508,7 @@ impl AssetInfos {
                 return;
             };
             info.load_state = LoadState::Failed(error.clone());
-            info.dep_load_state = DependencyLoadState::Failed(error.clone());
+            info.dep_load_state = DependencyLoadState::Failed;
             info.rec_dep_load_state = RecursiveDependencyLoadState::Failed(error.clone());
             (
                 core::mem::take(&mut info.dependents_waiting_on_load),
@@ -526,7 +522,7 @@ impl AssetInfos {
                 info.failed_dependencies.insert(failed_index);
                 // don't overwrite DependencyLoadState if already failed to preserve first error
                 if !info.dep_load_state.is_failed() {
-                    info.dep_load_state = DependencyLoadState::Failed(error.clone());
+                    info.dep_load_state = DependencyLoadState::Failed;
                 }
             }
         }

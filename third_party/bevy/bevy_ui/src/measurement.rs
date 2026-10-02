@@ -32,14 +32,12 @@ pub trait Measure: Send + Sync + 'static {
 
 /// A type to serve as Taffy's node context (which allows the content size of leaf nodes to be computed)
 ///
-/// It has specific variants for common built-in types to avoid making them opaque and needing to box them
-/// by wrapping them in a closure and a Custom variant that allows arbitrary measurement closures if required.
+/// It has specific variants for the built-in types that size to their content.
 pub enum NodeMeasure {
     Fixed(FixedMeasure),
 
     Text(TextMeasure),
     Image(ImageMeasure),
-    Custom(Box<dyn Measure>),
 }
 
 impl Measure for NodeMeasure {
@@ -49,7 +47,6 @@ impl Measure for NodeMeasure {
 
             NodeMeasure::Text(text) => text.measure(measure_args, style),
             NodeMeasure::Image(image) => image.measure(measure_args, style),
-            NodeMeasure::Custom(custom) => custom.measure(measure_args, style),
         }
     }
 }

@@ -42,13 +42,6 @@ pub struct Camera3d {
     ///   Keep in mind that depending on the platform and your window settings, this may cause the window to become
     ///   transparent.
     pub screen_space_specular_transmission_steps: usize,
-    /// The quality of the screen space specular transmission blur effect, applied to whatever's “behind” transmissive
-    /// objects when their `roughness` is greater than `0.0`.
-    ///
-    /// Higher qualities are more GPU-intensive.
-    ///
-    /// **Note:** You can get better-looking results at any quality level by enabling TAA. See: `TemporalAntiAliasPlugin`
-    pub screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality,
 }
 
 impl Default for Camera3d {
@@ -57,7 +50,6 @@ impl Default for Camera3d {
             depth_load_op: Default::default(),
             depth_texture_usages: TextureUsages::RENDER_ATTACHMENT.into(),
             screen_space_specular_transmission_steps: 1,
-            screen_space_specular_transmission_quality: Default::default(),
         }
     }
 }
@@ -100,34 +92,4 @@ impl From<Camera3dDepthLoadOp> for LoadOp<f32> {
             Camera3dDepthLoadOp::Load => LoadOp::Load,
         }
     }
-}
-
-/// The quality of the screen space transmission blur effect, applied to whatever's “behind” transmissive
-/// objects when their `roughness` is greater than `0.0`.
-///
-/// Higher qualities are more GPU-intensive.
-///
-/// **Note:** You can get better-looking results at any quality level by enabling TAA. See: `TemporalAntiAliasPlugin`
-#[derive(Resource, Default, Clone, Copy, PartialEq, PartialOrd, Debug)]
-pub enum ScreenSpaceTransmissionQuality {
-    /// Best performance at the cost of quality. Suitable for lower end GPUs. (e.g. Mobile)
-    ///
-    /// `num_taps` = 4
-    Low,
-
-    /// A balanced option between quality and performance.
-    ///
-    /// `num_taps` = 8
-    #[default]
-    Medium,
-
-    /// Better quality. Suitable for high end GPUs. (e.g. Desktop)
-    ///
-    /// `num_taps` = 16
-    High,
-
-    /// The highest quality, suitable for non-realtime rendering. (e.g. Pre-rendered cinematics and photo mode)
-    ///
-    /// `num_taps` = 32
-    Ultra,
 }

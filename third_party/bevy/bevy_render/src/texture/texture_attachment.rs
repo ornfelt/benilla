@@ -1,8 +1,6 @@
 use super::CachedTexture;
 use crate::render_resource::{TextureFormat, TextureView};
-use crate::wgpu::{
-    LoadOp, Operations, RenderPassColorAttachment, RenderPassDepthStencilAttachment, StoreOp,
-};
+use crate::wgpu::{LoadOp, Operations, RenderPassColorAttachment, StoreOp};
 use alloc::sync::Arc;
 use bevy_color::LinearRgba;
 use core::sync::atomic::{AtomicBool, Ordering};
@@ -11,47 +9,12 @@ use core::sync::atomic::{AtomicBool, Ordering};
 #[derive(Clone)]
 pub struct ColorAttachment {
     pub texture: CachedTexture,
-    pub resolve_target: Option<CachedTexture>,
-    pub previous_frame_texture: Option<CachedTexture>,
     is_first_call: Arc<AtomicBool>,
 }
 
 impl ColorAttachment {
     pub(crate) fn mark_as_cleared(&self) {
         self.is_first_call.store(false, Ordering::SeqCst);
-    }
-}
-
-/// A wrapper for a [`TextureView`] that is used as a depth-only [`RenderPassDepthStencilAttachment`].
-#[derive(Clone)]
-pub struct DepthAttachment {
-    pub view: TextureView,
-    clear_value: Option<f32>,
-    is_first_call: Arc<AtomicBool>,
-}
-
-impl DepthAttachment {
-    /// Get this texture view as an attachment. The attachment will be cleared with a value of
-    /// `clear_value` if this is the first time calling this function with `store` == [`StoreOp::Store`],
-    /// and a clear value was provided, otherwise it will be loaded.
-    pub fn get_attachment(&self, store: StoreOp) -> RenderPassDepthStencilAttachment<'_> {
-        let first_call = self
-            .is_first_call
-            .fetch_and(store != StoreOp::Store, Ordering::SeqCst);
-
-        RenderPassDepthStencilAttachment {
-            view: &self.view,
-            depth_ops: Some(Operations {
-                load: if first_call {
-                    // If first_call is true, then a clear value will always have been provided in the constructor
-                    LoadOp::Clear(self.clear_value.unwrap())
-                } else {
-                    LoadOp::Load
-                },
-                store,
-            }),
-            stencil_ops: None,
-        }
     }
 }
 

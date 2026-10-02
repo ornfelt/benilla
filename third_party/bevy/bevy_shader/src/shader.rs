@@ -19,29 +19,6 @@ impl From<NonZero<u32>> for ShaderId {
     }
 }
 
-/// Describes whether or not to perform runtime checks on shaders.
-/// Runtime checks can be enabled for safety at the cost of speed.
-/// By default no runtime checks will be performed.
-///
-/// # Panics
-/// Because no runtime checks are performed for spirv,
-/// enabling `ValidateShader` for spirv will cause a panic
-#[derive(Clone, Debug, Default)]
-pub enum ValidateShader {
-    #[default]
-    /// No runtime checks for soundness (e.g. bound checking) are performed.
-    ///
-    /// This is suitable for trusted shaders, written by your program or dependencies you trust.
-    Disabled,
-    /// Enable's runtime checks for soundness (e.g. bound checking).
-    ///
-    /// While this can have a meaningful impact on performance,
-    /// this setting should *always* be enabled when loading untrusted shaders.
-    /// This might occur if you are creating a shader playground, running user-generated shaders
-    /// (as in `VRChat`), or writing a web browser in Bevy.
-    Enabled,
-}
-
 /// An "unprocessed" shader. It can contain preprocessor directives.
 #[derive(Asset, TypePath, Debug, Clone)]
 pub struct Shader {
@@ -56,10 +33,6 @@ pub struct Shader {
     // we must store strong handles to our dependencies to stop them
     // from being immediately dropped if we are the only user.
     pub file_dependencies: Vec<Handle<Shader>>,
-    /// Enable or disable runtime shader validation, trading safety against speed.
-    ///
-    /// Please read the [`ValidateShader`] docs for a discussion of the tradeoffs involved.
-    pub validate_shader: ValidateShader,
 }
 
 impl Shader {
@@ -102,7 +75,6 @@ impl Shader {
             additional_imports: Default::default(),
             shader_defs: Default::default(),
             file_dependencies: Default::default(),
-            validate_shader: ValidateShader::Disabled,
         }
     }
 
@@ -133,7 +105,6 @@ impl Shader {
             additional_imports: Default::default(),
             shader_defs: Default::default(),
             file_dependencies: Default::default(),
-            validate_shader: ValidateShader::Disabled,
         }
     }
 
@@ -147,7 +118,6 @@ impl Shader {
             additional_imports: Default::default(),
             shader_defs: Default::default(),
             file_dependencies: Default::default(),
-            validate_shader: ValidateShader::Disabled,
         }
     }
 
@@ -178,7 +148,6 @@ impl Shader {
                     additional_imports: Default::default(),
                     shader_defs: Default::default(),
                     file_dependencies: Default::default(),
-                    validate_shader: ValidateShader::Disabled,
                 }
             }
             ShaderImport::Custom(_) => {

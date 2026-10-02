@@ -27,16 +27,6 @@ pub enum SphereKind {
         /// The number of faces quadruples with each subdivision.
         subdivisions: u32,
     },
-    /// A UV sphere, a spherical mesh that consists of quadrilaterals
-    /// apart from triangles at the top and bottom.
-    Uv {
-        /// The number of longitudinal sectors, aka the horizontal resolution.
-        #[doc(alias = "horizontal_resolution")]
-        sectors: u32,
-        /// The number of latitudinal stacks, aka the vertical resolution.
-        #[doc(alias = "vertical_resolution")]
-        stacks: u32,
-    },
 }
 
 impl Default for SphereKind {
@@ -222,7 +212,6 @@ impl MeshBuilder for SphereMeshBuilder {
     fn build(&self) -> Mesh {
         match self.kind {
             SphereKind::Ico { subdivisions } => self.ico(subdivisions).unwrap(),
-            SphereKind::Uv { sectors, stacks } => self.uv(sectors, stacks),
         }
     }
 }
