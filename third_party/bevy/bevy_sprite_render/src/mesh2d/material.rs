@@ -13,8 +13,6 @@ use bevy_utils::Parallel;
 use core::{hash::Hash, marker::PhantomData};
 use derive_more::derive::From;
 
-pub const MATERIAL_2D_BIND_GROUP_INDEX: usize = 2;
-
 /// Materials are used alongside [`Material2dPlugin`], [`Mesh2d`], and [`MeshMaterial2d`]
 /// to spawn entities that are rendered with a specific [`Material2d`] type. They serve as an easy to use high level
 /// way to render [`Mesh2d`] entities with custom shader logic.

@@ -187,60 +187,6 @@ pub enum UntypedAssetId {
 }
 
 impl UntypedAssetId {
-    /// Converts this to a "typed" [`AssetId`] without checking the stored type to see if it matches the target `A` [`Asset`] type.
-    /// This should only be called if you are _absolutely certain_ the asset type matches the stored type. And even then, you should
-    /// consider using [`UntypedAssetId::typed_debug_checked`] instead.
-    #[inline]
-    pub fn typed_unchecked<A: Asset>(self) -> AssetId<A> {
-        match self {
-            UntypedAssetId::Index { index, .. } => AssetId::Index {
-                index,
-                marker: PhantomData,
-            },
-            UntypedAssetId::Uuid { uuid, .. } => AssetId::Uuid { uuid },
-        }
-    }
-
-    /// Converts this to a "typed" [`AssetId`]. When compiled in debug-mode it will check to see if the stored type
-    /// matches the target `A` [`Asset`] type. When compiled in release-mode, this check will be skipped.
-    ///
-    /// # Panics
-    ///
-    /// Panics if compiled in debug mode and the [`TypeId`] of `A` does not match the stored [`TypeId`].
-    #[inline]
-    pub fn typed_debug_checked<A: Asset>(self) -> AssetId<A> {
-        debug_assert_eq!(
-            self.type_id(),
-            TypeId::of::<A>(),
-            "The target AssetId<{}>'s TypeId does not match the TypeId of this UntypedAssetId",
-            core::any::type_name::<A>()
-        );
-        self.typed_unchecked()
-    }
-
-    /// Converts this to a "typed" [`AssetId`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if the [`TypeId`] of `A` does not match the stored type id.
-    #[inline]
-    pub fn typed<A: Asset>(self) -> AssetId<A> {
-        let Ok(id) = self.try_typed() else {
-            panic!(
-                "The target AssetId<{}>'s TypeId does not match the TypeId of this UntypedAssetId",
-                core::any::type_name::<A>()
-            )
-        };
-
-        id
-    }
-
-    /// Try to convert this to a "typed" [`AssetId`].
-    #[inline]
-    pub fn try_typed<A: Asset>(self) -> Result<AssetId<A>, UntypedAssetIdConversionError> {
-        AssetId::try_from(self)
-    }
-
     /// Returns the stored [`TypeId`] of the referenced [`Asset`].
     #[inline]
     pub fn type_id(&self) -> TypeId {

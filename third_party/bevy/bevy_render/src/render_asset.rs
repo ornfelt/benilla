@@ -27,26 +27,6 @@ impl<A: RenderAsset> RenderAssets<A> {
     pub fn get(&self, id: impl Into<AssetId<A::SourceAsset>>) -> Option<&A> {
         self.0.get(&id.into())
     }
-
-    pub fn get_mut(&mut self, id: impl Into<AssetId<A::SourceAsset>>) -> Option<&mut A> {
-        self.0.get_mut(&id.into())
-    }
-
-    pub fn insert(&mut self, id: impl Into<AssetId<A::SourceAsset>>, value: A) -> Option<A> {
-        self.0.insert(id.into(), value)
-    }
-
-    pub fn remove(&mut self, id: impl Into<AssetId<A::SourceAsset>>) -> Option<A> {
-        self.0.remove(&id.into())
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (AssetId<A::SourceAsset>, &A)> {
-        self.0.iter().map(|(k, v)| (*k, v))
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (AssetId<A::SourceAsset>, &mut A)> {
-        self.0.iter_mut().map(|(k, v)| (*k, v))
-    }
 }
 
 /// A resource that defines the amount of data allowed to be transferred from CPU to GPU

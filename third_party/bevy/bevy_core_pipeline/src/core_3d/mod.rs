@@ -4,10 +4,6 @@ pub mod graph {
     #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderSubGraph)]
     pub struct Core3d;
 
-    pub mod input {
-        pub const VIEW_ENTITY: &str = "view_entity";
-    }
-
     #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
     pub enum Node3d {
         MsaaWriteback,

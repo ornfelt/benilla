@@ -25,17 +25,6 @@ impl BorderRect {
             max_inset: Vec2::splat(inset),
         }
     }
-
-    /// Creates a new border with the `min.x` and `max.x` insets equal to `horizontal`, and the `min.y` and `max.y` insets equal to `vertical`.
-    #[must_use]
-    #[inline]
-    pub const fn axes(horizontal: f32, vertical: f32) -> Self {
-        let insets = Vec2::new(horizontal, vertical);
-        Self {
-            min_inset: insets,
-            max_inset: insets,
-        }
-    }
 }
 
 impl From<f32> for BorderRect {

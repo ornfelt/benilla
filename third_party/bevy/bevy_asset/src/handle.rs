@@ -173,12 +173,6 @@ impl<A: Asset> Handle<A> {
         matches!(self, Handle::Uuid(..))
     }
 
-    /// Returns `true` if this is a strong handle.
-    #[inline]
-    pub fn is_strong(&self) -> bool {
-        matches!(self, Handle::Strong(_))
-    }
-
     /// Converts this [`Handle`] to an "untyped" / "generic-less" [`UntypedHandle`], which stores the [`Asset`] type information
     /// _inside_ [`UntypedHandle`]. This will return [`UntypedHandle::Strong`] for [`Handle::Strong`] and [`UntypedHandle::Uuid`] for
     /// [`Handle::Uuid`].
@@ -304,15 +298,6 @@ impl UntypedHandle {
                 uuid: *uuid,
                 type_id: *type_id,
             },
-        }
-    }
-
-    /// Returns the path if this is (1) a strong handle and (2) the asset has a path
-    #[inline]
-    pub fn path(&self) -> Option<&AssetPath<'static>> {
-        match self {
-            UntypedHandle::Strong(handle) => handle.path.as_ref(),
-            UntypedHandle::Uuid { .. } => None,
         }
     }
 

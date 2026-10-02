@@ -15,13 +15,6 @@ pub struct AssetLoadFailedEvent<A: Asset> {
     pub error: AssetLoadError,
 }
 
-impl<A: Asset> AssetLoadFailedEvent<A> {
-    /// Converts this to an "untyped" / "generic-less" asset error event that stores the type information.
-    pub fn untyped(&self) -> UntypedAssetLoadFailedEvent {
-        self.into()
-    }
-}
-
 /// An untyped version of [`AssetLoadFailedEvent`].
 #[derive(Message, Clone, Debug)]
 pub struct UntypedAssetLoadFailedEvent {
@@ -57,18 +50,6 @@ pub enum AssetEvent<A: Asset> {
     Unused { id: AssetId<A> },
     /// Emitted whenever an [`Asset`] has been fully loaded (including its dependencies and all "recursive dependencies").
     LoadedWithDependencies { id: AssetId<A> },
-}
-
-impl<A: Asset> AssetEvent<A> {
-    /// Returns `true` if this event is [`AssetEvent::LoadedWithDependencies`] and matches the given `id`.
-    pub fn is_loaded_with_dependencies(&self, asset_id: impl Into<AssetId<A>>) -> bool {
-        matches!(self, AssetEvent::LoadedWithDependencies { id } if *id == asset_id.into())
-    }
-
-    /// Returns `true` if this event is [`AssetEvent::Added`] and matches the given `id`.
-    pub fn is_added(&self, asset_id: impl Into<AssetId<A>>) -> bool {
-        matches!(self, AssetEvent::Added { id } if *id == asset_id.into())
-    }
 }
 
 impl<A: Asset> Clone for AssetEvent<A> {

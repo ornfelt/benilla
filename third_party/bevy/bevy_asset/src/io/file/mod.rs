@@ -48,11 +48,4 @@ impl FileAssetReader {
     pub fn get_base_path() -> PathBuf {
         get_base_path()
     }
-
-    /// Returns the root directory where assets are loaded from.
-    ///
-    /// See `get_base_path`.
-    pub fn root_path(&self) -> &PathBuf {
-        &self.root_path
-    }
 }

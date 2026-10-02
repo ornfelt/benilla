@@ -41,9 +41,6 @@ pub struct MeshMorphWeights {
 }
 
 impl MeshMorphWeights {
-    pub fn weights(&self) -> &[f32] {
-        &self.weights
-    }
     pub fn clear_weights(&mut self) {
         self.weights.clear();
     }

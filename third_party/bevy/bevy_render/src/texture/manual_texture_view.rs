@@ -2,7 +2,6 @@ use crate::render_resource::TextureView;
 use crate::wgpu::TextureFormat;
 use bevy_camera::ManualTextureViewHandle;
 use bevy_ecs::{prelude::Component, resource::Resource};
-use bevy_image::BevyDefault;
 use bevy_math::UVec2;
 use bevy_platform::collections::HashMap;
 use bevy_render_macros::ExtractResource;
@@ -13,16 +12,6 @@ pub struct ManualTextureView {
     pub texture_view: TextureView,
     pub size: UVec2,
     pub view_format: TextureFormat,
-}
-
-impl ManualTextureView {
-    pub fn with_default_format(texture_view: TextureView, size: UVec2) -> Self {
-        Self {
-            texture_view,
-            size,
-            view_format: TextureFormat::bevy_default(),
-        }
-    }
 }
 
 /// Resource that stores manually managed [`ManualTextureView`]s for use as a [`RenderTarget`](bevy_camera::RenderTarget).

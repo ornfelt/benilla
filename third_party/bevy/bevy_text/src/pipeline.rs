@@ -424,15 +424,6 @@ pub struct TextLayoutInfo {
     pub size: Vec2,
 }
 
-impl TextLayoutInfo {
-    /// Clear the layout, retaining capacity
-    pub fn clear(&mut self) {
-        self.scale_factor = 1.;
-        self.glyphs.clear();
-        self.size = Vec2::ZERO;
-    }
-}
-
 /// Size information for a corresponding [`ComputedTextBlock`] component.
 ///
 /// Generated via [`TextPipeline::create_text_measure`].

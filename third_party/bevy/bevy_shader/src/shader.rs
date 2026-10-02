@@ -8,20 +8,6 @@ use thiserror::Error;
 #[derive(Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord, Debug)]
 pub struct ShaderId(NonZero<u32>);
 
-impl ShaderId {
-    #[expect(
-        clippy::new_without_default,
-        reason = "Implementing the `Default` trait on atomic IDs would imply that two `<AtomicIdType>::default()` equal each other. By only implementing `new()`, we indicate that each atomic ID created will be unique."
-    )]
-    pub fn new() -> Self {
-        use core::sync::atomic::{AtomicU32, Ordering};
-        static COUNTER: AtomicU32 = AtomicU32::new(1);
-        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-        Self(NonZero::<u32>::new(counter).unwrap_or_else(|| {
-            panic!("The system ran out of unique `{}`s.", stringify!(ShaderId));
-        }))
-    }
-}
 impl From<ShaderId> for NonZero<u32> {
     fn from(value: ShaderId) -> Self {
         value.0
@@ -214,25 +200,6 @@ impl Shader {
             }
         }
     }
-
-    pub fn set_import_path<P: Into<String>>(&mut self, import_path: P) {
-        self.import_path = ShaderImport::Custom(import_path.into());
-    }
-
-    #[must_use]
-    pub fn with_import_path<P: Into<String>>(mut self, import_path: P) -> Self {
-        self.set_import_path(import_path);
-        self
-    }
-
-    #[inline]
-    pub fn import_path(&self) -> &ShaderImport {
-        &self.import_path
-    }
-
-    pub fn imports(&self) -> impl ExactSizeIterator<Item = &ShaderImport> {
-        self.imports.iter()
-    }
 }
 
 impl<'a> From<&'a Shader> for naga_oil::compose::ComposableModuleDescriptor<'a> {
@@ -423,15 +390,6 @@ impl AssetLoader for ShaderLoader {
 pub enum ShaderImport {
     AssetPath(String),
     Custom(String),
-}
-
-impl ShaderImport {
-    pub fn module_name(&self) -> Cow<'_, String> {
-        match self {
-            ShaderImport::AssetPath(s) => Cow::Owned(format!("\"{s}\"")),
-            ShaderImport::Custom(s) => Cow::Borrowed(s),
-        }
-    }
 }
 
 /// A reference to a shader asset.

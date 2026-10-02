@@ -206,42 +206,6 @@ pub fn vec2_into_egui_pos2(vec: bevy_math::Vec2) -> egui::Pos2 {
     egui::Pos2::new(vec.x, vec.y)
 }
 
-/// Converts [`bevy_math::Vec2`] into [`egui::Vec2`].
-#[inline(always)]
-pub fn vec2_into_egui_vec2(vec: bevy_math::Vec2) -> egui::Vec2 {
-    egui::Vec2::new(vec.x, vec.y)
-}
-
-/// Converts [`bevy_math::Rect`] into [`egui::Rect`].
-#[inline(always)]
-pub fn rect_into_egui_rect(rect: bevy_math::Rect) -> egui::Rect {
-    egui::Rect {
-        min: vec2_into_egui_pos2(rect.min),
-        max: vec2_into_egui_pos2(rect.max),
-    }
-}
-
-/// Converts [`egui::Pos2`] into [`bevy_math::Vec2`].
-#[inline(always)]
-pub fn egui_pos2_into_vec2(pos: egui::Pos2) -> bevy_math::Vec2 {
-    bevy_math::Vec2::new(pos.x, pos.y)
-}
-
-/// Converts [`egui::Vec2`] into [`bevy_math::Vec2`].
-#[inline(always)]
-pub fn egui_vec2_into_vec2(pos: egui::Vec2) -> bevy_math::Vec2 {
-    bevy_math::Vec2::new(pos.x, pos.y)
-}
-
-/// Converts [`egui::Rect`] into [`bevy_math::Rect`].
-#[inline(always)]
-pub fn egui_rect_into_rect(rect: egui::Rect) -> bevy_math::Rect {
-    bevy_math::Rect {
-        min: egui_pos2_into_vec2(rect.min),
-        max: egui_pos2_into_vec2(rect.max),
-    }
-}
-
 pub(crate) trait QueryHelper<'w> {
     type QueryData: bevy_ecs::query::QueryData;
 

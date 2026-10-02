@@ -33,14 +33,6 @@ pub struct BindGroup {
     value: WgpuWrapper<wgpu::BindGroup>,
 }
 
-impl BindGroup {
-    /// Returns the [`BindGroupId`] representing the unique ID of the bind group.
-    #[inline]
-    pub fn id(&self) -> BindGroupId {
-        self.id
-    }
-}
-
 impl PartialEq for BindGroup {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id

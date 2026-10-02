@@ -1094,6 +1094,45 @@ the same repository's.
   What only the kept tests call stays (`bevy_time`'s `Timer`, `Stopwatch`, `Time<Real>`,
   `Time<Fixed>` and `Time<Virtual>` accessors, `RenderLayers::from_layers`/`without`,
   `GlobalTransform::from_scale`, `DiagnosticsStore::get_measurement`).
+- **The function pass over the render crates, the asset and UI crates and two plugins**, which
+  had only the name-based one: every `pub fn` and `pub const` nothing outside calls (and the
+  private items only those called) in `bevy_render` (`RenderAssets`' mutators and iterators,
+  `RenderVisibleEntities`' accessors, `BindGroup::id`, `BindGroupLayout::id`/`value`,
+  `WgpuWrapper::new`/`into_inner`, `Msaa::from_samples`, `Screenshot::window`/`texture_view`, the
+  attachments' constructors, `CameraRenderGraph::set`, `ExtractComponentPlugin::extract_visible`
+  and five more), `bevy_pbr` (`FogFalloff`'s visibility constructors with the Koschmieder
+  constant, `StandardMaterial`'s `flip`/`flipped`/`from_color` and `FLIP_*` constants,
+  `MeshPipelineKey`'s constructors, `Atmosphere::earthlike` with the `EARTH_*` constants, the
+  medium's `from_curve`s and `with_density_multiplier`, `DEFAULT_RELIEF_MAPPING`),
+  `bevy_sprite_render` (`Mesh2dPipelineKey`'s constructors, `ColorMaterial::from_color`,
+  `MATERIAL_2D_BIND_GROUP_INDEX`), `bevy_ui_render`'s stack offsets, `bevy_core_pipeline`
+  (`Tonemapping::is_enabled`, the graphs' `input::VIEW_ENTITY` modules, and `lut_placeholder`
+  with the `not(feature = "tonemapping_luts")` branch that called it: the feature is on in the
+  build and stays declared), `bevy_shader` (`Shader`'s import-path accessors, `ShaderId::new`,
+  `ShaderImport::module_name`, `ShaderDefVal::value_as_string`), `bevy_image`
+  (`Image::aspect_ratio`/`convert`, `TextureAtlasLayout::len`/`is_empty`), `bevy_mesh`
+  (`Mesh::attributes`, `try_insert_indices`, `try_rotated_by`, `BaseMeshPipelineKey`'s
+  topology pair, `MeshMorphWeights::weights`, two `is_empty`s), `bevy_asset` (29: `Assets`'
+  `get_or_insert_with`/`is_empty`/`iter_mut`, `UntypedAssetId`'s typed conversions, the asset
+  sources' iterators and ids, `LoadedAsset::take`, `ErasedLoadedAsset::take`/`get`,
+  `AssetServer::new`/`watching_for_changes`, `AssetLoaderError::path`/`error`, ...), `bevy_ui`
+  (33: `Val`'s and `UiRect`'s side constructors, `ComputedNode`'s unused accessors, `Overflow`'s
+  constructors, `BorderRadius::MAX`/`new`/`px`/`percent`, `BorderColor::set_all`/
+  `is_fully_transparent`, `Outline::new`, ...), `bevy_text` (`TextLayout`'s constructors,
+  `ComputedTextBlock::buffer`, `TextLayoutInfo::clear`), `bevy_sprite` (`BorderRect::axes`),
+  `bevy_animation` (`AnimationClip::curves`, `ActiveAnimation::elapsed`), `bevy_gizmos`
+  (`GizmoBuffer::clear`), `bevy_transform_interpolation` (`interpolate_all`,
+  `extrapolate_all`) and `bevy_egui` (the `egui_wants_any_*` run conditions, the conversion
+  helpers, `EguiWantsInput`'s accessors but `wants_any_pointer_input`/`wants_any_keyboard_input`,
+  `EguiContexts::ctx_for_entity_mut`/`ctx_for_entities_mut`). `bevy_scene` had none. What kept
+  code or kept tests call stays (`AssetServer`'s load-state queries and `AssetPath::resolve`
+  family, the in-memory `Dir`'s inserts, `Indices::push`, `Image::clear`,
+  `Mesh::compute_smooth_normals`, `Scene::new`, `UiRect::px`/`percent`/`vertical`,
+  `ContentSize::fixed_size`, ...), and so does the only reader of each private field
+  (`Buffer`/`Texture`/`TextureView`/`Sampler::id`, `DepthAttachment::get_attachment`,
+  `PbrDeferredLightingDepthId::set`/`get`, `DefaultOpaqueRendererMethod`'s four,
+  `GizmoAsset::config_typeid`, `EguiContexts::add_image`/`remove_image`/`image_id`,
+  `NestedLoader::immediate`). Doc lines that named a removed item went with it.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

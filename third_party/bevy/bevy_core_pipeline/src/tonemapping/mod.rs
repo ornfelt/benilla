@@ -6,10 +6,6 @@ use bevy_image::{CompressedImageFormats, Image, ImageSampler, ImageType};
 use bevy_render::{
     extract_component::{ExtractComponent, ExtractComponentPlugin},
     extract_resource::{ExtractResource, ExtractResourcePlugin},
-    render_resource::{
-        Extent3d, TextureDataOrder, TextureDescriptor, TextureDimension, TextureFormat,
-        TextureUsages,
-    },
 };
 use bevy_utils::default;
 
@@ -28,7 +24,6 @@ impl Plugin for TonemappingPlugin {
         if !app.world().is_resource_added::<TonemappingLuts>() {
             let mut images = app.world_mut().resource_mut::<Assets<Image>>();
 
-            #[cfg(feature = "tonemapping_luts")]
             let tonemapping_luts = {
                 TonemappingLuts {
                     blender_filmic: images.add(setup_tonemapping_lut_image(
@@ -43,16 +38,6 @@ impl Plugin for TonemappingPlugin {
                         include_bytes!("luts/tony_mc_mapface.ktx2"),
                         ImageType::Extension("ktx2"),
                     )),
-                }
-            };
-
-            #[cfg(not(feature = "tonemapping_luts"))]
-            let tonemapping_luts = {
-                let placeholder = images.add(lut_placeholder());
-                TonemappingLuts {
-                    blender_filmic: placeholder.clone(),
-                    agx: placeholder.clone(),
-                    tony_mc_mapface: placeholder,
                 }
             };
 
@@ -117,12 +102,6 @@ pub enum Tonemapping {
     BlenderFilmic,
 }
 
-impl Tonemapping {
-    pub fn is_enabled(&self) -> bool {
-        *self != Tonemapping::None
-    }
-}
-
 /// Enables a debanding shader that applies dithering to mitigate color banding in the final image for a given [`Camera`] entity.
 #[derive(Component, Debug, Hash, Clone, Copy, Default, ExtractComponent, PartialEq, Eq)]
 #[extract_component_filter(With<Camera>)]
@@ -132,11 +111,6 @@ pub enum DebandDither {
     Enabled,
 }
 
-#[expect(clippy::allow_attributes, reason = "`dead_code` is not always linted.")]
-#[allow(
-    dead_code,
-    reason = "There is unused code when the `tonemapping_luts` feature is disabled."
-)]
 fn setup_tonemapping_lut_image(bytes: &[u8], image_type: ImageType) -> Image {
     let image_sampler = ImageSampler::Descriptor(bevy_image::ImageSamplerDescriptor {
         label: Some("Tonemapping LUT sampler".to_string()),
@@ -157,27 +131,4 @@ fn setup_tonemapping_lut_image(bytes: &[u8], image_type: ImageType) -> Image {
         RenderAssetUsages::RENDER_WORLD,
     )
     .unwrap()
-}
-
-pub fn lut_placeholder() -> Image {
-    let format = TextureFormat::Rgba8Unorm;
-    let data = vec![255, 0, 255, 255];
-    Image {
-        data: Some(data),
-        data_order: TextureDataOrder::default(),
-        texture_descriptor: TextureDescriptor {
-            size: Extent3d::default(),
-            format,
-            dimension: TextureDimension::D3,
-            label: None,
-            mip_level_count: 1,
-            sample_count: 1,
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-            view_formats: &[],
-        },
-        sampler: ImageSampler::Default,
-        texture_view_descriptor: None,
-        asset_usage: RenderAssetUsages::RENDER_WORLD,
-        copy_on_resize: false,
-    }
 }

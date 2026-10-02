@@ -142,14 +142,6 @@ impl Dir {
                 .cloned()
         })
     }
-
-    pub fn path(&self) -> PathBuf {
-        self.0
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .path
-            .to_owned()
-    }
 }
 
 pub struct DirStream {

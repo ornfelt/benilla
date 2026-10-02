@@ -14,15 +14,6 @@ pub struct BindGroupLayoutDescriptor {
     pub entries: Vec<BindGroupLayoutEntry>,
 }
 
-impl BindGroupLayoutDescriptor {
-    pub fn new(label: impl Into<Cow<'static, str>>, entries: &[BindGroupLayoutEntry]) -> Self {
-        Self {
-            label: label.into(),
-            entries: entries.into(),
-        }
-    }
-}
-
 /// Describes a render (graphics) pipeline.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct RenderPipelineDescriptor {

@@ -66,9 +66,8 @@ use bevy::prelude::*;
 /// }
 /// ```
 ///
-/// If you want *all* entities with a [`Transform`] to be interpolated by default, you can use
-/// [`TransformInterpolationPlugin::interpolate_all()`], or set the [`interpolate_translation_all`],
-/// [`interpolate_rotation_all`], and [`interpolate_scale_all`] fields.
+/// If you want *all* entities with a [`Transform`] to be interpolated by default, you can set the
+/// [`interpolate_translation_all`], [`interpolate_rotation_all`], and [`interpolate_scale_all`] fields.
 ///
 /// ```no_run
 /// # use bevy::prelude::*;
@@ -130,20 +129,6 @@ pub struct TransformInterpolationPlugin {
     ///
     /// This can be overridden for individual entities by adding the [`NoScaleEasing`] or [`NoTransformEasing`] component.
     pub interpolate_scale_all: bool,
-}
-
-impl TransformInterpolationPlugin {
-    /// Enables interpolation for translation, rotation, and scale for all entities with the [`Transform`] component.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoTransformEasing`] component,
-    /// or the individual [`NoTranslationEasing`], [`NoRotationEasing`], and [`NoScaleEasing`] components.
-    pub const fn interpolate_all() -> Self {
-        Self {
-            interpolate_translation_all: true,
-            interpolate_rotation_all: true,
-            interpolate_scale_all: true,
-        }
-    }
 }
 
 impl Plugin for TransformInterpolationPlugin {

@@ -28,14 +28,6 @@ impl Indices {
         }
     }
 
-    /// Returns `true` if there are no indices.
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Indices::U16(vec) => vec.is_empty(),
-            Indices::U32(vec) => vec.is_empty(),
-        }
-    }
-
     /// Add an index. If the index is greater than `u16::MAX`,
     /// the storage will be converted to `u32`.
     pub fn push(&mut self, index: u32) {

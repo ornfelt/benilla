@@ -147,7 +147,7 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     lifecycle::HookContext,
     prelude::*,
-    query::{QueryData, QueryEntityError, QuerySingleError},
+    query::{QueryData, QuerySingleError},
     schedule::{InternedScheduleLabel, ScheduleLabel},
     system::SystemParam,
     world::DeferredWorld,
@@ -329,11 +329,6 @@ pub struct EguiGlobalSettings {
     /// over other plugins and systems. This should work ok as long as there's no other system
     /// clearing messages the same way that might be in conflict with `bevy_egui`, and there's
     /// no other system that needs a non-interrupted flow of messages.
-    ///
-    /// ## Alternative
-    ///
-    /// Apply `run_if(not(egui_wants_any_pointer_input))` or `run_if(not(egui_wants_any_keyboard_input))` to your systems
-    /// that need to be disabled while Egui is using input (see the [`egui_wants_any_pointer_input`], [`egui_wants_any_keyboard_input`] run conditions).
     pub enable_absorb_bevy_input_system: bool,
     /// Controls whether `bevy_egui` updates [`bevy_window::CursorIcon`], enabled by default.
     ///
@@ -628,29 +623,6 @@ impl EguiContexts<'_, '_> {
                 (Ok(_), None) => result,
             },
         )
-    }
-
-    /// Egui context of a specific entity.
-    #[inline]
-    pub fn ctx_for_entity_mut(
-        &mut self,
-        entity: Entity,
-    ) -> Result<&mut egui::Context, QueryEntityError> {
-        self.q
-            .get_mut(entity)
-            .map(|(context, _primary)| context.into_inner().get_mut())
-    }
-
-    /// Allows to get multiple contexts at the same time. This function is useful when you want
-    /// to get multiple contexts without using the `immutable_ctx` feature.
-    #[inline]
-    pub fn ctx_for_entities_mut<const N: usize>(
-        &mut self,
-        ids: [Entity; N],
-    ) -> Result<[&mut egui::Context; N], QueryEntityError> {
-        self.q
-            .get_many_mut(ids)
-            .map(|arr| arr.map(|(ctx, _primary_window)| ctx.into_inner().get_mut()))
     }
 
     /// Returns an Egui context with the [`PrimaryEguiContext`] component.

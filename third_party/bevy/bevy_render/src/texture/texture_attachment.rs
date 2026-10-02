@@ -17,19 +17,6 @@ pub struct ColorAttachment {
 }
 
 impl ColorAttachment {
-    pub fn new(
-        texture: CachedTexture,
-        resolve_target: Option<CachedTexture>,
-        previous_frame_texture: Option<CachedTexture>,
-    ) -> Self {
-        Self {
-            texture,
-            resolve_target,
-            previous_frame_texture,
-            is_first_call: Arc::new(AtomicBool::new(true)),
-        }
-    }
-
     pub(crate) fn mark_as_cleared(&self) {
         self.is_first_call.store(false, Ordering::SeqCst);
     }
@@ -44,14 +31,6 @@ pub struct DepthAttachment {
 }
 
 impl DepthAttachment {
-    pub fn new(view: TextureView, clear_value: Option<f32>) -> Self {
-        Self {
-            view,
-            clear_value,
-            is_first_call: Arc::new(AtomicBool::new(clear_value.is_some())),
-        }
-    }
-
     /// Get this texture view as an attachment. The attachment will be cleared with a value of
     /// `clear_value` if this is the first time calling this function with `store` == [`StoreOp::Store`],
     /// and a clear value was provided, otherwise it will be loaded.
@@ -86,14 +65,6 @@ pub struct OutputColorAttachment {
 }
 
 impl OutputColorAttachment {
-    pub fn new(view: TextureView, view_format: TextureFormat) -> Self {
-        Self {
-            view,
-            view_format,
-            is_first_call: Arc::new(AtomicBool::new(true)),
-        }
-    }
-
     /// Get this texture view as an attachment. The attachment will be cleared with a value of
     /// the provided `clear_color` if this is the first time calling this function, otherwise it
     /// will be loaded.

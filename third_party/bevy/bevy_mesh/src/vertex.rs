@@ -199,11 +199,6 @@ impl VertexAttributeValues {
         }
     }
 
-    /// Returns `true` if there are no vertices in this [`VertexAttributeValues`].
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     /// Returns the values as float triples if possible.
     pub fn as_float3(&self) -> Option<&[[f32; 3]]> {
         match self {

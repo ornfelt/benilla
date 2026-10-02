@@ -63,15 +63,6 @@ impl<C, F> Default for ExtractComponentPlugin<C, F> {
     }
 }
 
-impl<C, F> ExtractComponentPlugin<C, F> {
-    pub fn extract_visible() -> Self {
-        Self {
-            only_extract_visible: true,
-            marker: PhantomData,
-        }
-    }
-}
-
 impl<C: ExtractComponent> Plugin for ExtractComponentPlugin<C> {
     fn build(&self, app: &mut App) {
         // The extraction systems only reached the RenderApp.

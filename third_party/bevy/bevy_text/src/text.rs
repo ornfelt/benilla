@@ -79,16 +79,6 @@ impl ComputedTextBlock {
     pub fn needs_rerender(&self) -> bool {
         self.needs_rerender
     }
-    /// Accesses the underlying buffer which can be used for `cosmic-text` APIs such as accessing layout information
-    /// or calculating a cursor position.
-    ///
-    /// Mutable access is not offered because changes would be overwritten during the automated layout calculation.
-    /// If you want to control the buffer contents manually or use the `cosmic-text`
-    /// editor, then you need to not use `TextLayout` and instead manually implement the conversion to
-    /// `TextLayoutInfo`.
-    pub fn buffer(&self) -> &CosmicBuffer {
-        &self.buffer
-    }
 }
 
 impl Default for ComputedTextBlock {
@@ -116,24 +106,6 @@ pub struct TextLayout {
     pub justify: Justify,
     /// How the text should linebreak when running out of the bounds determined by `max_size`.
     pub linebreak: LineBreak,
-}
-
-impl TextLayout {
-    /// Makes a new [`TextLayout`].
-    pub const fn new(justify: Justify, linebreak: LineBreak) -> Self {
-        Self { justify, linebreak }
-    }
-
-    /// Makes a new [`TextLayout`] with the specified [`Justify`].
-    pub fn new_with_justify(justify: Justify) -> Self {
-        Self::default().with_justify(justify)
-    }
-
-    /// Returns this [`TextLayout`] with the specified [`Justify`].
-    pub const fn with_justify(mut self, justify: Justify) -> Self {
-        self.justify = justify;
-        self
-    }
 }
 
 /// A span of text in a tree of spans.

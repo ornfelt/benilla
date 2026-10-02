@@ -3,10 +3,10 @@ use crate::{
     FocusPolicy, UiRect, Val,
 };
 use bevy_camera::{visibility::Visibility, Camera, RenderTarget};
-use bevy_color::{Alpha, Color};
+use bevy_color::Color;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{prelude::*, system::SystemParam};
-use bevy_math::{BVec2, Rect, UVec2, Vec2, Vec4, Vec4Swizzles};
+use bevy_math::{BVec2, Rect, UVec2, Vec2};
 use bevy_sprite::BorderRect;
 use bevy_utils::once;
 use bevy_window::{PrimaryWindow, WindowRef};
@@ -88,35 +88,11 @@ impl ComputedNode {
         self.size
     }
 
-    /// The calculated node content size as width and height in physical pixels.
-    ///
-    /// Automatically calculated by [`ui_layout_system`](`super::layout::ui_layout_system`).
-    #[inline]
-    pub const fn content_size(&self) -> Vec2 {
-        self.content_size
-    }
-
     /// Check if the node is empty.
     /// A node is considered empty if it has a zero or negative extent along either of its axes.
     #[inline]
     pub const fn is_empty(&self) -> bool {
         self.size.x <= 0. || self.size.y <= 0.
-    }
-
-    /// The order of the node in the UI layout.
-    /// Nodes with a higher stack index are drawn on top of and receive interactions before nodes with lower stack indices.
-    ///
-    /// Automatically calculated in [`UiSystems::Stack`](super::UiSystems::Stack).
-    pub const fn stack_index(&self) -> u32 {
-        self.stack_index
-    }
-
-    /// The calculated node size as width and height in physical pixels before rounding.
-    ///
-    /// Automatically calculated by [`ui_layout_system`](`super::layout::ui_layout_system`).
-    #[inline]
-    pub const fn unrounded_size(&self) -> Vec2 {
-        self.unrounded_size
     }
 
     /// Returns the thickness of the UI node's outline in physical pixels.
@@ -126,14 +102,6 @@ impl ComputedNode {
     #[inline]
     pub const fn outline_width(&self) -> f32 {
         self.outline_width
-    }
-
-    /// Returns the amount of space between the outline and the edge of the node in physical pixels.
-    ///
-    /// Automatically calculated by [`ui_layout_system`](`super::layout::ui_layout_system`).
-    #[inline]
-    pub const fn outline_offset(&self) -> f32 {
-        self.outline_offset
     }
 
     /// Returns the size of the node when including its outline.
@@ -182,31 +150,6 @@ impl ComputedNode {
     #[inline]
     pub const fn border_radius(&self) -> ResolvedBorderRadius {
         self.border_radius
-    }
-
-    /// Returns the inner border radius for each of the node's corners in physical pixels.
-    pub fn inner_radius(&self) -> ResolvedBorderRadius {
-        fn clamp_corner(r: f32, size: Vec2, offset: Vec2) -> f32 {
-            let s = 0.5 * size + offset;
-            let sm = s.x.min(s.y);
-            r.min(sm)
-        }
-        let b = Vec4::from((self.border.min_inset, self.border.max_inset));
-        let s = self.size() - b.xy() - b.zw();
-        ResolvedBorderRadius {
-            top_left: clamp_corner(self.border_radius.top_left, s, b.xy()),
-            top_right: clamp_corner(self.border_radius.top_right, s, b.zy()),
-            bottom_right: clamp_corner(self.border_radius.bottom_left, s, b.xw()),
-            bottom_left: clamp_corner(self.border_radius.bottom_right, s, b.zw()),
-        }
-    }
-
-    /// Returns the thickness of the node's padding on each edge in physical pixels.
-    ///
-    /// Automatically calculated by [`ui_layout_system`](`super::layout::ui_layout_system`).
-    #[inline]
-    pub const fn padding(&self) -> BorderRect {
-        self.padding
     }
 
     /// Returns the combined inset on each edge including both padding and border thickness in physical pixels.
@@ -325,10 +268,6 @@ impl Default for ComputedNode {
 /// Changing this does nothing on a `Node` without setting at least one `OverflowAxis` to `OverflowAxis::Scroll`.
 #[derive(Component, Debug, Clone, Default, Deref, DerefMut)]
 pub struct ScrollPosition(pub Vec2);
-
-impl ScrollPosition {
-    pub const DEFAULT: Self = Self(Vec2::ZERO);
-}
 
 impl From<Vec2> for ScrollPosition {
     fn from(value: Vec2) -> Self {
@@ -923,14 +862,6 @@ impl Overflow {
         y: OverflowAxis::DEFAULT,
     };
 
-    /// Show overflowing items on both axes
-    pub const fn visible() -> Self {
-        Self {
-            x: OverflowAxis::Visible,
-            y: OverflowAxis::Visible,
-        }
-    }
-
     /// Clip overflowing items on both axes
     pub const fn clip() -> Self {
         Self {
@@ -939,32 +870,9 @@ impl Overflow {
         }
     }
 
-    /// Hide overflowing items on both axes by influencing layout and then clipping
-    pub const fn hidden() -> Self {
-        Self {
-            x: OverflowAxis::Hidden,
-            y: OverflowAxis::Hidden,
-        }
-    }
-
     /// Overflow is visible on both axes
     pub const fn is_visible(&self) -> bool {
         self.x.is_visible() && self.y.is_visible()
-    }
-
-    pub const fn scroll() -> Self {
-        Self {
-            x: OverflowAxis::Scroll,
-            y: OverflowAxis::Scroll,
-        }
-    }
-
-    /// Scroll overflowing items on the x axis
-    pub const fn scroll_x() -> Self {
-        Self {
-            x: OverflowAxis::Scroll,
-            y: OverflowAxis::Visible,
-        }
     }
 
     /// Scroll overflowing items on the y axis
@@ -1137,24 +1045,6 @@ impl BorderColor {
             right: color,
         }
     }
-
-    /// Helper to set all border colors to a given color.
-    pub fn set_all(&mut self, color: impl Into<Color>) -> &mut Self {
-        let color: Color = color.into();
-        self.top = color;
-        self.bottom = color;
-        self.left = color;
-        self.right = color;
-        self
-    }
-
-    /// Check if all contained border colors are transparent
-    pub fn is_fully_transparent(&self) -> bool {
-        self.top.is_fully_transparent()
-            && self.bottom.is_fully_transparent()
-            && self.left.is_fully_transparent()
-            && self.right.is_fully_transparent()
-    }
 }
 
 impl Default for BorderColor {
@@ -1225,17 +1115,6 @@ pub struct Outline {
     /// If you are frequently toggling outlines for a UI node on and off it is recommended to set [`Color::NONE`] to hide the outline.
     /// This avoids the table moves that would occur from the repeated insertion and removal of the `Outline` component.
     pub color: Color,
-}
-
-impl Outline {
-    /// Create a new outline
-    pub const fn new(width: Val, offset: Val, color: Color) -> Self {
-        Self {
-            width,
-            offset,
-            color,
-        }
-    }
 }
 
 /// The calculated clip of the node
@@ -1337,9 +1216,6 @@ impl BorderRadius {
     /// Zero curvature. All the corners will be right-angled.
     pub const ZERO: Self = Self::all(Val::Px(0.));
 
-    /// Maximum curvature. The UI Node will take a capsule shape or circular if width and height are equal.
-    pub const MAX: Self = Self::all(Val::Px(f32::MAX));
-
     #[inline]
     /// Set all four corners to the same curvature.
     pub const fn all(radius: Val) -> Self {
@@ -1348,43 +1224,6 @@ impl BorderRadius {
             top_right: radius,
             bottom_left: radius,
             bottom_right: radius,
-        }
-    }
-
-    #[inline]
-    pub const fn new(top_left: Val, top_right: Val, bottom_right: Val, bottom_left: Val) -> Self {
-        Self {
-            top_left,
-            top_right,
-            bottom_right,
-            bottom_left,
-        }
-    }
-
-    #[inline]
-    /// Sets the radii to logical pixel values.
-    pub const fn px(top_left: f32, top_right: f32, bottom_right: f32, bottom_left: f32) -> Self {
-        Self {
-            top_left: Val::Px(top_left),
-            top_right: Val::Px(top_right),
-            bottom_right: Val::Px(bottom_right),
-            bottom_left: Val::Px(bottom_left),
-        }
-    }
-
-    #[inline]
-    /// Sets the radii to percentage values.
-    pub const fn percent(
-        top_left: f32,
-        top_right: f32,
-        bottom_right: f32,
-        bottom_left: f32,
-    ) -> Self {
-        Self {
-            top_left: Val::Percent(top_left),
-            top_right: Val::Percent(top_right),
-            bottom_right: Val::Percent(bottom_right),
-            bottom_left: Val::Percent(bottom_left),
         }
     }
 
@@ -1621,10 +1460,5 @@ impl ComputedUiRenderTargetInfo {
     /// Returns the size of the target camera's viewport in physical pixels.
     pub const fn physical_size(&self) -> UVec2 {
         self.physical_size
-    }
-
-    /// Returns the size of the target camera's viewport in logical pixels.
-    pub fn logical_size(&self) -> Vec2 {
-        self.physical_size.as_vec2() / self.scale_factor
     }
 }

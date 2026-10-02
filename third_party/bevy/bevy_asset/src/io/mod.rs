@@ -352,16 +352,6 @@ pub struct SliceReader<'a> {
     bytes_read: usize,
 }
 
-impl<'a> SliceReader<'a> {
-    /// Create a new [`SliceReader`] for `bytes`.
-    pub fn new(bytes: &'a [u8]) -> Self {
-        Self {
-            bytes,
-            bytes_read: 0,
-        }
-    }
-}
-
 impl<'a> AsyncRead for SliceReader<'a> {
     fn poll_read(
         mut self: Pin<&mut Self>,

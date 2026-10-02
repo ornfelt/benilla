@@ -353,14 +353,6 @@ where
     Config: GizmoConfigGroup,
     Clear: 'static + Send + Sync,
 {
-    /// Clear all data.
-    pub fn clear(&mut self) {
-        self.list_positions.clear();
-        self.list_colors.clear();
-        self.strip_positions.clear();
-        self.strip_colors.clear();
-    }
-
     /// Draw a line in 3D from `start` to `end`.
     ///
     /// # Example

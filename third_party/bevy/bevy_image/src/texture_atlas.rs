@@ -47,15 +47,6 @@ impl TextureAtlasLayout {
         self.textures.push(rect);
         self.textures.len() - 1
     }
-
-    /// The number of textures in the [`TextureAtlasLayout`]
-    pub fn len(&self) -> usize {
-        self.textures.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.textures.is_empty()
-    }
 }
 
 /// An index into a [`TextureAtlasLayout`], which corresponds to a specific section of a texture.

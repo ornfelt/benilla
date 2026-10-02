@@ -131,11 +131,6 @@ impl<A: Asset> DenseAssetStorage<A> {
         self.len as usize
     }
 
-    // Returns `true` if there are no assets stored.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
     /// Insert the value at the given index. Returns true if a value already exists (and was replaced)
     pub(crate) fn insert(
         &mut self,
@@ -337,27 +332,6 @@ impl<A: Asset> Assets<A> {
         }
     }
 
-    /// Retrieves an [`Asset`] stored for the given `id` if it exists. If it does not exist, it will
-    /// be inserted using `insert_fn`.
-    ///
-    /// Note: This will never return an error for UUID asset IDs.
-    // PERF: Optimize this or remove it
-    pub fn get_or_insert_with(
-        &mut self,
-        id: impl Into<AssetId<A>>,
-        insert_fn: impl FnOnce() -> A,
-    ) -> Result<&mut A, InvalidGenerationError> {
-        let id: AssetId<A> = id.into();
-        if self.get(id).is_none() {
-            self.insert(id, insert_fn())?;
-        }
-        // This should be impossible since either, `self.get` was Some, in which case this succeeds,
-        // or `self.get` was None and we inserted it (and bailed out if there was an error).
-        Ok(self
-            .get_mut(id)
-            .expect("the Asset was none even though we checked or inserted"))
-    }
-
     /// Returns `true` if the `id` exists in this collection. Otherwise it returns `false`.
     pub fn contains(&self, id: impl Into<AssetId<A>>) -> bool {
         match id.into() {
@@ -507,11 +481,6 @@ impl<A: Asset> Assets<A> {
         }
     }
 
-    /// Returns `true` if there are no assets in this collection.
-    pub fn is_empty(&self) -> bool {
-        self.dense_storage.is_empty() && self.hash_map.is_empty()
-    }
-
     /// Returns the number of assets currently stored in the collection.
     pub fn len(&self) -> usize {
         self.dense_storage.len() + self.hash_map.len()
@@ -549,16 +518,6 @@ impl<A: Asset> Assets<A> {
                     .iter()
                     .map(|(i, v)| (AssetId::Uuid { uuid: *i }, v)),
             )
-    }
-
-    /// Returns an iterator over the [`AssetId`] and mutable [`Asset`] ref of every asset in this collection.
-    // PERF: this could be accelerated if we implement a skip list. Consider the cost/benefits
-    pub fn iter_mut(&mut self) -> AssetsMutIterator<'_, A> {
-        AssetsMutIterator {
-            dense_storage: self.dense_storage.storage.iter_mut().enumerate(),
-            hash_map: self.hash_map.iter_mut(),
-            queued_events: &mut self.queued_events,
-        }
     }
 
     /// A system that synchronizes the state of assets in this collection with the [`AssetServer`]. This manages

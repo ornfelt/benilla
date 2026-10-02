@@ -82,24 +82,6 @@ impl AssetServer {
 
     /// Create a new instance of [`AssetServer`]. If `watching_for_changes` is true, the server runs as a watching
     /// server; no `AssetWatcher` exists in this build, so nothing is hot-reloaded.
-    pub fn new(
-        sources: Arc<AssetSources>,
-        mode: AssetServerMode,
-        watching_for_changes: bool,
-        unapproved_path_mode: UnapprovedPathMode,
-    ) -> Self {
-        Self::new_with_loaders(
-            sources,
-            Default::default(),
-            mode,
-            AssetMetaCheck::Always,
-            watching_for_changes,
-            unapproved_path_mode,
-        )
-    }
-
-    /// Create a new instance of [`AssetServer`]. If `watching_for_changes` is true, the server runs as a watching
-    /// server; no `AssetWatcher` exists in this build, so nothing is hot-reloaded.
     pub fn new_with_meta_check(
         sources: Arc<AssetSources>,
         mode: AssetServerMode,
@@ -176,11 +158,6 @@ impl AssetServer {
         source: impl Into<AssetSourceId<'a>>,
     ) -> Result<&AssetSource, MissingAssetSourceError> {
         self.data.sources.get(source.into())
-    }
-
-    /// Returns true if the [`AssetServer`] watches for changes.
-    pub fn watching_for_changes(&self) -> bool {
-        self.read_infos().watching_for_changes
     }
 
     /// Registers a new [`AssetLoader`]. [`AssetLoader`]s must be registered before they can be used.
@@ -1158,21 +1135,6 @@ pub struct AssetLoaderError {
     path: AssetPath<'static>,
     loader_name: &'static str,
     error: Arc<BevyError>,
-}
-
-impl AssetLoaderError {
-    /// The path of the asset that failed to load.
-    pub fn path(&self) -> &AssetPath<'static> {
-        &self.path
-    }
-
-    /// The error the loader reported when attempting to load the asset.
-    ///
-    /// If you know the type of the error the asset loader returned, you can use
-    /// [`BevyError::downcast_ref()`] to get it.
-    pub fn error(&self) -> &BevyError {
-        &self.error
-    }
 }
 
 /// An error that occurs when an [`AssetLoader`] is not registered for a given [`core::any::type_name`].

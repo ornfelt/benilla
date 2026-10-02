@@ -87,20 +87,6 @@ pub struct Atmosphere {
     pub medium: Handle<ScatteringMedium>,
 }
 
-impl Atmosphere {
-    pub fn earthlike(medium: Handle<ScatteringMedium>) -> Self {
-        const EARTH_BOTTOM_RADIUS: f32 = 6_360_000.0;
-        const EARTH_TOP_RADIUS: f32 = 6_460_000.0;
-        const EARTH_ALBEDO: Vec3 = Vec3::splat(0.3);
-        Self {
-            bottom_radius: EARTH_BOTTOM_RADIUS,
-            top_radius: EARTH_TOP_RADIUS,
-            ground_albedo: EARTH_ALBEDO,
-            medium,
-        }
-    }
-}
-
 /// This component controls the resolution of the atmosphere LUTs, and
 /// how many samples are used when computing them.
 ///

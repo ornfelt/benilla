@@ -177,9 +177,8 @@ use bevy::prelude::*;
 /// }
 /// ```
 ///
-/// If you want *all* entities with a [`Transform`] to be extrapolated by default, you can use
-/// [`TransformExtrapolationPlugin::extrapolate_all()`], or set the [`extrapolate_translation_all`]
-/// and [`extrapolate_rotation_all`] fields.
+/// If you want *all* entities with a [`Transform`] to be extrapolated by default, you can set the
+/// [`extrapolate_translation_all`] and [`extrapolate_rotation_all`] fields.
 ///
 /// ```ignore
 /// # use bevy::prelude::*;
@@ -204,7 +203,6 @@ use bevy::prelude::*;
 /// but it is equivalent to teleporting, and disables extrapolation for the entity for the remainder of that fixed timestep.
 ///
 /// [`QueryData`]: bevy::ecs::query::QueryData
-/// [`TransformExtrapolationPlugin::extrapolate_all()`]: TransformExtrapolationPlugin::extrapolate_all
 /// [`extrapolate_translation_all`]: TransformExtrapolationPlugin::extrapolate_translation_all
 /// [`extrapolate_rotation_all`]: TransformExtrapolationPlugin::extrapolate_rotation_all
 /// [`NoTransformEasing`]: crate::NoTransformEasing
@@ -257,23 +255,6 @@ impl<LinVel: VelocitySource, AngVel: VelocitySource> Default
         Self {
             extrapolate_translation_all: false,
             extrapolate_rotation_all: false,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<LinVel: VelocitySource, AngVel: VelocitySource> TransformExtrapolationPlugin<LinVel, AngVel> {
-    /// Enables extrapolation for translation and rotation for all entities with the [`Transform`] component.
-    ///
-    /// This can be overridden for individual entities by adding the [`NoTransformEasing`] component,
-    /// or the individual [`NoTranslationEasing`] and [`NoRotationEasing`] components.
-    ///
-    /// [`NoTransformEasing`]: crate::NoTransformEasing
-    /// [`NoRotationEasing`]: crate::NoRotationEasing
-    pub fn extrapolate_all() -> Self {
-        Self {
-            extrapolate_translation_all: true,
-            extrapolate_rotation_all: true,
             _phantom: PhantomData,
         }
     }

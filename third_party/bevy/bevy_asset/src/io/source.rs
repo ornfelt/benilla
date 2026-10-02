@@ -35,14 +35,6 @@ impl<'a> Display for AssetSourceId<'a> {
 }
 
 impl<'a> AssetSourceId<'a> {
-    /// Creates a new [`AssetSourceId`]
-    pub fn new(source: Option<impl Into<CowArc<'a, str>>>) -> AssetSourceId<'a> {
-        match source {
-            Some(source) => AssetSourceId::Name(source.into()),
-            None => AssetSourceId::Default,
-        }
-    }
-
     /// Returns [`None`] if this is [`AssetSourceId::Default`] and [`Some`] containing the
     /// name if this is [`AssetSourceId::Name`].
     pub fn as_str(&self) -> Option<&str> {
@@ -223,17 +215,6 @@ impl AssetSourceBuilders {
         }
     }
 
-    /// Gets a mutable builder with the given `id`, if it exists.
-    pub fn get_mut<'a, 'b>(
-        &'a mut self,
-        id: impl Into<AssetSourceId<'b>>,
-    ) -> Option<&'a mut AssetSourceBuilder> {
-        match id.into() {
-            AssetSourceId::Default => self.default.as_mut(),
-            AssetSourceId::Name(name) => self.sources.get_mut(&name.into_owned()),
-        }
-    }
-
     /// Builds a new [`AssetSources`] collection. If `watch` is true, the unprocessed sources will watch for changes.
     /// If `watch_processed` is true, the processed sources will watch for changes.
     pub fn build_sources(&mut self, watch: bool, watch_processed: bool) -> AssetSources {
@@ -273,12 +254,6 @@ pub struct AssetSource {
 }
 
 impl AssetSource {
-    /// Returns this source's id.
-    #[inline]
-    pub fn id(&self) -> AssetSourceId<'static> {
-        self.id.clone()
-    }
-
     /// Return's this source's unprocessed [`AssetReader`](crate::io::AssetReader).
     #[inline]
     pub fn reader(&self) -> &dyn ErasedAssetReader {
@@ -328,24 +303,6 @@ impl AssetSources {
                 .get(&name)
                 .ok_or(MissingAssetSourceError(AssetSourceId::Name(name))),
         }
-    }
-
-    /// Iterates all asset sources in the collection (including the default source).
-    pub fn iter(&self) -> impl Iterator<Item = &AssetSource> {
-        self.sources.values().chain(Some(&self.default))
-    }
-
-    /// Mutably iterates all asset sources in the collection (including the default source).
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut AssetSource> {
-        self.sources.values_mut().chain(Some(&mut self.default))
-    }
-
-    /// Iterates over the [`AssetSourceId`] of every [`AssetSource`] in the collection (including the default source).
-    pub fn ids(&self) -> impl Iterator<Item = AssetSourceId<'static>> + '_ {
-        self.sources
-            .keys()
-            .map(|k| AssetSourceId::Name(k.clone_owned()))
-            .chain(Some(AssetSourceId::Default))
     }
 }
 

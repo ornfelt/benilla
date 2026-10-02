@@ -305,39 +305,6 @@ pub fn create_bindless_bind_group_layout_entries(
     ]
 }
 
-impl BindlessSlabResourceLimit {
-    /// Determines the actual bindless slab resource limit on this platform.
-    pub fn resolve(&self) -> u32 {
-        match *self {
-            BindlessSlabResourceLimit::Auto => AUTO_BINDLESS_SLAB_RESOURCE_LIMIT,
-            BindlessSlabResourceLimit::Custom(limit) => limit,
-        }
-    }
-}
-
-impl BindlessResourceType {
-    /// Returns the binding number for the common array of this resource type.
-    ///
-    /// For example, if you pass `BindlessResourceType::Texture2d`, this will
-    /// return 5, in order to match the `@group(2) @binding(5) var
-    /// bindless_textures_2d: binding_array<texture_2d<f32>>` declaration in
-    /// `bindless.wgsl`.
-    ///
-    /// Not all resource types have fixed binding numbers. If you call
-    /// [`Self::binding_number`] on such a resource type, it returns `None`.
-    ///
-    /// Note that this returns a static reference to the binding number, not the
-    /// binding number itself. This is to conform to an idiosyncratic API in
-    /// `wgpu` whereby binding numbers for binding arrays are taken by `&u32`
-    /// *reference*, not by `u32` value.
-    pub fn binding_number(&self) -> Option<&'static BindingNumber> {
-        match BINDING_NUMBERS.binary_search_by_key(self, |(key, _)| *key) {
-            Ok(binding_number) => Some(&BINDING_NUMBERS[binding_number].1),
-            Err(_) => None,
-        }
-    }
-}
-
 impl From<TextureViewDimension> for BindlessResourceType {
     fn from(texture_view_dimension: TextureViewDimension) -> Self {
         match texture_view_dimension {

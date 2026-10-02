@@ -53,22 +53,6 @@
 //! Now, any changes made to the [`Transform`] of the entity in [`FixedPreUpdate`], [`FixedUpdate`], or [`FixedPostUpdate`]
 //! will automatically be interpolated in between fixed timesteps.
 //!
-//! If you want *all* entities with a [`Transform`] to be interpolated by default, you can use
-//! [`TransformInterpolationPlugin::interpolate_all()`]:
-//!
-//! ```no_run
-//! # use bevy::prelude::*;
-//! # use bevy_transform_interpolation::prelude::*;
-//! #
-//! fn main() {
-//!    App::new()
-//!       .add_plugins(TransformInterpolationPlugin::interpolate_all())
-//! #     .add_plugins(bevy::time::TimePlugin::default())
-//!       // ...
-//!       .run();
-//! }
-//! ```
-//!
 //! See the documentation of the [`TransformInterpolationPlugin`] for a more detailed overview of what it can do.
 //!
 //! ## Advanced Usage

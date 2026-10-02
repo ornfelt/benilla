@@ -432,17 +432,6 @@ impl Mesh {
     }
 
     /// Returns an iterator that yields references to the data of each vertex attribute.
-    ///
-    /// # Panics
-    /// Panics when the mesh data has already been extracted to `RenderWorld`. To handle
-    /// this as an error use [`Mesh::try_attributes`]
-    pub fn attributes(
-        &self,
-    ) -> impl Iterator<Item = (&MeshVertexAttribute, &VertexAttributeValues)> {
-        self.try_attributes().expect(MESH_EXTRACTED_ERROR)
-    }
-
-    /// Returns an iterator that yields references to the data of each vertex attribute.
     /// Returns an error if data has been extracted to `RenderWorld`
     pub fn try_attributes(
         &self,
@@ -460,24 +449,12 @@ impl Mesh {
     /// that use triangles.
     ///
     /// # Panics
-    /// Panics when the mesh data has already been extracted to `RenderWorld`. To handle
-    /// this as an error use [`Mesh::try_insert_indices`]
+    /// Panics when the mesh data has already been extracted to `RenderWorld`.
     #[inline]
     pub fn insert_indices(&mut self, indices: Indices) {
         self.indices
             .replace(Some(indices))
             .expect(MESH_EXTRACTED_ERROR);
-    }
-
-    /// Sets the vertex indices of the mesh. They describe how triangles are constructed out of the
-    /// vertex attributes and are therefore only useful for the [`PrimitiveTopology`] variants
-    /// that use triangles.
-    ///
-    /// Returns an error if the mesh data has been extracted to `RenderWorld`.
-    #[inline]
-    pub fn try_insert_indices(&mut self, indices: Indices) -> Result<(), MeshAccessError> {
-        self.indices.replace(Some(indices))?;
-        Ok(())
     }
 
     /// Consumes the mesh and returns a mesh with the given vertex indices. They describe how triangles
@@ -762,19 +739,10 @@ impl Mesh {
     /// `Aabb` of entities with modified mesh are not updated automatically.
     ///
     /// # Panics
-    /// Panics when the mesh data has already been extracted to `RenderWorld`. To handle
-    /// this as an error use [`Mesh::try_rotated_by`]
+    /// Panics when the mesh data has already been extracted to `RenderWorld`.
     pub fn rotated_by(mut self, rotation: Quat) -> Self {
         self.try_rotate_by(rotation).expect(MESH_EXTRACTED_ERROR);
         self
-    }
-
-    /// Rotates the vertex positions, normals, and tangents of the mesh by the given [`Quat`].
-    ///
-    /// `Aabb` of entities with modified mesh are not updated automatically.
-    pub fn try_rotated_by(mut self, rotation: Quat) -> Result<Self, MeshAccessError> {
-        self.try_rotate_by(rotation)?;
-        Ok(self)
     }
 
     /// Rotates the vertex positions, normals, and tangents of the mesh in place by the given [`Quat`].

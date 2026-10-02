@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
 use bevy_app::{First, Plugin, Update};
 use bevy_asset::Handle;
-use bevy_camera::{ManualTextureViewHandle, RenderTarget};
+use bevy_camera::RenderTarget;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{message::message_update_system, prelude::*};
 use bevy_image::Image;
@@ -55,11 +55,6 @@ pub struct Capturing;
 pub struct Captured;
 
 impl Screenshot {
-    /// Capture a screenshot of the provided window entity.
-    pub fn window(window: Entity) -> Self {
-        Self(RenderTarget::Window(WindowRef::Entity(window)))
-    }
-
     /// Capture a screenshot of the primary window, if one exists.
     pub fn primary_window() -> Self {
         Self(RenderTarget::Window(WindowRef::Primary))
@@ -68,11 +63,6 @@ impl Screenshot {
     /// Capture a screenshot of the provided render target image.
     pub fn image(image: Handle<Image>) -> Self {
         Self(RenderTarget::Image(image.into()))
-    }
-
-    /// Capture a screenshot of the provided manual texture view.
-    pub fn texture_view(texture_view: ManualTextureViewHandle) -> Self {
-        Self(RenderTarget::TextureView(texture_view))
     }
 }
 

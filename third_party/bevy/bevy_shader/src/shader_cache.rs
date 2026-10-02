@@ -16,13 +16,3 @@ impl From<String> for ShaderDefVal {
         ShaderDefVal::Bool(key, true)
     }
 }
-
-impl ShaderDefVal {
-    pub fn value_as_string(&self) -> String {
-        match self {
-            ShaderDefVal::Bool(_, def) => def.to_string(),
-            ShaderDefVal::Int(_, def) => def.to_string(),
-            ShaderDefVal::UInt(_, def) => def.to_string(),
-        }
-    }
-}

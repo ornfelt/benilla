@@ -92,17 +92,6 @@ impl ScatteringMedium {
         }
     }
 
-    // Consumes and returns this scattering medium with each scattering terms'
-    // densities multiplied by `multiplier`.
-    pub fn with_density_multiplier(mut self, multiplier: f32) -> Self {
-        self.terms.iter_mut().for_each(|term| {
-            term.absorption *= multiplier;
-            term.scattering *= multiplier;
-        });
-
-        self
-    }
-
     /// Returns a scattering medium representing an earthlike atmosphere.
     ///
     /// Uses physically-based scale heights from Earth's atmosphere, assuming
@@ -245,13 +234,6 @@ pub enum Falloff {
     Curve(Arc<dyn Curve<f32> + Send + Sync>),
 }
 
-impl Falloff {
-    /// Returns a falloff function corresponding to a custom curve.
-    pub fn from_curve(curve: impl Curve<f32> + Send + Sync + 'static) -> Self {
-        Self::Curve(Arc::new(curve))
-    }
-}
-
 /// Describes how a [`ScatteringTerm`] scatters light in different directions.
 ///
 /// A [phase function] is a function `f: [-1, 1] -> [0, ∞)`, symmetric about `x=0`
@@ -319,13 +301,6 @@ pub enum PhaseFunction {
     /// domain: [-1, 1]
     /// range: [0, 1]
     Curve(Arc<dyn Curve<f32> + Send + Sync>),
-}
-
-impl PhaseFunction {
-    /// A phase function defined by a custom curve.
-    pub fn from_curve(curve: impl Curve<f32> + Send + Sync + 'static) -> Self {
-        Self::Curve(Arc::new(curve))
-    }
 }
 
 impl Default for PhaseFunction {

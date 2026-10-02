@@ -10,11 +10,6 @@ pub struct BindGroupLayoutEntryBuilder {
 }
 
 impl BindGroupLayoutEntryBuilder {
-    pub fn visibility(mut self, visibility: ShaderStages) -> Self {
-        self.visibility = Some(visibility);
-        self
-    }
-
     pub fn count(mut self, count: NonZero<u32>) -> Self {
         self.count = Some(count);
         self

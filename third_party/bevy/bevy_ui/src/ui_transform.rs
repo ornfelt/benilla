@@ -106,12 +106,6 @@ impl UiGlobalTransform {
     pub fn try_inverse(&self) -> Option<Affine2> {
         (self.matrix2.determinant() != 0.).then_some(self.inverse())
     }
-
-    /// Returns the transform as an [`Affine2`]
-    #[inline]
-    pub fn affine(&self) -> Affine2 {
-        self.0
-    }
 }
 
 impl From<Affine2> for UiGlobalTransform {

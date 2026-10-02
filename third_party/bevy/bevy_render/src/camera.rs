@@ -113,12 +113,6 @@ impl CameraRenderGraph {
     pub fn new<T: RenderSubGraph>(name: T) -> Self {
         Self(name.intern())
     }
-
-    /// Sets the graph name.
-    #[inline]
-    pub fn set<T: RenderSubGraph>(&mut self, name: T) {
-        self.0 = name.intern();
-    }
 }
 
 pub trait NormalizedRenderTargetExt {

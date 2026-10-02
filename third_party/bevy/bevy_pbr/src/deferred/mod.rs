@@ -16,12 +16,6 @@ pub struct PbrDeferredLightingDepthId {
 }
 
 impl PbrDeferredLightingDepthId {
-    pub fn new(value: u8) -> PbrDeferredLightingDepthId {
-        PbrDeferredLightingDepthId {
-            depth_id: value as u32,
-        }
-    }
-
     pub fn set(&mut self, value: u8) {
         self.depth_id = value as u32;
     }

@@ -31,19 +31,6 @@ impl core::hash::Hash for BindGroupLayout {
     }
 }
 
-impl BindGroupLayout {
-    /// Returns the [`BindGroupLayoutId`] representing the unique ID of the bind group layout.
-    #[inline]
-    pub fn id(&self) -> BindGroupLayoutId {
-        self.id
-    }
-
-    #[inline]
-    pub fn value(&self) -> &wgpu::BindGroupLayout {
-        &self.value
-    }
-}
-
 impl Deref for BindGroupLayout {
     type Target = wgpu::BindGroupLayout;
 

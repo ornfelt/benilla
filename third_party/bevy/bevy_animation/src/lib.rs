@@ -14,7 +14,6 @@ pub mod animation_curves;
 pub mod graph;
 pub mod transition;
 
-
 use core::{
     any::TypeId,
     cell::RefCell,
@@ -152,12 +151,6 @@ impl Hash for AnimationTargetId {
 pub struct AnimatedBy(#[entities] pub Entity);
 
 impl AnimationClip {
-    #[inline]
-    /// [`VariableCurve`]s for each animation target. Indexed by the [`AnimationTargetId`].
-    pub fn curves(&self) -> &AnimationCurves {
-        &self.curves
-    }
-
     /// Gets the curves for a single animation target.
     ///
     /// Returns `None` if this clip doesn't animate the target.
@@ -400,11 +393,6 @@ impl ActiveAnimation {
     pub fn set_speed(&mut self, speed: f32) -> &mut Self {
         self.speed = speed;
         self
-    }
-
-    /// Returns the amount of time the animation has been playing.
-    pub fn elapsed(&self) -> f32 {
-        self.elapsed
     }
 
     /// Returns the seek time of the animation.

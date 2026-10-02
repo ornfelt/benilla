@@ -37,15 +37,7 @@ pub mod prelude {
 /// Note that nodes "stack" on each other, so a negative offset on the node above could clip _into_
 /// a positive offset on a node below.
 pub mod stack_z_offsets {
-    pub const BOX_SHADOW: f32 = -0.1;
-    pub const BACKGROUND_COLOR: f32 = 0.0;
-    pub const BORDER: f32 = 0.01;
-    pub const GRADIENT: f32 = 0.02;
-    pub const BORDER_GRADIENT: f32 = 0.03;
-    pub const IMAGE: f32 = 0.04;
     pub const MATERIAL: f32 = 0.05;
-    pub const TEXT: f32 = 0.06;
-    pub const TEXT_STRIKETHROUGH: f32 = 0.07;
 }
 
 /// Marker for controlling whether UI is rendered with or without anti-aliasing

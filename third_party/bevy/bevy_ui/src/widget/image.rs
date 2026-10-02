@@ -129,14 +129,6 @@ pub struct ImageNodeSize {
     size: UVec2,
 }
 
-impl ImageNodeSize {
-    /// The size of the image's texture
-    #[inline]
-    pub const fn size(&self) -> UVec2 {
-        self.size
-    }
-}
-
 #[derive(Clone)]
 /// Used to calculate the size of UI image nodes
 pub struct ImageMeasure {

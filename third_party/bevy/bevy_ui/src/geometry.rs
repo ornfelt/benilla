@@ -80,142 +80,6 @@ impl PartialEq for Val {
 impl Val {
     pub const DEFAULT: Self = Self::Auto;
     pub const ZERO: Self = Self::Px(0.0);
-
-    /// Returns a [`UiRect`] with its `left` equal to this value,
-    /// and all other fields set to `Val::ZERO`.
-    ///
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = Val::Px(1.).left();
-    ///
-    /// assert_eq!(ui_rect.left, Val::Px(1.));
-    /// assert_eq!(ui_rect.right, Val::ZERO);
-    /// assert_eq!(ui_rect.top, Val::ZERO);
-    /// assert_eq!(ui_rect.bottom, Val::ZERO);
-    /// ```
-    pub const fn left(self) -> UiRect {
-        UiRect::left(self)
-    }
-
-    /// Returns a [`UiRect`] with its `right` equal to this value,
-    /// and all other fields set to `Val::ZERO`.
-    ///
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = Val::Px(1.).right();
-    ///
-    /// assert_eq!(ui_rect.left, Val::ZERO);
-    /// assert_eq!(ui_rect.right, Val::Px(1.));
-    /// assert_eq!(ui_rect.top, Val::ZERO);
-    /// assert_eq!(ui_rect.bottom, Val::ZERO);
-    /// ```
-    pub const fn right(self) -> UiRect {
-        UiRect::right(self)
-    }
-
-    /// Returns a [`UiRect`] with its `top` equal to this value,
-    /// and all other fields set to `Val::ZERO`.
-    ///
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = Val::Px(1.).top();
-    ///
-    /// assert_eq!(ui_rect.left, Val::ZERO);
-    /// assert_eq!(ui_rect.right, Val::ZERO);
-    /// assert_eq!(ui_rect.top, Val::Px(1.));
-    /// assert_eq!(ui_rect.bottom, Val::ZERO);
-    /// ```
-    pub const fn top(self) -> UiRect {
-        UiRect::top(self)
-    }
-
-    /// Returns a [`UiRect`] with its `bottom` equal to this value,
-    /// and all other fields set to `Val::ZERO`.
-    ///
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = Val::Px(1.).bottom();
-    ///
-    /// assert_eq!(ui_rect.left, Val::ZERO);
-    /// assert_eq!(ui_rect.right, Val::ZERO);
-    /// assert_eq!(ui_rect.top, Val::ZERO);
-    /// assert_eq!(ui_rect.bottom, Val::Px(1.));
-    /// ```
-    pub const fn bottom(self) -> UiRect {
-        UiRect::bottom(self)
-    }
-
-    /// Returns a [`UiRect`] with all its fields equal to this value.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = Val::Px(1.).all();
-    ///
-    /// assert_eq!(ui_rect.left, Val::Px(1.));
-    /// assert_eq!(ui_rect.right, Val::Px(1.));
-    /// assert_eq!(ui_rect.top, Val::Px(1.));
-    /// assert_eq!(ui_rect.bottom, Val::Px(1.));
-    /// ```
-    pub const fn all(self) -> UiRect {
-        UiRect::all(self)
-    }
-
-    /// Returns a [`UiRect`] with all its `left` and `right` equal to this value,
-    /// and its `top` and `bottom` set to `Val::ZERO`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = Val::Px(1.).horizontal();
-    ///
-    /// assert_eq!(ui_rect.left, Val::Px(1.));
-    /// assert_eq!(ui_rect.right, Val::Px(1.));
-    /// assert_eq!(ui_rect.top, Val::ZERO);
-    /// assert_eq!(ui_rect.bottom, Val::ZERO);
-    /// ```
-    pub const fn horizontal(self) -> UiRect {
-        UiRect::horizontal(self)
-    }
-
-    /// Returns a [`UiRect`] with all its `top` and `bottom` equal to this value,
-    /// and its `left` and `right` set to `Val::ZERO`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = Val::Px(1.).vertical();
-    ///
-    /// assert_eq!(ui_rect.left, Val::ZERO);
-    /// assert_eq!(ui_rect.right, Val::ZERO);
-    /// assert_eq!(ui_rect.top, Val::Px(1.));
-    /// assert_eq!(ui_rect.bottom, Val::Px(1.));
-    /// ```
-    pub const fn vertical(self) -> UiRect {
-        UiRect::vertical(self)
-    }
 }
 
 impl Default for Val {
@@ -390,8 +254,6 @@ pub struct UiRect {
 
 impl UiRect {
     pub const DEFAULT: Self = Self::all(Val::ZERO);
-    pub const ZERO: Self = Self::all(Val::ZERO);
-    pub const AUTO: Self = Self::all(Val::Auto);
 
     /// Creates a new [`UiRect`] from the values specified.
     ///
@@ -583,28 +445,6 @@ impl UiRect {
         }
     }
 
-    /// Creates a new [`UiRect`] where `right` takes the given value,
-    /// and the other fields are set to `Val::ZERO`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = UiRect::right(Val::Px(10.0));
-    ///
-    /// assert_eq!(ui_rect.left, Val::ZERO);
-    /// assert_eq!(ui_rect.right, Val::Px(10.0));
-    /// assert_eq!(ui_rect.top, Val::ZERO);
-    /// assert_eq!(ui_rect.bottom, Val::ZERO);
-    /// ```
-    pub const fn right(right: Val) -> Self {
-        Self {
-            right,
-            ..Self::DEFAULT
-        }
-    }
-
     /// Creates a new [`UiRect`] where `top` takes the given value,
     /// and the other fields are set to `Val::ZERO`.
     ///
@@ -623,28 +463,6 @@ impl UiRect {
     pub const fn top(top: Val) -> Self {
         Self {
             top,
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Creates a new [`UiRect`] where `bottom` takes the given value,
-    /// and the other fields are set to `Val::ZERO`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_ui::{UiRect, Val};
-    /// #
-    /// let ui_rect = UiRect::bottom(Val::Px(10.0));
-    ///
-    /// assert_eq!(ui_rect.left, Val::ZERO);
-    /// assert_eq!(ui_rect.right, Val::ZERO);
-    /// assert_eq!(ui_rect.top, Val::ZERO);
-    /// assert_eq!(ui_rect.bottom, Val::Px(10.0));
-    /// ```
-    pub const fn bottom(bottom: Val) -> Self {
-        Self {
-            bottom,
             ..Self::DEFAULT
         }
     }
