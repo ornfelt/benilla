@@ -497,8 +497,8 @@ pub(crate) const REGISTERED: &[Registered] = &[
         "gxApi",
         "",
         "direct3d",
-        "descriptive, not a selector — benilla renders through wgpu, which has no D3D9 \
-         backend and no chooser; the value is the live adapter's own and is never persisted",
+        "descriptive, not a selector — benilla renders through gfx and has no backend \
+         chooser; gfx pushes no backend into it, so it stays empty, and it is never persisted",
     )
     .latched(),
     // `gxVSync` (`0x63a859`, "1", flags 3), `OptionsFrame.lua:9`. The knob is

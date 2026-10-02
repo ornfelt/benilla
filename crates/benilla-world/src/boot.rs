@@ -64,9 +64,9 @@ pub fn tuned_default_plugins(primary_window: Window) -> PluginGroupBuilder {
         })
         // Sound is kira behind our own mixer; `bevy_audio` is off by feature (workspace
         // `Cargo.toml`). Kept though they look idle: gizmos (bowstring, fishing line), sprites (the
-        // FrameXML quad pass), picking, TextPlugin (glue text), PostProcessPlugin (glow bloom) and
-        // ScenePlugin (avian's collider backend reads `SceneSpawner`); the ForwardDecal family is
-        // registered inside `PbrPlugin::build`, so it cannot be disabled on its own.
+        // FrameXML quad pass), TextPlugin (glue text) and ScenePlugin (avian's collider backend
+        // reads `SceneSpawner`); the ForwardDecal family is registered inside `PbrPlugin::build`,
+        // so it cannot be disabled on its own. The glow bloom is benilla-gfx's own (`post.rs`).
         //
         // M2/WMO/ADT load through our own `mpq://` loaders; there is no glTF.
         .disable::<bevy::gltf::GltfPlugin>()
