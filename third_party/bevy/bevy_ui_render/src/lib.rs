@@ -17,9 +17,7 @@ use bevy_ui::Node;
 pub use ui_material_pipeline::*;
 
 pub mod prelude {
-    pub use crate::{
-        ui_material::*, ui_material_pipeline::UiMaterialPlugin, BoxShadowSamples, UiAntiAlias,
-    };
+    pub use crate::{ui_material::*, ui_material_pipeline::UiMaterialPlugin, UiAntiAlias};
 }
 
 /// Local Z offsets of "extracted nodes" for a given entity. These exist to allow rendering multiple "extracted nodes"
@@ -67,32 +65,6 @@ pub enum UiAntiAlias {
     On,
     /// UI will render without anti-aliasing
     Off,
-}
-
-/// Number of shadow samples.
-/// A larger value will result in higher quality shadows.
-/// Default is 4, values higher than ~10 offer diminishing returns.
-///
-/// ```
-/// use bevy_camera::prelude::*;
-/// use bevy_ecs::prelude::*;
-/// use bevy_ui::prelude::*;
-/// use bevy_ui_render::prelude::*;
-///
-/// fn spawn_camera(mut commands: Commands) {
-///     commands.spawn((
-///         Camera2d,
-///         BoxShadowSamples(6),
-///     ));
-/// }
-/// ```
-#[derive(Component, Clone, Copy, Debug, Eq, PartialEq)]
-pub struct BoxShadowSamples(pub u32);
-
-impl Default for BoxShadowSamples {
-    fn default() -> Self {
-        Self(4)
-    }
 }
 
 #[derive(Default)]

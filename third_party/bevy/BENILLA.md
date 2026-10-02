@@ -1133,6 +1133,24 @@ the same repository's.
   `PbrDeferredLightingDepthId::set`/`get`, `DefaultOpaqueRendererMethod`'s four,
   `GizmoAsset::config_typeid`, `EguiContexts::add_image`/`remove_image`/`image_id`,
   `NestedLoader::immediate`). Doc lines that named a removed item went with it.
+- **The type pass over the crates that had only the name-based one** (every `pub` struct, enum,
+  trait, type alias, const and static of thirty crates made crate-private, the build's errors
+  putting back what it names, the dead-code warnings naming the rest): the types nothing
+  constructs or names outside their own impls go with those impls. `bevy_transform`'s
+  `TransformPoint` (no call in the build resolves to it),
+  `bevy_window`'s `PrimaryMonitor`, `bevy_light`'s `DirectionalLightTexture`,
+  `PointLightTexture`, `SpotLightTexture`, `IrradianceVolume`, `VolumetricFog`,
+  `NotShadowReceiver`, `TransmittedShadowReceiver` and `WithLight`, `bevy_core_pipeline`'s
+  `Node2d`/`Node3d` graph labels and `MotionVectorPrepass`, `DepthPrepassDoubleBuffer`,
+  `DeferredPrepassDoubleBuffer`, `bevy_render`'s `Render`/`RenderStartup` schedule labels,
+  `RenderExtractApp`, `GlobalsUniform`, `RenderVisibleEntities`, `InternedRenderLabel`,
+  `SamplerDescriptor` and `BINDING_NUMBERS`, `bevy_pbr`'s `Lightmap` (with its emptied module),
+  `bevy_ui_render`'s `BoxShadowSamples`, `bevy_shader`'s `ShaderReflectError`, `bevy_mesh`'s
+  `SkinnedMesh`, `bevy_asset`'s `AssetsMutIterator` and `SliceReader`, `bevy_ui`'s `Pressed`,
+  `Checkable` and `Label`, and `bevy_math`'s `SpacedPointsError`. Kept: `ForwardDecal` (its hook is
+  the only reader of `ForwardDecalMesh`, whose mesh the plugin adds to `Assets<Mesh>` at build),
+  and the nested loader's immediate mode (`Immediate`, `LoadDirectError`; `bevy_asset`'s tests
+  load through it). `bevy_ptr` and `bevy_platform` had no uncalled function left.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

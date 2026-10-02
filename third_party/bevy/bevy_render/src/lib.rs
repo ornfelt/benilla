@@ -119,14 +119,6 @@ bitflags! {
     }
 }
 
-/// The startup schedule of the [`RenderApp`]
-#[derive(ScheduleLabel, Debug, Hash, PartialEq, Eq, Clone, Default)]
-pub struct RenderStartup;
-
-/// The main render schedule.
-#[derive(ScheduleLabel, Debug, Hash, PartialEq, Eq, Clone, Default)]
-pub struct Render;
-
 /// Schedule in which data from the main world is 'extracted' into the render world.
 ///
 /// This step should be kept as short as possible to increase the "pipelining potential" for

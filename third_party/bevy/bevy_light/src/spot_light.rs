@@ -1,11 +1,9 @@
-use bevy_asset::Handle;
 use bevy_camera::{
     primitives::Frustum,
     visibility::{self, Visibility, VisibilityClass, VisibleMeshEntities},
 };
 use bevy_color::Color;
 use bevy_ecs::prelude::*;
-use bevy_image::Image;
 use bevy_math::{Affine3A, Dir3, Mat3, Mat4, Vec3};
 use bevy_transform::components::{GlobalTransform, Transform};
 
@@ -185,17 +183,6 @@ pub fn spot_light_world_from_view(transform: &GlobalTransform) -> Affine3A {
 pub fn spot_light_clip_from_view(angle: f32, near_z: f32) -> Mat4 {
     // spot light projection FOV is 2x the angle from spot light center to outer edge
     Mat4::perspective_infinite_reverse_rh(angle * 2.0, 1.0, near_z)
-}
-
-/// Add to a [`SpotLight`] to add a light texture effect.
-/// A texture mask is applied to the light source to modulate its intensity,  
-/// simulating patterns like window shadows, gobo/cookie effects, or soft falloffs.
-#[derive(Clone, Component, Debug)]
-#[require(SpotLight)]
-pub struct SpotLightTexture {
-    /// The texture image. Only the R channel is read.
-    /// Note the border of the image should be entirely black to avoid leaking light.
-    pub image: Handle<Image>,
 }
 
 pub fn update_spot_light_frusta(

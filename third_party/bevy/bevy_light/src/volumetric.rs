@@ -13,60 +13,6 @@ use bevy_transform::components::Transform;
 #[derive(Clone, Copy, Component, Default, Debug)]
 pub struct VolumetricLight;
 
-/// When placed on a [`bevy_camera::Camera3d`], enables
-/// volumetric fog and volumetric lighting, also known as light shafts or god
-/// rays.
-///
-/// Requires using WebGPU on Wasm builds.
-#[derive(Clone, Copy, Component, Debug)]
-pub struct VolumetricFog {
-    /// Color of the ambient light.
-    ///
-    /// This is separate from Bevy's [`AmbientLight`](crate::AmbientLight) because an
-    /// [`EnvironmentMapLight`](crate::EnvironmentMapLight) is
-    /// still considered an ambient light for the purposes of volumetric fog. If you're using a
-    /// [`EnvironmentMapLight`](crate::EnvironmentMapLight), for best results,
-    /// this should be a good approximation of the average color of the environment map.
-    ///
-    /// Defaults to white.
-    pub ambient_color: Color,
-
-    /// The brightness of the ambient light.
-    ///
-    /// If there's no [`EnvironmentMapLight`](crate::EnvironmentMapLight),
-    /// set this to 0.
-    ///
-    /// Defaults to 0.1.
-    pub ambient_intensity: f32,
-
-    /// The maximum distance to offset the ray origin randomly by, in meters.
-    ///
-    /// This is intended for use with temporal antialiasing. It helps fog look
-    /// less blocky by varying the start position of the ray, using interleaved
-    /// gradient noise.
-    pub jitter: f32,
-
-    /// The number of raymarching steps to perform.
-    ///
-    /// Higher values produce higher-quality results with less banding, but
-    /// reduce performance.
-    ///
-    /// The default value is 64.
-    pub step_count: u32,
-}
-
-impl Default for VolumetricFog {
-    fn default() -> Self {
-        Self {
-            step_count: 64,
-            // Matches `AmbientLight` defaults.
-            ambient_color: Color::WHITE,
-            ambient_intensity: 0.1,
-            jitter: 0.0,
-        }
-    }
-}
-
 #[derive(Clone, Component, Debug)]
 #[require(Transform, Visibility)]
 pub struct FogVolume {

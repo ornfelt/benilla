@@ -8,7 +8,7 @@ use bevy_ecs::{
 };
 use bevy_platform::collections::HashMap;
 use bevy_reflect::TypePath;
-use core::{any::TypeId, iter::Enumerate, marker::PhantomData, sync::atomic::AtomicU32};
+use core::{any::TypeId, marker::PhantomData, sync::atomic::AtomicU32};
 use crossbeam_channel::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -572,47 +572,6 @@ impl<A: Asset> Assets<A> {
     /// [`asset_events`]: Self::asset_events
     pub(crate) fn asset_events_condition(assets: Res<Self>) -> bool {
         !assets.queued_events.is_empty()
-    }
-}
-
-/// A mutable iterator over [`Assets`].
-pub struct AssetsMutIterator<'a, A: Asset> {
-    queued_events: &'a mut Vec<AssetEvent<A>>,
-    dense_storage: Enumerate<core::slice::IterMut<'a, Entry<A>>>,
-    hash_map: bevy_platform::collections::hash_map::IterMut<'a, Uuid, A>,
-}
-
-impl<'a, A: Asset> Iterator for AssetsMutIterator<'a, A> {
-    type Item = (AssetId<A>, &'a mut A);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        for (i, entry) in &mut self.dense_storage {
-            match entry {
-                Entry::None => {
-                    continue;
-                }
-                Entry::Some { value, generation } => {
-                    let id = AssetId::Index {
-                        index: AssetIndex {
-                            generation: *generation,
-                            index: i as u32,
-                        },
-                        marker: PhantomData,
-                    };
-                    self.queued_events.push(AssetEvent::Modified { id });
-                    if let Some(value) = value {
-                        return Some((id, value));
-                    }
-                }
-            }
-        }
-        if let Some((key, value)) = self.hash_map.next() {
-            let id = AssetId::Uuid { uuid: *key };
-            self.queued_events.push(AssetEvent::Modified { id });
-            Some((id, value))
-        } else {
-            None
-        }
     }
 }
 

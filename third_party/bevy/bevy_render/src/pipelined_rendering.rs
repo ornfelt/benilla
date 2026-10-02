@@ -1,11 +1,4 @@
-use bevy_app::{App, AppLabel, Plugin};
-
-/// A Label for the sub app that runs the parts of pipelined rendering that need to run on the main thread.
-///
-/// The Main schedule of this app can be used to run logic after the render schedule starts, but
-/// before I/O processing. This can be useful for something like frame pacing.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
-pub struct RenderExtractApp;
+use bevy_app::{App, Plugin};
 
 /// The [`PipelinedRenderingPlugin`] can be added to your application to enable pipelined rendering.
 ///
@@ -40,7 +33,7 @@ pub struct RenderExtractApp;
 /// - On the render thread, we first apply the `extract commands`. This is not run during extract, so the
 ///   main schedule can start sooner.
 /// - Then the `rendering schedule` is run. See [`RenderSystems`](crate::RenderSystems) for the standard steps in this process.
-/// - In parallel to the rendering thread the [`RenderExtractApp`] schedule runs. By
+/// - In parallel to the rendering thread the `RenderExtractApp` schedule runs. By
 ///   default, this schedule is empty. But it is useful if you need something to run before I/O processing.
 /// - Next all the `winit events` are processed.
 /// - And finally the `main app schedule` is run.

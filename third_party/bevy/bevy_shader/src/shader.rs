@@ -19,20 +19,6 @@ impl From<NonZero<u32>> for ShaderId {
     }
 }
 
-#[derive(Error, Debug)]
-pub enum ShaderReflectError {
-    #[error(transparent)]
-    WgslParse(#[from] naga::front::wgsl::ParseError),
-    #[cfg(feature = "shader_format_glsl")]
-    #[error("GLSL Parse Error: {0:?}")]
-    GlslParse(Vec<naga::front::glsl::Error>),
-    #[cfg(feature = "shader_format_spirv")]
-    #[error(transparent)]
-    SpirVParse(#[from] naga::front::spv::Error),
-    #[error(transparent)]
-    Validation(#[from] naga::WithSpan<naga::valid::ValidationError>),
-}
-
 /// Describes whether or not to perform runtime checks on shaders.
 /// Runtime checks can be enabled for safety at the cost of speed.
 /// By default no runtime checks will be performed.

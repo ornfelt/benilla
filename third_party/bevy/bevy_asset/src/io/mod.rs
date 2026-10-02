@@ -346,45 +346,6 @@ impl Reader for VecReader {
     }
 }
 
-/// An [`AsyncRead`] implementation capable of reading a [`&[u8]`].
-pub struct SliceReader<'a> {
-    bytes: &'a [u8],
-    bytes_read: usize,
-}
-
-impl<'a> AsyncRead for SliceReader<'a> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<std::io::Result<usize>> {
-        Poll::Ready(Ok(slice_read(self.bytes, &mut self.bytes_read, buf)))
-    }
-}
-
-impl<'a> AsyncSeek for SliceReader<'a> {
-    fn poll_seek(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<std::io::Result<u64>> {
-        Poll::Ready(slice_seek(self.bytes, &mut self.bytes_read, pos))
-    }
-}
-
-impl Reader for SliceReader<'_> {
-    fn read_to_end<'a>(
-        &'a mut self,
-        buf: &'a mut Vec<u8>,
-    ) -> StackFuture<'a, std::io::Result<usize>, STACK_FUTURE_SIZE> {
-        read_to_end(self.bytes, &mut self.bytes_read, buf)
-    }
-
-    fn seekable(&mut self) -> Result<&mut dyn SeekableReader, ReaderNotSeekableError> {
-        Ok(self)
-    }
-}
-
 /// Performs a read from the `slice` into `buf`.
 pub(crate) fn slice_read(slice: &[u8], bytes_read: &mut usize, buf: &mut [u8]) -> usize {
     if *bytes_read >= slice.len() {
@@ -428,8 +389,8 @@ pub(crate) fn slice_seek(
 
 /// Copies bytes from source to dest, keeping track of where in the source it starts copying from.
 ///
-/// This is effectively the impl for [`SliceReader::read_to_end`], but this is provided here so the
-/// lifetimes are only tied to the buffer and not the [`SliceReader`] itself.
+/// This is effectively the impl for `SliceReader::read_to_end`, but this is provided here so the
+/// lifetimes are only tied to the buffer and not the `SliceReader` itself.
 pub(crate) fn read_to_end<'a>(
     source: &'a [u8],
     bytes_read: &'a mut usize,

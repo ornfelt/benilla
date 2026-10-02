@@ -24,9 +24,9 @@ pub use crate::wgpu::{
     BufferBindingType, BufferDescriptor, BufferUsages, ColorWrites, CompareFunction,
     DepthBiasState, Extent3d, Face, FilterMode, LoadOp, MultisampleState, Operations,
     PrimitiveTopology, RenderPassColorAttachment, RenderPassDepthStencilAttachment,
-    SamplerBindingType, SamplerDescriptor, ShaderStages, StorageTextureAccess, StoreOp,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType, TextureUsages,
-    TextureViewDescriptor, TextureViewDimension, VertexFormat,
+    SamplerBindingType, ShaderStages, StorageTextureAccess, StoreOp, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
+    TextureViewDimension, VertexFormat,
 };
 
 pub mod encase {

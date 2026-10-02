@@ -19,11 +19,6 @@ pub struct Interval {
 #[error("The resulting interval would be invalid (empty or with a NaN endpoint)")]
 pub struct InvalidIntervalError;
 
-/// An error indicating that spaced points could not be extracted from an unbounded interval.
-#[derive(Debug, Error)]
-#[error("Cannot extract spaced points from an unbounded interval")]
-pub struct SpacedPointsError;
-
 impl Interval {
     /// Create a new [`Interval`] with the specified `start` and `end`. The interval can be unbounded
     /// but cannot be empty (so `start` must be less than `end`) and neither endpoint can be NaN; invalid

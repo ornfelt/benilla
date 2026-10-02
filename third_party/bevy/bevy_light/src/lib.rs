@@ -28,27 +28,23 @@ use bevy_camera::visibility::SetViewVisibility;
 
 mod probe;
 pub use probe::{
-    AtmosphereEnvironmentMapLight, EnvironmentMapLight, GeneratedEnvironmentMapLight,
-    IrradianceVolume, LightProbe,
+    AtmosphereEnvironmentMapLight, EnvironmentMapLight, GeneratedEnvironmentMapLight, LightProbe,
 };
 mod volumetric;
-pub use volumetric::{FogVolume, VolumetricFog, VolumetricLight};
+pub use volumetric::{FogVolume, VolumetricLight};
 pub mod cascade;
 use cascade::{build_directional_light_cascades, clear_directional_light_cascades};
 pub use cascade::{CascadeShadowConfig, CascadeShadowConfigBuilder, Cascades};
 mod point_light;
-pub use point_light::{
-    update_point_light_frusta, PointLight, PointLightShadowMap, PointLightTexture,
-};
+pub use point_light::{update_point_light_frusta, PointLight, PointLightShadowMap};
 mod spot_light;
 pub use spot_light::{
     orthonormalize, spot_light_clip_from_view, spot_light_world_from_view,
-    update_spot_light_frusta, SpotLight, SpotLightTexture,
+    update_spot_light_frusta, SpotLight,
 };
 mod directional_light;
 pub use directional_light::{
-    update_directional_light_frusta, DirectionalLight, DirectionalLightShadowMap,
-    DirectionalLightTexture, SunDisk,
+    update_directional_light_frusta, DirectionalLight, DirectionalLightShadowMap, SunDisk,
 };
 
 /// The light prelude.
@@ -175,29 +171,9 @@ impl Plugin for LightPlugin {
     }
 }
 
-/// A convenient alias for `Or<(With<PointLight>, With<SpotLight>,
-/// With<DirectionalLight>)>`, for use with [`bevy_camera::visibility::VisibleEntities`].
-pub type WithLight = Or<(With<PointLight>, With<SpotLight>, With<DirectionalLight>)>;
-
 /// Add this component to make a [`Mesh3d`] not cast shadows.
 #[derive(Debug, Component, Default, Clone, PartialEq)]
 pub struct NotShadowCaster;
-/// Add this component to make a [`Mesh3d`] not receive shadows.
-///
-/// **Note:** If you're using diffuse transmission, setting [`NotShadowReceiver`] will
-/// cause both “regular” shadows as well as diffusely transmitted shadows to be disabled,
-/// even when [`TransmittedShadowReceiver`] is being used.
-#[derive(Debug, Component, Default)]
-pub struct NotShadowReceiver;
-/// Add this component to make a [`Mesh3d`] using a PBR material with `StandardMaterial::diffuse_transmission > 0.0`
-/// receive shadows on its diffuse transmission lobe. (i.e. its “backside”)
-///
-/// Not enabled by default, as it requires carefully setting up `StandardMaterial::thickness`
-/// (and potentially even baking a thickness texture!) to match the geometry of the mesh, in order to avoid self-shadow artifacts.
-///
-/// **Note:** Using [`NotShadowReceiver`] overrides this component.
-#[derive(Debug, Component, Default)]
-pub struct TransmittedShadowReceiver;
 
 /// Add this component to a [`Camera3d`](bevy_camera::Camera3d)
 /// to control how to anti-alias shadow edges.

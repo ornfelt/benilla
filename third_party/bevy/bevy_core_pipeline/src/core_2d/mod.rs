@@ -1,27 +1,8 @@
 pub mod graph {
-    use bevy_render::render_graph::{RenderLabel, RenderSubGraph};
+    use bevy_render::render_graph::RenderSubGraph;
 
     #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderSubGraph)]
     pub struct Core2d;
-
-    #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-    pub enum Node2d {
-        MsaaWriteback,
-        StartMainPass,
-        MainOpaquePass,
-        MainTransparentPass,
-        EndMainPass,
-        Wireframe,
-        StartMainPassPostProcessing,
-        Bloom,
-        PostProcessing,
-        Tonemapping,
-        Fxaa,
-        Smaa,
-        Upscaling,
-        ContrastAdaptiveSharpening,
-        EndMainPassPostProcessing,
-    }
 }
 
 use bevy_app::{App, Plugin};

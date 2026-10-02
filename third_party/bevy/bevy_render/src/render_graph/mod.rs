@@ -12,9 +12,6 @@ define_label!(
     RENDER_LABEL_INTERNER
 );
 
-/// A shorthand for `Interned<dyn RenderLabel>`.
-pub type InternedRenderLabel = Interned<dyn RenderLabel>;
-
 define_label!(
     #[diagnostic::on_unimplemented(
         note = "consider annotating `{Self}` with `#[derive(RenderSubGraph)]`"

@@ -32,26 +32,6 @@ pub const AUTO_BINDLESS_SLAB_RESOURCE_LIMIT: u32 = 64;
 #[cfg(not(target_os = "macos"))]
 pub const AUTO_BINDLESS_SLAB_RESOURCE_LIMIT: u32 = 2048;
 
-/// The binding numbers for the built-in binding arrays of each bindless
-/// resource type.
-///
-/// In the case of materials, the material allocator manages these binding
-/// arrays.
-///
-/// `bindless.wgsl` contains declarations of these arrays for use in your
-/// shaders. If you change these, make sure to update that file as well.
-pub static BINDING_NUMBERS: [(BindlessResourceType, BindingNumber); 9] = [
-    (BindlessResourceType::SamplerFiltering, BindingNumber(1)),
-    (BindlessResourceType::SamplerNonFiltering, BindingNumber(2)),
-    (BindlessResourceType::SamplerComparison, BindingNumber(3)),
-    (BindlessResourceType::Texture1d, BindingNumber(4)),
-    (BindlessResourceType::Texture2d, BindingNumber(5)),
-    (BindlessResourceType::Texture2dArray, BindingNumber(6)),
-    (BindlessResourceType::Texture3d, BindingNumber(7)),
-    (BindlessResourceType::TextureCube, BindingNumber(8)),
-    (BindlessResourceType::TextureCubeArray, BindingNumber(9)),
-];
-
 /// The maximum number of resources that can be stored in a slab.
 ///
 /// This limit primarily exists in order to work around `wgpu` performance

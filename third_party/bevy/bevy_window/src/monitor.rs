@@ -30,10 +30,6 @@ pub struct Monitor {
     pub video_modes: Vec<VideoMode>,
 }
 
-/// A marker component for the primary monitor
-#[derive(Component, Debug, Clone)]
-pub struct PrimaryMonitor;
-
 impl Monitor {
     /// Returns the physical size of the monitor in pixels
     pub fn physical_size(&self) -> UVec2 {

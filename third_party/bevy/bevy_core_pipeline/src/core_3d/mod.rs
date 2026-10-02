@@ -1,42 +1,8 @@
 pub mod graph {
-    use bevy_render::render_graph::{RenderLabel, RenderSubGraph};
+    use bevy_render::render_graph::RenderSubGraph;
 
     #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderSubGraph)]
     pub struct Core3d;
-
-    #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-    pub enum Node3d {
-        MsaaWriteback,
-        EarlyPrepass,
-        EarlyDownsampleDepth,
-        LatePrepass,
-        EarlyDeferredPrepass,
-        LateDeferredPrepass,
-        CopyDeferredLightingId,
-        EndPrepasses,
-        StartMainPass,
-        MainOpaquePass,
-        MainTransmissivePass,
-        MainTransparentPass,
-        EndMainPass,
-        Wireframe,
-        StartMainPassPostProcessing,
-        LateDownsampleDepth,
-        MotionBlur,
-        Taa,
-        DlssSuperResolution,
-        DlssRayReconstruction,
-        Bloom,
-        AutoExposure,
-        DepthOfField,
-        PostProcessing,
-        Tonemapping,
-        Fxaa,
-        Smaa,
-        Upscaling,
-        ContrastAdaptiveSharpening,
-        EndMainPassPostProcessing,
-    }
 }
 
 use bevy_app::{App, Plugin, PostUpdate};

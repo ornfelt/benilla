@@ -25,15 +25,6 @@ pub(crate) fn on_add_disabled(_add: On<Add, InteractionDisabled>) {}
 /// Stand-in for the observer that cleared the `AccessibilityNode`'s disabled flag.
 pub(crate) fn on_remove_disabled(_remove: On<Remove, InteractionDisabled>) {}
 
-/// Component that indicates whether a button or widget is currently in a pressed or "held down"
-/// state.
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct Pressed;
-
-/// Component that indicates that a widget can be checked.
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct Checkable;
-
 /// Component that indicates whether a checkbox or radio button is in a checked state.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct Checked;

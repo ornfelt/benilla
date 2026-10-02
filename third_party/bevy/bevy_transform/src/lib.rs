@@ -15,9 +15,6 @@ extern crate alloc;
 /// The basic components of the transform crate
 pub mod components;
 
-/// Transform related traits
-pub mod traits;
-
 /// Transform related plugins
 #[cfg(feature = "bevy-support")]
 pub mod plugins;
@@ -39,11 +36,8 @@ pub mod prelude {
     pub use crate::{
         plugins::{TransformPlugin, TransformSystems},
         systems::StaticTransformOptimizations,
-        traits::TransformPoint,
     };
 }
 
 #[cfg(feature = "bevy-support")]
-pub use prelude::{
-    StaticTransformOptimizations, TransformPlugin, TransformPoint, TransformSystems,
-};
+pub use prelude::{StaticTransformOptimizations, TransformPlugin, TransformSystems};

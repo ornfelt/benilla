@@ -30,7 +30,7 @@ mod ui_node;
 
 pub use focus::*;
 pub use geometry::*;
-pub use interaction_states::{Checkable, Checked, InteractionDisabled, Pressed};
+pub use interaction_states::{Checked, InteractionDisabled};
 pub use layout::*;
 pub use measurement::*;
 pub use ui_node::*;
@@ -48,7 +48,7 @@ pub mod prelude {
             geometry::*,
             ui_node::*,
             ui_transform::*,
-            widget::{Button, ImageNode, Label, NodeImageMode},
+            widget::{Button, ImageNode, NodeImageMode},
             Interaction, UiScale,
         },
         // `bevy_sprite` re-exports for texture slicing

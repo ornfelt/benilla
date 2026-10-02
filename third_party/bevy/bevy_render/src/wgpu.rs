@@ -33,7 +33,6 @@ handles!(
 pub type BufferDescriptor<'a> = wgpu_types::BufferDescriptor<Label<'a>>;
 pub type TextureDescriptor<'a> = wgpu_types::TextureDescriptor<Label<'a>, &'a [TextureFormat]>;
 pub type TextureViewDescriptor<'a> = wgpu_types::TextureViewDescriptor<Label<'a>>;
-pub type SamplerDescriptor<'a> = wgpu_types::SamplerDescriptor<Label<'a>>;
 
 /// A color attachment of a render pass.
 #[derive(Clone, Debug)]
