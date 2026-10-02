@@ -1,4 +1,4 @@
-use crate::{IRect, Rect, UVec2};
+use crate::{Rect, UVec2};
 
 /// A rectangle defined by two opposite corners.
 ///
@@ -337,12 +337,6 @@ impl URect {
     #[inline]
     pub fn as_rect(&self) -> Rect {
         Rect::from_corners(self.min.as_vec2(), self.max.as_vec2())
-    }
-
-    /// Returns self as [`IRect`] (i32)
-    #[inline]
-    pub fn as_irect(&self) -> IRect {
-        IRect::from_corners(self.min.as_ivec2(), self.max.as_ivec2())
     }
 }
 

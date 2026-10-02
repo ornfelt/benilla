@@ -1002,6 +1002,18 @@ the same repository's.
   loses `cubic_splines` (nothing outside the crate names a spline; the prelude re-exported
   them), `curve::derivatives` (only the splines implemented it) and `HasTangent`,
   `WithDerivative`, `WithTwoDerivatives` and `Sum`, which only those two read.
+- **`bevy_math`'s modules nothing reaches, whole.** No name in them is used outside the crate
+  except by `bevy_heavy`'s own tests (which do not build here: their dev-dependencies are not
+  resolved for a patched crate), so the workspace (all targets) and the dependents' own tests
+  check without them. Gone: `compass` (`CompassOctant`, `CompassQuadrant`), `IRect` with
+  `Rect`/`URect::as_irect`, `curve::easing` (`Ease`, `EasingCurve`, `EaseFunction`, `JumpAt`, the
+  easing curves; `avian3d` loses its two `Ease` impls, for `Position` and `Rotation`, which no
+  caller reached), `sampling` (`ShapeSample`, `FromRng`, the `StandardUniform` distributions,
+  `UniformMeshSampler`; the `rand` feature stays declared and on, with no code behind it), and
+  `bounding` but `Aabb3d`: the 2D volumes, the ray and volume casts, `Bounded3d`, `BoundedExtrusion`
+  and the primitives' impls, `BoundingSphere`, `IntersectsVolume`, `Aabb3d`'s inherent methods,
+  and `BoundingVolume`'s methods but `center` and `half_size` with the `Rotation` type only they
+  used (`bevy_camera`'s `Aabb` conversions are the one reader).
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

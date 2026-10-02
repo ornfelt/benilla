@@ -76,14 +76,6 @@ impl From<&GlobalTransform> for Position {
     }
 }
 
-impl Ease for Position {
-    fn interpolating_curve_unbounded(start: Self, end: Self) -> impl Curve<Self> {
-        FunctionCurve::new(Interval::UNIT, move |t| {
-            Position(Vector::lerp(start.0, end.0, t as Scalar))
-        })
-    }
-}
-
 /// The translation accumulated before the XPBD position solve.
 #[derive(Clone, Copy, Component, Debug, Default, Deref, DerefMut, PartialEq, From)]
 pub struct PreSolveDeltaPosition(pub Vector);
@@ -95,14 +87,6 @@ pub struct PreSolveDeltaRotation(pub Rotation);
 /// Quaternion
 #[allow(dead_code)]
 pub(crate) type RotationValue = Quaternion;
-
-impl Ease for Rotation {
-    fn interpolating_curve_unbounded(start: Self, end: Self) -> impl Curve<Self> {
-        FunctionCurve::new(Interval::UNIT, move |t| {
-            Rotation::slerp(start, end, t as Scalar)
-        })
-    }
-}
 
 /// The global physics rotation of a [rigid body](RigidBody) or a [collider](Collider).
 ///

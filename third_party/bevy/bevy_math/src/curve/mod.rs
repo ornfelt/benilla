@@ -45,8 +45,7 @@
 //!
 //! Curves may be defined in a number of ways. The following are common:
 //! - using [functions];
-//! - using [sample interpolation];
-//! - using [easings].
+//! - using [sample interpolation].
 //!
 //! Among these, the first is the most versatile[^footnote]: the domain and the sampling output are just
 //! specified directly in the construction. For this reason, function curves are a reliable go-to for
@@ -85,8 +84,6 @@
 //! // Interpolate these rotations with a `Rot2`-valued curve:
 //! let rotation_curve = SampleAutoCurve::new(interval(0.0, 4.0).unwrap(), rotations).unwrap();
 //! ```
-//!
-//! For more information on [easing curves], see its module.
 //!
 //! And, of course, you are also free to define curve types yourself, implementing the trait directly.
 //! For custom sample-interpolated curves, the [`cores`] submodule provides machinery to avoid having to
@@ -249,7 +246,7 @@
 //! Here is a demonstration:
 //! ```rust
 //! # use bevy_math::prelude::*;
-//! # let some_magic_constructor = || EasingCurve::new(0.0, 1.0, EaseFunction::ElasticInOut).graph();
+//! # let some_magic_constructor = || FunctionCurve::new(Interval::UNIT, |t| t * t).graph();
 //! //`my_curve` is obtained somehow. It is a `Curve<(f32, f32)>`.
 //! let my_curve = some_magic_constructor();
 //!
@@ -273,8 +270,6 @@
 //! [rasterization]: CurveResampleExt::resample
 //! [functions]: FunctionCurve
 //! [sample interpolation]: SampleCurve
-//! [easings]: easing
-//! [easing curves]: easing
 //! [`chain`]: CurveExt::chain
 //! [`zip`]: CurveExt::zip
 //! [`resample`]: CurveResampleExt::resample
@@ -284,7 +279,6 @@
 
 pub mod adaptors;
 pub mod cores;
-pub mod easing;
 pub mod interval;
 pub mod iterable;
 
@@ -293,7 +287,6 @@ pub mod sample_curves;
 
 // bevy_math::curve re-exports all commonly-needed curve-related items.
 pub use adaptors::*;
-pub use easing::*;
 pub use interval::{interval, Interval};
 
 #[cfg(feature = "alloc")]
@@ -1035,61 +1028,6 @@ mod tests {
         assert_eq!(curve.sample_unchecked(3.5), ops::log2(3.5));
         assert!(curve.sample_unchecked(-1.0).is_nan());
         assert!(curve.sample(-1.0).is_none());
-    }
-
-    #[test]
-    fn linear_curve() {
-        let start = Vec2::ZERO;
-        let end = Vec2::new(1.0, 2.0);
-        let curve = EasingCurve::new(start, end, EaseFunction::Linear);
-
-        let mid = (start + end) / 2.0;
-
-        [(0.0, start), (0.5, mid), (1.0, end)]
-            .into_iter()
-            .for_each(|(t, x)| {
-                assert!(curve.sample_unchecked(t).abs_diff_eq(x, f32::EPSILON));
-            });
-    }
-
-    #[test]
-    fn easing_curves_step() {
-        let start = Vec2::ZERO;
-        let end = Vec2::new(1.0, 2.0);
-
-        let curve = EasingCurve::new(start, end, EaseFunction::Steps(4, JumpAt::End));
-        [
-            (0.0, start),
-            (0.249, start),
-            (0.250, Vec2::new(0.25, 0.5)),
-            (0.499, Vec2::new(0.25, 0.5)),
-            (0.500, Vec2::new(0.5, 1.0)),
-            (0.749, Vec2::new(0.5, 1.0)),
-            (0.750, Vec2::new(0.75, 1.5)),
-            (1.0, end),
-        ]
-        .into_iter()
-        .for_each(|(t, x)| {
-            assert!(curve.sample_unchecked(t).abs_diff_eq(x, f32::EPSILON));
-        });
-    }
-
-    #[test]
-    fn easing_curves_quadratic() {
-        let start = Vec2::ZERO;
-        let end = Vec2::new(1.0, 2.0);
-
-        let curve = EasingCurve::new(start, end, EaseFunction::QuadraticIn);
-        [
-            (0.0, start),
-            (0.25, Vec2::new(0.0625, 0.125)),
-            (0.5, Vec2::new(0.25, 0.5)),
-            (1.0, end),
-        ]
-        .into_iter()
-        .for_each(|(t, x)| {
-            assert!(curve.sample_unchecked(t).abs_diff_eq(x, f32::EPSILON),);
-        });
     }
 
     #[expect(
