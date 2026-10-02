@@ -1,4 +1,4 @@
-use crate::{URect, Vec2};
+use crate::Vec2;
 
 /// A rectangle defined by two opposite corners.
 ///
@@ -19,15 +19,6 @@ pub struct Rect {
 }
 
 impl Rect {
-    /// An empty `Rect`, represented by maximum and minimum corner points
-    /// at `Vec2::NEG_INFINITY` and `Vec2::INFINITY`, respectively.
-    /// This is so the `Rect` has a infinitely negative size.
-    /// This is useful, because when taking a union B of a non-empty `Rect` A and
-    /// this empty `Rect`, B will simply equal A.
-    pub const EMPTY: Self = Self {
-        max: Vec2::NEG_INFINITY,
-        min: Vec2::INFINITY,
-    };
     /// Create a new rectangle from two corner points.
     ///
     /// The two points do not need to be the minimum and/or maximum corners.
@@ -170,20 +161,6 @@ impl Rect {
         self.max - self.min
     }
 
-    /// Rectangle half-size.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use bevy_math::{Rect, Vec2};
-    /// let r = Rect::new(0., 0., 5., 1.); // w=5 h=1
-    /// assert!(r.half_size().abs_diff_eq(Vec2::new(2.5, 0.5), 1e-5));
-    /// ```
-    #[inline]
-    pub fn half_size(&self) -> Vec2 {
-        self.size() * 0.5
-    }
-
     /// The center point of the rectangle.
     ///
     /// # Examples
@@ -236,28 +213,6 @@ impl Rect {
         }
     }
 
-    /// Build a new rectangle formed of the union of this rectangle and a point.
-    ///
-    /// The union is the smallest rectangle enclosing both the rectangle and the point. If the
-    /// point is already inside the rectangle, this method returns a copy of the rectangle.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use bevy_math::{Rect, Vec2};
-    /// let r = Rect::new(0., 0., 5., 1.); // w=5 h=1
-    /// let u = r.union_point(Vec2::new(3., 6.));
-    /// assert!(u.min.abs_diff_eq(Vec2::ZERO, 1e-5));
-    /// assert!(u.max.abs_diff_eq(Vec2::new(5., 6.), 1e-5));
-    /// ```
-    #[inline]
-    pub fn union_point(&self, other: Vec2) -> Self {
-        Self {
-            min: self.min.min(other),
-            max: self.max.max(other),
-        }
-    }
-
     /// Build a new rectangle formed of the intersection of this rectangle and another rectangle.
     ///
     /// The intersection is the largest rectangle enclosed in both rectangles. If the intersection
@@ -290,7 +245,7 @@ impl Rect {
     ///
     /// A positive expansion value produces a larger rectangle,
     /// while a negative expansion value produces a smaller rectangle.
-    /// If this would result in zero or negative width or height, [`Rect::EMPTY`] is returned instead.
+    /// If this would result in negative width or height, the minimum corner collapses onto the maximum.
     ///
     /// # Examples
     ///
@@ -317,79 +272,11 @@ impl Rect {
         r.min = r.min.min(r.max);
         r
     }
-
-    /// Build a new rectangle from this one with its coordinates expressed
-    /// relative to `other` in a normalized ([0..1] x [0..1]) coordinate system.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use bevy_math::{Rect, Vec2};
-    /// let r = Rect::new(2., 3., 4., 6.);
-    /// let s = Rect::new(0., 0., 10., 10.);
-    /// let n = r.normalize(s);
-    ///
-    /// assert_eq!(n.min.x, 0.2);
-    /// assert_eq!(n.min.y, 0.3);
-    /// assert_eq!(n.max.x, 0.4);
-    /// assert_eq!(n.max.y, 0.6);
-    /// ```
-    pub fn normalize(&self, other: Self) -> Self {
-        let outer_size = other.size();
-        Self {
-            min: (self.min - other.min) / outer_size,
-            max: (self.max - other.min) / outer_size,
-        }
-    }
-
-    /// Return the area of this rectangle.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use bevy_math::Rect;
-    /// let r = Rect::new(0., 0., 10., 10.); // w=10 h=10
-    /// assert_eq!(r.area(), 100.0);
-    /// ```
-    #[inline]
-    pub fn area(&self) -> f32 {
-        self.width() * self.height()
-    }
-
-    /// Returns self as [`URect`] (u32)
-    #[inline]
-    pub fn as_urect(&self) -> URect {
-        URect::from_corners(self.min.as_uvec2(), self.max.as_uvec2())
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::ops;
-
     use super::*;
-
-    #[test]
-    fn well_formed() {
-        let r = Rect::from_center_size(Vec2::new(3., -5.), Vec2::new(8., 11.));
-
-        assert!(r.min.abs_diff_eq(Vec2::new(-1., -10.5), 1e-5));
-        assert!(r.max.abs_diff_eq(Vec2::new(7., 0.5), 1e-5));
-
-        assert!(r.center().abs_diff_eq(Vec2::new(3., -5.), 1e-5));
-
-        assert!(ops::abs(r.width() - 8.) <= 1e-5);
-        assert!(ops::abs(r.height() - 11.) <= 1e-5);
-        assert!(r.size().abs_diff_eq(Vec2::new(8., 11.), 1e-5));
-        assert!(r.half_size().abs_diff_eq(Vec2::new(4., 5.5), 1e-5));
-
-        assert!(r.contains(Vec2::new(3., -5.)));
-        assert!(r.contains(Vec2::new(-1., -10.5)));
-        assert!(r.contains(Vec2::new(-1., 0.5)));
-        assert!(r.contains(Vec2::new(7., -10.5)));
-        assert!(r.contains(Vec2::new(7., 0.5)));
-        assert!(!r.contains(Vec2::new(50., -5.)));
-    }
 
     #[test]
     fn rect_union() {
@@ -424,23 +311,6 @@ mod tests {
         let u = r.union(r2);
         assert!(u.min.abs_diff_eq(r2.min, 1e-5));
         assert!(u.max.abs_diff_eq(r2.max, 1e-5));
-    }
-
-    #[test]
-    fn rect_union_pt() {
-        let r = Rect::from_center_size(Vec2::ZERO, Vec2::ONE); // [-0.5,-0.5] - [0.5,0.5]
-
-        // inside
-        let v = Vec2::new(0.3, -0.2);
-        let u = r.union_point(v);
-        assert!(u.min.abs_diff_eq(r.min, 1e-5));
-        assert!(u.max.abs_diff_eq(r.max, 1e-5));
-
-        // outside
-        let v = Vec2::new(10., -3.);
-        let u = r.union_point(v);
-        assert!(u.min.abs_diff_eq(Vec2::new(-0.5, -3.), 1e-5));
-        assert!(u.max.abs_diff_eq(Vec2::new(10., 0.5), 1e-5));
     }
 
     #[test]

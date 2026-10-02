@@ -98,8 +98,6 @@ extern crate alloc;
 
 mod color;
 pub mod color_difference;
-#[cfg(feature = "alloc")]
-mod color_gradient;
 mod color_ops;
 mod color_range;
 mod hsla;
@@ -130,8 +128,6 @@ pub mod prelude {
 }
 
 pub use color::*;
-#[cfg(feature = "alloc")]
-pub use color_gradient::*;
 pub use color_ops::*;
 pub use color_range::*;
 pub use hsla::*;

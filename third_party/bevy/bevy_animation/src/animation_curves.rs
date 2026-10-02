@@ -5,7 +5,7 @@
 //! The flow of curves into the animation system generally begins with something that
 //! implements the [`Curve`] trait. Let's imagine, for example, that we have some
 //! `Curve<Vec3>` that we want to use to animate something. That could be defined in
-//! a number of different ways, but let's imagine that we've defined it [using a function]:
+//! a number of different ways, but let's imagine that we've defined it using a function:
 //!
 //!     # use bevy_math::curve::{Curve, Interval, FunctionCurve};
 //!     # use bevy_math::vec3;
@@ -77,7 +77,6 @@
 //!
 //! This is the lowest-level option with the most control, but it is also the most complicated.
 //!
-//! [using a function]: bevy_math::curve::FunctionCurve
 //! [translation component of a `Transform`]: bevy_transform::prelude::Transform::translation
 //! [`AnimationClip`]: crate::AnimationClip
 //! [there]: AnimatableProperty

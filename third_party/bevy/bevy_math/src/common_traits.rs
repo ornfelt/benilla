@@ -1,13 +1,12 @@
 //! This module contains abstract mathematical traits shared by types used in `bevy_math`.
 
-use crate::{ops, DVec2, DVec3, DVec4, Dir2, Dir3, Dir3A, Quat, Rot2, Vec2, Vec3, Vec3A, Vec4};
+use crate::ops;
 use core::{
     convert::Infallible,
     fmt::Debug,
     ops::{Add, Div, Mul, Neg, Sub},
 };
 use thiserror::Error;
-use variadics_please::all_tuples_enumerated;
 
 /// A type that supports the mathematical operations of a real vector space, irrespective of dimension.
 /// In particular, this means that the implementing type supports:
@@ -55,41 +54,6 @@ pub trait VectorSpace:
     fn lerp(self, rhs: Self, t: Self::Scalar) -> Self {
         self * (Self::Scalar::ONE - t) + rhs * t
     }
-}
-
-impl VectorSpace for Vec4 {
-    type Scalar = f32;
-    const ZERO: Self = Vec4::ZERO;
-}
-
-impl VectorSpace for Vec3 {
-    type Scalar = f32;
-    const ZERO: Self = Vec3::ZERO;
-}
-
-impl VectorSpace for Vec3A {
-    type Scalar = f32;
-    const ZERO: Self = Vec3A::ZERO;
-}
-
-impl VectorSpace for Vec2 {
-    type Scalar = f32;
-    const ZERO: Self = Vec2::ZERO;
-}
-
-impl VectorSpace for DVec4 {
-    type Scalar = f64;
-    const ZERO: Self = DVec4::ZERO;
-}
-
-impl VectorSpace for DVec3 {
-    type Scalar = f64;
-    const ZERO: Self = DVec3::ZERO;
-}
-
-impl VectorSpace for DVec2 {
-    type Scalar = f64;
-    const ZERO: Self = DVec2::ZERO;
 }
 
 // Every scalar field is a 1-dimensional vector space over itself.
@@ -142,11 +106,6 @@ impl ScalarField for f32 {
     const ONE: Self = 1.0;
 }
 
-impl ScalarField for f64 {
-    const ZERO: Self = 0.0;
-    const ONE: Self = 1.0;
-}
-
 /// A type that supports the operations of a normed vector space; i.e. a norm operation in addition
 /// to those of [`VectorSpace`]. Specifically, the implementor must guarantee that the following
 /// relationships hold, within the limitations of floating point arithmetic:
@@ -182,108 +141,10 @@ pub trait NormedVectorSpace: VectorSpace {
     }
 }
 
-impl NormedVectorSpace for Vec4 {
-    #[inline]
-    fn norm(self) -> f32 {
-        self.length()
-    }
-
-    #[inline]
-    fn norm_squared(self) -> f32 {
-        self.length_squared()
-    }
-}
-
-impl NormedVectorSpace for Vec3 {
-    #[inline]
-    fn norm(self) -> f32 {
-        self.length()
-    }
-
-    #[inline]
-    fn norm_squared(self) -> f32 {
-        self.length_squared()
-    }
-}
-
-impl NormedVectorSpace for Vec3A {
-    #[inline]
-    fn norm(self) -> f32 {
-        self.length()
-    }
-
-    #[inline]
-    fn norm_squared(self) -> f32 {
-        self.length_squared()
-    }
-}
-
-impl NormedVectorSpace for Vec2 {
-    #[inline]
-    fn norm(self) -> f32 {
-        self.length()
-    }
-
-    #[inline]
-    fn norm_squared(self) -> f32 {
-        self.length_squared()
-    }
-}
-
 impl NormedVectorSpace for f32 {
     #[inline]
     fn norm(self) -> f32 {
         ops::abs(self)
-    }
-}
-
-impl NormedVectorSpace for DVec4 {
-    #[inline]
-    fn norm(self) -> f64 {
-        self.length()
-    }
-
-    #[inline]
-    fn norm_squared(self) -> f64 {
-        self.length_squared()
-    }
-}
-
-impl NormedVectorSpace for DVec3 {
-    #[inline]
-    fn norm(self) -> f64 {
-        self.length()
-    }
-
-    #[inline]
-    fn norm_squared(self) -> f64 {
-        self.length_squared()
-    }
-}
-
-impl NormedVectorSpace for DVec2 {
-    #[inline]
-    fn norm(self) -> f64 {
-        self.length()
-    }
-
-    #[inline]
-    fn norm_squared(self) -> f64 {
-        self.length_squared()
-    }
-}
-
-impl NormedVectorSpace for f64 {
-    #[inline]
-    #[cfg(feature = "std")]
-    fn norm(self) -> f64 {
-        f64::abs(self)
-    }
-
-    #[inline]
-    #[cfg(all(any(feature = "libm", feature = "nostd-libm"), not(feature = "std")))]
-    fn norm(self) -> f64 {
-        libm::fabs(self)
     }
 }
 
@@ -328,7 +189,7 @@ impl NormedVectorSpace for f64 {
 /// ```
 ///
 /// Note that some common forms of interpolation do not satisfy this criterion. For example,
-/// [`Quat::lerp`] and [`Rot2::nlerp`] are not subdivision-stable.
+/// [`Quat::lerp`] is not subdivision-stable.
 ///
 /// Furthermore, this is not to be used as a general trait for abstract interpolation.
 /// Consumers rely on the strong guarantees in order for behavior based on this trait to be
@@ -336,7 +197,6 @@ impl NormedVectorSpace for f64 {
 ///
 /// [`Quat::slerp`]: crate::Quat::slerp
 /// [`Quat::lerp`]: crate::Quat::lerp
-/// [`Rot2::nlerp`]: crate::Rot2::nlerp
 pub trait StableInterpolate: Clone {
     /// Interpolate between this value and the `other` given value using the parameter `t`. At
     /// `t = 0.0`, a value equivalent to `self` is recovered, while `t = 1.0` recovers a value
@@ -395,64 +255,6 @@ where
         self.lerp(*other, t)
     }
 }
-
-impl StableInterpolate for Rot2 {
-    #[inline]
-    fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
-        self.slerp(*other, t)
-    }
-}
-
-impl StableInterpolate for Quat {
-    #[inline]
-    fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
-        self.slerp(*other, t)
-    }
-}
-
-impl StableInterpolate for Dir2 {
-    #[inline]
-    fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
-        self.slerp(*other, t)
-    }
-}
-
-impl StableInterpolate for Dir3 {
-    #[inline]
-    fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
-        self.slerp(*other, t)
-    }
-}
-
-impl StableInterpolate for Dir3A {
-    #[inline]
-    fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
-        self.slerp(*other, t)
-    }
-}
-
-macro_rules! impl_stable_interpolate_tuple {
-    ($(#[$meta:meta])* $(($n:tt, $T:ident)),*) => {
-        $(#[$meta])*
-        impl<$($T: StableInterpolate),*> StableInterpolate for ($($T,)*) {
-            fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
-                (
-                    $(
-                        <$T as StableInterpolate>::interpolate_stable(&self.$n, &other.$n, t),
-                    )*
-                )
-            }
-        }
-    };
-}
-
-all_tuples_enumerated!(
-    #[doc(fake_variadic)]
-    impl_stable_interpolate_tuple,
-    1,
-    11,
-    T
-);
 
 /// Error produced when the values to be interpolated are not in the same units.
 #[derive(Clone, Debug, Error)]

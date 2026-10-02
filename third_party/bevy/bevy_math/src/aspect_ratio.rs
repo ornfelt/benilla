@@ -9,13 +9,6 @@ use thiserror::Error;
 pub struct AspectRatio(f32);
 
 impl AspectRatio {
-    /// Standard 16:9 aspect ratio
-    pub const SIXTEEN_NINE: Self = Self(16.0 / 9.0);
-    /// Standard 4:3 aspect ratio
-    pub const FOUR_THREE: Self = Self(4.0 / 3.0);
-    /// Standard 21:9 ultrawide aspect ratio
-    pub const ULTRAWIDE: Self = Self(21.0 / 9.0);
-
     /// Attempts to create a new [`AspectRatio`] from a given width and height.
     ///
     /// # Errors
@@ -44,30 +37,6 @@ impl AspectRatio {
     #[inline]
     pub const fn ratio(&self) -> f32 {
         self.0
-    }
-
-    /// Returns the inverse of this aspect ratio (height/width).
-    #[inline]
-    pub const fn inverse(&self) -> Self {
-        Self(1.0 / self.0)
-    }
-
-    /// Returns true if the aspect ratio represents a landscape orientation.
-    #[inline]
-    pub const fn is_landscape(&self) -> bool {
-        self.0 > 1.0
-    }
-
-    /// Returns true if the aspect ratio represents a portrait orientation.
-    #[inline]
-    pub const fn is_portrait(&self) -> bool {
-        self.0 < 1.0
-    }
-
-    /// Returns true if the aspect ratio is exactly square.
-    #[inline]
-    pub const fn is_square(&self) -> bool {
-        self.0 == 1.0
     }
 }
 

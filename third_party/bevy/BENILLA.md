@@ -1028,6 +1028,24 @@ the same repository's.
   and avian3d's own tests that set up with a primitive's mass properties (the `Cuboid` sum test,
   avian3d's integrator and `tests` module) did not build before (unresolved dev-dependencies) and
   name removed impls now.
+- **The rest of `bevy_math`, down to what the build calls.** Types nothing outside the crate
+  names go whole: `Dir2`, `Dir3A`, `Dir4`, `Isometry2d`, the curve adaptors (`ConstantCurve`,
+  `FunctionCurve`, `MapCurve`, ... with the `Debug` impls that printed `type_path()`), the iterable
+  and sample curves, `EvenCore`, `ChunkedUnevenCore`, `CurveExt`, `CurveResampleExt` and their
+  errors, `NormedVectorSpace` but its `f32` impl (`bevy_ui`'s `Val` interpolation reaches
+  `StableInterpolate` for `f32` through it), the vector-space impls for the glam vectors, `f64` and
+  the `DVec`s, the `StableInterpolate` impls for rotations, directions and tuples, `Rot2`'s
+  arithmetic and `From<f32>` (`bevy_ui` only turns a `Rot2` into a `Mat2`), `mat3`
+  (`reflection_matrix`), and `bevy_color`'s `ColorCurve` (nobody names it; it was `EvenCore`'s
+  user). `ops` loses its `libm` copies (the `libm` feature is off; `std`'s are what run). Then
+  every `pub fn` and `pub const` was made crate-private, the workspace (all targets) checked,
+  `pub` put back where something outside called it, and what rustc then reported dead was
+  removed (`ops`' unused functions, most of `Rot2`, `Interval`, `Rect`, `URect`, `AspectRatio`
+  and the primitives' inherent methods, `Dir3`'s and `Isometry3d`'s unused ones, `UnevenCore`'s
+  `sample_interp`s), after a deprecation check showed no call outside the crate resolving to any
+  of them. `Rect::center` stays for `bevy_ui`'s own tests. The kept tests stay; the keyframe test
+  now checks `UnevenCore::sample_with` (the path `bevy_animation` samples through) instead of the
+  removed `sample_interp`.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

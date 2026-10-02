@@ -16,10 +16,4 @@ impl Ray3d {
     pub const fn new(origin: Vec3, direction: Dir3) -> Self {
         Self { origin, direction }
     }
-
-    /// Returns the point at a given distance along the ray
-    #[inline]
-    pub fn get_point(&self, distance: f32) -> Vec3 {
-        self.origin + *self.direction * distance
-    }
 }

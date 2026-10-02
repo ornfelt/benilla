@@ -33,7 +33,6 @@ pub mod common_traits;
 mod direction;
 mod float_ord;
 mod isometry;
-mod mat3;
 pub mod ops;
 pub mod primitives;
 mod ray;
@@ -48,8 +47,7 @@ pub use aspect_ratio::AspectRatio;
 pub use common_traits::*;
 pub use direction::*;
 pub use float_ord::*;
-pub use isometry::{Isometry2d, Isometry3d};
-pub use mat3::*;
+pub use isometry::Isometry3d;
 pub use ops::FloatPow;
 pub use ray::Ray3d;
 pub use rects::*;
@@ -64,14 +62,11 @@ pub use curve::Curve;
 pub mod prelude {
     #[doc(hidden)]
     pub use crate::{
-        bvec2, bvec3, bvec3a, bvec4, bvec4a,
-        direction::{Dir2, Dir3, Dir3A},
-        ivec2, ivec3, ivec4, mat2, mat3, mat3a, mat4, ops,
-        primitives::*,
-        quat, uvec2, uvec3, uvec4, vec2, vec3, vec3a, vec4, BVec2, BVec3, BVec3A, BVec4, BVec4A,
-        EulerRot, FloatExt, IVec2, IVec3, IVec4, Isometry2d, Isometry3d, Mat2, Mat3, Mat3A, Mat4,
-        Quat, Ray3d, Rect, Rot2, StableInterpolate, URect, UVec2, UVec3, UVec4, Vec2, Vec2Swizzles,
-        Vec3, Vec3A, Vec3Swizzles, Vec4, Vec4Swizzles,
+        bvec2, bvec3, bvec3a, bvec4, bvec4a, direction::Dir3, ivec2, ivec3, ivec4, mat2, mat3,
+        mat3a, mat4, ops, primitives::*, quat, uvec2, uvec3, uvec4, vec2, vec3, vec3a, vec4, BVec2,
+        BVec3, BVec3A, BVec4, BVec4A, EulerRot, FloatExt, IVec2, IVec3, IVec4, Isometry3d, Mat2,
+        Mat3, Mat3A, Mat4, Quat, Ray3d, Rect, Rot2, StableInterpolate, URect, UVec2, UVec3, UVec4,
+        Vec2, Vec2Swizzles, Vec3, Vec3A, Vec3Swizzles, Vec4, Vec4Swizzles,
     };
 
     #[doc(hidden)]
