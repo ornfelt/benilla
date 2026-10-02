@@ -14,7 +14,6 @@ pub mod animation_curves;
 pub mod graph;
 pub mod transition;
 
-mod util;
 
 use core::{
     any::TypeId,

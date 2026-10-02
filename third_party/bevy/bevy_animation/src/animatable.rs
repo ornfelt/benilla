@@ -1,9 +1,7 @@
 //! Traits and type for interpolating between values.
 
-use crate::util;
 use bevy_math::*;
 use bevy_reflect::Reflect;
-use bevy_transform::prelude::Transform;
 
 /// An individual input for [`Animatable::blend`].
 pub struct BlendInput<T> {
@@ -53,15 +51,7 @@ macro_rules! impl_float_animatable {
     };
 }
 
-impl_float_animatable!(f32, f32);
-impl_float_animatable!(Vec2, f32);
 impl_float_animatable!(Vec3A, f32);
-impl_float_animatable!(Vec4, f32);
-
-impl_float_animatable!(f64, f64);
-impl_float_animatable!(DVec2, f64);
-impl_float_animatable!(DVec3, f64);
-impl_float_animatable!(DVec4, f64);
 
 // Vec3 is special cased to use Vec3A internally for blending
 impl Animatable for Vec3 {
@@ -81,59 +71,6 @@ impl Animatable for Vec3 {
             }
         }
         Self::from(value)
-    }
-}
-
-impl Animatable for bool {
-    #[inline]
-    fn interpolate(a: &Self, b: &Self, t: f32) -> Self {
-        util::step_unclamped(*a, *b, t)
-    }
-
-    #[inline]
-    fn blend(inputs: impl Iterator<Item = BlendInput<Self>>) -> Self {
-        inputs
-            .max_by_key(|x| FloatOrd(x.weight))
-            .is_some_and(|input| input.value)
-    }
-}
-
-impl Animatable for Transform {
-    fn interpolate(a: &Self, b: &Self, t: f32) -> Self {
-        Self {
-            translation: Vec3::interpolate(&a.translation, &b.translation, t),
-            rotation: Quat::interpolate(&a.rotation, &b.rotation, t),
-            scale: Vec3::interpolate(&a.scale, &b.scale, t),
-        }
-    }
-
-    fn blend(inputs: impl Iterator<Item = BlendInput<Self>>) -> Self {
-        let mut translation = Vec3A::ZERO;
-        let mut scale = Vec3A::ZERO;
-        let mut rotation = Quat::IDENTITY;
-
-        for input in inputs {
-            if input.additive {
-                translation += input.weight * Vec3A::from(input.value.translation);
-                scale += input.weight * Vec3A::from(input.value.scale);
-                rotation =
-                    Quat::slerp(Quat::IDENTITY, input.value.rotation, input.weight) * rotation;
-            } else {
-                translation = Vec3A::interpolate(
-                    &translation,
-                    &Vec3A::from(input.value.translation),
-                    input.weight,
-                );
-                scale = Vec3A::interpolate(&scale, &Vec3A::from(input.value.scale), input.weight);
-                rotation = Quat::interpolate(&rotation, &input.value.rotation, input.weight);
-            }
-        }
-
-        Self {
-            translation: Vec3::from(translation),
-            rotation,
-            scale: Vec3::from(scale),
-        }
     }
 }
 

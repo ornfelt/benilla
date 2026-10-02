@@ -10,7 +10,6 @@
 extern crate proc_macro;
 
 mod derefs;
-mod enum_variant_meta;
 
 use bevy_macro_utils::{derive_label, BevyManifest};
 use proc_macro::TokenStream;
@@ -186,33 +185,6 @@ pub fn derive_deref(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(DerefMut, attributes(deref))]
 pub fn derive_deref_mut(input: TokenStream) -> TokenStream {
     derefs::derive_deref_mut(input)
-}
-
-/// Adds `enum_variant_index` and `enum_variant_name` functions to enums.
-///
-/// # Example
-///
-/// ```
-/// use bevy_derive::{EnumVariantMeta};
-///
-/// #[derive(EnumVariantMeta)]
-/// enum MyEnum {
-///     A,
-///     B,
-/// }
-///
-/// let a = MyEnum::A;
-/// let b = MyEnum::B;
-///
-/// assert_eq!(0, a.enum_variant_index());
-/// assert_eq!("A", a.enum_variant_name());
-///
-/// assert_eq!(1, b.enum_variant_index());
-/// assert_eq!("B", b.enum_variant_name());
-/// ```
-#[proc_macro_derive(EnumVariantMeta)]
-pub fn derive_enum_variant_meta(input: TokenStream) -> TokenStream {
-    enum_variant_meta::derive_enum_variant_meta(input)
 }
 
 /// Generates an impl of the `AppLabel` trait.

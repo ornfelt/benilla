@@ -46,7 +46,6 @@
 //! Curves may be defined in a number of ways. The following are common:
 //! - using [functions];
 //! - using [sample interpolation];
-//! - using [splines];
 //! - using [easings].
 //!
 //! Among these, the first is the most versatile[^footnote]: the domain and the sampling output are just
@@ -87,7 +86,7 @@
 //! let rotation_curve = SampleAutoCurve::new(interval(0.0, 4.0).unwrap(), rotations).unwrap();
 //! ```
 //!
-//! For more information on [spline curves] and [easing curves], see their respective modules.
+//! For more information on [easing curves], see its module.
 //!
 //! And, of course, you are also free to define curve types yourself, implementing the trait directly.
 //! For custom sample-interpolated curves, the [`cores`] submodule provides machinery to avoid having to
@@ -274,9 +273,7 @@
 //! [rasterization]: CurveResampleExt::resample
 //! [functions]: FunctionCurve
 //! [sample interpolation]: SampleCurve
-//! [splines]: crate::cubic_splines
 //! [easings]: easing
-//! [spline curves]: crate::cubic_splines
 //! [easing curves]: easing
 //! [`chain`]: CurveExt::chain
 //! [`zip`]: CurveExt::zip
@@ -287,7 +284,6 @@
 
 pub mod adaptors;
 pub mod cores;
-pub mod derivatives;
 pub mod easing;
 pub mod interval;
 pub mod iterable;

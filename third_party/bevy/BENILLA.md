@@ -988,6 +988,20 @@ the same repository's.
   field with `generics`/`with_generics`, and the derive's `generate_generics`, so a generic type's
   info is built without it (3 types in the build, and `Vec`'s); also `Type::is` (tests only) and
   `Type::type_path_table` (no caller). Every other crate in the build expands to the same tokens.
+- **The trait impls nothing reaches: `bevy_mesh`'s conversions, `bevy_animation`'s `Animatable`
+  types, and `bevy_math`'s cubic splines and curve derivatives.** A trait impl raises no
+  dead-code warning, so each was cut and the workspace (all targets) and the crates' own tests
+  checked, putting back what failed. `VertexAttributeValues` keeps `From` for `Vec<[f32; 2]>`,
+  `Vec<[f32; 3]>`, `Vec<Vec3>`, `Vec<[f32; 4]>` and `Vec<u32>` (what benilla, benilla-gfx and the
+  kept meshes and decal insert); the other 17 `From`s, all 30 `TryFrom`s back to a `Vec`,
+  `FromVertexAttributeError` and, with its only reader, the `EnumVariantMeta` derive (on
+  `VertexAttributeValues`, and in `bevy_derive`) go. `Animatable` keeps `Vec3`, `Vec3A` (which
+  `Vec3`'s blend uses) and `Quat` (benilla animates `Transform`'s fields); `f32`, `f64`, `Vec2`,
+  `Vec4`, `DVec2`-`DVec4`, `bool` (with `step_unclamped`, its only helper) and `Transform` go.
+  No call site passes a literal whose type the removed impls could have decided. `bevy_math`
+  loses `cubic_splines` (nothing outside the crate names a spline; the prelude re-exported
+  them), `curve::derivatives` (only the splines implemented it) and `HasTangent`,
+  `WithDerivative`, `WithTwoDerivatives` and `Sum`, which only those two read.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

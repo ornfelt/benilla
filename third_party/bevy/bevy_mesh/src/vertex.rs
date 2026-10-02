@@ -1,5 +1,4 @@
 use alloc::sync::Arc;
-use bevy_derive::EnumVariantMeta;
 use bevy_math::Vec3;
 use bytemuck::cast_slice;
 use core::hash::{Hash, Hasher};
@@ -128,7 +127,7 @@ pub fn triangle_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [f32; 3] {
 
 /// Contains an array where each entry describes a property of a single vertex.
 /// Matches the [`VertexFormats`](VertexFormat).
-#[derive(Clone, Debug, EnumVariantMeta, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum VertexAttributeValues {
     Float32(Vec<f32>),
     Sint32(Vec<i32>),
