@@ -92,8 +92,8 @@
 //!
 //! # Computing Mass Properties for Shapes
 //!
-//! Mass properties of colliders and Bevy's primitive shapes can be computed using methods
-//! provided by the [`ComputeMassProperties2d`] and [`ComputeMassProperties3d`] traits.
+//! Mass properties of colliders can be computed using methods
+//! provided by the [`ComputeMassProperties3d`] trait.
 //!
 //! ```
 //! # use avian3d::prelude::*;
@@ -103,15 +103,9 @@
 //! // Compute mass properties for a capsule collider with a density of `2.0`.
 //! let capsule = Collider::capsule(0.5, 1.5);
 //! let mass_properties = capsule.mass_properties(2.0);
-//!
-//! // Compute individual mass properties for a `Circle`.
-//! let circle = Circle::new(1.0);
-//! let mass = circle.mass(2.0);
-//! let angular_inertia = circle.angular_inertia(mass);
-//! let center_of_mass = circle.center_of_mass();
 //! ```
 //!
-//! Similarly, shapes can be used to construct the [`Mass`], [`AngularInertia`],
+//! Similarly, colliders can be used to construct the [`Mass`], [`AngularInertia`],
 //! and [`CenterOfMass`] components, or the [`MassPropertiesBundle`].
 //!
 //! ```
@@ -127,10 +121,6 @@
 //!     AngularInertia::from_shape(&shape, 1.5),
 //!     CenterOfMass::from_shape(&shape),
 //! ));
-//!
-//! // Construct a `MassPropertiesBundle` from a primitive shape.
-//! let shape = Sphere::new(0.5);
-//! commands.spawn((RigidBody::Dynamic, MassPropertiesBundle::from_shape(&shape, 2.0)));
 //! # }
 //! ```
 //!

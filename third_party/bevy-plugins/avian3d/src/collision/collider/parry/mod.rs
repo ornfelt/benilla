@@ -2,20 +2,12 @@
 
 pub mod contact_query;
 
-mod primitives3d;
-
 use super::EnlargedAabb;
 use crate::{make_pose, prelude::*};
 use bevy::{log, prelude::*};
 use contact_query::UnsupportedShape;
 use itertools::Either;
 use parry::shape::{RoundShape, SharedShape, TypedShape};
-
-impl<T: IntoCollider<Collider>> From<T> for Collider {
-    fn from(value: T) -> Self {
-        value.collider()
-    }
-}
 
 /// An error indicating an inconsistency when building a triangle mesh collider.
 pub type TrimeshBuilderError = parry::shape::TriMeshBuilderError;

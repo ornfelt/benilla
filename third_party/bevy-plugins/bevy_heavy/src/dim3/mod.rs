@@ -5,14 +5,9 @@ use bevy_math::{DVec3, Isometry3d, Mat3, Quat, Vec3};
 mod angular_inertia;
 pub use angular_inertia::{AngularInertiaTensor, AngularInertiaTensorError};
 
-/// [`ComputeMassProperties3d`] implementations for 3D geometric primitives.
-mod impls;
-
 use crate::RecipOrZero;
 
 /// A trait for computing [`MassProperties3d`] for 3D objects.
-///
-/// For the 2D equivalent, see [`ComputeMassProperties2d`](crate::ComputeMassProperties2d).
 pub trait ComputeMassProperties3d {
     /// Computes the [mass] of the object with a given `density`.
     ///
@@ -476,34 +471,5 @@ impl approx::UlpsEq for MassProperties3d {
             && self
                 .center_of_mass
                 .ulps_eq(&other.center_of_mass, epsilon, max_ulps)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::vec;
-    use bevy_math::primitives::Cuboid;
-
-    use super::*;
-
-    #[test]
-    fn sum() {
-        let mass_props = Cuboid::from_length(1.0).mass_properties(1.0);
-
-        let sum: MassProperties3d = vec![
-            mass_props,
-            mass_props.transformed_by(Vec3::Y),
-            mass_props.transformed_by(Vec3::NEG_Y),
-        ]
-        .into_iter()
-        .sum();
-
-        let expected = Cuboid::new(1.0, 3.0, 1.0).mass_properties(1.0);
-        assert_eq!(sum.mass, expected.mass);
-        assert_eq!(
-            sum.angular_inertia_tensor(),
-            expected.angular_inertia_tensor()
-        );
-        assert_eq!(sum.center_of_mass, expected.center_of_mass);
     }
 }

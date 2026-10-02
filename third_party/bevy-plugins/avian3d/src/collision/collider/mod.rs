@@ -25,12 +25,6 @@ pub use layers::*;
 mod parry;
 pub use parry::*;
 
-/// A trait for creating colliders from other types.
-pub trait IntoCollider<C: AnyCollider> {
-    /// Creates a collider from `self`.
-    fn collider(&self) -> C;
-}
-
 /// Context necessary to calculate [`ColliderAabb`]s for an [`AnyCollider`]
 #[derive(Deref)]
 pub struct AabbContext<'a, 'w, 's, T: ReadOnlySystemParam> {

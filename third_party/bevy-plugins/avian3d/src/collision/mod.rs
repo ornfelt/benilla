@@ -54,8 +54,8 @@ pub mod prelude {
     pub use super::collider::ColliderCachePlugin;
     pub use super::collider::{
         AabbContext, AnyCollider, ColliderAabb, ColliderBackendPlugin, ColliderDisabled,
-        ColliderMarker, CollisionLayers, ContactManifoldContext, IntoCollider, LayerMask,
-        PhysicsLayer, ScalableCollider, Sensor, SimpleCollider,
+        ColliderMarker, CollisionLayers, ContactManifoldContext, LayerMask, PhysicsLayer,
+        ScalableCollider, Sensor, SimpleCollider,
         collider_hierarchy::{ColliderHierarchyPlugin, ColliderOf, RigidBodyColliders},
         collider_transform::{ColliderTransform, ColliderTransformPlugin},
     };

@@ -547,12 +547,6 @@ impl MassPropertiesBundle {
     ///     RigidBody::Dynamic,
     ///     MassPropertiesBundle::from_shape(&Collider::sphere(0.5), 2.0),
     /// ));
-    ///
-    /// // Bevy's primitive shapes can also be used.
-    /// commands.spawn((
-    ///     RigidBody::Dynamic,
-    ///     MassPropertiesBundle::from_shape(&Sphere::new(0.5), 2.0),
-    /// ));
     /// # }
     /// ```
     #[inline]

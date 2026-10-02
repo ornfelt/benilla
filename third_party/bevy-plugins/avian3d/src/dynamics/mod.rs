@@ -85,8 +85,8 @@ pub mod prelude {
             mass_properties::{
                 MassPropertiesExt, MassPropertyHelper, MassPropertyPlugin,
                 bevy_heavy::{
-                    AngularInertiaTensor, AngularInertiaTensorError, ComputeMassProperties2d,
-                    ComputeMassProperties3d, MassProperties2d, MassProperties3d,
+                    AngularInertiaTensor, AngularInertiaTensorError, ComputeMassProperties3d,
+                    MassProperties3d,
                 },
                 components::{
                     AngularInertia, CenterOfMass, ColliderDensity, ColliderMassProperties,

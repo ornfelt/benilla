@@ -1014,6 +1014,20 @@ the same repository's.
   and the primitives' impls, `BoundingSphere`, `IntersectsVolume`, `Aabb3d`'s inherent methods,
   and `BoundingVolume`'s methods but `center` and `half_size` with the `Rotation` type only they
   used (`bevy_camera`'s `Aabb` conversions are the one reader).
+- **`bevy_math`'s primitives but the four the build meshes.** `Rectangle`, `Cuboid`, `Plane3d`
+  and `Sphere` stay with their inherent methods (benilla and the kept meshes build them); every
+  other 2D and 3D primitive goes with `polygon`, `Inset`, `Ring`/`ToRing`, `WindingOrder`, the
+  `Primitive2d`/`Primitive3d` markers, `Measured2d`/`Measured3d` and the kept four's impls of them,
+  and with `Ray2d` and `Ray3d`'s plane intersections (`InfinitePlane3d` and `Plane2d` were their
+  arguments). Their only users went too: `bevy_heavy`'s 2D half (`ComputeMassProperties2d`,
+  `MassProperties2d` and its primitive impls) and its `ComputeMassProperties3d` impls for the
+  primitives (avian3d computes a `Collider`'s mass properties through parry, its own impl), and
+  avian3d's `IntoCollider` with its primitive impls and the blanket `From` for `Collider` (benilla
+  builds colliders with `Collider::sphere`, `capsule` and `trimesh`), with the two 2D names in
+  avian3d's prelude. The crate docs that showed the removed API lose those parts. `bevy_heavy`'s
+  and avian3d's own tests that set up with a primitive's mass properties (the `Cuboid` sum test,
+  avian3d's integrator and `tests` module) did not build before (unresolved dev-dependencies) and
+  name removed impls now.
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.
