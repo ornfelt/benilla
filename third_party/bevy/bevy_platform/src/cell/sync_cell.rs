@@ -4,8 +4,6 @@
 //!
 //! [`std::sync::Exclusive`]: https://doc.rust-lang.org/nightly/std/sync/struct.Exclusive.html
 
-use core::ptr;
-
 /// See [`Exclusive`](https://github.com/rust-lang/rust/issues/98407) for stdlib's upcoming implementation,
 /// which should replace this one entirely.
 ///
@@ -20,32 +18,12 @@ impl<T: Sized> SyncCell<T> {
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
-
-    /// Deconstruct this `SyncCell` into its inner value.
-    pub fn to_inner(Self { inner }: Self) -> T {
-        inner
-    }
 }
 
 impl<T: ?Sized> SyncCell<T> {
     /// Get a reference to this `SyncCell`'s inner value.
     pub fn get(&mut self) -> &mut T {
         &mut self.inner
-    }
-
-    /// For types that implement [`Sync`], get shared access to this `SyncCell`'s inner value.
-    pub fn read(&self) -> &T
-    where
-        T: Sync,
-    {
-        &self.inner
-    }
-
-    /// Build a mutable reference to a `SyncCell` from a mutable reference
-    /// to its inner value, to skip constructing with [`new()`](SyncCell::new()).
-    pub fn from_mut(r: &'_ mut T) -> &'_ mut SyncCell<T> {
-        // SAFETY: repr is transparent, so refs have the same layout; and `SyncCell` properties are `&mut`-agnostic
-        unsafe { &mut *(ptr::from_mut(r) as *mut SyncCell<T>) }
     }
 }
 

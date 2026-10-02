@@ -4,7 +4,7 @@
 //!
 //! [`std::cell::SyncUnsafeCell`]: https://doc.rust-lang.org/nightly/std/cell/struct.SyncUnsafeCell.html
 
-pub use core::cell::UnsafeCell;
+use core::cell::UnsafeCell;
 use core::ptr;
 
 /// [`UnsafeCell`], but [`Sync`].
@@ -38,12 +38,6 @@ impl<T> SyncUnsafeCell<T> {
             value: UnsafeCell::new(value),
         }
     }
-
-    /// Unwraps the value.
-    #[inline]
-    pub fn into_inner(self) -> T {
-        self.value.into_inner()
-    }
 }
 
 impl<T: ?Sized> SyncUnsafeCell<T> {
@@ -56,26 +50,6 @@ impl<T: ?Sized> SyncUnsafeCell<T> {
     #[inline]
     pub const fn get(&self) -> *mut T {
         self.value.get()
-    }
-
-    /// Returns a mutable reference to the underlying data.
-    ///
-    /// This call borrows the `SyncUnsafeCell` mutably (at compile-time) which
-    /// guarantees that we possess the only reference.
-    #[inline]
-    pub fn get_mut(&mut self) -> &mut T {
-        self.value.get_mut()
-    }
-
-    /// Gets a mutable pointer to the wrapped value.
-    ///
-    /// See [`UnsafeCell::get`] for details.
-    #[inline]
-    pub const fn raw_get(this: *const Self) -> *mut T {
-        // We can just cast the pointer from `SyncUnsafeCell<T>` to `T` because
-        // of #[repr(transparent)] on both SyncUnsafeCell and UnsafeCell.
-        // See UnsafeCell::raw_get.
-        (this as *const T).cast_mut()
     }
 
     #[inline]
@@ -111,19 +85,5 @@ impl<T> SyncUnsafeCell<[T]> {
         // - `SyncUnsafeCell<[T]>` has the same layout as `[T]`
         // - `SyncUnsafeCell<[T]>` has the same layout as `[SyncUnsafeCell<T>]`
         unsafe { &*slice_ptr }
-    }
-}
-
-impl<T: Default> Default for SyncUnsafeCell<T> {
-    /// Creates a new `SyncUnsafeCell` with the `Default` value for T.
-    fn default() -> SyncUnsafeCell<T> {
-        SyncUnsafeCell::new(Default::default())
-    }
-}
-
-impl<T> From<T> for SyncUnsafeCell<T> {
-    /// Creates a new `SyncUnsafeCell<T>` containing the given value.
-    fn from(t: T) -> SyncUnsafeCell<T> {
-        SyncUnsafeCell::new(t)
     }
 }

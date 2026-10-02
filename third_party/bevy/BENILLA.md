@@ -853,6 +853,26 @@ the same repository's.
   `bevy_internal`, `bevy_app`, `bevy_color`, `bevy_diagnostic`, `bevy_ecs`, `bevy_input`,
   `bevy_state`, `bevy_time`, `bevy_transform`, `bevy_transform_interpolation`). No crate's
   resolved features change on the desktop targets.
+- **`bevy_platform`'s forwarding API.** `HashMap` and `HashSet` are newtypes over hashbrown's
+  maps that `Deref` to them, with an inherent method forwarding to each hashbrown method of the
+  same name. The forwards go, apart from the three constructors something calls (`HashMap::new`,
+  and `with_hasher`/`with_capacity_and_hasher` on both types), which set the `FixedHasher`, and the
+  forwards bevy_reflect's `Map`/`Set` impls for the newtypes call (`get`, `get_mut`, `len`, `iter`,
+  `drain`, `retain`, `insert`, `remove`, and `contains` on the set): inside those impls a method
+  call would resolve to the reflect trait's own method of that name (`Self::len(self)` would
+  recurse). Every other call now reaches hashbrown's method through `Deref`, the method the
+  forward called. Proved twice: every newtype method marked `#[deprecated]` on HEAD gave the call
+  sites (1031, in the workspace with `--all-targets`, the `trace_chrome` build and the tests of
+  31 vendored crates); after the cut, the same builds against a scratch hashbrown with every
+  method marked `#[deprecated]` show each of the 275 sites of a removed, called method warning
+  on hashbrown's method of the same name on the same type. Also gone, none of them used: the
+  `HashSet` assignment operators (bevy_ecs's `EntityHashSet` ones now reach hashbrown's through
+  `Deref`), the array and `HashMap<T, ()>` `From` impls, the unused hashbrown re-exports (the raw
+  entry builders, `EntryRef`, `ExtractIf`, `OccupiedError`, the key and value iterators, most of
+  `hash_table`'s), the `sync` and `atomic` re-exports nothing names (`Barrier`, `Once`, `Weak`,
+  the 8- and 16-bit and pointer-sized atomics, ...), `FixedState`'s re-export, and
+  `SyncCell::to_inner`/`read`/`from_mut` and `SyncUnsafeCell::into_inner`/`get_mut`/`raw_get`
+  with its `Default` and `From` impls (no caller; neither type has a `Deref`).
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

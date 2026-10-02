@@ -9,7 +9,9 @@ use core::{
     ops::Deref,
 };
 
-pub use foldhash::fast::{FixedState, FoldHasher as DefaultHasher, RandomState};
+use foldhash::fast::FixedState;
+
+pub use foldhash::fast::{FoldHasher as DefaultHasher, RandomState};
 
 /// For when you want a deterministic hasher.
 ///
