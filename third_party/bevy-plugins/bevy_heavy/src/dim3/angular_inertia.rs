@@ -46,38 +46,11 @@ impl AngularInertiaTensor {
     /// Zero angular inertia.
     pub const ZERO: Self = Self(SymmetricMat3::ZERO);
 
-    /// An angular inertia tensor with a principal angular inertia of `1.0` along the diagonal.
-    pub const IDENTITY: Self = Self(SymmetricMat3::IDENTITY);
-
-    /// Infinite angular inertia.
-    pub const INFINITY: Self = Self(SymmetricMat3::from_diagonal(Vec3::INFINITY));
-
-    /// Creates a new [`AngularInertiaTensor`] from the given principal angular inertia.
-    ///
-    /// The principal angular inertia represents the torque needed for a desired angular acceleration
-    /// about the local coordinate axes. To specify the orientation of the local inertial frame,
-    /// consider using [`new_with_local_frame`](AngularInertiaTensor::new_with_local_frame).
-    ///
-    /// # Panics
-    ///
-    /// Panics if any component of the principal angular inertia is negative or NaN
-    /// when `debug_assertions` are enabled.
-    #[inline]
-    #[doc(alias = "from_principal_angular_inertia")]
-    pub fn new(principal_angular_inertia: Vec3) -> Self {
-        debug_assert!(
-            principal_angular_inertia.cmpge(Vec3::ZERO).all(),
-            "principal angular inertia must be positive or zero for all axes"
-        );
-
-        Self(SymmetricMat3::from_diagonal(principal_angular_inertia))
-    }
-
     /// Tries to create a new [`AngularInertiaTensor`] from the given principal angular inertia.
     ///
     /// The principal angular inertia represents the torque needed for a desired angular acceleration
     /// about the local coordinate axes. To specify the orientation of the local inertial frame,
-    /// consider using [`try_new_with_local_frame`](AngularInertiaTensor::try_new_with_local_frame).
+    /// consider using [`new_with_local_frame`](AngularInertiaTensor::new_with_local_frame).
     ///
     /// # Errors
     ///
@@ -119,34 +92,6 @@ impl AngularInertiaTensor {
                 * Mat3::from_diagonal(principal_angular_inertia)
                 * Mat3::from_quat(orientation.inverse()),
         ))
-    }
-
-    /// Tries to create a new [`AngularInertiaTensor`] from the given principal angular inertia
-    /// and the orientation of the local inertial frame.
-    ///
-    /// The principal angular inertia represents the torque needed for a desired angular acceleration
-    /// about the local coordinate axes defined by the given `orientation`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Err(AngularInertiaTensorError)`](AngularInertiaTensorError) if any component
-    /// of the principal angular inertia is negative or NaN.
-    #[inline]
-    pub fn try_new_with_local_frame(
-        principal_angular_inertia: Vec3,
-        orientation: Quat,
-    ) -> Result<Self, AngularInertiaTensorError> {
-        if !principal_angular_inertia.cmpge(Vec3::ZERO).all() {
-            Err(AngularInertiaTensorError::Negative)
-        } else if principal_angular_inertia.is_nan() {
-            Err(AngularInertiaTensorError::Nan)
-        } else {
-            Ok(Self(SymmetricMat3::from_mat3_unchecked(
-                Mat3::from_quat(orientation)
-                    * Mat3::from_diagonal(principal_angular_inertia)
-                    * Mat3::from_quat(orientation.inverse()),
-            )))
-        }
     }
 
     /// Creates a new [`AngularInertiaTensor`] from the given angular inertia [tensor]
@@ -191,56 +136,10 @@ impl AngularInertiaTensor {
     }
 
     /// Returns the angular inertia tensor as a [`SymmetricMat3`].
-    ///
-    /// Equivalent to [`value`](AngularInertiaTensor::value).
     #[inline]
     #[doc(alias = "as_tensor")]
     pub fn as_symmetric_mat3(&self) -> SymmetricMat3 {
         self.0
-    }
-
-    /// Returns a mutable reference to the [`SymmetricMat3`] stored in `self`.
-    ///
-    /// Equivalent to [`value_mut`](AngularInertiaTensor::value_mut).
-    #[inline]
-    #[doc(alias = "as_tensor_mut")]
-    pub fn as_symmetric_mat3_mut(&mut self) -> &mut SymmetricMat3 {
-        &mut self.0
-    }
-
-    /// Returns the angular inertia tensor as a [`SymmetricMat3`].
-    ///
-    /// Equivalent to [`as_symmetric_mat3`](AngularInertiaTensor::as_symmetric_mat3).
-    #[inline]
-    pub fn value(self) -> SymmetricMat3 {
-        self.0
-    }
-
-    /// Returns a mutable reference to the [`SymmetricMat3`] stored in `self`.
-    ///
-    /// Equivalent to [`as_symmetric_mat3_mut`](AngularInertiaTensor::as_symmetric_mat3_mut).
-    #[inline]
-    pub fn value_mut(&mut self) -> &mut SymmetricMat3 {
-        &mut self.0
-    }
-
-    /// Returns the angular inertia tensor as a [`Mat3`].
-    #[inline]
-    #[doc(alias = "to_tensor")]
-    pub fn to_mat3(&self) -> Mat3 {
-        self.0.to_mat3()
-    }
-
-    /// Returns the inverse of the angular inertia tensor.
-    #[inline]
-    pub fn inverse(self) -> Self {
-        Self(self.inverse_or_zero())
-    }
-
-    /// Sets the angular inertia tensor to the given value.
-    #[inline]
-    pub fn set(&mut self, angular_inertia: impl Into<AngularInertiaTensor>) {
-        *self = angular_inertia.into();
     }
 
     /// Computes the principal angular inertia and local inertial frame

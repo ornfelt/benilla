@@ -78,12 +78,6 @@ impl GlobalTransform {
 
     #[doc(hidden)]
     #[inline]
-    pub fn from_rotation(rotation: Quat) -> Self {
-        GlobalTransform(Affine3A::from_rotation_translation(rotation, Vec3::ZERO))
-    }
-
-    #[doc(hidden)]
-    #[inline]
     pub fn from_scale(scale: Vec3) -> Self {
         GlobalTransform(Affine3A::from_scale(scale))
     }

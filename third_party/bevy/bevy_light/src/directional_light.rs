@@ -242,8 +242,7 @@ pub fn update_directional_light_frusta(
 /// Requires a `bevy::pbr::Atmosphere` component on a [`Camera3d`](bevy_camera::Camera3d) to have any effect.
 ///
 /// By default, the atmosphere is rendered with [`SunDisk::EARTH`], which approximates the
-/// apparent size and brightness of the Sun as seen from Earth. You can also disable the sun
-/// disk entirely with [`SunDisk::OFF`].
+/// apparent size and brightness of the Sun as seen from Earth.
 ///
 /// In order to cause the sun to "glow" and light up the surrounding sky, enable bloom
 /// in your post-processing pipeline by adding a `Bloom` component to your camera.
@@ -267,14 +266,6 @@ impl SunDisk {
     pub const EARTH: SunDisk = SunDisk {
         angular_size: 0.00930842,
         intensity: 1.0,
-    };
-
-    /// No visible sun disk.
-    ///
-    /// Keeps scattering and directional light illumination, but hides the disk itself.
-    pub const OFF: SunDisk = SunDisk {
-        angular_size: 0.0,
-        intensity: 0.0,
     };
 }
 

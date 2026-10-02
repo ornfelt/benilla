@@ -253,27 +253,11 @@ impl VisibleEntities {
         self.get(type_id).iter()
     }
 
-    pub fn len(&self, type_id: TypeId) -> usize {
-        self.get(type_id).len()
-    }
-
-    pub fn is_empty(&self, type_id: TypeId) -> bool {
-        self.get(type_id).is_empty()
-    }
-
-    pub fn clear(&mut self, type_id: TypeId) {
-        self.get_mut(type_id).clear();
-    }
-
     pub fn clear_all(&mut self) {
         // Don't just nuke the hash table; we want to reuse allocations.
         for entities in self.entities.values_mut() {
             entities.clear();
         }
-    }
-
-    pub fn push(&mut self, entity: Entity, type_id: TypeId) {
-        self.get_mut(type_id).push(entity);
     }
 }
 
@@ -292,18 +276,6 @@ pub struct CubemapVisibleEntities {
 }
 
 impl CubemapVisibleEntities {
-    pub fn get(&self, i: usize) -> &VisibleMeshEntities {
-        &self.data[i]
-    }
-
-    pub fn get_mut(&mut self, i: usize) -> &mut VisibleMeshEntities {
-        &mut self.data[i]
-    }
-
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &VisibleMeshEntities> {
-        self.data.iter()
-    }
-
     pub fn iter_mut(&mut self) -> impl DoubleEndedIterator<Item = &mut VisibleMeshEntities> {
         self.data.iter_mut()
     }

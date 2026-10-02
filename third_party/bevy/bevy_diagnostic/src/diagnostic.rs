@@ -56,28 +56,9 @@ impl DiagnosticPath {
         }
     }
 
-    /// Create a new `DiagnosticPath` from an iterator over components.
-    pub fn from_components<'a>(components: impl IntoIterator<Item = &'a str>) -> DiagnosticPath {
-        let mut buf = String::new();
-
-        for (i, component) in components.into_iter().enumerate() {
-            if i > 0 {
-                buf.push('/');
-            }
-            buf.push_str(component);
-        }
-
-        DiagnosticPath::new(buf)
-    }
-
     /// Returns full path, joined by `/`
     pub fn as_str(&self) -> &str {
         &self.path
-    }
-
-    /// Returns an iterator over path components.
-    pub fn components(&self) -> impl Iterator<Item = &str> + '_ {
-        self.path.split('/')
     }
 }
 
@@ -189,22 +170,6 @@ impl Diagnostic {
         self
     }
 
-    /// The smoothing factor used for the exponential smoothing used for
-    /// [`smoothed`](Self::smoothed).
-    ///
-    /// If measurements come in less frequently than `smoothing_factor` seconds
-    /// apart, no smoothing will be applied. As measurements come in more
-    /// frequently, the smoothing takes a greater effect such that it takes
-    /// approximately `smoothing_factor` seconds for 83% of an instantaneous
-    /// change in measurement to e reflected in the smoothed value.
-    ///
-    /// A smoothing factor of 0.0 will effectively disable smoothing.
-    #[must_use]
-    pub fn with_smoothing_factor(mut self, smoothing_factor: f64) -> Self {
-        self.ema_smoothing_factor = smoothing_factor;
-        self
-    }
-
     /// Get the [`DiagnosticPath`] that identifies this [`Diagnostic`].
     pub fn path(&self) -> &DiagnosticPath {
         &self.path
@@ -214,29 +179,6 @@ impl Diagnostic {
     #[inline]
     pub fn measurement(&self) -> Option<&DiagnosticMeasurement> {
         self.history.back()
-    }
-
-    /// Return the simple moving average of this diagnostic's recent values.
-    /// N.B. this a cheap operation as the sum is cached.
-    pub fn average(&self) -> Option<f64> {
-        if !self.history.is_empty() {
-            Some(self.sum / self.history.len() as f64)
-        } else {
-            None
-        }
-    }
-
-    /// Return the exponential moving average of this diagnostic.
-    ///
-    /// This is by default tuned to behave reasonably well for a typical
-    /// measurement that changes every frame such as frametime. This can be
-    /// adjusted using [`with_smoothing_factor`](Self::with_smoothing_factor).
-    pub fn smoothed(&self) -> Option<f64> {
-        if !self.history.is_empty() {
-            Some(self.ema)
-        } else {
-            None
-        }
     }
 
     /// All measurements from this [`Diagnostic`], up to the configured maximum history length.
@@ -280,11 +222,6 @@ impl DiagnosticsStore {
     /// Return an iterator over all [`Diagnostic`]s.
     pub fn iter(&self) -> impl Iterator<Item = &Diagnostic> {
         self.diagnostics.values()
-    }
-
-    /// Return an iterator over all [`Diagnostic`]s, by mutable reference.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Diagnostic> {
-        self.diagnostics.values_mut()
     }
 }
 

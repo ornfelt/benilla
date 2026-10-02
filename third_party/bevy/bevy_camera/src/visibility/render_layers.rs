@@ -132,11 +132,6 @@ impl RenderLayers {
         false
     }
 
-    /// Get the bitmask representation of the contained layers.
-    pub fn bits(&self) -> &[u64] {
-        self.0.as_slice()
-    }
-
     const fn layer_info(layer: usize) -> (usize, u64) {
         let buffer_index = layer / 64;
         let bit_index = layer % 64;

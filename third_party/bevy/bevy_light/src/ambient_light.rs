@@ -83,11 +83,3 @@ impl Default for GlobalAmbientLight {
         }
     }
 }
-
-impl GlobalAmbientLight {
-    pub const NONE: GlobalAmbientLight = GlobalAmbientLight {
-        color: Color::WHITE,
-        brightness: 0.0,
-        affects_lightmapped_meshes: true,
-    };
-}

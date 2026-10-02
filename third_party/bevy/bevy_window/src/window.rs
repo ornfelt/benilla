@@ -483,14 +483,6 @@ impl Window {
         self.resolution.height()
     }
 
-    /// The window's client size in logical pixels
-    ///
-    /// See [`WindowResolution`] for an explanation about logical/physical sizes.
-    #[inline]
-    pub fn size(&self) -> Vec2 {
-        self.resolution.size()
-    }
-
     /// The window's client area width in physical pixels.
     ///
     /// See [`WindowResolution`] for an explanation about logical/physical sizes.
@@ -773,12 +765,6 @@ impl WindowResolution {
     #[inline]
     pub fn height(&self) -> f32 {
         self.physical_height() as f32 / self.scale_factor()
-    }
-
-    /// The window's client size in logical pixels
-    #[inline]
-    pub fn size(&self) -> Vec2 {
-        Vec2::new(self.width(), self.height())
     }
 
     /// The window's client area width in physical pixels.

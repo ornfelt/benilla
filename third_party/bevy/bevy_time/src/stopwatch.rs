@@ -29,19 +29,6 @@ pub struct Stopwatch {
 }
 
 impl Stopwatch {
-    /// Create a new unpaused `Stopwatch` with no elapsed time.
-    ///
-    /// # Examples
-    /// ```
-    /// # use bevy_time::*;
-    /// let stopwatch = Stopwatch::new();
-    /// assert_eq!(stopwatch.elapsed_secs(), 0.0);
-    /// assert_eq!(stopwatch.is_paused(), false);
-    /// ```
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     /// Returns the elapsed time since the last [`reset`](Stopwatch::reset)
     /// of the stopwatch.
     ///

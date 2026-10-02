@@ -103,8 +103,6 @@ mod sealed {
 
 /// Holds a dynamic [`CameraProjection`] trait object. Use [`Projection::custom()`] to construct a
 /// custom projection.
-///
-/// The contained dynamic object can be downcast into a static type using [`CustomProjection::get`].
 #[derive(Debug)]
 pub struct CustomProjection {
     dyn_projection: Box<dyn sealed::DynCameraProjection>,
@@ -123,55 +121,6 @@ impl Clone for CustomProjection {
         Self {
             dyn_projection: self.dyn_projection.clone_box(),
         }
-    }
-}
-
-impl CustomProjection {
-    /// Returns a reference to the [`CameraProjection`] `P`.
-    ///
-    /// Returns `None` if this dynamic object is not a projection of type `P`.
-    ///
-    /// ```
-    /// # use bevy_camera::{Projection, PerspectiveProjection};
-    /// // For simplicity's sake, use perspective as a custom projection:
-    /// let projection = Projection::custom(PerspectiveProjection::default());
-    /// let Projection::Custom(custom) = projection else { return };
-    ///
-    /// // At this point the projection type is erased.
-    /// // We can use `get()` if we know what kind of projection we have.
-    /// let perspective = custom.get::<PerspectiveProjection>().unwrap();
-    ///
-    /// assert_eq!(perspective.fov, PerspectiveProjection::default().fov);
-    /// ```
-    pub fn get<P>(&self) -> Option<&P>
-    where
-        P: CameraProjection + Debug + Send + Sync + Clone + 'static,
-    {
-        self.dyn_projection.downcast_ref()
-    }
-
-    /// Returns a mutable  reference to the [`CameraProjection`] `P`.
-    ///
-    /// Returns `None` if this dynamic object is not a projection of type `P`.
-    ///
-    /// ```
-    /// # use bevy_camera::{Projection, PerspectiveProjection};
-    /// // For simplicity's sake, use perspective as a custom projection:
-    /// let mut projection = Projection::custom(PerspectiveProjection::default());
-    /// let Projection::Custom(mut custom) = projection else { return };
-    ///
-    /// // At this point the projection type is erased.
-    /// // We can use `get_mut()` if we know what kind of projection we have.
-    /// let perspective = custom.get_mut::<PerspectiveProjection>().unwrap();
-    ///
-    /// assert_eq!(perspective.fov, PerspectiveProjection::default().fov);
-    /// perspective.fov = 1.0;
-    /// ```
-    pub fn get_mut<P>(&mut self) -> Option<&mut P>
-    where
-        P: CameraProjection + Debug + Send + Sync + Clone + 'static,
-    {
-        self.dyn_projection.downcast_mut()
     }
 }
 

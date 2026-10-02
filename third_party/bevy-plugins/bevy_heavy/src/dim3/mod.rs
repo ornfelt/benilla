@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use bevy_math::{DVec3, Isometry3d, Mat3, Quat, Vec3};
+use bevy_math::{Isometry3d, Quat, Vec3};
 
 mod angular_inertia;
 pub use angular_inertia::{AngularInertiaTensor, AngularInertiaTensorError};
@@ -115,18 +115,6 @@ impl MassProperties3d {
     };
 
     /// Creates a new [`MassProperties3d`] from a given mass, principal angular inertia,
-    /// and center of mass in local space.
-    #[inline]
-    pub fn new(mass: f32, principal_angular_inertia: Vec3, center_of_mass: Vec3) -> Self {
-        Self::new_with_local_frame(
-            mass,
-            principal_angular_inertia,
-            Quat::IDENTITY,
-            center_of_mass,
-        )
-    }
-
-    /// Creates a new [`MassProperties3d`] from a given mass, principal angular inertia,
     /// local inertial frame, and center of mass in local space.
     ///
     /// The principal angular inertia is the angular inertia along the coordinate axes defined
@@ -161,38 +149,6 @@ impl MassProperties3d {
         Self::new_with_local_frame(mass, principal, local_frame, center_of_mass)
     }
 
-    /// Computes approximate mass properties from the given set of points representing a shape.
-    ///
-    /// This can be used to estimate mass properties for arbitrary shapes
-    /// by providing a set of sample points from inside the shape.
-    ///
-    /// The more points there are, and the more uniformly distributed they are,
-    /// the more accurate the estimation will be.
-    #[inline]
-    pub fn from_point_cloud(points: &[Vec3], mass: f32, local_inertial_frame: Quat) -> Self {
-        let points_recip = 1.0 / points.len() as f64;
-
-        let center_of_mass =
-            (points.iter().fold(DVec3::ZERO, |acc, p| acc + p.as_dvec3()) * points_recip).as_vec3();
-        let unit_angular_inertia = points
-            .iter()
-            .fold(DVec3::ZERO, |acc, p| {
-                let p = p.as_dvec3() - center_of_mass.as_dvec3();
-                let r_x = p.reject_from_normalized(DVec3::X).length_squared();
-                let r_y = p.reject_from_normalized(DVec3::Y).length_squared();
-                let r_z = p.reject_from_normalized(DVec3::Z).length_squared();
-                acc + DVec3::new(r_x, r_y, r_z) * points_recip
-            })
-            .as_vec3();
-
-        Self::new_with_local_frame(
-            mass,
-            mass * unit_angular_inertia,
-            local_inertial_frame,
-            center_of_mass,
-        )
-    }
-
     /// Returns the center of mass transformed into global space using the given [isometry].
     ///
     /// [isometry]: Isometry3d
@@ -200,22 +156,6 @@ impl MassProperties3d {
     pub fn global_center_of_mass(&self, isometry: impl Into<Isometry3d>) -> Vec3 {
         let isometry: Isometry3d = isometry.into();
         isometry.transform_point(self.center_of_mass).into()
-    }
-
-    /// Computes the principal angular inertia corresponding to a mass of `1.0`.
-    ///
-    /// If the mass is zero, a zero vector is returned.
-    #[inline]
-    pub fn unit_principal_angular_inertia(&self) -> Vec3 {
-        self.mass.recip_or_zero() * self.principal_angular_inertia
-    }
-
-    /// Computes the world-space angular inertia tensor corresponding to a mass of `1.0`.
-    ///
-    /// If the mass is zero, a zero tensor is returned.
-    #[inline]
-    pub fn unit_angular_inertia_tensor(&self) -> AngularInertiaTensor {
-        self.mass.recip_or_zero() * self.angular_inertia_tensor()
     }
 
     /// Computes the world-space angular inertia tensor from the principal inertia.
@@ -233,28 +173,6 @@ impl MassProperties3d {
         self.angular_inertia_tensor().shifted(self.mass, offset)
     }
 
-    /// Computes the world-space inverse angular inertia tensor with the square root of each element.
-    #[inline]
-    pub fn global_angular_inertia_tensor(&self, rotation: Quat) -> AngularInertiaTensor {
-        let mut lhs = Mat3::from_quat(rotation * self.local_inertial_frame);
-        let rhs = lhs.transpose();
-
-        lhs.x_axis *= self.principal_angular_inertia.x;
-        lhs.y_axis *= self.principal_angular_inertia.y;
-        lhs.z_axis *= self.principal_angular_inertia.z;
-
-        AngularInertiaTensor::from_mat3_unchecked(lhs * rhs)
-    }
-
-    /// Returns the mass properties transformed by the given [isometry].
-    ///
-    /// [isometry]: Isometry3d
-    #[inline]
-    pub fn transformed_by(mut self, isometry: impl Into<Isometry3d>) -> Self {
-        self.transform_by(isometry);
-        self
-    }
-
     /// Transforms the mass properties by the given [isometry].
     ///
     /// [isometry]: Isometry3d
@@ -263,19 +181,6 @@ impl MassProperties3d {
         let isometry: Isometry3d = isometry.into();
         self.center_of_mass = self.global_center_of_mass(isometry);
         self.local_inertial_frame = isometry.rotation * self.local_inertial_frame;
-    }
-
-    /// Returns the mass propeorties with the inverse of mass and principal angular inertia.
-    ///
-    /// The center of mass and local inertial frame are left unchanged.
-    #[inline]
-    pub fn inverse(&self) -> Self {
-        Self {
-            mass: self.mass.recip_or_zero(),
-            principal_angular_inertia: self.principal_angular_inertia.recip_or_zero(),
-            local_inertial_frame: self.local_inertial_frame,
-            center_of_mass: self.center_of_mass,
-        }
     }
 
     /// Sets the mass to the given `new_mass`.

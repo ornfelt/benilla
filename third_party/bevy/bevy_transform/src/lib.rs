@@ -22,10 +22,6 @@ pub mod traits;
 #[cfg(feature = "bevy-support")]
 pub mod plugins;
 
-/// [`GlobalTransform`]: components::GlobalTransform
-/// Helpers related to computing global transforms
-#[cfg(feature = "bevy-support")]
-pub mod helper;
 /// Systems responsible for transform propagation
 #[cfg(feature = "bevy-support")]
 pub mod systems;
@@ -41,7 +37,6 @@ pub mod prelude {
     #[cfg(feature = "bevy-support")]
     #[doc(hidden)]
     pub use crate::{
-        helper::TransformHelper,
         plugins::{TransformPlugin, TransformSystems},
         systems::StaticTransformOptimizations,
         traits::TransformPoint,

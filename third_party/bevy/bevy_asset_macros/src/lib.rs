@@ -32,17 +32,6 @@ pub fn derive_asset(input: TokenStream) -> TokenStream {
     })
 }
 
-/// Implement the `VisitAssetDependencies` trait.
-#[proc_macro_derive(VisitAssetDependencies, attributes(dependency))]
-pub fn derive_asset_dependency_visitor(input: TokenStream) -> TokenStream {
-    let ast = parse_macro_input!(input as DeriveInput);
-    let bevy_asset_path: Path = bevy_asset_path();
-    match derive_dependency_visitor_internal(&ast, &bevy_asset_path) {
-        Ok(dependency_visitor) => TokenStream::from(dependency_visitor),
-        Err(err) => err.into_compile_error().into(),
-    }
-}
-
 fn derive_dependency_visitor_internal(
     ast: &DeriveInput,
     bevy_asset_path: &Path,

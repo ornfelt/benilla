@@ -32,17 +32,6 @@ pub struct Timer {
 }
 
 impl Timer {
-    /// Creates a new timer with a given duration.
-    ///
-    /// See also [`Timer::from_seconds`](Timer::from_seconds).
-    pub fn new(duration: Duration, mode: TimerMode) -> Self {
-        Self {
-            duration,
-            mode,
-            ..Default::default()
-        }
-    }
-
     /// Creates a new timer with a given duration in seconds.
     ///
     /// # Example
@@ -168,36 +157,6 @@ impl Timer {
         self.duration
     }
 
-    /// Sets the duration of the timer.
-    ///
-    /// # Examples
-    /// ```
-    /// # use bevy_time::*;
-    /// use std::time::Duration;
-    /// let mut timer = Timer::from_seconds(1.5, TimerMode::Once);
-    /// timer.set_duration(Duration::from_secs(1));
-    /// assert_eq!(timer.duration(), Duration::from_secs(1));
-    /// ```
-    #[inline]
-    pub fn set_duration(&mut self, duration: Duration) {
-        self.duration = duration;
-    }
-
-    /// Finishes the timer.
-    ///
-    /// # Examples
-    /// ```
-    /// # use bevy_time::*;
-    /// let mut timer = Timer::from_seconds(1.5, TimerMode::Once);
-    /// timer.finish();
-    /// assert!(timer.is_finished());
-    /// ```
-    #[inline]
-    pub fn finish(&mut self) {
-        let remaining = self.remaining();
-        self.tick(remaining);
-    }
-
     /// Returns the mode of the timer.
     ///
     /// # Examples
@@ -209,25 +168,6 @@ impl Timer {
     #[inline]
     pub fn mode(&self) -> TimerMode {
         self.mode
-    }
-
-    /// Sets the mode of the timer.
-    ///
-    /// # Examples
-    /// ```
-    /// # use bevy_time::*;
-    /// let mut timer = Timer::from_seconds(1.0, TimerMode::Repeating);
-    /// timer.set_mode(TimerMode::Once);
-    /// assert_eq!(timer.mode(), TimerMode::Once);
-    /// ```
-    #[doc(alias = "repeating")]
-    #[inline]
-    pub fn set_mode(&mut self, mode: TimerMode) {
-        if self.mode != TimerMode::Repeating && mode == TimerMode::Repeating && self.finished {
-            self.stopwatch.reset();
-            self.finished = self.just_finished();
-        }
-        self.mode = mode;
     }
 
     /// Advance the timer by `delta` seconds.
@@ -399,21 +339,6 @@ impl Timer {
     #[inline]
     pub fn fraction_remaining(&self) -> f32 {
         1.0 - self.fraction()
-    }
-
-    /// Returns the remaining time using Duration
-    ///
-    /// # Examples
-    /// ```
-    /// # use bevy_time::*;
-    /// use std::time::Duration;
-    /// let mut timer = Timer::from_seconds(2.0, TimerMode::Once);
-    /// timer.tick(Duration::from_secs_f32(0.5));
-    /// assert_eq!(timer.remaining(), Duration::from_secs_f32(1.5));
-    /// ```
-    #[inline]
-    pub fn remaining(&self) -> Duration {
-        self.duration() - self.elapsed()
     }
 
     /// Returns the number of times a repeating timer

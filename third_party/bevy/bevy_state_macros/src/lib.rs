@@ -11,7 +11,7 @@ use proc_macro::TokenStream;
 
 /// Implements the `States` trait for a type - see the trait
 /// docs for an example usage.
-#[proc_macro_derive(States, attributes(states))]
+#[proc_macro_derive(States)]
 pub fn derive_states(input: TokenStream) -> TokenStream {
     states::derive_states(input)
 }

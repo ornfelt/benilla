@@ -4,7 +4,6 @@
 //! its slot in the group and builds nothing.
 
 /// `bevy_anti_alias`'s plugin, cut: no FXAA, SMAA, TAA or CAS.
-#[cfg(feature = "bevy_anti_alias")]
 pub mod anti_alias {
     use bevy_app::{App, Plugin};
 
@@ -18,7 +17,6 @@ pub mod anti_alias {
 }
 
 /// `bevy_gilrs`'s plugin, cut: no gamepad backend.
-#[cfg(feature = "bevy_gilrs")]
 pub mod gilrs {
     use bevy_app::{App, Plugin};
 
@@ -32,7 +30,6 @@ pub mod gilrs {
 }
 
 /// `bevy_gltf`'s plugin, cut: no glTF loader.
-#[cfg(feature = "bevy_gltf")]
 pub mod gltf {
     use bevy_app::{App, Plugin};
 

@@ -1,17 +1,13 @@
 use bevy_app::{plugin_group, Plugin};
 
-#[cfg(feature = "bevy_anti_alias")]
 use crate::anti_alias;
-#[cfg(feature = "bevy_gilrs")]
 use crate::gilrs;
-#[cfg(feature = "bevy_gltf")]
 use crate::gltf;
 
 plugin_group! {
     /// This plugin group will add all the default plugins for a *Bevy* application:
     pub struct DefaultPlugins {
         bevy_app:::PanicHandlerPlugin,
-        #[cfg(feature = "bevy_log")]
         bevy_log:::LogPlugin,
         bevy_app:::TaskPoolPlugin,
         bevy_diagnostic:::FrameCountPlugin,
@@ -19,65 +15,38 @@ plugin_group! {
         bevy_transform:::TransformPlugin,
         bevy_diagnostic:::DiagnosticsPlugin,
         bevy_input:::InputPlugin,
-        #[custom(cfg(not(feature = "bevy_window")))]
-        bevy_app:::ScheduleRunnerPlugin,
-        #[cfg(feature = "bevy_window")]
         bevy_window:::WindowPlugin,
-        #[cfg(feature = "std")]
         #[custom(cfg(any(all(unix, not(target_os = "horizon")), windows)))]
         bevy_app:::TerminalCtrlCHandlerPlugin,
-        #[cfg(feature = "bevy_asset")]
         bevy_asset:::AssetPlugin,
-        #[cfg(feature = "bevy_scene")]
         bevy_scene:::ScenePlugin,
-        #[cfg(feature = "bevy_render")]
         bevy_render:::RenderPlugin,
         // NOTE: Load this after renderer initialization so that it knows about the supported
         // compressed texture formats.
-        #[cfg(feature = "bevy_image")]
         bevy_image:::ImagePlugin,
-        #[cfg(feature = "bevy_mesh")]
         bevy_mesh:::MeshPlugin,
-        #[cfg(feature = "bevy_camera")]
         bevy_camera:::CameraPlugin,
-        #[cfg(feature = "bevy_light")]
         bevy_light:::LightPlugin,
-        #[cfg(feature = "bevy_render")]
-        #[custom(cfg(feature = "multi_threaded"))]
         bevy_render::pipelined_rendering:::PipelinedRenderingPlugin,
-        #[cfg(feature = "bevy_core_pipeline")]
         bevy_core_pipeline:::CorePipelinePlugin,
-        #[cfg(feature = "bevy_anti_alias")]
         anti_alias:::AntiAliasPlugin,
-        #[cfg(feature = "bevy_sprite")]
         bevy_sprite:::SpritePlugin,
-        #[cfg(feature = "bevy_sprite_render")]
         bevy_sprite_render:::SpriteRenderPlugin,
-        #[cfg(feature = "bevy_text")]
         bevy_text:::TextPlugin,
-        #[cfg(feature = "bevy_ui")]
         bevy_ui:::UiPlugin,
-        #[cfg(feature = "bevy_ui_render")]
         bevy_ui_render:::UiRenderPlugin,
-        #[cfg(feature = "bevy_pbr")]
         bevy_pbr:::PbrPlugin,
         // A stand-in, as are `AntiAliasPlugin` and `GilrsPlugin` (`crate::cut`).
-        #[cfg(feature = "bevy_gltf")]
         gltf:::GltfPlugin,
-        #[cfg(feature = "bevy_gilrs")]
         gilrs:::GilrsPlugin,
-        #[cfg(feature = "bevy_animation")]
         bevy_animation:::AnimationPlugin,
-        #[cfg(feature = "bevy_gizmos")]
         bevy_gizmos:::GizmoPlugin,
-        #[cfg(feature = "bevy_state")]
         bevy_state::app:::StatesPlugin,
         #[doc(hidden)]
         :IgnoreAmbiguitiesPlugin,
     }
-    /// [`DefaultPlugins`] obeys *Cargo* *feature* flags. Users may exert control over this plugin group
-    /// by disabling `default-features` in their `Cargo.toml` and enabling only those features
-    /// that they wish to use.
+    /// Every crate it names is in benilla's build (its features stay declared and always on), so
+    /// no slot is feature-gated.
     ///
     /// [`DefaultPlugins`] contains all the plugins typically required to build
     /// a *Bevy* application which includes a *window* and presentation components.
@@ -88,17 +57,8 @@ plugin_group! {
 struct IgnoreAmbiguitiesPlugin;
 
 impl Plugin for IgnoreAmbiguitiesPlugin {
-    #[expect(
-        clippy::allow_attributes,
-        reason = "`unused_variables` is not always linted"
-    )]
-    #[allow(
-        unused_variables,
-        reason = "The `app` parameter is used only if a combination of crates that contain ambiguities with each other are enabled."
-    )]
     fn build(&self, app: &mut bevy_app::App) {
         // bevy_ui owns the Transform and cannot be animated
-        #[cfg(all(feature = "bevy_animation", feature = "bevy_ui"))]
         if app.is_plugin_added::<bevy_animation::AnimationPlugin>()
             && app.is_plugin_added::<bevy_ui::UiPlugin>()
         {

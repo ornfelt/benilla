@@ -34,22 +34,3 @@ impl From<SystemCursorIcon> for CursorIcon {
         CursorIcon::System(icon)
     }
 }
-
-impl CursorIcon {
-    /// Returns the system cursor icon if this is a system cursor.
-    pub fn as_system(&self) -> Option<&SystemCursorIcon> {
-        #[cfg(feature = "custom_cursor")]
-        {
-            if let CursorIcon::System(icon) = self {
-                Some(icon)
-            } else {
-                None
-            }
-        }
-        #[cfg(not(feature = "custom_cursor"))]
-        {
-            let CursorIcon::System(icon) = self;
-            Some(icon)
-        }
-    }
-}

@@ -48,14 +48,6 @@ use bevy_transform::components::Transform;
 #[require(Transform, Visibility)]
 pub struct LightProbe;
 
-impl LightProbe {
-    /// Creates a new light probe component.
-    #[inline]
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 /// A pair of cubemap textures that represent the surroundings of a specific
 /// area in space.
 ///

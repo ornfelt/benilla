@@ -275,17 +275,6 @@ pub enum AppLifecycle {
     WillResume,
 }
 
-impl AppLifecycle {
-    /// Return `true` if the app can be updated.
-    #[inline]
-    pub fn is_active(&self) -> bool {
-        match self {
-            Self::Idle | Self::Suspended => false,
-            Self::Running | Self::WillSuspend | Self::WillResume => true,
-        }
-    }
-}
-
 /// Wraps all `bevy_window` and `bevy_input` events in a common enum.
 ///
 /// Read these events with `MessageReader<WindowEvent>` if you need to

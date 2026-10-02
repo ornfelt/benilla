@@ -19,16 +19,6 @@ pub struct WindowWrapper<W> {
     ty: PhantomData<W>,
 }
 
-impl<W: Send + Sync + 'static> WindowWrapper<W> {
-    /// Creates a `WindowWrapper` from a window.
-    pub fn new(window: W) -> WindowWrapper<W> {
-        WindowWrapper {
-            reference: Arc::new(window),
-            ty: PhantomData,
-        }
-    }
-}
-
 impl<W: 'static> Deref for WindowWrapper<W> {
     type Target = W;
 

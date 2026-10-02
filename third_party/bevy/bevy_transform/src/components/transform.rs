@@ -199,12 +199,6 @@ impl Transform {
         self.local_y()
     }
 
-    /// Equivalent to [`-local_y()`][Transform::local_y]
-    #[inline]
-    pub fn down(&self) -> Dir3 {
-        -self.local_y()
-    }
-
     /// Get the unit vector in the local `Z` direction.
     #[inline]
     pub fn local_z(&self) -> Dir3 {
@@ -309,15 +303,6 @@ impl Transform {
         point = self.rotation * point;
         point += self.translation;
         point
-    }
-
-    /// Returns `true` if, and only if, translation, rotation and scale all are
-    /// finite. If any of them contains a `NaN`, positive or negative infinity,
-    /// this will return `false`.
-    #[inline]
-    #[must_use]
-    pub fn is_finite(&self) -> bool {
-        self.translation.is_finite() && self.rotation.is_finite() && self.scale.is_finite()
     }
 }
 

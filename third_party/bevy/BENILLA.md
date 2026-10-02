@@ -1066,6 +1066,34 @@ the same repository's.
   `ColorToPacked` impl, and the `ops` functions only the removed code called (`exp`, `cbrt`,
   `hypot`, `rem_euclid`, `floor`, `FloatPow::squared`). `LinearRgba::new` and `ColorToPacked`'s
   members stay for the kept `to_and_from_u8` test.
+- **The small crates, and the function pass over twelve crates that had only the name-based one.**
+  `bevy_internal`'s `#[cfg(feature = ..)]` gates go: every feature they named is on in the build
+  (`cargo tree -e features`), so the plugin groups, re-exports and prelude are unconditional, and
+  `ScheduleRunnerPlugin`'s `DefaultPlugins` slot, which only a build without `bevy_window` had,
+  goes with `IgnoreAmbiguitiesPlugin`'s lint attributes (the features stay declared, as
+  `bevy_ecs`'s `std` does). `bevy_asset_macros` loses the `VisitAssetDependencies` derive
+  (nothing derives it, and `bevy_asset` never re-exported it; `Asset`'s derive still writes the
+  impl), `bevy_state_macros` the `#[states]` helper attribute nobody writes. Every other derive
+  of the small macro crates is used (`PhysicsLayer`, `ShaderType`, `GizmoConfigGroup`, `States`,
+  `Asset` with `#[dependency]` on structs and, in `bevy_asset`'s kept tests, enums). Then the
+  function pass as for `bevy_color` over `bevy_heavy`, `bevy_diagnostic`, `bevy_utils`,
+  `bevy_log`, `bevy_time`, `bevy_transform`, `bevy_window`, `bevy_tasks`, `bevy_camera`,
+  `bevy_light`, `bevy_state` and `bevy_input` (the third, fourth and last two had no dead
+  item): `bevy_heavy`'s `MassProperties3d` constructors and inertia accessors and
+  `AngularInertiaTensor`'s `IDENTITY`, `INFINITY`, `new`, `try_new_with_local_frame`, `value`,
+  `value_mut`, `to_mat3`, `inverse`, `set`; `bevy_diagnostic`'s `DiagnosticPath::from_components`
+  and `components`, `Diagnostic`'s smoothing (`with_smoothing_factor`, `average`, `smoothed`) and
+  `DiagnosticsStore::iter_mut`; `Timer::new`, `set_duration`, `finish`, `set_mode`, `remaining`
+  and `Stopwatch::new`; `GlobalTransform::from_rotation`, `Transform::down`, `is_finite` and
+  `TransformHelper` whole; `Window::size`, `WindowResolution::size`, `CursorIcon::as_system`,
+  `AppLifecycle::is_active`, `WindowWrapper::new`; `TaskPool::spawn_local`; `bevy_camera`'s
+  `Exposure::INDOOR`, `RenderTarget::as_image`, `CameraMainTextureUsages::with`,
+  `CustomProjection::get`/`get_mut`, `VisibleEntities`' and `CubemapVisibleEntities`' accessors,
+  `RenderLayers::bits`; `bevy_light`'s clusterable-object accessors, `GlobalAmbientLight::NONE`,
+  `LightProbe::new`, `SunDisk::OFF` and the `light_consts` values but the two its defaults read.
+  What only the kept tests call stays (`bevy_time`'s `Timer`, `Stopwatch`, `Time<Real>`,
+  `Time<Fixed>` and `Time<Virtual>` accessors, `RenderLayers::from_layers`/`without`,
+  `GlobalTransform::from_scale`, `DiagnosticsStore::get_measurement`).
 - **`bevy_gizmos_render`**: nobody names it, and `GizmoRenderPlugin` did nothing in the main
   world but embed its WGSL (its render-app block only logged that no `RenderApp` exists), so it
   is deleted like `bevy_post_process`; the `bevy_gizmos_render` feature enables `bevy_gizmos`.

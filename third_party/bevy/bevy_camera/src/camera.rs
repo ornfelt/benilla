@@ -167,9 +167,6 @@ pub struct Exposure {
 }
 
 impl Exposure {
-    pub const INDOOR: Self = Self {
-        ev100: Self::EV100_INDOOR,
-    };
     /// This value was calibrated to match Blender's implicit/default exposure as closely as possible.
     /// It also happens to be a reasonable default.
     ///
@@ -177,8 +174,6 @@ impl Exposure {
     pub const BLENDER: Self = Self {
         ev100: Self::EV100_BLENDER,
     };
-
-    pub const EV100_INDOOR: f32 = 7.0;
 
     /// This value was calibrated to match Blender's implicit/default exposure as closely as possible.
     /// It also happens to be a reasonable default.
@@ -611,18 +606,6 @@ pub enum RenderTarget {
 }
 
 impl RenderTarget {
-    /// Get a handle to the render target's image,
-    /// or `None` if the render target is another variant.
-    pub fn as_image(&self) -> Option<&Handle<Image>> {
-        if let Self::Image(image_target) = self {
-            Some(&image_target.handle)
-        } else {
-            None
-        }
-    }
-}
-
-impl RenderTarget {
     /// Normalize the render target down to a more concrete value, mostly used for equality comparisons.
     pub fn normalize(&self, primary_window: Option<Entity>) -> Option<NormalizedRenderTarget> {
         match self {
@@ -740,13 +723,6 @@ impl Default for CameraMainTextureUsages {
                 | TextureUsages::TEXTURE_BINDING
                 | TextureUsages::COPY_SRC,
         )
-    }
-}
-
-impl CameraMainTextureUsages {
-    pub fn with(mut self, usages: TextureUsages) -> Self {
-        self.0 |= usages;
-        self
     }
 }
 

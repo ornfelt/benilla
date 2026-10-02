@@ -351,32 +351,3 @@ pub fn add_clusters(
             .insert((Clusters::default(), config));
     }
 }
-
-impl VisibleClusterableObjects {
-    #[inline]
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Entity> {
-        self.entities.iter()
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.entities.len()
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.entities.is_empty()
-    }
-}
-
-impl GlobalVisibleClusterableObjects {
-    #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &Entity> {
-        self.entities.iter()
-    }
-
-    #[inline]
-    pub fn contains(&self, entity: Entity) -> bool {
-        self.entities.contains(&entity)
-    }
-}
