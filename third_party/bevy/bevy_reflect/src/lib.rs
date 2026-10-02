@@ -435,15 +435,10 @@ mod impls {
 
     #[cfg(feature = "glam")]
     mod glam;
-    #[cfg(feature = "indexmap")]
-    mod indexmap;
-    #[cfg(feature = "smallvec")]
-    mod smallvec;
 }
 
 mod enums;
 mod generics;
-pub mod serde;
 pub mod std_traits;
 pub mod utility;
 
@@ -455,8 +450,8 @@ pub mod prelude {
 
     #[doc(hidden)]
     pub use crate::{
-        FromReflect, GetField, GetTupleStructField, PartialReflect, Reflect, ReflectDeserialize,
-        ReflectFromReflect, ReflectSerialize, Struct, TupleStruct, TypePath,
+        FromReflect, GetField, GetTupleStructField, PartialReflect, Reflect, ReflectFromReflect,
+        Struct, TupleStruct, TypePath,
     };
 }
 
@@ -481,7 +476,6 @@ pub use type_path::*;
 pub use type_registry::*;
 
 pub use bevy_reflect_derive::*;
-pub use erased_serde;
 
 /// Exports used by the reflection macros.
 ///
@@ -1912,24 +1906,6 @@ mod tests {
         let info = value.reflect_type_info();
         assert!(info.is::<MyList>());
 
-        // List (SmallVec)
-        #[cfg(feature = "smallvec")]
-        {
-            type MySmallVec = smallvec::SmallVec<[String; 2]>;
-
-            let info = MySmallVec::type_info().as_list().unwrap();
-            assert!(info.is::<MySmallVec>());
-            assert!(info.item_ty().is::<String>());
-            assert!(info.item_info().unwrap().is::<String>());
-            assert_eq!(MySmallVec::type_path(), info.type_path());
-            assert_eq!(String::type_path(), info.item_ty().path());
-
-            let value: MySmallVec = smallvec::smallvec![String::default(); 2];
-            let value: &dyn Reflect = &value;
-            let info = value.reflect_type_info();
-            assert!(info.is::<MySmallVec>());
-        }
-
         // Array
         type MyArray = [usize; 3];
 
@@ -1989,32 +1965,6 @@ mod tests {
         let value: &dyn Reflect = &MyMap::default();
         let info = value.reflect_type_info();
         assert!(info.is::<MyMap>());
-
-        // Map (IndexMap)
-        #[cfg(feature = "indexmap")]
-        {
-            use bevy_platform::hash::FixedHasher;
-
-            type MyIndexMap = indexmap::IndexMap<String, u32, FixedHasher>;
-
-            let info = MyIndexMap::type_info().as_map().unwrap();
-            assert!(info.is::<MyIndexMap>());
-            assert_eq!(MyIndexMap::type_path(), info.type_path());
-
-            assert!(info.key_ty().is::<String>());
-            assert!(info.key_info().unwrap().is::<String>());
-            assert_eq!(String::type_path(), info.key_ty().path());
-
-            assert!(info.value_ty().is::<u32>());
-            assert!(info.value_info().unwrap().is::<u32>());
-            assert_eq!(u32::type_path(), info.value_ty().path());
-
-            let value: MyIndexMap =
-                MyIndexMap::with_capacity_and_hasher(10, FixedHasher::default());
-            let value: &dyn Reflect = &value;
-            let info = value.reflect_type_info();
-            assert!(info.is::<MyIndexMap>());
-        }
 
         // Value
         type MyValue = String;

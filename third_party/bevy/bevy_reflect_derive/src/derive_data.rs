@@ -5,7 +5,6 @@ use proc_macro2::Span;
 use crate::{
     container_attributes::{ContainerAttributes, FromReflectAttrs, TypePathAttrs},
     field_attributes::FieldAttributes,
-    serialization::SerializationDataDef,
     string_expr::StringExpr,
     type_path::parse_path_no_leading_colon,
     where_clause_options::WhereClauseOptions,
@@ -41,7 +40,7 @@ pub(crate) enum ReflectDerive<'a> {
 /// #[derive(Reflect)]
 /// //                          traits
 /// //        |----------------------------------------|
-/// #[reflect(PartialEq, Serialize, Deserialize, Default)]
+/// #[reflect(PartialEq, Default)]
 /// //            type_path       generics
 /// //     |-------------------||----------|
 /// struct ThingThatImReflecting<T1, T2, T3> {/* ... */}
@@ -61,7 +60,7 @@ pub(crate) struct ReflectMeta<'a> {
 ///
 /// ```ignore (bevy_reflect is not accessible from this crate)
 /// #[derive(Reflect)]
-/// #[reflect(PartialEq, Serialize, Deserialize, Default)]
+/// #[reflect(PartialEq, Default)]
 /// struct ThingThatImReflecting<T1, T2, T3> {
 ///     x: T1, // |
 ///     y: T2, // |- fields
@@ -70,7 +69,6 @@ pub(crate) struct ReflectMeta<'a> {
 /// ```
 pub(crate) struct ReflectStruct<'a> {
     meta: ReflectMeta<'a>,
-    serialization_data: Option<SerializationDataDef>,
     fields: Vec<StructField<'a>>,
 }
 
@@ -80,7 +78,7 @@ pub(crate) struct ReflectStruct<'a> {
 ///
 /// ```ignore (bevy_reflect is not accessible from this crate)
 /// #[derive(Reflect)]
-/// #[reflect(PartialEq, Serialize, Deserialize, Default)]
+/// #[reflect(PartialEq, Default)]
 /// enum ThingThatImReflecting<T1, T2, T3> {
 ///     A(T1),                  // |
 ///     B,                      // |- variants
@@ -260,13 +258,7 @@ impl<'a> ReflectDerive<'a> {
         match &input.data {
             Data::Struct(data) => {
                 let fields = Self::collect_struct_fields(&data.fields)?;
-                let serialization_data =
-                    SerializationDataDef::new(&fields, &meta.bevy_reflect_path)?;
-                let reflect_struct = ReflectStruct {
-                    meta,
-                    serialization_data,
-                    fields,
-                };
+                let reflect_struct = ReflectStruct { meta, fields };
 
                 match data.fields {
                     Fields::Named(..) => Ok(Self::Struct(reflect_struct)),
@@ -396,7 +388,6 @@ impl<'a> ReflectMeta<'a> {
     ) -> proc_macro2::TokenStream {
         crate::registration::impl_get_type_registration(
             where_clause_options,
-            None,
             Option::<core::iter::Empty<&Type>>::None,
         )
     }
@@ -464,11 +455,6 @@ impl<'a> ReflectStruct<'a> {
         &self.meta
     }
 
-    /// Returns the [`SerializationDataDef`] for this struct.
-    pub fn serialization_data(&self) -> Option<&SerializationDataDef> {
-        self.serialization_data.as_ref()
-    }
-
     /// Returns the `GetTypeRegistration` impl as a `TokenStream`.
     ///
     /// Returns a specific implementation for structs and this method should be preferred over the generic [`get_type_registration`](ReflectMeta) method
@@ -478,7 +464,6 @@ impl<'a> ReflectStruct<'a> {
     ) -> proc_macro2::TokenStream {
         crate::registration::impl_get_type_registration(
             where_clause_options,
-            self.serialization_data(),
             Some(self.active_types().iter()),
         )
     }
@@ -681,7 +666,6 @@ impl<'a> ReflectEnum<'a> {
     ) -> proc_macro2::TokenStream {
         crate::registration::impl_get_type_registration(
             where_clause_options,
-            None,
             Some(self.active_types().iter()),
         )
     }

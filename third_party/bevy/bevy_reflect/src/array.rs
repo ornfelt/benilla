@@ -46,7 +46,7 @@ use core::{
 /// [type-erasing]: https://doc.rust-lang.org/book/ch17-02-trait-objects.html
 /// [`GetTypeRegistration`]: crate::GetTypeRegistration
 /// [limitation]: https://github.com/serde-rs/serde/issues/1937
-/// [`Deserialize`]: ::serde::Deserialize
+/// [`Deserialize`]: https://docs.rs/serde/latest/serde/trait.Deserialize.html
 pub trait Array: PartialReflect {
     /// Returns a reference to the element at `index`, or `None` if out of bounds.
     fn get(&self, index: usize) -> Option<&dyn PartialReflect>;

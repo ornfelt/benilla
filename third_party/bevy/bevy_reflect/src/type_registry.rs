@@ -1,4 +1,4 @@
-use crate::{serde::Serializable, FromReflect, Reflect, TypeInfo, TypePath, Typed};
+use crate::{Reflect, TypeInfo, TypePath, Typed};
 use alloc::{boxed::Box, string::String};
 use bevy_platform::{
     collections::HashMap,
@@ -12,7 +12,6 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use downcast_rs::{impl_downcast, Downcast};
-use serde::{Deserialize, Serialize};
 
 /// A registry of [reflected] types.
 ///
@@ -199,17 +198,16 @@ impl TypeRegistry {
     ///
     /// Most of the time [`TypeRegistry::register`] can be used instead to register a type you derived [`Reflect`] for.
     /// However, in cases where you want to add a piece of type data that was not included in the list of `#[reflect(...)]` type data in the derive,
-    /// or where the type is generic and cannot register e.g. [`ReflectSerialize`] unconditionally without knowing the specific type parameters,
+    /// or where the type is generic and cannot register e.g. [`ReflectDefault`](crate::std_traits::ReflectDefault) unconditionally without knowing the specific type parameters,
     /// this method can be used to insert additional type data.
     ///
     /// # Example
     /// ```
-    /// use bevy_reflect::{TypeRegistry, ReflectSerialize, ReflectDeserialize};
+    /// use bevy_reflect::{TypeRegistry, std_traits::ReflectDefault};
     ///
     /// let mut type_registry = TypeRegistry::default();
     /// type_registry.register::<Option<String>>();
-    /// type_registry.register_type_data::<Option<String>, ReflectSerialize>();
-    /// type_registry.register_type_data::<Option<String>, ReflectDeserialize>();
+    /// type_registry.register_type_data::<Option<String>, ReflectDefault>();
     /// ```
     pub fn register_type_data<T: Reflect + TypePath, D: TypeData + FromType<T>>(&mut self) {
         let data = self.get_mut(TypeId::of::<T>()).unwrap_or_else(|| {
@@ -450,86 +448,6 @@ pub trait FromType<T> {
     /// This is especially useful for trait [`TypeData`] that has a supertrait (ex: `A: B`).
     /// When the [`TypeData`] for `A` is inserted, the `B` [`TypeData`] will also be inserted.
     fn insert_dependencies(_type_registration: &mut TypeRegistration) {}
-}
-
-/// A struct used to serialize reflected instances of a type.
-///
-/// A `ReflectSerialize` for type `T` can be obtained via
-/// [`FromType::from_type`].
-#[derive(Clone)]
-pub struct ReflectSerialize {
-    get_serializable: fn(value: &dyn Reflect) -> Serializable,
-}
-
-impl<T: TypePath + FromReflect + erased_serde::Serialize> FromType<T> for ReflectSerialize {
-    fn from_type() -> Self {
-        ReflectSerialize {
-            get_serializable: |value| {
-                value
-                    .downcast_ref::<T>()
-                    .map(|value| Serializable::Borrowed(value))
-                    .or_else(|| T::from_reflect(value.as_partial_reflect()).map(|value| Serializable::Owned(Box::new(value))))
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "FromReflect::from_reflect failed when called on type `{}` with this value: {value:?}",
-                            T::type_path(),
-                        );
-                    })
-            },
-        }
-    }
-}
-
-impl ReflectSerialize {
-    /// Turn the value into a serializable representation
-    pub fn get_serializable<'a>(&self, value: &'a dyn Reflect) -> Serializable<'a> {
-        (self.get_serializable)(value)
-    }
-
-    /// Serializes a reflected value.
-    pub fn serialize<S>(&self, value: &dyn Reflect, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        (self.get_serializable)(value).serialize(serializer)
-    }
-}
-
-/// A struct used to deserialize reflected instances of a type.
-///
-/// A `ReflectDeserialize` for type `T` can be obtained via
-/// [`FromType::from_type`].
-#[derive(Clone)]
-pub struct ReflectDeserialize {
-    /// Function used by [`ReflectDeserialize::deserialize`] to
-    /// perform deserialization.
-    pub func: fn(
-        deserializer: &mut dyn erased_serde::Deserializer,
-    ) -> Result<Box<dyn Reflect>, erased_serde::Error>,
-}
-
-impl ReflectDeserialize {
-    /// Deserializes a reflected value.
-    ///
-    /// The underlying type of the reflected value, and thus the expected
-    /// structure of the serialized data, is determined by the type used to
-    /// construct this `ReflectDeserialize` value.
-    pub fn deserialize<'de, D>(&self, deserializer: D) -> Result<Box<dyn Reflect>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let mut erased = <dyn erased_serde::Deserializer>::erase(deserializer);
-        (self.func)(&mut erased)
-            .map_err(<<D as serde::Deserializer<'de>>::Error as serde::de::Error>::custom)
-    }
-}
-
-impl<T: for<'a> Deserialize<'a> + Reflect> FromType<T> for ReflectDeserialize {
-    fn from_type() -> Self {
-        ReflectDeserialize {
-            func: |deserializer| Ok(Box::new(T::deserialize(deserializer)?)),
-        }
-    }
 }
 
 /// [`Reflect`] values are commonly used in situations where the actual types of values

@@ -586,6 +586,18 @@ the same repository's.
   fields, `StructVariantInfo::new`, the `set_represented_type`s it calls),
   `ReflectSerialize`/`ReflectDeserialize` whole, the methods the info macros generate, and what
   bevy_reflect's own tests call. Every kept derive expands to the same tokens.
+- **`bevy_reflect`'s serde type data and its `smallvec` and `indexmap` impls.** Since the
+  serializers left, nothing reads `ReflectSerialize` or `ReflectDeserialize`: both go with
+  `Serializable`, their prelude entries and the `Serialize`/`Deserialize` registrations of the
+  opaque and glam impls (the registry's defaults no longer hold them for the primitives and
+  `String`). `SerializationData` and `SkippedField` go with the derive's
+  `#[reflect(skip_serializing)]` field attribute, the only thing that built them (no input in the
+  build uses it; a use no longer compiles). The `serde` module goes whole, with `pub use
+  erased_serde` and the `serde` and `erased-serde` dependencies (serde stays in the build through
+  other crates, its resolved features unchanged). The `smallvec` and `indexmap` features go with
+  their impls (`SmallVec` as a list, `IndexMap`/`IndexSet` as a map and a set) and `bevy_ecs`'s
+  request for them: the bevy_ecs derives that needed them went with its reflection, and no kept
+  derive reflects either type. Every kept derive expands to the same tokens.
 - **`bevy_ecs`'s and `bevy_app`'s off features and platform code.** The features nothing in the
   build can enable go with their code: `bevy_debug_stepping` (the `Stepping` resource and module,
   `bevy_app`'s `Stepping::begin_frame` system, the executors' skip list, so

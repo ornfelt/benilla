@@ -116,10 +116,6 @@ version = "0.18.0"
 
 [dependencies.bevy_reflect]
 version = "0.18.0"
-features = [
-    "smallvec",
-    "indexmap",
-]
 optional = true
 default-features = false
 

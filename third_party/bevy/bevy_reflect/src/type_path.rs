@@ -13,7 +13,7 @@ use core::fmt;
 ///
 /// # Stability
 ///
-/// Certain parts of the engine, e.g. [(de)serialization], rely on type paths as identifiers
+/// Certain parts of the engine rely on type paths as identifiers
 /// for matching dynamic values to concrete types.
 ///
 /// Using [`core::any::type_name`], a scene containing `my_crate::foo::MyComponent` would break,
@@ -72,7 +72,6 @@ use core::fmt;
 /// ```
 ///
 /// [utility]: crate::utility
-/// [(de)serialization]: crate::serde
 /// [`Reflect`]: crate::Reflect
 /// [`type_path`]: TypePath::type_path
 /// [`short_type_path`]: TypePath::short_type_path

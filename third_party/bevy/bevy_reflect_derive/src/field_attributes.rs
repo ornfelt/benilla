@@ -10,30 +10,24 @@ use syn::{parse::ParseStream, Attribute, LitStr, Meta, Token};
 
 mod kw {
     syn::custom_keyword!(ignore);
-    syn::custom_keyword!(skip_serializing);
     syn::custom_keyword!(clone);
     syn::custom_keyword!(default);
 }
 
-pub(crate) const IGNORE_SERIALIZATION_ATTR: &str = "skip_serializing";
 pub(crate) const IGNORE_ALL_ATTR: &str = "ignore";
 
 pub(crate) const DEFAULT_ATTR: &str = "default";
 pub(crate) const CLONE_ATTR: &str = "clone";
 
-/// Stores data about if the field should be visible via the Reflect and serialization interfaces
+/// Stores data about if the field should be visible via the Reflect interface
 ///
-/// Note the relationship between serialization and reflection is such that a member must be reflected in order to be serialized.
-/// In boolean logic this is described as: `is_serialized -> is_reflected`, this means we can reflect something without serializing it but not the other way round.
 /// The `is_reflected` predicate is provided as `self.is_active()`
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReflectIgnoreBehavior {
     /// Don't ignore, appear to all systems
     #[default]
     None,
-    /// Ignore when serializing but not when reflecting
-    IgnoreSerialization,
-    /// Ignore both when serializing and reflecting
+    /// Ignore when reflecting
     IgnoreAlways,
 }
 
@@ -41,12 +35,12 @@ impl ReflectIgnoreBehavior {
     /// Returns `true` if the ignoring behavior implies member is included in the reflection API, and false otherwise.
     pub fn is_active(self) -> bool {
         match self {
-            ReflectIgnoreBehavior::None | ReflectIgnoreBehavior::IgnoreSerialization => true,
+            ReflectIgnoreBehavior::None => true,
             ReflectIgnoreBehavior::IgnoreAlways => false,
         }
     }
 
-    /// The exact logical opposite of `self.is_active()` returns true iff this member is not part of the reflection API whatsoever (neither serialized nor reflected)
+    /// The exact logical opposite of `self.is_active()` returns true iff this member is not part of the reflection API whatsoever
     pub fn is_ignored(self) -> bool {
         !self.is_active()
     }
@@ -121,8 +115,6 @@ impl FieldAttributes {
         let lookahead = input.lookahead1();
         if lookahead.peek(kw::ignore) {
             self.parse_ignore(input)
-        } else if lookahead.peek(kw::skip_serializing) {
-            self.parse_skip_serializing(input)
         } else if lookahead.peek(kw::clone) {
             self.parse_clone(input)
         } else if lookahead.peek(kw::default) {
@@ -138,31 +130,11 @@ impl FieldAttributes {
     /// - `#[reflect(ignore)]`
     fn parse_ignore(&mut self, input: ParseStream) -> syn::Result<()> {
         if self.ignore != ReflectIgnoreBehavior::None {
-            return Err(input.error(format!(
-                "only one of {:?} is allowed",
-                [IGNORE_ALL_ATTR, IGNORE_SERIALIZATION_ATTR]
-            )));
+            return Err(input.error(format!("only one of {:?} is allowed", [IGNORE_ALL_ATTR])));
         }
 
         input.parse::<kw::ignore>()?;
         self.ignore = ReflectIgnoreBehavior::IgnoreAlways;
-        Ok(())
-    }
-
-    /// Parse `skip_serializing` attribute.
-    ///
-    /// Examples:
-    /// - `#[reflect(skip_serializing)]`
-    fn parse_skip_serializing(&mut self, input: ParseStream) -> syn::Result<()> {
-        if self.ignore != ReflectIgnoreBehavior::None {
-            return Err(input.error(format!(
-                "only one of {:?} is allowed",
-                [IGNORE_ALL_ATTR, IGNORE_SERIALIZATION_ATTR]
-            )));
-        }
-
-        input.parse::<kw::skip_serializing>()?;
-        self.ignore = ReflectIgnoreBehavior::IgnoreSerialization;
         Ok(())
     }
 

@@ -6,8 +6,7 @@ use crate::{
     reflect::{impl_full_reflect, ApplyError},
     type_info::{MaybeTyped, OpaqueInfo, TypeInfo, Typed},
     type_registry::{
-        FromType, GetTypeRegistration, ReflectDeserialize, ReflectFromPtr, ReflectSerialize,
-        TypeRegistration, TypeRegistry,
+        FromType, GetTypeRegistration, ReflectFromPtr, TypeRegistration, TypeRegistry,
     },
     utility::{reflect_hasher, GenericTypeInfoCell, NonGenericTypeInfoCell},
 };
@@ -116,10 +115,8 @@ impl Typed for Cow<'static, str> {
 impl GetTypeRegistration for Cow<'static, str> {
     fn get_type_registration() -> TypeRegistration {
         let mut registration = TypeRegistration::of::<Cow<'static, str>>();
-        registration.insert::<ReflectDeserialize>(FromType::<Cow<'static, str>>::from_type());
         registration.insert::<ReflectFromPtr>(FromType::<Cow<'static, str>>::from_type());
         registration.insert::<ReflectFromReflect>(FromType::<Cow<'static, str>>::from_type());
-        registration.insert::<ReflectSerialize>(FromType::<Cow<'static, str>>::from_type());
         registration
     }
 }

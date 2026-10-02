@@ -43,12 +43,8 @@ default = [
     "debug",
 ]
 glam = ["dep:glam"]
-indexmap = ["dep:indexmap"]
-smallvec = ["dep:smallvec"]
 std = [
-    "erased-serde/std",
     "downcast-rs/std",
-    "serde/std",
     "glam?/std",
     "bevy_platform/std",
 ]
@@ -91,29 +87,9 @@ default-features = false
 version = "2"
 default-features = false
 
-[dependencies.erased-serde]
-version = "0.4"
-features = ["alloc"]
-default-features = false
-
 [dependencies.glam]
 version = "0.30.7"
 features = ["serde"]
-optional = true
-default-features = false
-
-[dependencies.indexmap]
-version = "2.5.0"
-optional = true
-default-features = false
-
-[dependencies.serde]
-version = "1"
-features = ["alloc"]
-default-features = false
-
-[dependencies.smallvec]
-version = "1"
 optional = true
 default-features = false
 

@@ -26,7 +26,6 @@ mod impls;
 mod meta;
 mod reflect_opaque;
 mod registration;
-mod serialization;
 mod string_expr;
 mod struct_utility;
 mod type_path;
@@ -134,7 +133,6 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 /// The following types are automatically registered when deriving `Reflect`:
 ///
 /// * `ReflectFromReflect` (unless opting out of `FromReflect`)
-/// * `SerializationData`
 /// * `ReflectFromPtr`
 ///
 /// ### Special Identifiers
@@ -175,8 +173,6 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 /// This means that it will forgo implementing `Struct`, `TupleStruct`, or `Enum`.
 ///
 /// Furthermore, it requires that the type implements [`Clone`].
-/// If planning to serialize this type using the reflection serializers,
-/// then the `Serialize` and `Deserialize` traits will need to be implemented and registered as well.
 ///
 /// ## `#[reflect(from_reflect = false)]`
 ///
@@ -288,16 +284,6 @@ fn match_reflect_impls(ast: DeriveInput, source: ReflectImplSource) -> TokenStre
 /// This allows fields to completely opt-out of reflection,
 /// which may be useful for maintaining invariants, keeping certain data private,
 /// or allowing the use of types that do not implement `Reflect` within the container.
-///
-/// ## `#[reflect(skip_serializing)]`
-///
-/// This works similar to `#[reflect(ignore)]`, but rather than opting out of _all_ of reflection,
-/// it simply opts the field out of both serialization and deserialization.
-/// This can be useful when a field should be accessible via reflection, but may not make
-/// sense in a serialized form, such as computed data.
-///
-/// What this does is register the `SerializationData` type within the `GetTypeRegistration` implementation,
-/// which will be used by the reflection serializers to determine whether or not the field is serializable.
 ///
 /// ## `#[reflect(clone)]`
 ///
@@ -427,13 +413,13 @@ pub fn derive_type_path(input: TokenStream) -> TokenStream {
 ///
 /// ```ignore (bevy_reflect is not accessible from this crate)
 /// impl_reflect_opaque!(my_crate::Foo);
-/// impl_reflect_opaque!(my_crate::Bar(Debug, Default, Serialize, Deserialize));
+/// impl_reflect_opaque!(my_crate::Bar(Debug, Default));
 /// ```
 ///
 /// Generic types can also specify their parameters and bounds:
 ///
 /// ```ignore (bevy_reflect is not accessible from this crate)
-/// impl_reflect_opaque!(my_crate::Foo<T1, T2: Baz> where T1: Bar (Default, Serialize, Deserialize));
+/// impl_reflect_opaque!(my_crate::Foo<T1, T2: Baz> where T1: Bar (Default));
 /// ```
 ///
 /// Custom type paths can be specified:
@@ -495,7 +481,7 @@ pub fn impl_reflect_opaque(input: TokenStream) -> TokenStream {
 /// use bevy::prelude::Vec3;
 ///
 /// impl_reflect!(
-///     #[reflect(PartialEq, Serialize, Deserialize, Default)]
+///     #[reflect(PartialEq, Default)]
 ///     #[type_path = "bevy::prelude"]
 ///     struct Vec3 {
 ///         x: f32,

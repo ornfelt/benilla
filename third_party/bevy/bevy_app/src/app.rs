@@ -567,9 +567,9 @@ impl App {
 
     /// Registers the type `T` in the [`AppTypeRegistry`] resource,
     /// adding reflect data as specified in the [`Reflect`](bevy_reflect::Reflect) derive:
-    /// ```ignore (No serde "derive" feature)
-    /// #[derive(Component, Serialize, Deserialize, Reflect)]
-    /// #[reflect(Component, Serialize, Deserialize)] // will register ReflectComponent, ReflectSerialize, ReflectDeserialize
+    /// ```ignore (bevy_ecs is not accessible from this crate)
+    /// #[derive(Component, Reflect)]
+    /// #[reflect(Component)] // will register ReflectComponent
     /// ```
     ///
     /// See [`bevy_reflect::TypeRegistry::register`] for more information.

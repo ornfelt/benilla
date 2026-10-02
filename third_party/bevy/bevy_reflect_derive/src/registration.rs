@@ -1,13 +1,12 @@
 //! Contains code related specifically to Bevy's type registration.
 
-use crate::{serialization::SerializationDataDef, where_clause_options::WhereClauseOptions};
+use crate::where_clause_options::WhereClauseOptions;
 use quote::quote;
 use syn::Type;
 
 /// Creates the `GetTypeRegistration` impl for the given type data.
 pub(crate) fn impl_get_type_registration<'a>(
     where_clause_options: &WhereClauseOptions,
-    serialization_data: Option<&SerializationDataDef>,
     type_dependencies: Option<impl Iterator<Item = &'a Type>>,
 ) -> proc_macro2::TokenStream {
     let meta = where_clause_options.meta();
@@ -35,20 +34,12 @@ pub(crate) fn impl_get_type_registration<'a>(
         None
     };
 
-    let serialization_data = serialization_data.map(|data| {
-        let serialization_data = data.as_serialization_data(bevy_reflect_path);
-        quote! {
-            registration.insert::<#bevy_reflect_path::serde::SerializationData>(#serialization_data);
-        }
-    });
-
     quote! {
         impl #impl_generics #bevy_reflect_path::GetTypeRegistration for #type_path #ty_generics #where_reflect_clause {
             fn get_type_registration() -> #bevy_reflect_path::TypeRegistration {
                 let mut registration = #bevy_reflect_path::TypeRegistration::of::<Self>();
                 registration.insert::<#bevy_reflect_path::ReflectFromPtr>(#bevy_reflect_path::FromType::<Self>::from_type());
                 #from_reflect_data
-                #serialization_data
                 #(registration.register_type_data::<#registration_data, Self>();)*
                 registration
             }

@@ -6,8 +6,7 @@ use crate::{
     reflect::ApplyError,
     type_info::{MaybeTyped, OpaqueInfo, TypeInfo, Typed},
     type_registry::{
-        FromType, GetTypeRegistration, ReflectDeserialize, ReflectFromPtr, ReflectSerialize,
-        TypeRegistration, TypeRegistry,
+        FromType, GetTypeRegistration, ReflectFromPtr, TypeRegistration, TypeRegistry,
     },
     utility::{reflect_hasher, GenericTypeInfoCell, GenericTypePathCell, NonGenericTypeInfoCell},
 };
@@ -17,148 +16,22 @@ use core::any::Any;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
-impl_reflect_opaque!(bool(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(char(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(u8(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(u16(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(u32(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(u64(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(u128(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(usize(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(i8(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(i16(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(i32(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(i64(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(i128(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(isize(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(f32(
-    Clone,
-    Debug,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
-impl_reflect_opaque!(f64(
-    Clone,
-    Debug,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
-));
+impl_reflect_opaque!(bool(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(char(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(u8(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(u16(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(u32(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(u64(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(u128(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(usize(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(i8(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(i16(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(i32(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(i64(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(i128(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(isize(Clone, Debug, Hash, PartialEq, Default));
+impl_reflect_opaque!(f32(Clone, Debug, PartialEq, Default));
+impl_reflect_opaque!(f64(Clone, Debug, PartialEq, Default));
 impl_type_path!(str);
 
 impl PartialReflect for &'static str {
@@ -282,7 +155,6 @@ impl GetTypeRegistration for &'static str {
         let mut registration = TypeRegistration::of::<Self>();
         registration.insert::<ReflectFromPtr>(FromType::<Self>::from_type());
         registration.insert::<ReflectFromReflect>(FromType::<Self>::from_type());
-        registration.insert::<ReflectSerialize>(FromType::<Self>::from_type());
         registration
     }
 }

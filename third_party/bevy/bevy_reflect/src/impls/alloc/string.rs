@@ -1,17 +1,8 @@
-use crate::{
-    std_traits::ReflectDefault,
-    type_registry::{ReflectDeserialize, ReflectSerialize},
-};
+use crate::std_traits::ReflectDefault;
 use bevy_reflect_derive::impl_reflect_opaque;
 
 impl_reflect_opaque!(::alloc::string::String(
-    Clone,
-    Debug,
-    Hash,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    Default
+    Clone, Debug, Hash, PartialEq, Default
 ));
 
 #[cfg(test)]
