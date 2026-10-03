@@ -1328,6 +1328,14 @@ the same repository's.
   benilla-gfx, not a `bevy` feature, and is itself trimmed above), and so did every crate only they pulled (gltf, gilrs, cpal,
   rodio and their platform crates).
 
+- **Tests of removed capability, found at A5** (the vendored suites ran whole for the first time,
+  with their dev-dependencies made normal for the run): `bevy_app`'s `runs_spawn_local_tasks`
+  (`TaskPool::spawn_local` went in A4bs) and `bevy_scene`'s `scene_spawns_and_respawns_after_change`
+  and `scene_child_order_preserved_when_archetype_order_mismatched` (their scenes hold `ChildOf` and
+  `Children`; `Children` no longer derives `Reflect` and nothing registers types automatically, so
+  the trimmed Bevy spawns no hierarchical scene, and benilla spawns none), with the test-only
+  types and imports only they used.
+
 ## How to check
 
 A crate no commit has touched since the copy is byte-identical to the registry crate:
