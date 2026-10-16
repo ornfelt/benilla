@@ -50,6 +50,15 @@ cmake --build build --config Release    # -> bin\Release_x64\gfx.dll, lib\Releas
 WOW_DATA=/path/to/WoW/Data cargo run --release -p benilla --features gfx
 ```
 
+On Windows, in PowerShell:
+
+```powershell
+$env:WOW_DATA="$env:wow_classic_dir/Data"; cargo run --release -p benilla --features gfx
+```
+
+A `$env:` variable stays set for the rest of the PowerShell session, so later runs in the same
+window see it too; `Remove-Item Env:WOW_DATA` clears it.
+
 `crates/benilla-gfx/build.rs` finds the library, links it and copies it beside the binary
 (`target/<profile>/`); on Linux the binary's rpath finds it there, on Windows the DLL (and
 `SDL2.dll`) sits next to the exe. After rebuilding the library, rebuild benilla so the copy is
@@ -78,6 +87,32 @@ fallback. The boot log names the pair it opened (`gfx: ...`).
 ```sh
 WOW_GFX_WINDOW=sdl WOW_GFX_DEVICE=vk cargo run --release -p benilla --features gfx
 ```
+
+On Windows, in PowerShell:
+
+```powershell
+$env:WOW_DATA="$env:wow_classic_dir/Data"; $env:WOW_GFX_WINDOW="win32"; $env:WOW_GFX_DEVICE="d3d11"; cargo run --release -p benilla --features gfx
+```
+
+Back to the defaults: `Remove-Item Env:WOW_GFX_WINDOW, Env:WOW_GFX_DEVICE`.
+
+### 4. Run the built binary
+
+The variables are read by the binary itself, not by cargo, so they work the same when running the
+exe from `target/<profile>/` without cargo. The gfx library (and on Windows `SDL2.dll`) was copied
+beside it by the build, and the data is found through `WOW_DATA` (or the `WoW` link at the repo
+root on a `dev` build, else `Data` / `WoW/Data` beside the exe), so it runs from any directory:
+
+```sh
+WOW_DATA=/path/to/WoW/Data WOW_GFX_WINDOW=glfw WOW_GFX_DEVICE=gl4 ./target/release/benilla
+```
+
+```powershell
+$env:WOW_DATA="$env:wow_classic_dir/Data"; $env:WOW_GFX_WINDOW="glfw"; $env:WOW_GFX_DEVICE="vk"; .\target\release\benilla.exe
+```
+
+Build it first with `cargo build --release -p benilla --features gfx`; a binary built without the
+feature runs on wgpu and ignores the `WOW_GFX_*` variables.
 
 ### Supported pairs
 
