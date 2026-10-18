@@ -32,9 +32,6 @@ trace-*.json
 .DS_Store
 *.swp
 /.idea/
-# Claude Code: settings and skills under .claude/ are each person's own.
-/.claude/
-
 # Python bytecode from the `scripts/` tooling.
 __pycache__/
 
