@@ -59,8 +59,8 @@ feature flag, at parity with the wgpu path, and `GFX.md` exists (see "Finishing"
    shot of the same view.
 7. **Commit at the end of each run** with a suitable message for what was done, in benilla's
    style (one sentence, what the change does). **No co-author line**, no attribution trailer.
-   Stage explicit paths; `.claude/` is gitignored, so a new file under this skill needs
-   `git add -f`. Commit `progress.md` in the same commit.
+   Stage explicit paths; `.claude/` is not gitignored on this branch, so a new file under this
+   skill is staged like any other. Commit `progress.md` in the same commit.
 
 ## Backend selection
 
