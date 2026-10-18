@@ -278,9 +278,7 @@ commit per branch, nothing left uncommitted at the end of the run. Stage explici
 
 **`.claude/` is not gitignored on these branches**, unlike upstream, whose `.gitignore` ignores
 `/.claude/` as each person's own. Keep it that way: a merge that touches `.gitignore` keeps
-upstream's other changes but never brings the `/.claude/` rule (or its comment) back. trimmed-bevy
-still carried the rule when this skill was written: the first run that has its worktree removes it
-there, in a commit of its own (`.gitignore no longer ignores .claude/ ...`), before the first merge.
+upstream's other changes but never brings the `/.claude/` rule (or its comment) back.
 
 The message is a merge commit's, in benilla's style - one sentence saying what landed and how -
 naming the upstream commit, followed by what was verified and on which platform and backends.
