@@ -203,9 +203,14 @@ Resolve conflicts, then apply the branch's rules:
 - **The feature-off path is upstream, exactly.** Every upstream change lands as upstream wrote it.
   A conflict with a gfx-gated block keeps both: upstream's code as upstream wrote it, the gated
   gfx block beside it, updated to the new code where it mirrors it. Check it:
-  `git diff "$U" -- . ':!crates/benilla-gfx' ':!.claude' ':!GFX.md'` must show only
+  `git diff "$U" -- . ':!crates/benilla-gfx' ':!.claude' ':!GFX.md' ':!c-port-plan.md'
+  ':!gfx-tools-and-tests.md' ':!qa-2026-09-28.md' ':!.gitignore' ':!Cargo.lock'` must show only
   `cfg(feature = "gfx")` additions and the feature plumbing in the `Cargo.toml`s, and compared with
-  the same diff against `$U^` before the merge, nothing new apart from gfx-side follow-ups.
+  the same diff against `$U^` before the merge, nothing new apart from gfx-side follow-ups. Those
+  excluded files are the branch's own (its docs, `.gitignore` without the `/.claude/` rule, the
+  lock with `benilla-gfx`'s dependencies); a new branch-only file is added to the list. The
+  `Cargo.lock` is checked on its own: upstream's lock changes must all be there, plus only the gfx
+  crates' entries.
 - **The gfx side follows** where the change hits a gfx trigger, so that `--features benilla/gfx`
   draws and behaves as the feature-off build now does. That is the `gfx-dll-port` skill's parity
   rule: the same colours, blending, fog, depth order, UI layout, cursor, input and window behaviour.
