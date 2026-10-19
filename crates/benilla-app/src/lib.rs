@@ -83,6 +83,9 @@ mod portrait;
 mod preflight;
 #[cfg(feature = "dev")]
 mod probe_shield;
+/// Quake 3 movement, a client-side hack for a local server with its movement anticheat off.
+#[cfg(feature = "q3_movement")]
+mod q3move;
 mod query_cache;
 mod quest_markers;
 mod raid_marks;

@@ -103,7 +103,7 @@ pub(crate) struct GamePlugins {
 
 impl PluginGroup for GamePlugins {
     fn build(self) -> PluginGroupBuilder {
-        PluginGroupBuilder::start::<Self>()
+        let group = PluginGroupBuilder::start::<Self>()
             // The game's own WGSL, compiled in, before anything that could ask for one.
             .add(crate::shaders::plugin)
             .add(BowstringPlugin)
@@ -245,7 +245,11 @@ impl PluginGroup for GamePlugins {
             .add(QuestSharePlugin)
             .add(UiChatPlugin)
             .add(UiLayoutPlugin)
-            .add(crate::screenshot::ScreenshotPlugin)
+            .add(crate::screenshot::ScreenshotPlugin);
+        // After ConsolePlugin, whose registry its command joins.
+        #[cfg(feature = "q3_movement")]
+        let group = group.add(crate::q3move::Q3MovePlugin);
+        group
     }
 }
 

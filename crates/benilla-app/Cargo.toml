@@ -19,6 +19,10 @@ trace_chrome = ["bevy/trace_chrome"]
 # Links Bevy as a shared library so an incremental rebuild relinks faster. The binary then starts
 # only through `cargo run`, which puts the toolchain's libstd on the loader path.
 bevy_dynamic_linking = ["bevy/dynamic_linking"]
+# Quake 3 movement, a client-side hack for a local server with its movement anticheat off: VQ3
+# strafe jumping and bunny hopping at WoW's speeds, and a ups speedometer (`src/q3move.rs`,
+# `docs/QUAKE.md`).
+q3_movement = []
 
 [dependencies]
 anyhow.workspace = true

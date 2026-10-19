@@ -37,6 +37,9 @@ pub(crate) type ConsoleCategory = u8;
 pub(crate) const GRAPHICS: ConsoleCategory = 1;
 /// `console`.
 const CONSOLE: ConsoleCategory = 2;
+/// `game`.
+#[cfg(feature = "q3_movement")]
+pub(crate) const GAME: ConsoleCategory = 4;
 /// `default`.
 const DEFAULT: ConsoleCategory = 5;
 

@@ -151,6 +151,11 @@ pub(super) fn step(
     // walk resolver returns on a step under `2^-20`. A root caught mid-air hangs until `ClearRoot`
     // (`0x7c7370`) starts the fall (`0x7c61c0`, which refuses while rooted, `0x7c61d6`).
     let anchored = !held && player.modes.rooted;
+    // Quake 3 movement owns the horizontal velocity of a body free to move ([`crate::q3move`]).
+    #[cfg(feature = "q3_movement")]
+    let q3 = crate::q3move::enabled() && !held && !anchored;
+    #[cfg(not(feature = "q3_movement"))]
+    let q3 = false;
     // A body part-way up a foot cone stands: the straight-down probe sees only the riser it rides,
     // and the ride is re-certified every frame it continues.
     let on_floor =
@@ -230,6 +235,15 @@ pub(super) fn step(
     if knocked {
         // The launch owns both axes: a knockback from standing is still `grounded` this frame, and
         // the walk arm would hand the horizontal back to the keys.
+    } else if q3 {
+        // VQ3's pmove: friction and ground acceleration on a walking frame, air acceleration alone
+        // in the air and on the take-off frame, so a hop keeps its speed.
+        #[cfg(feature = "q3_movement")]
+        {
+            let wish_dir = if moving { dir.normalize() } else { Vec3::ZERO };
+            player.horiz_vel =
+                crate::q3move::velocity(player.horiz_vel, grounded && !jumped, wish_dir, speed, dt);
+        }
     } else if grounded && !anchored {
         player.horiz_vel = input_horiz;
     } else if !held && !anchored && moving && !player.arc_dirs_set {
@@ -311,7 +325,20 @@ pub(super) fn step(
         } else {
             player.horiz_vel + Vec3::Y * fall_mean_vy
         };
-        center = airborne_step(world, capsule, center, velocity, time.delta());
+        #[cfg(feature = "q3_movement")]
+        if q3 {
+            // A wall met in the air takes the speed into it, as `PM_SlideMove` clips.
+            let (at, projected) =
+                airborne_step_projected(world, capsule, center, velocity, time.delta());
+            center = at;
+            player.horiz_vel = crate::q3move::clip(player.horiz_vel, projected);
+        } else {
+            center = airborne_step(world, capsule, center, velocity, time.delta());
+        }
+        #[cfg(not(feature = "q3_movement"))]
+        {
+            center = airborne_step(world, capsule, center, velocity, time.delta());
+        }
         player.steep_support = false;
     }
     // The wedge rest: falling, yet achieving under [`WEDGE_STALL_RATIO`] of gravity's intent for
@@ -690,6 +717,32 @@ pub(crate) fn airborne_step(
         .position
 }
 
+/// [`airborne_step`], also handing back the slide's projected velocity, for Quake 3 movement's
+/// air clip ([`crate::q3move::clip`]).
+#[cfg(feature = "q3_movement")]
+fn airborne_step_projected(
+    world: &benilla_world::collision::WorldCollision<'_, '_>,
+    capsule: &Collider,
+    center: Vec3,
+    velocity: Vec3,
+    dt: std::time::Duration,
+) -> (Vec3, Vec3) {
+    let out = world.slide_mover(
+        capsule,
+        center,
+        velocity,
+        dt,
+        &MoveAndSlideConfig::default(),
+        |hit| {
+            if let Some(followed) = steep_contact_shear(**hit.normal, *hit.velocity) {
+                *hit.velocity = followed;
+            }
+            MoveAndSlideHitResponse::Accept
+        },
+    );
+    (out.position, out.projected_velocity)
+}
+
 /// The overhang line, just below zero: an axis-aligned wall's normal has `y = ±0` by rounding, and
 /// both signs must read as a wall.
 const OVERHANG_EPS: f32 = -1.0e-4;
@@ -896,6 +949,41 @@ mod tests {
     use crate::player::AIR_NUDGE_SPEED;
     use crate::player::CAPSULE_RADIUS;
     use bevy::ecs::system::RunSystemOnce;
+
+    /// [`super::step`] with Quake 3 movement off: these tests pin WoW's mover, which switched off
+    /// must come back unchanged.
+    #[cfg(feature = "q3_movement")]
+    fn step(
+        player: &mut Player,
+        time: &Time,
+        world: &benilla_world::collision::WorldCollision<'_, '_>,
+        capsule: &Collider,
+        moving: bool,
+        dir: Vec3,
+        speed: f32,
+        want_jump: bool,
+        wire_jump: bool,
+        knockback: Option<Vec3>,
+        water_floor: Option<f32>,
+        nudge_speed: f32,
+    ) -> Outcome {
+        crate::q3move::with_wow_mover(|| {
+            super::step(
+                player,
+                time,
+                world,
+                capsule,
+                moving,
+                dir,
+                speed,
+                want_jump,
+                wire_jump,
+                knockback,
+                water_floor,
+                nudge_speed,
+            )
+        })
+    }
 
     /// A Stormwind Trade District kerb: a 0.28 yd sidewalk behind a ~61° bevel, profiled from a
     /// `stup` scan at the spot.

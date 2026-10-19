@@ -503,6 +503,19 @@ pub(super) fn control(
         if let Some(surface) = surface_y {
             move_trace::swim(player.pos.y, surface, swimming, player.collision_height.0);
         }
+        // Quake 3 movement's auto-hop: jump held through an arc jumps again on the landing frame,
+        // which the mover takes as a take-off, so no friction frame comes between. Only an arc in
+        // progress re-arms it, never a swimmer, so the mounted flourish and the breach still need
+        // a press.
+        #[cfg(feature = "q3_movement")]
+        if crate::q3move::enabled()
+            && !swimming
+            && player.airborne_since.is_some()
+            && may_translate
+            && binds.command_held("JUMP")
+        {
+            want_jump = true;
+        }
         // Space while swimming is the Jump command (`0x7c6230`), once per press: it breaches at
         // the surface and hops about 1.6 yd below it, re-latching swim once the launch halves
         // (`0x7c5de0`). It clears SWIMMING before the mover, so this frame's mover, flags and wire

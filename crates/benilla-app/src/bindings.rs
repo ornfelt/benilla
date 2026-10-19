@@ -157,6 +157,13 @@ impl BindingsState {
     pub(crate) fn fired(&self, i: Input) -> bool {
         self.fired.contains(&i)
     }
+    /// Is a key bound to `command` (`"JUMP"`) still down from its press: every press latches its
+    /// command until the release. Quake 3 movement's auto-hop reads a held jump here, since JUMP's
+    /// `Jump()` is a one-shot with no held bit.
+    #[cfg(feature = "q3_movement")]
+    pub(crate) fn command_held(&self, command: &str) -> bool {
+        self.latched.iter().any(|(_, c)| c == command)
+    }
     /// Total amount for a one-shot this frame (0.0 when idle): the camera zoom's yards.
     pub(crate) fn amount(&self, i: Input) -> f32 {
         self.amounts
