@@ -1545,7 +1545,7 @@ schedule Update
     in UiFeed
   184 benilla_app::vplates::feed_plate_globals
     in UiFeed
-  185 benilla_app::ui_merchant::feed_repair_all_cost
+  185 benilla_app::ui_merchant::feed_repair_costs
     in UiFeed
   186 benilla_app::ui_char::feed_char
     in UiFeed
@@ -3200,7 +3200,7 @@ schedule Update
   benilla_app::ui_loot::drain_loot -> TargetUpdate
   benilla_app::ui_macro::rebind_macro_spells -> UnitFeed
   benilla_app::ui_merchant::end_repair_mode_on_right_press -> benilla_app::spell::targeting::cursor::drive_targeting_cursor
-  benilla_app::ui_merchant::feed_repair_all_cost -> type(benilla_app::ui_char::feed_char)
+  benilla_app::ui_merchant::feed_repair_costs -> type(benilla_app::ui_char::feed_char)
   benilla_app::ui_pass::clear_ui_overlays -> UiQuadAppend
   benilla_app::ui_pet::drain::pet_stop_on_old_target_clear -> type(benilla_app::ui_pet::bar::feed_pet_bar)
   benilla_app::ui_pet_book::feed_pet_book -> CooldownEvents
