@@ -26,7 +26,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 
 | # | Commit | Date | Origin | Subject | gfx-dll-backend | trimmed-bevy | Handling | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `05a9be68` | 2026-09-27 | upstream | UnitBuff and UnitDebuff answer for party1-4 and partypet1-4: the live unit's slots, else the roster record's slot-indexed aura block, with UNIT_AURA on each change (#470) | pending | pending | - |  |
+| 1 | `05a9be68` | 2026-09-27 | upstream | UnitBuff and UnitDebuff answer for party1-4 and partypet1-4: the live unit's slots, else the roster record's slot-indexed aura block, with UNIT_AURA on each change (#470) | as-is | as-is f5dd909f | as-is | no gfx side: UI script, party records and the group stats parser (wire: the party member stats aura block is now parsed); schedule unchanged (Windows frame dump identical); check with and without gfx and protocol tests green, app lib tests show only the known Windows-only failures; Windows only |
 | 2 | `03b10722` | 2026-09-27 | upstream | A script's selection, cast and targeting-cursor calls apply in the order it made them, so a macro's /target then /cast casts at the new target (#473) | pending | pending | - |  |
 | 3 | `bd074c3f` | 2026-09-27 | upstream | After thirty idle minutes the logout warning prints once per logout: the idle leg, line and request, is skipped while a logout is pending (0x482ef5) (#474) | pending | pending | - |  |
 | 4 | `0237dbd1` | 2026-09-27 | upstream | Geosets above 1700 stay visible, as 1.12.1 switches off only 0 to 1700: an asset pack's Night Elf eye glow on 1702 shows (#438) | pending | pending | - |  |
