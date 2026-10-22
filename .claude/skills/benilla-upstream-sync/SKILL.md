@@ -264,6 +264,14 @@ for a row it changes, say in the run's output what it was and what it is now.
 
 ## A run
 
+**How a commit is applied.** Merge it as is first and let git apply it. Then resolve the
+conflicts, and make only the manual fixes the branch's own behaviour needs: gfx-dll-backend's gated
+gfx side (step 2), trimmed-bevy's gfx-only code and trimmed Bevy (step 3). Everything else stays as
+`main` has it. Always land a commit with `git merge`, never `git cherry-pick`: a cherry-pick makes
+a new commit, so `<branch>..main` would still list the original and the next merge of `main` would
+apply its change again. A cherry-pick is only the starting point of a replay (see "Replaying"),
+where the commit is already in the branch's ancestry.
+
 **Order.** Take the `pending` rows in ledger order - commit-date order, parents first - each
 through both branches. Upstream, fork and merge rows are walked alike.
 
