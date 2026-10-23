@@ -104,6 +104,7 @@ const PUBLISHED: &[(&str, &str)] = &[
     ("doodad_anim::spawn_anim_host", "record"),
     ("ffx_glow::FfxBackdrop", "record"),
     ("ffx_glow::FfxGlow", "record"),
+    ("ffx_glow::FfxSwitches", "record"),
     ("ffx_glow::GlueFfx", "record"),
     ("instance_tint::InstanceTintMirrors", "record"),
     ("instance_tint::InstanceTints", "record"),
