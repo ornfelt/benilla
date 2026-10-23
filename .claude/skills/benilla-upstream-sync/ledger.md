@@ -410,7 +410,50 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 
 ## Flagged for upstream
 
-None yet.
+Four tests that fail on every Windows checkout, each from an upstream commit before the fork point
+(so no ledger row): they read source paths or source text and assume `/` separators and LF line
+endings, where Windows has `\` and, under `core.autocrlf=true` (Git for Windows' default), CRLF.
+They fail identically on both branches at every merge of this sync, so a branch failure in them is
+not caused by the commit being merged.
+
+- `5c9d919a` signpost tooltips survive the map, and the quest log stops blanking (before #468) -
+  `ui_script::verb_event_gate::the_declared_rows_are_still_true` fails on Windows with "stale
+  declarations: ELSEWHERE ClickAuctionSellItemButton -> NEW_AUCTION_UPDATE: no source file ends
+  with benilla-app/src/ui_auction/mod.rs" and the like for every row. Repro: `cargo test -p
+  benilla-app --lib verb_event_gate` on Windows. Cause: `verb_event_gate.rs:327` matches
+  `p.to_string_lossy().ends_with(file)` with a `/`-separated `file` against a `\`-separated path
+  (and `short()` at `:240` splits on `"/crates/"`, so Windows messages show whole absolute paths).
+  Suggested fix: compare `p.ends_with(Path::new(file))` (component-wise), or normalize
+  `to_string_lossy().replace('\\', "/")` once in `sources()`. PR: samwhosung/benilla. State: open.
+- `5c9d919a` (same commit) - `ui_script::verb_event_gate::every_event_the_reference_fires_from_a_verb_is_fired_by_the_verb_s_module`
+  fails on Windows with `AddSkillUp -> SKILL_LINES_CHANGED` and `RemoveSkillUp ->
+  SKILL_LINES_CHANGED` "registered in ...\reference_ui.rs; fired only by ...\ui_char.rs". Repro:
+  as above. Cause: `sources()` cuts each file's test module at `whole.rfind("#[cfg(test)]\nmod ")`
+  (`verb_event_gate.rs:221`), which never matches CRLF text, so test modules are scanned as
+  source, and `reference_ui.rs`'s test module (from `:84`) quotes `"AddSkillUp"` (`:1129`) in its
+  list of unbuilt 5875 bindings, making it look like a registrar. Suggested fix: strip `\r`
+  before searching (`whole.replace("\r\n", "\n")`), or add a `.gitattributes` with `*.rs text
+  eol=lf`, which fixes this and the next entry for every Windows clone. PR: samwhosung/benilla.
+  State: open.
+- `0cd0a289` edit boxes take focus the way 1.12 does, and the stable shows its pets (before
+  #468) - `ui_session::tests::every_npc_session_is_portrait_bound_or_explicitly_excluded` panics
+  with "end of feed_interact_npc" on Windows. Repro: `cargo test -p benilla-app --lib
+  ui_session::tests` on Windows. Cause: it reads its own file with `include_str!("ui_session.rs")`
+  and splits at `"\n}\n"` (`ui_session.rs:391`), which CRLF text does not contain. Suggested fix:
+  normalize the `include_str!` text with `.replace("\r\n", "\n")` before splitting, or the
+  `.gitattributes` rule above. PR: samwhosung/benilla. State: open.
+- `251daa14` addons come alive: Bagnon draws, hovers and clicks (before #468) - benilla-ui's
+  `script::tests::stdlib::an_addon_chunk_is_named_the_way_the_client_names_it` fails on Windows:
+  FuBar's greedy `"\\AddOns\\(.*)\\"` yields `FuBar_BagFu\FuBar_BagFu.lua:1: in function
+  'BenillaProbeFolder'\ncrates\benilla-ui\src\script` instead of `FuBar_BagFu`. Repro: `cargo test
+  -p benilla-ui --lib stdlib` on Windows. Cause: test-only. `debugstack(1, 1, 0)` returns two
+  frames at that depth, as the reference does (`debugstack_frames_end_in_newline_and_count1_does_not_clamp`),
+  and the second is the chunk `UiScript::eval` (`script/mod.rs:771`) loaded, which mlua names after
+  the Rust caller's location; on Windows that path's backslashes extend the greedy capture past the
+  addon's folder, on Linux and macOS its `/` does not. The client's own chunk naming is right.
+  Suggested fix: name the probe's calling chunk without a host path (run the call through
+  `run_chunk_named` with a plain name, or have `eval` set `.set_name("=eval")`). PR:
+  samwhosung/benilla. State: open.
 
 ## Open questions
 
