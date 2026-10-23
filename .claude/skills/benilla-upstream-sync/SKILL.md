@@ -40,6 +40,15 @@ branch must still work with the gfx DLL afterwards, but every change on `main` i
   `git show --remerge-diff <sha>` (cross-checked with `git show --cc <sha>`) is empty only joins
   its parents, which land as their own rows. A merge that resolved a conflict in code, or changed
   anything beyond its parents, is ported like any other commit.
+- **Caught up means nothing behind.** Every commit the walk has passed - landed, adapted,
+  `not-applicable`, `skipped` - ends up in the branch's ancestry, so GitHub never says the branch
+  is behind `main` for a commit already dealt with. GitHub's "N commits behind" is
+  `git rev-list --count <branch>..main`: a branch is level with `main` only when that is 0, and
+  while it is behind, the count is exactly the commits not walked yet (`pending`, `asked` and what
+  follows them). That is why every commit lands by `git merge` (a cherry-pick leaves the original
+  out of the ancestry) and why a skipped no-change merge is recorded by an empty merge when no later
+  merge brings it in (step 0, "At the end of the run"). Only the maintainer's push shows it on
+  GitHub; `main` moving on GitHub afterwards makes the branch behind again until the next run.
 
 `ledger.md` in this skill's folder records every commit on `main` after the fork point and how it
 landed on each branch - including the ones not looked at yet.
@@ -140,8 +149,9 @@ Decide from the argument:
    gfx-dll-backend, then carry on as continue.
 3. **Status** - `status`. Fetch, then report per branch: merged through, how many commits remain
    (the pending rows plus the commits on `main` the ledger has no row for yet), the next one, the
-   open questions, the open upstream flags, disk space. **Write nothing** (the `main` fast-forward
-   aside).
+   open questions, the open upstream flags, disk space, and per branch
+   `git rev-list --count <branch>..main` (what GitHub shows as behind) with any skipped no-change
+   merge it still lists. **Write nothing** (the `main` fast-forward aside).
 4. **Fetch** - `fetch`. Do "Fetching", report, stop.
 5. **Rebuild** - `rebuild`. Redo the ledger from git per "Picking up the current state", keeping
    the notes, Special handling entries and flags of rows that are still right, commit it on
@@ -159,9 +169,10 @@ Decide from the argument:
 `ledger.md` sits beside this file on gfx-dll-backend and is the only ledger, for both branches. It
 is a hint: **git is the truth.** `git rev-list --reverse <branch>..main` lists exactly what a
 branch still lacks, because every decided commit - including one that does not apply - is merged
-(the one exception: a skipped merge that changes nothing, which rides in with the next merged
-commit that descends from it, see step 0 of "A run"). Where the ledger disagrees with git, git
-wins and the rows are rebuilt per "Picking up the current state" in the same run.
+(a skipped merge that changes nothing rides in with the next merged commit that descends from it,
+or is recorded by an empty merge at the end of the run, see step 0 of "A run"; between those it is
+the one decided commit still listed). Where the ledger disagrees with git, git wins and the rows
+are rebuilt per "Picking up the current state" in the same run.
 
 ```markdown
 # benilla upstream sync ledger
@@ -180,8 +191,10 @@ Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the chang
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
 change - the notes say what), `already-in` (the branch had the change already; the merge kept the
 branch's version), `not-applicable` (merged with `-s ours`, nothing of it fits the branch - the
-notes say why), `skipped` (a merge that changes nothing, or the maintainer decided not to land it),
-`asked` (waiting on the maintainer, nothing merged on that branch).
+notes say why), `skipped` (a merge that changes nothing, or the maintainer decided not to land it;
+a no-change merge recorded by an empty merge carries that merge's sha), `asked` (waiting on the
+maintainer, nothing merged on that branch). A branch is level with `main` - nothing behind on
+GitHub - when `git rev-list --count <branch>..main` is 0.
 
 Origin: `upstream` (in samwhosung/benilla), `fork` (made on ornfelt/benilla, not in upstream),
 `merge` (a merge commit on `main`).
@@ -234,7 +247,8 @@ maintainer's decision>)`>
   format, a shader, the schedule (`frame.txt`) or the vendored Bevy. The Special handling entry
   carries the full story; the note can point to it.
 - "merged through" (the last row before the branch's first row that is still `pending` or `asked`)
-  and "remaining" are recomputed every run from git, not carried over.
+  and "remaining" are recomputed every run from git, not carried over: "remaining" is
+  `git rev-list --count <branch>..main`, the number GitHub shows as behind.
 
 ### Picking up the current state
 
@@ -296,9 +310,10 @@ git -C "$GFX" show --cc "$U"
 
 Its parents have rows above it, so they are already through. **Empty** - it only joins its
 parents: record it `skipped (merge, changes nothing)` on both branches, Handling `as-is`, and go
-on with the next row; no merge of its own. It enters each branch with the next merged commit that
-descends from it, and until then `git rev-list <branch>..main` still lists it - a branch whose
-only unmerged commits are such skipped merges is level with `main`. **Not empty** - a conflict
+on with the next row; no merge of its own mid-walk. It enters each branch with the next merged
+commit that descends from it. When the run ends with no such commit merged - the merge is `main`'s
+tip, or the run stops right after it - it is recorded by an empty merge then ("At the end of the
+run"), so the branch is not left behind `main` for it. **Not empty** - a conflict
 resolved in code, or anything beyond its parents: it is ported like any other commit, through
 steps 1-5, where "the change" is its `--remerge-diff`. The merge into a branch then brings exactly
 that.
@@ -454,6 +469,17 @@ Fork 3503592a merged as is - Quake 3 movement behind the q3_movement feature (of
 - When the local server is up and `.probe-identity` exists: `scripts/smoke.sh` on the gfx build
   of each branch the run changed beyond as-is merges. Without a probe account, never log in - say
   so.
+- **No skipped merge left behind.** Per branch (trimmed-bevy first), list the rows the walk has
+  passed that are still outside the ancestry: `git rev-list <branch>..main` minus the `pending` and
+  `asked` rows and everything after the branch's first one. Only skipped no-change merges can be
+  left; anything else is a ledger/git disagreement to rebuild. Merge the last of them (the others it
+  descends from come with it; merge any that do not separately), then prove it changes nothing
+  before committing: `git merge --no-ff --no-commit <sha>` then `git diff --cached HEAD --stat` is
+  empty - a non-empty diff means a parent is not through, so abort and say so. Commit it as
+  `Merge <sha> skipped, changes nothing - recorded with an empty merge so <branch> is not behind
+  main for it`, put the merge sha in that row's cell (`skipped (merge, changes nothing) <sha>`),
+  and recompute the remaining counts. When both branches have walked every row,
+  `git rev-list --count <branch>..main` is 0 on each.
 - `git -C "$GFX" status --short` and `git -C "$TB" status --short` empty.
 
 ## gfx triggers
@@ -548,5 +574,6 @@ Every run ends with:
    they are now.
 8. **Commits** - per branch the commits made (short sha and subject), and in the gfx repo if any.
    Never pushed.
-9. A last line: `Next: <origin> <sha> <subject>` - or that both branches are level with `main`,
-   which is a correct run. **Do not invent work** when nothing is left.
+9. A last line: `Next: <origin> <sha> <subject>` - or that both branches are level with `main`
+   (`git rev-list --count <branch>..main` is 0 on each, so GitHub shows neither behind once
+   pushed), which is a correct run. **Do not invent work** when nothing is left.

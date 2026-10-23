@@ -14,8 +14,10 @@ Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the chang
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
 change - the notes say what), `already-in` (the branch had the change already; the merge kept the
 branch's version), `not-applicable` (merged with `-s ours`, nothing of it fits the branch - the
-notes say why), `skipped` (a merge that changes nothing, or the maintainer decided not to land it),
-`asked` (waiting on the maintainer, nothing merged on that branch).
+notes say why), `skipped` (a merge that changes nothing, or the maintainer decided not to land it;
+a no-change merge recorded by an empty merge carries that merge's sha), `asked` (waiting on the
+maintainer, nothing merged on that branch). A branch is level with `main` - nothing behind on
+GitHub - when `git rev-list --count <branch>..main` is 0.
 
 Origin: `upstream` (in samwhosung/benilla), `fork` (made on ornfelt/benilla, not in upstream),
 `merge` (a merge commit on `main`).
