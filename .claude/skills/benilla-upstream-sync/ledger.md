@@ -8,7 +8,7 @@ commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `ups
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
 gfx-dll-backend merged through: `666300c6` doodad anim gate: a meshed host is drawn only while its fade sphere intersects the world camera's frustum, like a meshless one (#633) - 320 remaining
 trimmed-bevy merged through: `666300c6` doodad anim gate: a meshed host is drawn only while its fade sphere intersects the world camera's frustum, like a meshless one (#633) - 320 remaining
-`main` when last fetched: `daf1bc9b` Merge branch 'samwhosung:main' into main (2026-10-25)
+`main` when last fetched: `dcd643ba` Merge branch 'samwhosung:main' into main (2026-10-25)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
@@ -83,7 +83,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 53 | `06f9cc93` | 2026-09-29 | upstream | char create: the CharBaseInfo guard requires every shipped race/class pair and lets a patch add more, as the class-list builder lists every row (#631) | as-is b02088cb | as-is 27973f07 | as-is | no gfx side (char create's CharBaseInfo guard requires every shipped race/class pair and lets a patch add more, as the class-list builder lists every row; DBC format only); feature-off diff unchanged by the merge; check with and without gfx, formats lib tests green; Windows only |
 | 54 | `cd441385` | 2026-09-29 | upstream | zone music: a start that plays nothing leaves the pump armed, so the next frame retries with a fresh pick, and a bad path warns once (#632) | as-is f40dec61 | as-is 6d12c848 | as-is | no gfx side (zone music: a start that plays nothing leaves the pump armed, so the next frame retries with a fresh pick, and a bad path warns once; sound only); feature-off diff unchanged by the merge; check with and without gfx, app lib tests show only the known Windows-only failures, trimmed-bevy frame unchanged; Windows only |
 | 55 | `666300c6` | 2026-09-29 | upstream | doodad anim gate: a meshed host is drawn only while its fade sphere intersects the world camera's frustum, like a meshless one (#633) | as-is 55489b77 | as-is ef228969 | as-is | no gfx side (a meshed doodad host is animated only while its fade sphere intersects the world camera's frustum, like a meshless one; the gate reads the world camera's main-world Frustum, which bevy_camera's update_frusta keeps under gfx too); feature-off diff unchanged by the merge; check with and without gfx, world lib tests green; Windows only |
-| 56 | `f768cf3e` | 2026-09-29 | upstream | CastSpellByName's onSelf and CastSpell's third argument cast the spell at the player, the pet book's at the player too, read through GetBoolOrDefault as the reference does (#634) | pending | pending | - |  |
+| 56 | `f768cf3e` | 2026-09-29 | upstream | CastSpellByName's onSelf and CastSpell's third argument cast the spell at the player, the pet book's at the player too, read through GetBoolOrDefault as the reference does (#634) | as-is | as-is f3222776 | as-is | no gfx side (script cast verbs and the spell/pet-book cast target: onSelf and CastSpell's third argument cast at the player); feature-off diff unchanged by the merge; check with and without gfx, app and ui tests show only the known Windows-only failures (app lib built with the uncommitted symlink fix, see Flagged for upstream); frame test unchanged; Windows only |
 | 57 | `66340800` | 2026-09-29 | upstream | unit tokens: partypetN and raidpetN resolve to the member's held pet, tested before party and raid, and the reach feeds cover them (#635) | pending | pending | - |  |
 | 58 | `0e04e54f` | 2026-09-29 | upstream | pet bar: a spell press starts the pet's global cooldown on the pet's list, as 1.12.1's spell arm does before it sends (#636) | pending | pending | - |  |
 | 59 | `8ef62da6` | 2026-09-29 | upstream | spell bind: BindTarget's unit gates run ahead of the relation arms at the press, the click and the hover, through one creature-type resolver (#640) | pending | pending | - |  |
@@ -403,6 +403,153 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 373 | `9bfa6245` | 2026-10-19 | merge | Merge branch 'main' of https://github.com/ornfelt/benilla | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
 | 374 | `9a5f2a56` | 2026-10-19 | upstream | Release 0.3.0 (#1979) | pending | pending | - |  |
 | 375 | `daf1bc9b` | 2026-10-19 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
+| 376 | `b305e6af` | 2026-10-19 | upstream | Main is 0.2.0 again until 0.3.0 ships (#1980) | pending | pending | - |  |
+| 377 | `17d8b0e5` | 2026-10-19 | upstream | CI runs the workspace tests on Windows (#1981) | pending | pending | - |  |
+| 378 | `c0e301ea` | 2026-10-20 | upstream | A Lua cast arms inside its call, through a host lent to the VM (#1992) | pending | pending | - |  |
+| 379 | `851a349d` | 2026-10-20 | upstream | CI's Windows tests run every crate and name a test that crashes (#1995) | pending | pending | - |  |
+| 380 | `b14793c2` | 2026-10-20 | upstream | The combat log fills deDE's numbered holes, so a German client prints its fights (#1994) | pending | pending | - |  |
+| 381 | `abcdced1` | 2026-10-20 | upstream | A frame in a saved variable writes as its name, as 1.12.1 writes it (#1996) | pending | pending | - |  |
+| 382 | `eaf93054` | 2026-10-20 | upstream | The party and raid roster reads and signals as 1.12.1's does (#2010) | pending | pending | - |  |
+| 383 | `adbfedc3` | 2026-10-20 | upstream | Every text file checks out with LF on every platform (#2011) | pending | pending | - |  |
+| 384 | `7dfd17e5` | 2026-10-20 | upstream | Unit relations answer from one model of the reference's functions (#2017) | pending | pending | - |  |
+| 385 | `a6dbffd8` | 2026-10-20 | upstream | Windows audio keeps COM's shared apartment for cpal's one enumerator (#2018) | pending | pending | - |  |
+| 386 | `18ab7d84` | 2026-10-20 | upstream | math.sin, math.cos and math.tan answer past the x87's range as 1.12.1 (#2019) | pending | pending | - |  |
+| 387 | `85feb2c8` | 2026-10-20 | upstream | Cast reports and events happen inside the call, as 1.12.1's do (#2023) | pending | pending | - |  |
+| 388 | `927f0117` | 2026-10-20 | upstream | Test gates run under cargo-nextest, doctests beside them (#2036) | pending | pending | - |  |
+| 389 | `e9796754` | 2026-10-20 | upstream | The ui_quad shader test finds its file on Windows too (#2037) | pending | pending | - |  |
+| 390 | `c958f22c` | 2026-10-20 | upstream | The combat log, combat text and UNIT_COMBAT follow the reference (#2047) | pending | pending | - |  |
+| 391 | `9950c469` | 2026-10-20 | upstream | Item tooltips draw 1.12.1's lines for every source (#2050) | pending | pending | - |  |
+| 392 | `0ab3a3b5` | 2026-10-20 | upstream | Update packets write every block, then notify, and release objects (#2057) | pending | pending | - |  |
+| 393 | `76bff74b` | 2026-10-20 | upstream | The world frame takes 3-byte sizes; dials and clocks follow 1.12.1 (#2059) | pending | pending | - |  |
+| 394 | `c678c196` | 2026-10-20 | upstream | Unit, spell and aura tooltips draw 1.12.1's lines (#2072) | pending | pending | - |  |
+| 395 | `77cc954e` | 2026-10-20 | upstream | check.sh runs the no-install test pass, as the land gates do (#2080) | pending | pending | - |  |
+| 396 | `a66dc2d9` | 2026-10-20 | upstream | Combat text raises 1.12.1's words, SPELL_ACTIVE and swing actions (#2081) | pending | pending | - |  |
+| 397 | `58f3b05b` | 2026-10-20 | upstream | Glue cleans realm names, seeds agreements once and flags new characters (#2085) | pending | pending | - |  |
+| 398 | `b39d928f` | 2026-10-20 | upstream | Action bar answers and events follow 1.12.1's producers (#2090) | pending | pending | - |  |
+| 399 | `914b44b4` | 2026-10-20 | upstream | Group leader tests, loot lines, kicks and subgroups follow 1.12.1 (#2091) | pending | pending | - |  |
+| 400 | `44e4032a` | 2026-10-20 | upstream | Combat-log lines take 1.12.1's types, names, XP forms and arguments (#2096) | pending | pending | - |  |
+| 401 | `374556ae` | 2026-10-20 | upstream | The game clock and its server messages follow 1.12.1 (#2097) | pending | pending | - |  |
+| 402 | `33067c38` | 2026-10-20 | upstream | Console commands and CVar defaults follow 1.12.1's registrations (#2104) | pending | pending | - |  |
+| 403 | `70432f05` | 2026-10-20 | upstream | TGA, spell text, MCNR and DBC readers read what 1.12.1 reads (#2106) | pending | pending | - |  |
+| 404 | `b3fbaa86` | 2026-10-20 | upstream | World clicks, attack starts and /target follow 1.12.1's gates (#2117) | pending | pending | - |  |
+| 405 | `275feba8` | 2026-10-21 | upstream | Macros sort, hold ids and bind pet spells as 1.12.1's do (#2126) | pending | pending | - |  |
+| 406 | `848ede6a` | 2026-10-21 | upstream | Font objects, CopyFontObject and guild names follow 1.12.1 (#2127) | pending | pending | - |  |
+| 407 | `33d49c34` | 2026-10-21 | upstream | Vsync on is a paced AutoNoVsync on NVIDIA Vulkan on Windows (maximize crashes the driver in Fifo) (#2058) | pending | pending | - |  |
+| 408 | `74c9430e` | 2026-10-21 | upstream | TradeSkill order, selection, folds and the craft button follow 1.12.1 (#2130) | pending | pending | - |  |
+| 409 | `3575b123` | 2026-10-21 | upstream | Object updates run 1.12.1's passes, holds and create-hook asks (#2131) | pending | pending | - |  |
+| 410 | `c6ecbcb0` | 2026-10-21 | upstream | Five comments cite the reference facts they name (#2134) | pending | pending | - |  |
+| 411 | `fcb42ab4` | 2026-10-21 | upstream | Script calls apply inside their verb, in one ordered VM pass (#2143) | pending | pending | - |  |
+| 412 | `66b73cd6` | 2026-10-21 | upstream | Cast failures report and cancel as 1.12.1 does (#2149) | pending | pending | - |  |
+| 413 | `84adc39a` | 2026-10-21 | upstream | Taxi routes, fares and node verbs follow 1.12.1 (#2151) | pending | pending | - |  |
+| 414 | `e568853a` | 2026-10-21 | upstream | Client-side cast gates refuse what 1.12.1 refuses before the send (#2156) | pending | pending | - |  |
+| 415 | `4d6f9ecc` | 2026-10-21 | upstream | The target-of-target rows only write their globals, as 1.12's options do (#2150) | pending | pending | - |  |
+| 416 | `fa835364` | 2026-10-21 | upstream | Sit, sheathe and attack start read 1.12.1's precast and refusals (#2164) | pending | pending | - |  |
+| 417 | `47db337f` | 2026-10-21 | upstream | Spell cooldowns insert and fire at 1.12.1's sites (#2166) | pending | pending | - |  |
+| 418 | `f6d2d44d` | 2026-10-21 | upstream | Pet casts, CastSpellByName and two chat verbs run as 1.12.1 runs them (#2170) | pending | pending | - |  |
+| 419 | `3387c822` | 2026-10-21 | upstream | Unit getters read the unit they name; item events fire for every player (#2176) | pending | pending | - |  |
+| 420 | `802ecec6` | 2026-10-21 | upstream | Party and raid roster lines, getters and verbs follow 1.12.1 (#2182) | pending | pending | - |  |
+| 421 | `86ef431d` | 2026-10-21 | upstream | Verbs apply inside their call, and packet events fire in wire order (#2184) | pending | pending | - |  |
+| 422 | `9f683d74` | 2026-10-21 | upstream | Spell packets, cancels and the cast slot follow 1.12.1, with no timers (#2186) | pending | pending | - |  |
+| 423 | `591358af` | 2026-10-21 | upstream | Auction lists sort, count down and refuse sells as 1.12.1's do (#2193) | pending | pending | - |  |
+| 424 | `ef3d591b` | 2026-10-21 | upstream | The selection holds a guid, and the token verbs reach any unit (#2199) | pending | pending | - |  |
+| 425 | `784715dc` | 2026-10-21 | upstream | Chat channels take, free and name their slots as 1.12.1 does (#2204) | pending | pending | - |  |
+| 426 | `aa25486d` | 2026-10-22 | upstream | Loot verbs, packets and auto-loot act where 1.12.1 acts (#2209) | pending | pending | - |  |
+| 427 | `521e9f22` | 2026-10-22 | upstream | Deaths, auto-repeat stops and attack stops follow 1.12.1 (#2211) | pending | pending | - |  |
+| 428 | `98e0a934` | 2026-10-22 | upstream | Auction commands, results and notices act as 1.12.1's do (#2213) | pending | pending | - |  |
+| 429 | `b8886743` | 2026-10-22 | upstream | The friends and ignore lists follow 1.12.1's FriendList (#2216) | pending | pending | - |  |
+| 430 | `85ba44b4` | 2026-10-22 | upstream | Party and raid verbs act in their call with 1.12.1's gates and lines (#2218) | pending | pending | - |  |
+| 431 | `0689a074` | 2026-10-22 | upstream | The mailbox reads, lists and sends mail as 1.12.1 does (#2219) | pending | pending | - |  |
+| 432 | `1958f4fe` | 2026-10-22 | upstream | The /who search, list and chat lines follow 1.12.1's builder (#2221) | pending | pending | - |  |
+| 433 | `2766b03b` | 2026-10-22 | upstream | The trade window opens, links, enchants and accepts as 1.12.1 does (#2223) | pending | pending | - |  |
+| 434 | `c18315fd` | 2026-10-22 | upstream | UI events fire in packet order from one stamped drain (#2225) | pending | pending | - |  |
+| 435 | `0367a2c2` | 2026-10-22 | upstream | Cast, form, group and auction events fire in packet order (#2226) | pending | pending | - |  |
+| 436 | `601438a7` | 2026-10-22 | upstream | Quest windows, log and gossip act as 1.12.1's do (#2229) | pending | pending | - |  |
+| 437 | `b493903e` | 2026-10-22 | upstream | Trainer, taxi and merchant windows act as 1.12.1's do (#2233) | pending | pending | - |  |
+| 438 | `ff69fb08` | 2026-10-22 | upstream | A gather's owed loot close no longer shuts the window its response opens (#2234) | pending | pending | - |  |
+| 439 | `716ffdd1` | 2026-10-22 | upstream | Guild roster, charters and tabards act as 1.12.1's do (#2235) | pending | pending | - |  |
+| 440 | `7d1c4f5e` | 2026-10-22 | upstream | Item, item-push and loot events fire in packet order (#2236) | pending | pending | - |  |
+| 441 | `4a1d1fc7` | 2026-10-22 | upstream | Skill and reputation lists keep their folds; their verbs act in the call (#2239) | pending | pending | - |  |
+| 442 | `533d3ce5` | 2026-10-22 | upstream | Bag, cursor and doll verbs follow 1.12.1 and send inside their call (#2253) | pending | pending | - |  |
+| 443 | `6115f6bb` | 2026-10-22 | upstream | Pet bar, unit, cooldowns and stable follow 1.12.1; verbs act in the call (#2254) | pending | pending | - |  |
+| 444 | `b63b2bb1` | 2026-10-22 | upstream | Console commands and CVars follow 1.12.1; Lua's date and time are local (#2257) | pending | pending | - |  |
+| 445 | `14d11531` | 2026-10-23 | upstream | Bag, lock, bank and money events fire in their watchers' runs (#2260) | pending | pending | - |  |
+| 446 | `1fc327ef` | 2026-10-23 | upstream | Trainer filters, groups and NPC windows follow 1.12.1 (#2261) | pending | pending | - |  |
+| 447 | `e95a29b8` | 2026-10-23 | upstream | One live reputation store; at-war and rank changes follow 1.12.1 (#2265) | pending | pending | - |  |
+| 448 | `dfbcd156` | 2026-10-23 | upstream | Chat verbs, the drunk slur, /chatlist and DoEmote follow 1.12.1 (#2269) | pending | pending | - |  |
+| 449 | `419f9c2e` | 2026-10-23 | upstream | Targeting, your own death and race sides follow 1.12.1 (#2270) | pending | pending | - |  |
+| 450 | `4c2cce97` | 2026-10-23 | upstream | Macros and the action bar's range and events follow 1.12.1 (#2273) | pending | pending | - |  |
+| 451 | `09c44a47` | 2026-10-23 | upstream | Item links, suffixes, makers and wrapped items follow 1.12.1 (#2274) | pending | pending | - |  |
+| 452 | `e8f5a473` | 2026-10-23 | upstream | Combat log, monster chat and loot lines follow 1.12.1 (#2279) | pending | pending | - |  |
+| 453 | `de40cb1b` | 2026-10-23 | upstream | A selection verb's events fire inline, at 1.12.1's signal points (#2281) | pending | pending | - |  |
+| 454 | `ebe0b272` | 2026-10-23 | upstream | UI textures load and widget methods check receivers as 1.12.1 does (#2283) | pending | pending | - |  |
+| 455 | `fbc4711d` | 2026-10-23 | upstream | NPC windows read the npc token at their show; faction bits shift as shl (#2285) | pending | pending | - |  |
+| 456 | `8c944122` | 2026-10-23 | upstream | Seven window verbs follow 1.12.1's reads, caps and events (#2286) | pending | pending | - |  |
+| 457 | `42b532dc` | 2026-10-23 | upstream | Unit listeners read the unit as their own packet left it (#2288) | pending | pending | - |  |
+| 458 | `2019beb7` | 2026-10-23 | upstream | Attack, cast and engine selection signals fire in place, as in 1.12.1 (#2290) | pending | pending | - |  |
+| 459 | `3aaaa505` | 2026-10-23 | upstream | Party, raid, pet and aura listeners read their own packet's state (#2292) | pending | pending | - |  |
+| 460 | `11663c27` | 2026-10-23 | upstream | Trade skill, craft and reputation verbs index and update as 1.12.1 does (#2294) | pending | pending | - |  |
+| 461 | `38cdd640` | 2026-10-23 | upstream | Cursor, equip, bank and vendor verbs gate and wait as 1.12.1 does (#2298) | pending | pending | - |  |
+| 462 | `5050ba7e` | 2026-10-23 | upstream | Attack, selection and death signal in place, as in 1.12.1 (#2299) | pending | pending | - |  |
+| 463 | `8f137c07` | 2026-10-24 | upstream | Pet token, aura gates, world entry and zone PvP follow 1.12.1 (#2301) | pending | pending | - |  |
+| 464 | `9195a4d0` | 2026-10-24 | upstream | Profession, craft and loot windows follow 1.12.1 across reloads (#2308) | pending | pending | - |  |
+| 465 | `017dbf4e` | 2026-10-24 | upstream | Session, tutorial and close verbs act inside their calls (#2309) | pending | pending | - |  |
+| 466 | `f7ed694f` | 2026-10-24 | upstream | Camera, swim pitch, sound and name-check verbs follow 1.12.1 (#2311) | pending | pending | - |  |
+| 467 | `32b4d437` | 2026-10-24 | upstream | Spell text, cast gates, ranges and missiles follow 1.12.1 (#2312) | pending | pending | - |  |
+| 468 | `614827d2` | 2026-10-24 | upstream | Dressing room, loot coins, talents and tickets follow 1.12.1 (#2326) | pending | pending | - |  |
+| 469 | `83cd8e7b` | 2026-10-24 | upstream | Window closes and dialog verbs act inside their calls (#2331) | pending | pending | - |  |
+| 470 | `e94ef2f7` | 2026-10-24 | upstream | World pick, cursor and object use follow 1.12.1 (#2332) | pending | pending | - |  |
+| 471 | `81615822` | 2026-10-24 | upstream | Test fixtures build cheaper clients; check.sh runs each suite once (#2334) | pending | pending | - |  |
+| 472 | `84d7bd7c` | 2026-10-24 | upstream | Try-ons land in call order; ticket reads need a player (#2335) | pending | pending | - |  |
+| 473 | `dc3c4e20` | 2026-10-24 | upstream | Packet verbs send inside their calls; the call host is flat (#2338) | pending | pending | - |  |
+| 474 | `de3487e8` | 2026-10-24 | upstream | Plates, minimap dots and interiors, and tutorials follow 1.12.1 (#2340) | pending | pending | - |  |
+| 475 | `47025970` | 2026-10-24 | upstream | Pet, trainer, world-entry and item-text events fire at their packet (#2346) | pending | pending | - |  |
+| 476 | `bc59b5d1` | 2026-10-24 | upstream | Transports follow 1.12.1's clock, seating and crossing (#2348) | pending | pending | - |  |
+| 477 | `965fda84` | 2026-10-24 | upstream | Action slots, far sight, pet rows, sound picks and despawn follow 1.12.1 (#2349) | pending | pending | - |  |
+| 478 | `359eff41` | 2026-10-24 | upstream | Template caches persist between sessions, as 1.12.1's do (#2352) | pending | pending | - |  |
+| 479 | `53e088b6` | 2026-10-24 | upstream | Console, follow, cache asks and plate verbs act inside their calls (#2354) | pending | pending | - |  |
+| 480 | `308ca91d` | 2026-10-24 | upstream | Pick, plates and minimap follow what the scene drew, as 1.12.1 (#2355) | pending | pending | - |  |
+| 481 | `082506e8` | 2026-10-24 | upstream | Portrait events fire from the drain; a loading portrait draws nothing (#2357) | pending | pending | - |  |
+| 482 | `c23d0163` | 2026-10-24 | upstream | Nine resources are written only when they really change (#2358) | pending | pending | - |  |
+| 483 | `35edbb7c` | 2026-10-25 | upstream | The loading screen pauses OnUpdate; the minimap tooltip lists every blip (#2359) | pending | pending | - |  |
+| 484 | `55bde850` | 2026-10-25 | upstream | Unit getters read the live object, as 1.12.1's do (#2361) | pending | pending | - |  |
+| 485 | `39f6ba86` | 2026-10-25 | upstream | Getters ask for missing records inside their call, as 1.12.1's do (#2366) | pending | pending | - |  |
+| 486 | `7a403d05` | 2026-10-25 | upstream | PIN-protected accounts can log in, as in 1.12.1 (#2367) | pending | pending | - |  |
+| 487 | `2c81c479` | 2026-10-25 | upstream | The login dialog walks every logon state, as 1.12.1's does (#2369) | pending | pending | - |  |
+| 488 | `bc8413b4` | 2026-10-25 | upstream | Item getters read the live item and name cache, as 1.12.1's do (#2375) | pending | pending | - |  |
+| 489 | `1c42fd7d` | 2026-10-25 | upstream | OnUpdate runs after the frame's input, as 1.12.1's does (#2383) | pending | pending | - |  |
+| 490 | `36fa91a4` | 2026-10-25 | upstream | A long teleport holds the last frame until the destination is in (#2385) | pending | pending | - |  |
+| 491 | `19af9500` | 2026-10-25 | upstream | Unattended logins answer a PIN from WOW_PIN or WOW_PIN_TOTP (#2386) | pending | pending | - |  |
+| 492 | `fbc90b9b` | 2026-10-25 | upstream | Test builds open no audio device (#2388) | pending | pending | - |  |
+| 493 | `19437881` | 2026-10-25 | upstream | Stat, money and XP getters read the live object, as 1.12.1's do (#2389) | pending | pending | - |  |
+| 494 | `ce5503ca` | 2026-10-25 | upstream | A dismount during a pending mount load no longer crashes (#2390) | pending | pending | - |  |
+| 495 | `b4f1eb72` | 2026-10-25 | upstream | Decode 1.12.1's intro movies: an AVI reader and an MPEG-4 decoder (#2391) | pending | pending | - |  |
+| 496 | `a1a28e45` | 2026-10-25 | upstream | A far cinematic shot waits at black for its world, as 1.12.1's does (#2392) | pending | pending | - |  |
+| 497 | `0bd7d053` | 2026-10-25 | upstream | A Vulkan presentation stall waits instead of losing the device (#2393) | pending | pending | - |  |
+| 498 | `2d367f41` | 2026-10-25 | upstream | Entering the world clears the battleground winner and scores (#2394) | pending | pending | - |  |
+| 499 | `edd08324` | 2026-10-25 | upstream | Auction class lists answer while addons load, as 1.12.1's do (#2395) | pending | pending | - |  |
+| 500 | `4f1a904b` | 2026-10-25 | upstream | UnitCharacterPoints and UnitOnTaxi answer per unit, as 1.12.1's do (#2396) | pending | pending | - |  |
+| 501 | `96356c79` | 2026-10-25 | upstream | Aura getters read the live unit, as 1.12.1's do (#2397) | pending | pending | - |  |
+| 502 | `1befd040` | 2026-10-25 | upstream | The opening movie plays on first boot and from Cinematics (#2398) | pending | pending | - |  |
+| 503 | `9619157d` | 2026-10-25 | upstream | Unit tokens resolve against the live objects, as 1.12.1's do (#2401) | pending | pending | - |  |
+| 504 | `d3b5df3f` | 2026-10-25 | upstream | A frame's input runs before its packets, as 1.12.1's does (#2402) | pending | pending | - |  |
+| 505 | `c4236fb4` | 2026-10-25 | upstream | Action usability follows each packet, as 1.12.1's cache does (#2403) | pending | pending | - |  |
+| 506 | `12f4ba34` | 2026-10-25 | upstream | The WMO audit's pin variables no longer share the login PIN's prefix (#2404) | pending | pending | - |  |
+| 507 | `c5c3b3d1` | 2026-10-25 | upstream | An unattended PIN login presses the stock keypad, which then hides (#2409) | pending | pending | - |  |
+| 508 | `a2208c2c` | 2026-10-25 | upstream | A movement press runs its tick before the frame's packets (#2411) | pending | pending | - |  |
+| 509 | `b584e833` | 2026-10-25 | upstream | Cooldown and cast events fire at each packet's place, as 1.12.1's do (#2414) | pending | pending | - |  |
+| 510 | `4dcfa6c9` | 2026-10-25 | merge | Merge upstream/main (133 commits, 9a5f2a56..a2208c2c) | pending | pending | - |  |
+| 511 | `36fb71b6` | 2026-10-25 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
+| 512 | `8561deaa` | 2026-10-25 | fork | A dev-fast profile for quick test rebuilds | pending | pending | - |  |
+| 513 | `92c701c9` | 2026-10-25 | upstream | UI text seats on the device-pixel ceiling, as 1.12.1's anchor snaps (#2415) | pending | pending | - |  |
+| 514 | `e4bff386` | 2026-10-25 | upstream | Capture runs boot again: the fixture seed borrows TrainerOpen once (#2417) | pending | pending | - |  |
+| 515 | `b830a2c3` | 2026-10-25 | fork | Quake 3 movement: a jump with no keys down no longer turns the velocity into NaN | pending | pending | - |  |
+| 516 | `b32ab6d4` | 2026-10-25 | fork | Fix moving shadowed by the pitch-key moving (upstream bug from f7ed694f) | pending | pending | - |  |
+| 517 | `aadbf882` | 2026-10-25 | upstream | Game objects use their type's interact range, as 1.12.1's do (#2419) | pending | pending | - |  |
+| 518 | `d814179f` | 2026-10-25 | upstream | Pet cooldowns flush at each packet's place, as 1.12.1's do (#2421) | pending | pending | - |  |
+| 519 | `13226190` | 2026-10-25 | upstream | A swim pitch key starts inside its press, before the frame's packets (#2423) | pending | pending | - |  |
+| 520 | `3664771b` | 2026-10-25 | upstream | A standing jump keeps its air nudge for a key pressed mid-arc (#2420) | pending | pending | - |  |
+| 521 | `10685032` | 2026-10-25 | upstream | A BLP UI texture the device path refuses is the solid green (#2424) | pending | pending | - |  |
+| 522 | `dcd643ba` | 2026-10-25 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
 
 ## Special handling
 
@@ -411,7 +558,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 
 ## Flagged for upstream
 
-Six tests that fail on every Windows checkout, each from an upstream commit before the fork point
+Seven tests or test builds that fail on every Windows checkout, each from an upstream commit before the fork point
 (so no ledger row): they read source paths or source text and assume `/` separators and LF line
 endings, where Windows has `\` and, under `core.autocrlf=true` (Git for Windows' default), CRLF.
 They fail identically on both branches at every merge of this sync, so a branch failure in them is
@@ -473,6 +620,16 @@ not caused by the commit being merged.
   names count as leaks. Suggested fix: normalize `rel` to `/` where it is built from
   `strip_prefix(src)`, or split on `std::path::MAIN_SEPARATOR` too. PR: samwhosung/benilla. State:
   open.
+- `251daa14` (same commit) - benilla-app's lib test target does not compile on Windows:
+  `addon_harness/render_tests.rs:151` and `addon_harness/use_probe_tests.rs:211` call
+  `std::os::unix::fs::symlink`, which Windows' std lacks (E0433), so `cargo check --workspace
+  --all-targets` and every `cargo test -p benilla-app` fail before running anything. Repro: `cargo
+  check -p benilla-app --lib --tests` on Windows. This sync builds the app's lib tests with an
+  uncommitted local edit (`std::os::windows::fs::symlink_dir`), reverted before each commit; the
+  two tests skip anyway without the addon corpus. Suggested fix: a small `link_dir` helper with
+  `#[cfg(unix)]` `std::os::unix::fs::symlink` and `#[cfg(windows)]`
+  `std::os::windows::fs::symlink_dir`, or gate the two tests `#[cfg(unix)]`. PR:
+  samwhosung/benilla. State: open.
 
 ## Open questions
 
