@@ -73,3 +73,11 @@ cargo test -p benilla-app -- player:: bindings:: console::
 ```
 
 Each one builds the whole crate's tests, which takes a lot of memory. Run them one at a time.
+
+For a quick test rebuild (after an upstream merge, say), add `--profile dev-fast`. Our crates build
+at opt-level 0 with no debuginfo, so they compile faster and with less memory, but run slower:
+
+```powershell
+cargo test -p benilla-app --profile dev-fast --features q3_movement -- player:: q3move:: bindings:: console::
+cargo test -p benilla-app --profile dev-fast -- player:: bindings:: console::
+```
