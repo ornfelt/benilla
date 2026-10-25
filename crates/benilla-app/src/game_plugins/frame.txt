@@ -1746,7 +1746,7 @@ schedule Update
     in UiFeed
   302 benilla_app::ui_trainer::feed_trainer
     in TrainerFeed, UiFeed
-  303 benilla_app::ui_tooltip::feed_spell_tooltips
+  303 benilla_app::ui_tooltip::spell_feed::feed_spell_tooltips
     in UiFeed
     if benilla_app::ui_script::lifecycle::ingame_ui_up
   304 benilla_app::char_create::rotate_model
@@ -2674,7 +2674,7 @@ schedule Update
   TargetUpdate -> benilla_app::ui_dialog_verbs::poll_area_spirit_healer
   TargetUpdate -> benilla_app::ui_loot::resolve_loot_kneel
   TargetUpdate -> benilla_app::vplates::drive_vplates
-  TrainerFeed -> benilla_app::ui_tooltip::feed_spell_tooltips
+  TrainerFeed -> benilla_app::ui_tooltip::spell_feed::feed_spell_tooltips
   UiFeed -> UiInput
   UiInput -> Input
   UiInput -> UiPaint
@@ -3323,7 +3323,7 @@ schedule Update
   type(benilla_app::ui_models::sync_tiles) -> benilla_app::ui_models::compose_tiles
   type(benilla_app::ui_models::sync_tiles) -> benilla_app::ui_models::dump_atlas
   type(benilla_app::ui_pet::drain::pet_stop_on_old_target_clear) -> benilla_app::spell::targeting::feed_targeting_to_vm
-  type(benilla_app::ui_quest::feed_quest) -> benilla_app::ui_tooltip::feed_spell_tooltips
+  type(benilla_app::ui_quest::feed_quest) -> benilla_app::ui_tooltip::spell_feed::feed_spell_tooltips
   type(benilla_app::ui_quest_log::feed_quest_log) -> benilla_app::ui_quest::lines::feed_quest_lines
   type(benilla_world::doodad_anim::mat_anim::sample_mat_anim) -> benilla_app::portrait::booth::push_booth_mat_alpha
   type(benilla_world::doodad_anim::mat_anim::tick_anim_materials) -> benilla_world::doodad_anim::mat_anim::matanim_probe
