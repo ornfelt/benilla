@@ -78,6 +78,7 @@ fn show_bars(s: &UiScript, bars: &[u32]) {
 fn shipped_multibars_drive_end_to_end() {
     benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let frames = load_action_bar(&s, &[]);
     benilla_ui::assert_near!(
@@ -254,6 +255,8 @@ fn shipped_stance_bar_drives_end_to_end() {
     use benilla_ui::script::ShapeshiftFormView;
 
     let mut s = UiScript::new().unwrap();
+
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     // `ShapeshiftBarFrame` is parented to `MainMenuBar` and its update calls
     // `CooldownFrame_SetTimer` (BonusActionBarFrame.lua:201), so both load first.
@@ -713,6 +716,7 @@ fn viewable_action_bar_pages_follow_the_bar_toggles() {
 fn the_grid_option_holds_the_extra_bars_empty_wells_open() {
     benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     load_action_bar(&s, &[]);
     show_bars(&s, &[1]);
@@ -780,6 +784,7 @@ fn the_grid_option_holds_the_extra_bars_empty_wells_open() {
 fn a_held_payload_ghosts_the_empty_wells_it_opens() {
     benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     load_action_bar(&s, &[]);
     s.set_action(
@@ -908,6 +913,7 @@ fn a_held_payload_ghosts_the_empty_wells_it_opens() {
 fn a_bar_toggle_sends_the_byte_its_globals_pack_to() {
     benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     load_action_bar(&s, &[]);
     let _ = s.take_action_bar_toggle_sends();
@@ -1226,6 +1232,7 @@ fn the_stance_shelf_is_as_long_as_the_form_count() {
 fn an_extra_bars_empty_well_keeps_its_bound_hotkey_label() {
     benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     // The real command set, so `MULTIACTIONBAR1BUTTONn` is bindable; it ships unbound.
     crate::ui_script::load_stock_bindings(&mut s);
@@ -1542,7 +1549,9 @@ fn a_forms_state_change_leaves_the_shelf_down_over_the_raised_bar() {
     assert_eq!(log(&s), "");
     assert!(!shown(&s, "ShapeshiftBarMiddle"));
 
-    // A castable flip fires `SPELL_UPDATE_USABLE`; the bar greys the icon and leaves the shelf.
+    // A castable flip pushes silently: the form bar's refresh is the usable refresh's (`0x4b31c0`),
+    // whose own callers signal `SPELL_UPDATE_USABLE`. On it the bar greys the icon and leaves the
+    // shelf.
     assert_eq!(
         push_forms(
             &mut s,
@@ -1553,8 +1562,10 @@ fn a_forms_state_change_leaves_the_shelf_down_over_the_raised_bar() {
                 stance(2458, false, true, None),
             ],
         ),
-        FormsEdge::Usable
+        FormsEdge::Silent
     );
+    assert_eq!(log(&s), "");
+    s.fire_event("SPELL_UPDATE_USABLE", vec![]);
     assert_eq!(log(&s), "SPELL_UPDATE_USABLE");
     let grey = s
         .eval::<f64>("local r = ShapeshiftButton1Icon:GetVertexColor() return r")

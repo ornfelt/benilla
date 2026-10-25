@@ -63,8 +63,11 @@ mod go_anim;
 mod go_templates;
 #[cfg(feature = "dev")]
 mod hover_log;
+mod item_lane;
+mod item_names;
 mod item_watch;
 mod items;
+mod lanes;
 mod loading_screen;
 mod local_state;
 mod minimap;
@@ -77,6 +80,7 @@ mod npc_text;
 mod perf;
 mod pipe_warm;
 mod player;
+mod player_commands;
 mod poi_marker;
 mod portrait;
 #[cfg(feature = "dev")]
@@ -98,7 +102,6 @@ mod script_calls;
 mod shaders;
 
 mod game_tip;
-mod name_persist;
 mod opaque2d;
 /// Where "the client is going down" is observed, in `Last`; every system that persists state on the
 /// way out registers through it.
@@ -160,7 +163,6 @@ mod ui_party;
 mod ui_pass;
 mod ui_pet;
 mod ui_pet_book;
-mod ui_pet_doll;
 mod ui_pet_stats;
 mod ui_petition;
 mod ui_quest;
@@ -187,9 +189,12 @@ mod ui_trainer;
 mod ui_unit;
 mod ui_world_map;
 mod video;
+mod vm_pass;
 mod vplates;
+mod wdb;
 mod weapon_trail;
 mod world_backdrop;
+mod world_console;
 mod world_state;
 mod world_state_ui;
 
@@ -280,6 +285,8 @@ fn launch(build: BuildId, extend: Option<Extension<'_>>) -> AppExit {
     };
 
     let mut app = App::new();
+    // A command on an entity a same-frame despawn removed logs instead of aborting the session.
+    app.set_error_handler(crash::command_error_handler);
     // The panel footer and the build banner read the stamp back.
     app.insert_resource(build);
     // Static-scene transform tracking pinned on: the default threshold re-decides every frame with
