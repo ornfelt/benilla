@@ -240,7 +240,8 @@ pub(super) fn step(
         // in the air and on the take-off frame, so a hop keeps its speed.
         #[cfg(feature = "q3_movement")]
         {
-            let wish_dir = if moving { dir.normalize() } else { Vec3::ZERO };
+            // `moving` also holds through an arc with no keys down, so `dir` can be zero here.
+            let wish_dir = if moving { dir.normalize_or_zero() } else { Vec3::ZERO };
             player.horiz_vel =
                 crate::q3move::velocity(player.horiz_vel, grounded && !jumped, wish_dir, speed, dt);
         }
