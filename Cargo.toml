@@ -121,6 +121,19 @@ opt-level = 1
 
 # No debuginfo trimming: `debug = "line-tables-only"` measures no recurring win on macOS + sccache.
 
+# Fast to rebuild, slow to run (`--profile dev-fast`): test rebuilds, e.g. after an upstream merge.
+# Our crates at opt-level 0 with no debuginfo, so a rebuild compiles and links less and takes less
+# memory; the dependencies stay at opt-level 3, as in `dev`, so they build once into
+# `target/dev-fast` and the tests that lean on them stay fast.
+[profile.dev-fast]
+inherits = "dev"
+opt-level = 0
+debug = 0
+incremental = true
+
+[profile.dev-fast.package."*"]
+opt-level = 3
+
 # The shipping build (`--profile ship`): fat LTO measures -1.0 cpu_ms (-5 %) against `release`,
 # which stays the measured profile because fat LTO's link time would tax every iteration.
 # `-Ctarget-cpu=native` is not set: it is not portable.
