@@ -418,6 +418,13 @@ The same commit, under trimmed-bevy's rules:
   `cargo test -p <each crate the commit touched>`.
 - `$TB`: `cargo check --workspace --all-targets`; `cargo test -p <each crate the commit touched>`;
   the frame test when the schedule may have changed.
+- **Test rebuilds use the `dev-fast` profile**: every `cargo test` above, the frame test (and its
+  re-record) included, runs with `--profile dev-fast` - our crates at opt-level 0 with no
+  debuginfo, so the rebuild after each merge is faster and needs less memory. `cargo check` stays
+  on `dev` (it generates no code, so the profile buys nothing there), and so does
+  `scripts/check.sh`, which takes no profile. Both branches got the profile directly, so when the
+  walk reaches the fork's `8561deaa` (the same profile on `main`), its `Cargo.toml` part is
+  already in: keep a single `[profile.dev-fast]`, since a duplicate table breaks the manifest.
 - A shader edited: `crates/benilla-gfx/shaders/compile.sh <base name>` (`compile.ps1` on
   Windows) in each checkout, the compiled families committed with the source. **GPU safety**
   (from the `gfx-dll-port` skill's `progress.md`): a new or changed program runs first off the
