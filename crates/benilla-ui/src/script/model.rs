@@ -933,11 +933,8 @@ pub(crate) struct Model {
     /// table, which the next open clears).
     pub(crate) trade_offered: [Option<cursor::CursorItem>; super::trade::TRADE_SLOTS],
 
-    /// The open questgiver panel, and whether `CloseQuest` ran.
+    /// The questgiver panel's cells a harness set, which the getters read with no host lent.
     pub(crate) quest: Option<quest::QuestState>,
-    /// The levels of the last greeting's two pools (`0xbde690`, `0xbdfe60`), which outlive the
-    /// panel until the next list fills them.
-    pub(crate) quest_pool_levels: quest::PoolLevels,
 
     /// Death countdowns and offers.
     pub(crate) death: death::DeathUiState,
@@ -956,14 +953,6 @@ pub(crate) struct Model {
     pub(crate) item_stat_reads: HashSet<u32>,
     /// Set id to its tooltip set block (`0x854b1c`), and the misses asked for.
     pub(crate) item_sets: HashMap<u32, super::ItemSetView>,
-    pub(crate) item_set_asks: HashSet<u32>,
-    /// Guids an item build looked up in the name cache and missed, for the app to ask: the
-    /// creator's and the giver's lookups pass a callback (`0x52e204`, `0x52e29d`) at every build,
-    /// and a hovered bag or paper-doll slot's `OnUpdate` builds again each frame.
-    pub(crate) item_name_asks: HashSet<u64>,
-    /// Charter item guids whose build missed the petition record or its owner's name, for the
-    /// app to ask: both lookups pass a callback (`0x52b93b`, `0x52b9d2`) at every build.
-    pub(crate) petition_asks: HashSet<u64>,
     /// `ItemRandomProperties` id to its view, pushed whole at startup: a clicked tooltip cannot
     /// repaint on a late answer. The reference reads its loaded store `0xc0dbd4` (`0x52c991`).
     pub(crate) random_properties: HashMap<u32, super::RandomPropertyView>,
@@ -1669,16 +1658,12 @@ impl Model {
             trade_place_seq: 0,
             trade_offered: Default::default(),
             quest: None,
-            quest_pool_levels: Default::default(),
             death: death::DeathUiState::default(),
             quest_log: quest_log::QuestLogState::default(),
             quest_log_selection: 0,
             quest_log_abandon_mark: 0,
             item_templates: HashMap::new(),
             item_sets: HashMap::new(),
-            item_set_asks: HashSet::new(),
-            item_name_asks: HashSet::new(),
-            petition_asks: HashSet::new(),
             random_properties: HashMap::new(),
             enchant_names: HashMap::new(),
             known_spells: HashSet::new(),

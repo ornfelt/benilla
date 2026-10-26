@@ -600,22 +600,20 @@ impl Model {
         self.containers.get(&bag)?.slots.get(&n)
     }
 
-    /// The player's repair cost at live id `slot`, the vault and keyring bands by their container
-    /// slots.
-    pub(super) fn inv_repair_cost(&self, slot: usize) -> u32 {
-        let costs = &self.repair_costs;
-        let cost = if BANK_INV_SLOTS.contains(&slot) {
-            let n = (slot - BANK_INV_SLOTS.start() + 1) as u32;
-            costs.bags.get(&(BANK_CONTAINER, n))
+    /// The player's repair cost at live id `slot` now (`0x5332e1`), the vault and keyring bands by
+    /// their container slots.
+    pub(super) fn inv_repair_cost(&self, lua: &mlua::Lua, slot: usize) -> u32 {
+        let (bag, n) = if BANK_INV_SLOTS.contains(&slot) {
+            (BANK_CONTAINER, slot - BANK_INV_SLOTS.start() + 1)
         } else if KEYRING_INV_SLOTS.contains(&slot) {
-            let n = (slot - KEYRING_INV_SLOTS.start() + 1) as u32;
-            costs.bags.get(&(KEYRING_CONTAINER, n))
+            (KEYRING_CONTAINER, slot - KEYRING_INV_SLOTS.start() + 1)
         } else {
-            u32::try_from(slot)
-                .ok()
-                .and_then(|s| costs.equipped.get(&s))
+            (super::EQUIPMENT_BAG, slot)
         };
-        cost.copied().unwrap_or(0)
+        let Ok(n) = u32::try_from(n) else {
+            return 0;
+        };
+        super::merchant::repair_cost_at(lua, self, bag, n)
     }
 
     /// The use cooldown `(start, duration, enabled)` in `GetTime` seconds of the player's item at
@@ -1340,22 +1338,25 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         })?,
     )?;
 
+    // `0x848894`, verbatim.
+    const INVALID_SLOT: &str = "Invalid inventory slot in GetInventorySlotInfo";
     // GetInventorySlotInfo(slotName) → (slotId, textureName, checkRelic) from `SLOT_INFO`.
     // `checkRelic` is a property of the slot; stock pairs it with `UnitHasRelicSlot("player")`
     // (`PaperDollFrame.lua:680`, `:744`).
     g.set(
         "GetInventorySlotInfo",
-        lua.create_function(|lua, name: String| {
+        lua.create_function(|lua, name: Value| {
+            // A non-string misses `is-number-or-string` and takes the unknown name's raise
+            // (`0x4c81ca` → `0x4c822c`).
+            let name = crate::script::binding_abi::string_arg(lua, name, INVALID_SLOT)?;
             // A full-string ASCII case-insensitive match: `0x4c8215` calls `_strnicmp` (`0x64a4c0`
             // -> `0x414310`) with no length limit. The 36 names stay distinct after folding.
             let Some((_, id, art)) = SLOT_INFO
                 .iter()
                 .find(|(n, _, _)| n.eq_ignore_ascii_case(&name))
             else {
-                // An unknown name raises, never nil; the string is `0x848894`'s, verbatim.
-                return Err(mlua::Error::runtime(
-                    "Invalid inventory slot in GetInventorySlotInfo",
-                ));
+                // An unknown name raises, never nil.
+                return Err(mlua::Error::runtime(INVALID_SLOT));
             };
             Ok((
                 *id,

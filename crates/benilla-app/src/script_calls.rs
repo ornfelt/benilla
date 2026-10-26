@@ -137,7 +137,7 @@ disjoint::disjoint_set! {
         follow_feed: Option<ResMut<'static, crate::ui_follow::FollowFeed>>,
         /// The console's commands, against what they read and write, and the getters' lookups.
         console: crate::console::ConsoleSteps<'static, 'static>,
-        asks: engine::RecordAsks<'static>,
+        asks: engine::RecordAsks<'static, 'static>,
         /// What the getters read as they run ([`live::LiveReads`]).
         live: live::LiveReads<'static, 'static>,
     }
@@ -370,7 +370,6 @@ impl ScriptCallHost<'_, '_> {
         let appliers = &mut self.appliers;
         script.seat_selection(appliers.select().seated());
         if at.latched && !appliers.pet().attack_latched() {
-            script.lower_pet_attack();
             script.fire_event("PET_BAR_UPDATE", vec![]);
         }
         if let Some(states) = appliers.action_states().as_mut() {
@@ -400,7 +399,6 @@ impl ScriptCallHost<'_, '_> {
                 // The teardown's StopAttack reported first (`0x493a08`); `PetStopAttack` lowered
                 // the latch and signals with the selection zeroed (`0x4bd6ae`, `0x4939d3`).
                 self.signal_reports(script, &mut at.mark);
-                script.lower_pet_attack();
                 script.fire_event("PET_BAR_UPDATE", vec![]);
                 at.latched = false;
                 script.seat_selection(self.appliers.select().seated());
@@ -470,12 +468,20 @@ impl ScriptCallHost<'_, '_> {
                 if finished.as_ref().is_some_and(|&(_, latched)| latched) {
                     // The latch (`0x4bd42e`) signals `PET_BAR_UPDATE` (`0x4bd438`), whose
                     // listeners run before the order goes (`0x4bd4a4`).
-                    script.raise_pet_attack();
                     script.fire_event("PET_BAR_UPDATE", vec![]);
                     self.at_point(script, &mut at.mark);
                     self.listened(at);
                 }
                 finished.map(|(send, _)| PetStep::Order(send))
+            }
+            // A reaction's or Stay's and Follow's state write signals `PET_BAR_UPDATE`
+            // (`0x4bc956`, `0x4bc979`), whose listeners read the lit token before the send
+            // (`0x4bd444`).
+            Some(PetStep::Order(send)) if send.signals() => {
+                script.fire_event("PET_BAR_UPDATE", vec![]);
+                self.at_point(script, &mut at.mark);
+                self.listened(at);
+                Some(PetStep::Order(send))
             }
             step => step,
         };
@@ -525,22 +531,19 @@ impl ScriptCallHost<'_, '_> {
     /// The designer's close core `0x4f58a0` inside `CloseTabardCreation`'s call: with a vendor
     /// stored, the latch release (`0x4f58da`), which re-enters the core while the designer holds
     /// the latch, then the cell cleared (`0x4f58df`) and `CLOSE_TABARD_FRAME` (`0x4f58f8`), once
-    /// per run of the core, as the call's tail; an open not yet told goes first, as the reference
-    /// fired it at the open.
+    /// per run of the core, as the call's tail, after the preview's undo (`0x4f58ce`).
     fn close_tabard(&mut self) -> Option<CallTail> {
         use crate::ui_session::NpcWindow;
         let vendor = self.appliers.tabard().vendor()?;
         let reenters = self.appliers.latch().release(vendor);
-        let opened = self.appliers.tabard().clear_vendor();
+        self.appliers.tabard().clear_vendor();
         let runs = 1 + usize::from(reenters);
         let latch = self.appliers.latch();
         for _ in 0..runs {
             latch.note_closed(NpcWindow::Tabard);
         }
         Some(Box::new(move |script: &mut UiScript| {
-            if opened {
-                script.fire_event("OPEN_TABARD_FRAME", vec![]);
-            }
+            script.end_tabard_preview();
             for _ in 0..runs {
                 script.fire_event("CLOSE_TABARD_FRAME", vec![]);
             }
@@ -778,6 +781,7 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::Merchant(call) => appliers.merchant().apply(script, call),
             ScriptCall::Guild(call) => appliers.guild().apply(script, call),
             ScriptCall::Petition(PetitionCall::CloseRegistrar) => tail = self.close_registrar(),
+            ScriptCall::Petition(PetitionCall::Close) => self.close_petition(script, &mut at.mark),
             // The designer's opener, then the registrar's close core (`0x4f5355` → `0x4f5010`).
             ScriptCall::Petition(PetitionCall::TabardInfo) => {
                 appliers.petition().apply(script, PetitionCall::TabardInfo);
@@ -3406,11 +3410,13 @@ mod tests {
     fn a_refused_bar_set_still_auto_equips_what_is_held() {
         let mut f = frame(false);
         with_bar_helm(&mut f, 0);
+        // Picked up with control: `PickupContainerItem` refuses without it (`0x4f9b87`).
+        run(&mut f, "PickupContainerItem(0, 1)");
         f.app
             .world_mut()
             .non_send_resource_mut::<UiScript>()
             .set_player_control(false);
-        run(&mut f, "PickupContainerItem(0, 1) UseAction(1, 0)");
+        run(&mut f, "UseAction(1, 0)");
         let sent: Vec<_> = f.rx.try_iter().collect();
         assert!(
             matches!(
@@ -4554,7 +4560,7 @@ mod tests {
             writers.len()
         );
         if writers.iter().any(|w| w.contains("benilla_app::")) {
-            for name in ["feed_dialog_verbs", "feed_death", "poll_area_spirit_healer"] {
+            for name in ["feed_logout", "feed_death", "poll_area_spirit_healer"] {
                 assert!(
                     writers.iter().any(|w| w.contains(name)),
                     "the census reads the client's VM writers, `{name}` among them"

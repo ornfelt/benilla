@@ -15,7 +15,7 @@ use std::borrow::Cow;
 use mlua::{Lua, MultiValue, Value};
 
 use super::binding_abi::{bool_or_default, flag};
-use super::cursor::{clear_cursor, set_cursor, CursorPayload, CursorSpell};
+use super::cursor::{clear_cursor, set_cursor, CursorPayload, CursorSpell, Setter};
 use super::live::{ask, LiveQuery};
 use super::protected::{self, Tag};
 use super::tick::verb;
@@ -197,15 +197,10 @@ impl super::UiScript {
         self.model_mut().spellbook = state;
     }
 
-    /// Replace the pet's book; its `SPELLS_CHANGED` is the pet spell message's own sort
-    /// (`0x4bdadb` → `0x4b2fd0`), which the app signals at the packet.
+    /// Replace the pet's book, for a VM with no host to ask; its `SPELLS_CHANGED` is the pet spell
+    /// message's own sort (`0x4bdadb` → `0x4b2fd0`), which the app signals at the packet.
     pub fn set_pet_book(&mut self, state: PetBookState) {
         self.model_mut().pet_book = state;
-    }
-
-    /// The pet's book as it stands, for the app's name lookups (a macro's bound spell).
-    pub fn pet_spellbook(&self) -> PetBookState {
-        self.model_mut().pet_book.clone()
     }
 
     /// Take the `CastSpell(id, "pet")` calls out of the call stream as `(spell id, onSelf)`: each
@@ -284,22 +279,14 @@ pub(super) fn is_pet_book(book_type: &str) -> bool {
 /// string (`0x4b3ee8`), and the index `trunc(arg1 - 1)` in `[0, 0x400)`, else the binding raises
 /// `Invalid spell slot in <Verb>`. Answers the 1-based id and the normalised book type.
 pub(super) fn spell_slot_args(
+    lua: &Lua,
     id: Value,
     book_type: Value,
     verb: &str,
 ) -> mlua::Result<(u32, String)> {
     let invalid = || mlua::Error::runtime(format!("Invalid spell slot in {verb}"));
-    // `lua_isnumber` + `lua_tonumber` (`0x6f34d0`/`0x6f3620`): a numeric string is a number.
-    let index = match id {
-        Value::Integer(i) => i as f64,
-        Value::Number(n) => n,
-        Value::String(s) => s
-            .to_str()
-            .ok()
-            .and_then(|s| s.trim().parse::<f64>().ok())
-            .ok_or_else(invalid)?,
-        _ => return Err(invalid()),
-    };
+    // `lua_isnumber` + `lua_tonumber` (`0x6f34d0`/`0x6f3620`): a string `luaO_str2d` reads.
+    let index = lua.coerce_number(id)?.ok_or_else(invalid)?;
     let book = match book_type {
         Value::String(s) => s.to_str().map(|s| s.to_string()).map_err(|_| invalid())?,
         Value::Integer(_) | Value::Number(_) => String::new(),
@@ -326,8 +313,8 @@ fn slot_index(id: u32) -> Option<usize> {
 
 /// The slot a `bookType` binding reads. The reference forks `isPet ? [0xb6f098 + 4*i] :
 /// [0xb700f0 + 4*i]` in each binding (`0x4b3f5d`, `0x4b40e6`, `0x4b3735`, `0x4b3339`) and in
-/// `GameTooltip:SetSpell` (`0x532e1c`/`0x532e2a`), which shares this. The player's is read
-/// through the lent host as it stands ([`BookSlot`]), else off the VM's copy.
+/// `GameTooltip:SetSpell` (`0x532e1c`/`0x532e2a`), which shares this. Each is read through the
+/// lent host as it stands ([`BookSlot`], [`super::PetBookNow`]), else off the VM's copy.
 pub(super) fn book_slot<'a>(
     lua: &Lua,
     model: &'a Model,
@@ -336,7 +323,10 @@ pub(super) fn book_slot<'a>(
 ) -> Option<Cow<'a, SpellSlotView>> {
     let i = slot_index(id)?;
     if is_pet_book(book_type) {
-        return model.pet_book.slots.get(i).map(Cow::Borrowed);
+        return match super::pet::book_now(lua, model) {
+            Cow::Owned(book) => book.slots.into_iter().nth(i).map(Cow::Owned),
+            Cow::Borrowed(book) => book.slots.get(i).map(Cow::Borrowed),
+        };
     }
     match ask(lua, &BookSlot(i)) {
         Some(slot) => slot.map(Cow::Owned),
@@ -390,7 +380,7 @@ fn pickup_spell(lua: &Lua, id: u32, book_type: &str) -> bool {
     if target == held || held != 0 {
         return false;
     }
-    payload.is_some_and(|payload| set_cursor(lua, true, |_| Some(payload)))
+    payload.is_some_and(|payload| set_cursor(lua, true, Setter::of(&payload), |_| Some(payload)))
 }
 
 /// Register the spellbook globals.
@@ -480,7 +470,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "GetSpellName",
         lua.create_function(|lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "GetSpellName")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "GetSpellName")?;
             // Out of `[0, 0x400)` already raised in `spell_slot_args`; the binding's own bound
             // check (`0x4b4018`) is never taken.
             let model = lua.app_data_ref::<Model>().expect("model app_data");
@@ -498,7 +488,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "GetSpellTexture",
         lua.create_function(|lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "GetSpellTexture")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "GetSpellTexture")?;
             let model = lua.app_data_ref::<Model>().expect("model app_data");
             let tex = book_slot(lua, &model, id, &book_type).and_then(|s| s.texture.clone());
             match tex {
@@ -513,7 +503,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "IsCurrentCast",
         lua.create_function(|lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "IsCurrentCast")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "IsCurrentCast")?;
             let model = lua.app_data_ref::<Model>().expect("model app_data");
             let current = book_slot(lua, &model, id, &book_type).is_some_and(|s| s.current);
             // 1 or nil, never false, as the reference's bindings answer.
@@ -532,7 +522,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "GetSpellCooldown",
         lua.create_function(|lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "GetSpellCooldown")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "GetSpellCooldown")?;
             let now = crate::script::clock::now(lua);
             let (query, snapshot) = {
                 let model = lua.app_data_ref::<Model>().expect("model app_data");
@@ -564,7 +554,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "IsSpellPassive",
         lua.create_function(|lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "IsSpellPassive")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "IsSpellPassive")?;
             let model = lua.app_data_ref::<Model>().expect("model app_data");
             Ok(flag(
                 book_slot(lua, &model, id, &book_type).is_some_and(|s| s.passive),
@@ -584,7 +574,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         "CastSpell",
         lua.create_function(
             |lua, (id, book_type, on_self): (Value, Value, Option<Value>)| {
-                let (id, book_type) = spell_slot_args(id, book_type, "CastSpell")?;
+                let (id, book_type) = spell_slot_args(lua, id, book_type, "CastSpell")?;
                 let on_self = bool_or_default(on_self.as_ref(), false);
                 // The player book's cast is `TryCastSpell`, behind the gate's tag 2 (`0x6e4bc1`),
                 // after the cancels of an active aura or form (`0x4b3466`, `0x4b35da`), so the call
@@ -625,11 +615,13 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         "HasPetSpells",
         lua.create_function(|lua, ()| {
             let model = lua.app_data_ref::<Model>().expect("model app_data");
-            let n = model.pet_book.slots.len();
+            // The book's count `0xb71174` and the player's class token, as they stand.
+            let book = super::pet::book_now(lua, &model);
+            let n = book.slots.len();
             if n == 0 {
                 return Ok(MultiValue::from_vec(vec![Value::Nil, Value::Nil]));
             }
-            let token = match &model.pet_book.token {
+            let token = match &book.token {
                 Some(t) => Value::String(lua.create_string(t)?),
                 None => Value::String(lua.create_string(PET_TOKEN_FALLBACK)?),
             };
@@ -643,7 +635,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "GetSpellAutocast",
         lua.create_function(move |lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "GetSpellAutocast")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "GetSpellAutocast")?;
             let model = lua.app_data_ref::<Model>().expect("model app_data");
             let (allowed, enabled) = book_slot(lua, &model, id, &book_type)
                 .filter(|_| is_pet_book(&book_type))
@@ -661,22 +653,36 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "ToggleSpellAutocast",
         lua.create_function(|lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "ToggleSpellAutocast")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "ToggleSpellAutocast")?;
             // `SendSpellAutocast 0x4bccb0` opens on the gate's tag 2 (`0x4bccc1`).
             if !is_pet_book(&book_type) || !protected::gate(lua, Tag::CAST) {
                 return Ok(());
             }
-            let flipped = super::tick::verb(lua, |model| {
-                if !model.pet_bar.actions_usable {
-                    return None;
+            // The gate (`0x4bccce`) and the word's bit 31 (`0x4bccf5`), as they stand.
+            let allowed = super::pet::flags_now(lua).actions_usable && {
+                let model = lua.app_data_ref::<Model>().expect("model app_data");
+                book_slot(lua, &model, id, &book_type)
+                    .is_some_and(|b| b.autocast.is_some_and(|(allowed, _)| allowed))
+            };
+            if !allowed {
+                return Ok(());
+            }
+            let spell_id = {
+                let model = lua.app_data_ref::<Model>().expect("model app_data");
+                book_slot(lua, &model, id, &book_type).map(|b| (b.spell_id, b.packed))
+            };
+            let Some((spell_id, packed)) = spell_id else {
+                return Ok(());
+            };
+            // The copy's words follow, for a VM with no host to ask.
+            super::tick::verb(lua, |model| {
+                let word = packed ^ super::pet::AUTOCAST_ON;
+                if let Some(book) = slot_index(id)
+                    .and_then(|i| model.pet_book.slots.get_mut(i))
+                    .filter(|b| b.spell_id == spell_id)
+                {
+                    super::pet::set_book_word(book, word);
                 }
-                let book = slot_index(id).and_then(|i| model.pet_book.slots.get_mut(i))?;
-                if !book.autocast.is_some_and(|(allowed, _)| allowed) {
-                    return None;
-                }
-                let word = book.packed ^ super::pet::AUTOCAST_ON;
-                super::pet::set_book_word(book, word);
-                let spell_id = book.spell_id;
                 for slot in &mut model.pet_bar.slots {
                     let view = &mut slot.view;
                     if view.packed & super::pet::ACTION_MASK == word & super::pet::ACTION_MASK {
@@ -685,15 +691,12 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
                         view.autocast_enabled = view.packed & super::pet::AUTOCAST_ON != 0;
                     }
                 }
-                Some(spell_id)
             });
-            if let Some(spell_id) = flipped {
-                super::calls::submit(
-                    lua,
-                    ScriptCall::Pet(super::PetCall::SpellAutocast(spell_id)),
-                )?;
-                super::tick::verb(lua, |model| model.raise("PET_BAR_UPDATE", Vec::new()));
-            }
+            super::calls::submit(
+                lua,
+                ScriptCall::Pet(super::PetCall::SpellAutocast(spell_id)),
+            )?;
+            super::tick::verb(lua, |model| model.raise("PET_BAR_UPDATE", Vec::new()));
             Ok(())
         })?,
     )?;
@@ -715,7 +718,11 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
             let on_self = bool_or_default(on_self.as_ref(), false);
             let found = {
                 let model = lua.app_data_ref::<Model>().expect("model app_data");
-                by_name::resolve_named(&player_book(lua, &model), &model.pet_book, &name.as_bytes())
+                by_name::resolve_named(
+                    &player_book(lua, &model),
+                    &super::pet::book_now(lua, &model),
+                    &name.as_bytes(),
+                )
             };
             let call = match found {
                 Some(found) if found.pet => ScriptCall::CastPetSpell {
@@ -738,7 +745,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     g.set(
         "PickupSpell",
         lua.create_function(|lua, (id, book_type): (Value, Value)| {
-            let (id, book_type) = spell_slot_args(id, book_type, "PickupSpell")?;
+            let (id, book_type) = spell_slot_args(lua, id, book_type, "PickupSpell")?;
             pickup_spell(lua, id, &book_type);
             Ok(())
         })?,

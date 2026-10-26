@@ -239,7 +239,7 @@ pub(crate) fn enchant_lines(
 /// takes the gift arm (`0x52b789`, `0x52e1b9`), which reads `ITEM_FIELD_GIFTCREATOR` (`0x52e32a`)
 /// and asks the name cache (`0x52e29d`). A zero guid, an unwrapped item or a name not yet
 /// answered gives `None`. Only reads: the lookup is the tooltip build's, which asks it
-/// (`crate::ui_items::feed::ask_item_build_lookups`).
+/// in its call ([`benilla_ui::script::RecordAsk::ItemBuildName`]).
 pub(crate) fn gift_creator_name(
     fields: &ObjectFields,
     names: &crate::names::NameCache,
@@ -523,6 +523,11 @@ pub(crate) enum RecordCallback {
     Merchant,
     /// A buy-back row's, asked by `GetBuybackItemInfo` (`0x4fb40c` with `0x4fb570`), one per call.
     Buyback,
+    /// A trainer row's product, asked by `GetTrainerServiceIcon` and `GetTrainerServiceDescription`
+    /// (`0x4d907e` with `0x4d9140`, `0x4d9cef` with `0x4d9db0`), one per call.
+    Trainer,
+    /// A questgiver row's, asked by `GetQuestItemInfo` (`0x5017de` with `0x5018c0`), one per call.
+    Quest,
 }
 
 impl Items {

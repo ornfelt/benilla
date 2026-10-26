@@ -115,6 +115,60 @@ pub(crate) fn stamp() -> Stamp {
     }
 }
 
+/// The item firing on this thread, if any: a verb its listeners call runs at that item's moment.
+pub(crate) fn firing_now() -> Option<Stamp> {
+    FIRING.get()
+}
+
+thread_local! {
+    /// A close core is running held behind a lane: what a core it re-enters signals is its.
+    static BEHIND: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Where [`behind`] ran its core.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Behind {
+    /// At once, its signals fired in place.
+    Ran,
+    /// Held, its signals parked on the lane.
+    Parked,
+    /// Inside another core's hold, which parks its signals with its own.
+    Nested,
+}
+
+/// Run a close `core` behind a lane whose head is `head`: at once unless the lane holds an item
+/// stamped before the item firing now (any item, with none firing), else with the world's VM held,
+/// what it signalled parked under a key `park` queues on the lane, so a close never fires ahead of
+/// the open it closes. A core it re-enters, as a release re-enters its close (`0x493310`), runs
+/// inside the hold.
+pub(crate) fn behind(
+    world: &mut World,
+    head: Option<Stamp>,
+    core: impl FnOnce(&mut World),
+    park: impl FnOnce(&mut World, u64, u64),
+) -> Behind {
+    if BEHIND.get() {
+        core(world);
+        return Behind::Nested;
+    }
+    let now = firing_now();
+    let waits = head.is_some_and(|head| now.is_none_or(|now| head < now));
+    let Some((_held, mark)) = waits
+        .then(|| crate::script_calls::defer_vm(world))
+        .flatten()
+    else {
+        core(world);
+        return Behind::Ran;
+    };
+    BEHIND.set(true);
+    core(world);
+    BEHIND.set(false);
+    if let Some((session, key)) = crate::script_calls::park_since(world, mark) {
+        park(world, session, key);
+    }
+    Behind::Parked
+}
+
 /// Run `f` as the firing of the item stamped `at`, so what it pushes nests under the item; with
 /// whether anything was stamped meanwhile, after which the drain takes the lowest stamp again.
 pub(crate) fn firing<R>(at: Stamp, f: impl FnOnce() -> R) -> (R, bool) {
@@ -428,6 +482,8 @@ mod aura_view_tests;
 #[cfg(test)]
 mod bag_tests;
 #[cfg(test)]
+mod bank_live_tests;
+#[cfg(test)]
 mod battlefield_live_tests;
 #[cfg(test)]
 mod book_live_tests;
@@ -436,7 +492,11 @@ mod cast_live_tests;
 #[cfg(test)]
 mod cooldown_live_tests;
 #[cfg(test)]
+mod dialog_live_tests;
+#[cfg(test)]
 mod duration_live_tests;
+#[cfg(test)]
+mod gossip_live_tests;
 #[cfg(test)]
 mod group_view_tests;
 #[cfg(test)]
@@ -458,15 +518,23 @@ mod name_live_tests;
 #[cfg(test)]
 mod packet_signal_tests;
 #[cfg(test)]
+mod pet_live_tests;
+#[cfg(test)]
+mod petition_live_tests;
+#[cfg(test)]
 mod quest_log_live_tests;
 #[cfg(test)]
 mod quiet_tests;
 #[cfg(test)]
 mod reputation_live_tests;
 #[cfg(test)]
+mod requirement_live_tests;
+#[cfg(test)]
 mod selection_live_tests;
 #[cfg(test)]
 mod social_live_tests;
+#[cfg(test)]
+mod stable_live_tests;
 #[cfg(test)]
 mod stance_live_tests;
 #[cfg(test)]
@@ -474,11 +542,15 @@ mod stat_live_tests;
 #[cfg(test)]
 mod storm_tests;
 #[cfg(test)]
+mod tabard_live_tests;
+#[cfg(test)]
 mod taxi_live_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod token_live_tests;
+#[cfg(test)]
+mod trainer_live_tests;
 #[cfg(test)]
 mod unit_live_tests;
 #[cfg(test)]

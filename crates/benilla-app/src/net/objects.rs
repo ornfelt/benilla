@@ -125,6 +125,12 @@ pub(crate) struct Scene<'w, 's> {
     loot: Option<ResMut<'w, crate::ui_loot::LootState>>,
     // The vendor window's row and buy-back callbacks.
     merchant: crate::ui_merchant::MerchantRecordAnswers<'w>,
+    // The state pass the trainer's watches and item callbacks run (`0x4d7d40`).
+    trainer: crate::ui_trainer::TrainerPasses<'w>,
+    // The questgiver rows' callbacks' `QUEST_ITEM_UPDATE`.
+    quest_giver: Option<ResMut<'w, crate::ui_quest::QuestGiverLane>>,
+    // The quest log's leaderboard's object waits' `QUEST_LOG_UPDATE`.
+    quest_log: Option<ResMut<'w, crate::ui_quest_log::QuestLog>>,
     pass: ResMut<'w, update::UpdatePass>,
     released: ResMut<'w, Released>,
     nets: Query<'w, 's, &'static NetEntity>,
@@ -173,8 +179,9 @@ fn on_item(In(ev): In<SessionEvent>, mut sc: Scene) {
             // (`0x55ba30`, the dedupe flag 0): each item's set-up (`0x5d8390`) and entry change's
             // (`0x5d96b0`), the loot window's rows (`0x4c2ac0`) and pushes (`0x491ee0`), the trade
             // getters' (`0x4c0340`), the ammo getters' (`0x4c84f0`), the parked swaps'
-            // (`0x5e1020`) and auto-equips' (`0x5e17a0`), and the vendor rows' (`0x4fada0`,
-            // `0x4fb570`).
+            // (`0x5e1020`) and auto-equips' (`0x5e17a0`), the vendor rows' (`0x4fada0`,
+            // `0x4fb570`), the trainer rows' (`0x4d9140`, `0x4d9db0`) and the questgiver rows'
+            // (`0x5018c0`).
             let callbacks = sc.items.take_callbacks(entry);
             // An answer an item of ours waited on changes what the bag view shows of it.
             if answered
@@ -242,6 +249,18 @@ fn on_item(In(ev): In<SessionEvent>, mut sc: Scene) {
                     // The vendor's run for a record and a refusal alike (`0x4fb0f0`, `0x4fb570`).
                     Cb::Merchant => sc.merchant.row_answered(),
                     Cb::Buyback => sc.merchant.buyback_answered(),
+                    // The trainer getters' run the state pass for a ready record only (`0x4d9146`,
+                    // `0x4d9db6`).
+                    Cb::Trainer if answered => sc.trainer.owed(),
+                    Cb::Trainer => {}
+                    // `QUEST_ITEM_UPDATE` for a ready record only (`0x5018d6`, `0x5018f5`,
+                    // `0x501903`), whatever the window shows then.
+                    Cb::Quest if answered => {
+                        if let Some(lane) = sc.quest_giver.as_mut() {
+                            lane.push(crate::ui_quest::QuestGiverEvent::ItemUpdate);
+                        }
+                    }
+                    Cb::Quest => {}
                 }
             }
             // The combat log's callback for its held lines (`0x6294b0`), which writes each one
@@ -425,6 +444,12 @@ fn on_gameobject_info(In(ev): In<SessionEvent>, mut sc: Scene) {
             &data,
             &mut sc.go_templates,
         );
+        // The leaderboard's callback `0x4e0800` signals for a landed record (`0x4e081a`).
+        if sc.go_templates.take_quest_wait(entry) {
+            if let Some(log) = sc.quest_log.as_mut() {
+                log.ready(crate::ui_quest_log::QuestEvent::ObjectNamed);
+            }
+        }
     }
 }
 
@@ -433,6 +458,8 @@ fn on_gameobject_info(In(ev): In<SessionEvent>, mut sc: Scene) {
 fn on_gameobject_unknown(In(ev): In<SessionEvent>, mut sc: Scene) {
     if let SessionEvent::GameObjectUnknown { entry } = ev {
         sc.go_templates.refuse(entry);
+        // A refusal runs the leaderboard's callback with status 0, which only logs (`0x4e080a`).
+        sc.go_templates.take_quest_wait(entry);
     }
 }
 

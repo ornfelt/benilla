@@ -357,14 +357,12 @@ pub(super) fn install_methods(lua: &Lua, m: &Table) -> mlua::Result<()> {
             const LINE: &str = r#"Invalid quest item in SetQuestItem("type", index)"#;
             let kind = binding_abi::string_arg(lua, kind, LINE)?;
             let index = binding_abi::index_arg(lua, index, LINE)?;
-            let item = {
-                let model = lua.app_data_ref::<Model>().expect("model app_data");
-                model.quest.as_ref().and_then(|q| {
-                    crate::script::quest::item_vec(q, &kind)
-                        .and_then(|v| index.checked_sub(1).and_then(|n| v.get(n)))
-                        .cloned()
-                })
-            };
+            // The panel's rows as the host holds them at the call.
+            let item = crate::script::quest::state(lua).and_then(|q| {
+                crate::script::quest::item_vec(&q, &kind)
+                    .and_then(|v| index.checked_sub(1).and_then(|n| v.get(n)))
+                    .cloned()
+            });
             set_quest_item_view(lua, &this, item)
         })?,
     )?;
@@ -545,7 +543,7 @@ pub(super) fn install_methods(lua: &Lua, m: &Table) -> mlua::Result<()> {
                             })
                         });
                     let cost = if player {
-                        model.inv_repair_cost(slot)
+                        model.inv_repair_cost(lua, slot)
                     } else {
                         0
                     };
@@ -633,7 +631,7 @@ pub(super) fn install_methods(lua: &Lua, m: &Table) -> mlua::Result<()> {
             }
             let (item_id, count, link, quality, inst, repair_cost) = {
                 let model = lua.app_data_ref::<Model>().expect("model app_data");
-                let cost = model.repair_costs.bags.get(&(bag, slot)).copied();
+                let cost = crate::script::merchant::repair_cost_at(lua, &model, bag, slot);
                 match model.bag_slot(bag, slot).filter(|s| s.item_id != 0) {
                     // `0x534620` takes the p6=1 leg iff the cooldown query `0x6e2ed0` reports
                     // enable, start and duration all non-zero; that boolean is the inverse of the
@@ -658,7 +656,7 @@ pub(super) fn install_methods(lua: &Lua, m: &Table) -> mlua::Result<()> {
                             // p6 = 0 iff no cooldown runs; mid-cooldown ITEM_COOLDOWN_TIME takes
                             // the openable line's place.
                             inst,
-                            cost.unwrap_or(0),
+                            cost,
                         )
                     }
                     None => return Ok(MultiValue::from_vec(vec![Value::Nil])),

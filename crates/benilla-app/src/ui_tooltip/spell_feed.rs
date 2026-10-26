@@ -543,7 +543,7 @@ fn expand(
 
 /// The token engine's parts as the render reads them: each template it names by key, its stand-in
 /// the token as written.
-pub(super) fn tooltip_text(parts: Vec<benilla_formats::TokenPart>) -> TooltipText {
+pub(crate) fn tooltip_text(parts: Vec<benilla_formats::TokenPart>) -> TooltipText {
     use benilla_formats::{TokenNumber, TokenPart};
     TooltipText(
         parts
@@ -748,10 +748,13 @@ pub(super) struct SpellTooltipSources<'w> {
 /// hovered, as the reference reads them all locally; an ask for any other id or aura too.
 #[allow(clippy::type_complexity)] // a Bevy system's full input set
 pub(super) fn feed_spell_tooltips(
-    // The item cache and the standings, which the host's calls write too: an engine turn.
+    // The item cache and the standings, which the host's calls write too: an engine turn. The pet
+    // bar's and book's words, whose setters pass the builder's unit selector (`0x532888`,
+    // `0x532e23`), which the host's pet verbs write.
     mut vm: crate::script_calls::VmWith<(
         ResMut<'static, Items>,
         Option<Res<'static, crate::net::Reputations>>,
+        Option<Res<'static, crate::ui_pet::PetBar>>,
     )>,
     actions: Option<Res<PlayerActions>>,
     spell_sources: SpellTooltipSources,
@@ -773,7 +776,9 @@ pub(super) fn feed_spell_tooltips(
     commands: Res<NetCommands>,
     mut memory: Local<crate::ui_script::VmMemo<SpellFeedMemory>>,
 ) {
-    vm.turn(|script, (mut items, reputations)| {
+    // Read with the host lent, so the questgiver panel's reward spell is the cells' as they stand.
+    let subjects = vm.run(|script| script.map(|s| s.spell_tooltip_subjects()));
+    vm.turn(|script, (mut items, reputations, pet_bar)| {
         let (sub_classes, spell_mods, skill_lines, factions) = &lookups;
         let SpellTooltipSources {
             spells,
@@ -790,9 +795,9 @@ pub(super) fn feed_spell_tooltips(
         let mut wanted: Vec<u32> = script.take_spell_tooltip_asks();
         // What the VM holds for a hover: quest rewards and craft subjects.
         wanted.extend(
-            script
-                .spell_tooltip_subjects()
+            subjects
                 .into_iter()
+                .flatten()
                 .filter(|s| !memory.pushed.contains_key(s)),
         );
         if let Some(actions) = actions.as_deref() {
@@ -812,14 +817,19 @@ pub(super) fn feed_spell_tooltips(
                 .into_iter()
                 .filter(|k| !memory.aura_pushed.contains_key(k)),
         );
-        // The pet views: the pet's bar and book, and what their setters asked for.
+        // The pet views: the spells of the pet's bar and book, and what their setters asked for.
         let mut wanted_pet: Vec<u32> = script.take_pet_spell_tooltip_asks();
-        wanted_pet.extend(
-            script
-                .pet_spell_tooltip_subjects()
-                .into_iter()
-                .filter(|s| !memory.pet_pushed.contains_key(s)),
-        );
+        if let Some(bar) = pet_bar.as_deref() {
+            wanted_pet.extend(
+                bar.spells
+                    .bar
+                    .iter()
+                    .chain(&bar.spells.spells)
+                    .filter(|e| e.is_spell())
+                    .map(|e| e.action())
+                    .filter(|&s| s != 0 && !memory.pet_pushed.contains_key(&s)),
+            );
+        }
         // The open trainer's services, which the detail icon's `SetTrainerService` renders, a
         // pet-learn service's against the pet.
         if let Some(trainer) = trainer_subjects.as_deref() {

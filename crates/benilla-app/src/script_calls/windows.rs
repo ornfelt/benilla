@@ -159,7 +159,6 @@ impl ScriptCallHost<'_, '_> {
         giver: u64,
     ) {
         self.appliers.latch().note_closed(NpcWindow::Quest);
-        script.set_quest(None);
         let _ = self.appliers.latch().release(giver);
         script.fire_event("QUEST_FINISHED", vec![]);
         self.signalled(script, mark);
@@ -172,10 +171,22 @@ impl ScriptCallHost<'_, '_> {
             return;
         };
         self.release_into(script, mark, master, Self::close_stable);
-        self.appliers.stable().clear_master(script);
+        self.appliers.stable().clear_master();
         self.appliers.latch().note_closed(NpcWindow::Stable);
         script.fire_event("PET_STABLE_CLOSED", vec![]);
         self.signalled(script, mark);
+    }
+
+    /// `ClosePetition()` (`0x4f43c0` → `0x4f3f60(0, 0)`) inside its call: with a petition open,
+    /// the decline, the signers freed and the item zeroed, then `PETITION_CLOSED` (`0x4f402c`),
+    /// whose listeners run here and still read the record; then, open or not, the record and the
+    /// sign latch dropped (`0x4f4078`).
+    pub(super) fn close_petition(&mut self, script: &mut UiScript, mark: &mut ReportMark) {
+        if self.appliers.petition().close_petition() {
+            script.fire_event("PETITION_CLOSED", vec![]);
+            self.signalled(script, mark);
+        }
+        self.appliers.petition().drop_petition_record();
     }
 
     /// The trade window's close core, `0x4bf4e0(0, 0)`, after the item watchers' trade halves

@@ -1414,18 +1414,6 @@ fn the_locked_line_greens_when_the_lock_can_be_opened() {
     assert_eq!(locked_line_tint(None, None), TooltipTint::LockOpen);
 }
 
-/// A trainer list that lands this frame is hoverable in this frame's tick: the trainer feed derives
-/// the subjects the spell feed pushes.
-#[test]
-fn the_spell_feed_runs_after_the_trainer_feed() {
-    let mut app = crate::game_plugins::schedule_tests::headless_client();
-    assert!(crate::test_support::runs_before(
-        &mut app,
-        crate::ui_trainer::feed_trainer,
-        feed_spell_tooltips
-    ));
-}
-
 pub(super) const ME: u64 = 0x77;
 pub(super) const WOLF: u64 = 0xF130_0000_4500_0001;
 pub(super) const BOAR: u64 = 0xF130_0000_4600_0002;
@@ -1745,17 +1733,6 @@ fn the_mouseover_token_clears_when_no_unit_is_hovered() {
     }
 }
 
-/// A quest panel that opens this frame is hoverable in its tick.
-#[test]
-fn the_spell_feed_runs_after_the_quest_feed() {
-    let mut app = crate::game_plugins::schedule_tests::headless_client();
-    assert!(crate::test_support::runs_before(
-        &mut app,
-        crate::ui_quest::feed_quest,
-        feed_spell_tooltips
-    ));
-}
-
 /// The pet bar, Beast Training and target-of-target hovers are whole on the first hover.
 #[test]
 fn the_feed_pushes_the_spells_the_vm_holds_before_a_hover() {
@@ -1790,6 +1767,13 @@ fn the_feed_pushes_the_spells_the_vm_holds_before_a_hover() {
     .init_resource::<crate::net::GuidIndex>()
     .init_resource::<crate::spell::SpellModifiers>()
     .add_systems(Update, feed_spell_tooltips);
+    // Firebolt on the pet's bar, the word the feed reads its subject off.
+    let mut bar = crate::ui_pet::PetBar::default();
+    bar.spells.pet_guid = 0x2A;
+    bar.spells.bar[0] = benilla_protocol::messages::PetActionEntry::from(
+        3110 | (u32::from(benilla_protocol::messages::PET_ACT_ENABLED) << 24),
+    );
+    app.insert_resource(bar);
 
     let mut script = UiScript::new().unwrap();
     crate::ui_script::test_ui::load_tooltip_template(&script);
@@ -1934,6 +1918,15 @@ fn the_feed_builds_the_pet_views_against_the_pet_and_rebuilds_them_on_its_level(
     let mut index = app.world_mut().resource_mut::<crate::net::GuidIndex>();
     index.0.insert(ME, me);
     index.0.insert(IMP, imp);
+    // Blood Pact on the imp's bar and in its book, the words the feed reads its subjects off.
+    let word = benilla_protocol::messages::PetActionEntry::from(
+        6307 | (u32::from(benilla_protocol::messages::PET_ACT_ENABLED) << 24),
+    );
+    let mut bar = crate::ui_pet::PetBar::default();
+    bar.spells.pet_guid = IMP;
+    bar.spells.bar[0] = word;
+    bar.spells.spells = vec![word];
+    app.insert_resource(bar);
 
     let mut script = UiScript::new().unwrap();
     crate::ui_script::test_ui::load_tooltip_template(&script);
@@ -2042,4 +2035,61 @@ fn a_refused_hover_name_is_asked_again_by_the_next_hover_only() {
         hover_unit(&mut app, boar, PLAYER);
     }
     assert!(crate::query_cache::queries(&rx).is_empty());
+}
+
+/// The questgiver panel's reward spell, which its getters read through the host, is pushed ahead
+/// of a hover like the VM's own subjects: the first `SetQuestRewardSpell` shows its whole view.
+#[test]
+fn the_feed_pushes_the_questgiver_panels_reward_spell_before_a_hover() {
+    let spell = benilla_formats::SpellDisplay {
+        name: "Firebolt".into(),
+        description: Some("Deals Fire damage.".into()),
+        ..Default::default()
+    };
+    let mut app = crate::game_plugins::schedule_tests::headless_client_unrun();
+    let (tx, _rx) = crossbeam_channel::unbounded();
+    app.insert_resource(NetCommands(tx));
+    app.insert_resource(Spells {
+        catalog: benilla_formats::SpellCatalog::from_displays(std::collections::HashMap::from([(
+            3110, spell,
+        )])),
+        ..Spells::empty_for_tests()
+    });
+    app.world_mut()
+        .resource_mut::<crate::ui_quest::QuestGiver>()
+        .open(
+            0x42,
+            crate::ui_quest::QuestView::Detail(benilla_protocol::messages::QuestDetails {
+                npc: 0x42,
+                quest_id: 1,
+                title: "Fire".into(),
+                details: String::new(),
+                objectives: String::new(),
+                auto_finish: 0,
+                choices: Vec::new(),
+                rewards: Vec::new(),
+                money: 0,
+                reward_spell: 3110,
+            }),
+        );
+    let script = UiScript::new().unwrap();
+    crate::ui_script::test_ui::load_tooltip_template(&script);
+    app.insert_non_send_resource(script);
+    app.world_mut()
+        .run_system_cached(feed_spell_tooltips)
+        .expect("the feed runs");
+    let lines = crate::script_calls::with_hosted_vm(app.world_mut(), |s| {
+        s.expect("a VM").eval::<String>(
+            r#"
+            local a = CreateFrame("Button", "B"); a:SetPoint("CENTER", 0, 0)
+            CreateFrame("GameTooltip", "TT", nil, "TestTooltipTemplate")
+            TT:SetOwner(B, "ANCHOR_RIGHT"); TT:SetQuestRewardSpell()
+            local t = {}
+            for i = 1, TT:NumLines() do t[i] = getglobal("TTTextLeft" .. i):GetText() end
+            return table.concat(t, " | ")
+            "#,
+        )
+    })
+    .unwrap();
+    assert_eq!(lines, "Firebolt | Deals Fire damage.");
 }

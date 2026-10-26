@@ -535,6 +535,7 @@ fn custom_cursor(model: &mut super::Model, name: &str) -> bool {
 /// the cursor ([`use_equip_arm`]). The host sends each arm, from the call left in `call`, and the
 /// repair from the model's [`ItemCall::Repair`].
 fn use_cleared(
+    lua: &Lua,
     model: &mut super::Model,
     bag: i64,
     slot: u32,
@@ -577,7 +578,7 @@ fn use_cleared(
             .and_then(|c| c.slots.get(&slot))
             .is_some_and(|s| s.item_class.is_some());
         if let Some(key) =
-            super::use_gates::item_use_refusal(model, fork, item_id, use_spell, known)
+            super::use_gates::item_use_refusal(lua, model, fork, item_id, use_spell, known)
         {
             // Shown inside the verb, as the gate's `DisplayError` (`0x496720`) is.
             *call = Some(super::ScriptCall::DisplayError(key));
@@ -674,12 +675,18 @@ fn arm_gift_wrap(model: &mut super::Model, bag: i64, slot: u32) {
 /// ([`cursor::pick_up_item`]), so the setter's inner clear signals on its own, or the armed
 /// spell's pick, which applies through the host inside the verb.
 fn pickup_container_item(
+    lua: &Lua,
     model: &mut super::Model,
     bag: i64,
     slot: u32,
     may_cast: bool,
     vendor: super::merchant::VendorAtCall,
 ) -> ContainerClick {
+    // Without control and off a taxi the click ends before anything is read
+    // (`0x4f9b87`-`0x4f9ba3`).
+    if !cursor::equip::has_cursor_control(model) {
+        return ContainerClick::Done;
+    }
     // An armed gift wrap completes here, before the cursor is read. `PickupContainerItem` is the
     // only caller of the wrap sender `0x5edfc0`, so an equipped item cannot be wrapped.
     if let Some(wrap) = model.pending_wrap {
@@ -724,7 +731,12 @@ fn pickup_container_item(
     // picked up, its setter's clear dropping whatever else is held (`0x4f9de9`).
     let placing = matches!(
         model.cursor,
-        Some(CursorPayload::Item(_) | CursorPayload::Merchant(_) | CursorPayload::Action(_))
+        Some(
+            CursorPayload::Item(_)
+                | CursorPayload::Merchant(_)
+                | CursorPayload::Action(_)
+                | CursorPayload::Ammo(_)
+        )
     );
     if !placing && (model.item_pick_armed || model.repair_mode) {
         let occupied = model
@@ -792,6 +804,7 @@ fn pickup_container_item(
                 (None, dest) => {
                     cursor::lock_item(model, dest.map_or(0, |d| d.guid));
                     cursor::swap::swap_and_file(
+                        lua,
                         model,
                         ContainerMove {
                             src_bag: held.bag,
@@ -821,8 +834,9 @@ fn pickup_container_item(
             cursor::clear_cursor(model);
             ContainerClick::Done
         }
-        // Mode 7, an item off the bar, is a held row too, and only cleared (`0x4f9f41`).
-        Some(CursorPayload::Action(_)) => {
+        // Mode 7, an item off the bar, and mode 9, ammo, are held rows too, and only cleared
+        // (`0x4f9f41`).
+        Some(CursorPayload::Action(_) | CursorPayload::Ammo(_)) => {
             cursor::clear_cursor(model);
             ContainerClick::Done
         }
@@ -1178,7 +1192,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
             let mut call = None;
             let vendor = super::merchant::at_call(lua);
             let equip = super::tick::verb(lua, |model| {
-                use_cleared(model, bag, slot, on_self, may_cast, vendor, &mut call)
+                use_cleared(lua, model, bag, slot, on_self, may_cast, vendor, &mut call)
             });
             super::item_calls::submit_item_calls(lua)?;
             if let Some(call) = call {
@@ -1218,7 +1232,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
             }
             let vendor = super::merchant::at_call(lua);
             let click = super::tick::verb(lua, |model| {
-                pickup_container_item(model, bag, slot, may_cast, vendor)
+                pickup_container_item(lua, model, bag, slot, may_cast, vendor)
             });
             super::item_calls::submit_item_calls(lua)?;
             match click {
@@ -1241,6 +1255,11 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     lua.globals().set(
         "ShowContainerSellCursor",
         lua.create_function(|lua, (bag, slot): (Value, Value)| {
+            // The targeting and base-mode gates run before either argument is read
+            // (`0x4fa469`-`0x4fa47a`).
+            if super::merchant::sell_cursor_shut(&lua.app_data_ref::<Model>().expect("model")) {
+                return Ok(());
+            }
             // `is-number` on args 1 and 2 else `Usage: ShowContainerSellCursor(index, slot)`
             // (`0x84d970`, `0x4fa4d9`).
             let bag = i64::from(binding_abi::number_arg(
@@ -1254,9 +1273,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
             let occupied = model
                 .bag_slot(bag, slot)
                 .is_some_and(|s| !cursor::item_locked(&model, s.guid));
-            // An armed spell or repair cursor suppresses it first; each is sticky, so a Buy here
-            // would stamp out the active base cursor.
-            if occupied && !model.spell_targeting && !model.repair_mode {
+            if occupied {
                 model.ui_cursor = Some(UiCursorMode::Buy);
                 model.ui_cursor_dirty = true;
             }
@@ -2087,6 +2104,29 @@ mod tests {
         assert_eq!(s.take_script_calls().len(), 1, "and so does a free player");
     }
 
+    /// `PickupContainerItem` ends before it reads the cursor without control of the character,
+    /// unless the player is on a taxi (`0x4f9b87`-`0x4f9ba3`): no pickup, and a held item is
+    /// neither placed nor cancelled.
+    #[test]
+    fn pickup_container_item_needs_control_or_a_taxi() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_container(0, Some(forked_bag(super::UseFork::Plain)));
+        s.set_player_control(false);
+        s.run("PickupContainerItem(0, 1)").unwrap();
+        assert!(s.cursor_item().is_none(), "no pickup");
+        assert!(!s.item_locked(0x11), "no lock");
+
+        s.set_on_taxi(true);
+        s.run("PickupContainerItem(0, 1)").unwrap();
+        assert!(s.cursor_item().is_some(), "a taxi passenger picks up");
+
+        s.set_on_taxi(false);
+        s.run("PickupContainerItem(0, 1)").unwrap();
+        assert!(s.cursor_item().is_some(), "the cancel is refused too");
+        assert!(s.take_container_moves().is_empty());
+    }
+
     /// The dispatcher's requirement check (`0x5d8e0e`) and control gate (`0x5d8eaa`, error
     /// `0x7f`) end the call before the open arm's lock (`0x5edcd9`), each with its line, the
     /// requirement first.
@@ -2497,6 +2537,22 @@ mod tests {
 
         s.run("PickupContainerItem(0, 1)").unwrap();
         assert!(s.cursor_item().is_none());
+    }
+
+    /// `SplitContainerItem` ends first without control, unless the player is on a taxi
+    /// (`0x4f9fdb`-`0x4f9ff7`).
+    #[test]
+    fn split_container_item_needs_control_or_a_taxi() {
+        let mut s = UiScript::new().unwrap();
+        s.keep_calls();
+        s.set_container(0, Some(backpack()));
+        s.set_player_control(false);
+        assert!(!split_container_item(&s.lua, 0, 1, 3).unwrap());
+        assert!(s.cursor_item().is_none());
+        assert!(!s.item_locked(0x10a), "no lock");
+        s.set_on_taxi(true);
+        assert!(split_container_item(&s.lua, 0, 1, 3).unwrap());
+        assert_eq!(s.cursor_item().and_then(|i| i.count), Some(3));
     }
 
     #[test]

@@ -122,12 +122,21 @@ pub(crate) enum FieldNotice {
     /// The skill value watch `0x5de180`. Past its gate (`0x5de20c`, `shown` unlike `old`): the
     /// skill list's rebuild (`0x5de2a7`), then its line for the active player:
     /// `ERR_SKILL_GAINED_S` over an old value of 0 (`0x5de378`), else `ERR_SKILL_UP_SI` with the
-    /// shown value (`0x5de417`). Either way, the profession list's rebuild (`0x5de434`). `old` is
-    /// the value word's copy, `shown` the value plus the permanent bonus when the value is above 0.
+    /// shown value (`0x5de417`). Either way the trainer's pass and [`Self::Professions`] follow.
+    /// `old` is the value word's copy, `shown` the value plus the permanent bonus when the value is
+    /// above 0.
     SkillValue { skill_id: u16, old: u16, shown: u32 },
     /// The mirror-timer handler `0x5e7990`'s signal for one edge: `MIRROR_TIMER_START`,
     /// `_PAUSE` or `_STOP` (`0x5e7a9a`, `0x5e7a11`, `0x5e79cc`).
     MirrorTimer(crate::ui_mirror::MirrorTimerEdge),
+    /// The trainer's state pass `0x4d7d40` from a watch on the active player: the coinage's
+    /// (`0x5ddf41`), the level's (`0x5edb80`) and the skill entries' (`0x5de42d`, `0x5de450`). The
+    /// packet's handler puts it on the trainer lane at its place ([`crate::ui_trainer`]), never on
+    /// this one.
+    TrainerPass,
+    /// The skill value watch's profession list rebuild (`0x5de434` → `0x4fca20`), behind its
+    /// trainer pass (`0x5de42d`).
+    Professions,
 }
 
 /// The notice lane: each notice stamped as a handler writes it ([`crate::lanes::stamp`]), fired
@@ -210,6 +219,7 @@ pub(crate) mod id {
     pub(crate) const UNIT_INVENTORY_CHANGED: u16 = 186;
     pub(crate) const PLAYER_MONEY: u16 = 200;
     pub(crate) const PLAYERBANKSLOTS_CHANGED: u16 = 347;
+    pub(crate) const PLAYERBANKBAGSLOTS_CHANGED: u16 = 350;
     pub(crate) const UNIT_CLASSIFICATION_CHANGED: u16 = 187;
     pub(crate) const PLAYER_FLAGS_CHANGED: u16 = 407;
     pub(crate) const UNIT_QUEST_LOG_CHANGED: u16 = 522;
@@ -371,6 +381,11 @@ const COINAGE: (u16, u16) = (0xf70, 4);
 
 /// `0x5de4e0`'s range, `PLAYER_BYTES_2` byte 3 (`0x5ddb0b`).
 const REST_STATE: u16 = 0x1b;
+
+/// The active player's bank-slot watch `0x4f8490`, `PLAYER_BYTES_2` byte 2, the bought bank bag
+/// slots, registered at world entry (`0x4f8460`, from `0x4909ba`), behind `0x5de4e0` on the same
+/// dword.
+const BANK_BAG_SLOTS: (u16, u16) = (0x1a, 1);
 
 /// The skill block: entry `k` at `0x848 + 12k` of the player section, 128 entries (`0x5dda54` to
 /// `0x5ddaf0`). Each entry's four watches cover two bytes each: the value at `+4`, the maximum at
@@ -803,10 +818,11 @@ pub(crate) fn placed_values(
         }
     }
     // A level change on the active player (`0x5edb6f`): the book's `SPELLS_CHANGED` with no sort
-    // (`0x5edb7b` → `0x4b2fd0(0, 0)`, `0x4b302a`).
+    // (`0x5edb7b` → `0x4b2fd0(0, 0)`, `0x4b302a`), then the trainer's pass (`0x5edb80`).
     if let Some(at) = at(UNIT_SECTION, LEVEL, List::Type).filter(|_| mine) {
         let id = id::SPELLS_CHANGED;
         pass.push(at, FieldNotice::Global { id });
+        pass.push(at, FieldNotice::TrainerPass);
     }
 
     // The bridge (`0x51bbb0`), the object's own watches.
@@ -944,14 +960,21 @@ pub(crate) fn placed_values(
                 );
             }
         }
+        // `0x4f8490`: `PLAYERBANKBAGSLOTS_CHANGED` bare (`0x4f8495`), a banker open or not.
+        if let Some(at) = at(PLAYER_SECTION, BANK_BAG_SLOTS, List::Object) {
+            let id = id::PLAYERBANKBAGSLOTS_CHANGED;
+            pass.push(at, FieldNotice::Global { id });
+        }
         for (offset, len, id) in PLAYER_EVENT_WATCHES {
             if let Some(at) = at(PLAYER_SECTION, (offset, len), List::Object) {
                 pass.push(at, FieldNotice::Player { id });
             }
         }
-        // `0x5ddf30` signals `PLAYER_MONEY` (`0x5ddf4b`) ahead of the trade offer's trim
-        // (`0x5ddfda`), which signals nothing and runs at the packet ([`crate::ui_trade`]).
+        // `0x5ddf30` runs the trainer's pass (`0x5ddf41`), then signals `PLAYER_MONEY`
+        // (`0x5ddf4b`) ahead of the trade offer's trim (`0x5ddfda`), which signals nothing and runs
+        // at the packet ([`crate::ui_trade`]).
         if let Some(at) = at(PLAYER_SECTION, COINAGE, List::Object) {
+            pass.push(at, FieldNotice::TrainerPass);
             pass.push(
                 at,
                 FieldNotice::Global {
@@ -992,7 +1015,8 @@ pub(crate) fn placed_values(
             let entry = SKILL_STRIDE * k;
             if let Some(at) = at(PLAYER_SECTION, (SKILL_VALUE + entry, 2), List::Object) {
                 // `0x5de180`: past its gate, `0x5ed990` (`0x5de214`), then the rebuild
-                // (`0x5de2a7`) and the line; on every run, the profession list's (`0x5de434`).
+                // (`0x5de2a7`) and the line; on every run, the trainer's pass (`0x5de42d`), then
+                // the profession list's rebuild (`0x5de434`).
                 let (old, _) = block.edge(at.0).unwrap_or_default();
                 let notice = skill_value_notice(fields, k, old);
                 if let FieldNotice::SkillValue { old, shown, .. } = notice {
@@ -1001,11 +1025,14 @@ pub(crate) fn placed_values(
                     }
                 }
                 pass.push(at, notice);
+                pass.push(at, FieldNotice::TrainerPass);
+                pass.push(at, FieldNotice::Professions);
             }
-            // `0x5de450` on the maximum and the permanent bonus: the rebuilds (`0x5de457`,
-            // `0x5de45c`).
+            // `0x5de450` on the maximum and the permanent bonus: the trainer's pass, then the
+            // rebuilds (`0x5de457`, `0x5de45c`).
             for half in [SKILL_MAX, SKILL_PERM_BONUS] {
                 if let Some(at) = at(PLAYER_SECTION, (half + entry, 2), List::Object) {
+                    pass.push(at, FieldNotice::TrainerPass);
                     pass.push(at, FieldNotice::SkillMax);
                 }
             }
@@ -1208,8 +1235,9 @@ mod tests {
         );
     }
 
-    /// The rank bar watch is one byte of `PLAYER_FIELD_BYTES2`, the rest-state watch one byte of
-    /// `PLAYER_BYTES_2`: the other bytes of their dwords run neither.
+    /// The rank bar watch is one byte of `PLAYER_FIELD_BYTES2`, the rest-state watch and the
+    /// bank-slot watch one byte each of `PLAYER_BYTES_2`: the other bytes of their dwords run
+    /// neither, and on one dword the rest state's runs first (`0x5ddb0b`, then `0x4f8460`).
     #[test]
     fn a_byte_watch_reads_its_own_byte_only() {
         let mut me = player();
@@ -1220,10 +1248,14 @@ mod tests {
             [FieldNotice::Player { id: 524 }]
         );
         let rest = pf(0x1b);
-        assert!(block(&mut me, Some(ME), ME, &[(rest, 0x00ff_ffff)]).is_empty());
+        assert!(block(&mut me, Some(ME), ME, &[(rest, 0x0000_ffff)]).is_empty());
+        let bank = FieldNotice::Global {
+            id: id::PLAYERBANKBAGSLOTS_CHANGED,
+        };
+        assert_eq!(block(&mut me, Some(ME), ME, &[(rest, 0x0002_ffff)]), [bank]);
         assert_eq!(
-            block(&mut me, Some(ME), ME, &[(rest, 0x02ff_ffff)]),
-            [FieldNotice::RestState { old: 0, new: 2 }]
+            block(&mut me, Some(ME), ME, &[(rest, 0x0203_ffff)]),
+            [FieldNotice::RestState { old: 0, new: 2 }, bank]
         );
         // The whole `PLAYER_BYTES_3` is the rank watch: its gender byte runs it.
         assert_eq!(
@@ -1340,27 +1372,35 @@ mod tests {
             combat(block(&mut me, Some(ME), ME, &[(value, (305 << 16) | 7)])),
             [FieldNotice::CombatSkill]
         );
-        // The gate skips its combat signals, not the run's notice (`0x5de20c` → `0x5de42d`).
+        // The gate skips its combat signals, not the run's notice nor the trainer's pass
+        // (`0x5de20c` → `0x5de42d`).
         assert_eq!(
             block(&mut me, Some(ME), ME, &[(value, (305 << 16) | 2)]),
-            [FieldNotice::SkillValue {
-                skill_id: 95,
-                old: 7,
-                shown: 7
-            }]
+            [
+                FieldNotice::SkillValue {
+                    skill_id: 95,
+                    old: 7,
+                    shown: 7
+                },
+                FieldNotice::TrainerPass,
+                FieldNotice::Professions
+            ]
         );
     }
 
     /// Each of the four watches of a skill slot (`0x5dda54`-`0x5ddaf0`) rebuilds a list: the value
-    /// its notice, past its gate after its combat signals (`0x5de214`, `0x5de2a7`, `0x5de434`), the
-    /// maximum and the permanent bonus theirs (`0x5de450` → `0x5de457`, `0x5de45c`), and the
+    /// its notice, past its gate after its combat signals (`0x5de214`, `0x5de2a7`, `0x5de434`),
+    /// then the trainer's pass (`0x5de42d`), the maximum and the permanent bonus the pass and their
+    /// rebuilds (`0x5de450` → `0x5de457`, `0x5de45c`), and the
     /// temporary bonus the skill list after its combat signals (`0x5de470` → `0x5de495`,
     /// `0x5de49a`); at one field the watches run in their registration
     /// order, value, maximum, permanent bonus, temporary bonus (`0x5dda6c`, `0x5dda8e`,
     /// `0x5ddaaf`, `0x5ddad1`).
     #[test]
     fn every_skill_watch_rebuilds_the_list() {
-        use FieldNotice::{CombatSkill, SkillLines, SkillMax, SkillValue};
+        use FieldNotice::{
+            CombatSkill, Professions, SkillLines, SkillMax, SkillValue, TrainerPass,
+        };
         let mut me = player();
         let value = pf(SKILL_VALUE);
         let bonus = pf(SKILL_TEMP_BONUS);
@@ -1379,6 +1419,9 @@ mod tests {
                     old: 0,
                     shown: 1
                 },
+                TrainerPass,
+                Professions,
+                TrainerPass,
                 SkillMax,
             ]
         );
@@ -1390,17 +1433,19 @@ mod tests {
                     skill_id: 95,
                     old: 1,
                     shown: 2
-                }
+                },
+                TrainerPass,
+                Professions
             ]
         );
         assert_eq!(
             block(&mut me, Some(ME), ME, &[(value, (305 << 16) | 2)]),
-            [SkillMax],
+            [TrainerPass, SkillMax],
             "the maximum alone"
         );
         assert_eq!(
             block(&mut me, Some(ME), ME, &[(bonus, 5 << 16)]),
-            [SkillMax],
+            [TrainerPass, SkillMax],
             "the permanent bonus alone"
         );
         assert_eq!(
@@ -1410,7 +1455,7 @@ mod tests {
         );
         assert_eq!(
             block(&mut me, Some(ME), ME, &[(bonus, (6 << 16) | 4)]),
-            [SkillMax, CombatSkill, SkillLines],
+            [TrainerPass, SkillMax, CombatSkill, SkillLines],
             "both bonuses: the permanent one's watch first"
         );
         // Shown 4 + 6 against the old word 2.
@@ -1423,6 +1468,9 @@ mod tests {
                     old: 2,
                     shown: 10
                 },
+                TrainerPass,
+                Professions,
+                TrainerPass,
                 SkillMax,
             ],
             "the value and the maximum in one dword"
@@ -2055,8 +2103,8 @@ mod tests {
         );
     }
 
-    /// The level's type watcher signals the book for the active player alone (`0x5edb6f`), ahead
-    /// of the bridge's `UNIT_LEVEL` on the same field.
+    /// The level's type watcher signals the book for the active player alone (`0x5edb6f`), then
+    /// runs the trainer's pass (`0x5edb80`), ahead of the bridge's `UNIT_LEVEL` on the same field.
     #[test]
     fn a_level_change_signals_the_book_for_the_active_player() {
         let mut me = player();
@@ -2066,6 +2114,7 @@ mod tests {
                 FieldNotice::Global {
                     id: id::SPELLS_CHANGED
                 },
+                FieldNotice::TrainerPass,
                 bridge(ME, id::UNIT_LEVEL)
             ]
         );

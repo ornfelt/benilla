@@ -27,6 +27,7 @@ mod battlefield_score;
 mod bind_confirm;
 mod binder;
 pub(crate) mod binding_abi;
+mod dialog_live;
 mod dialog_verbs;
 mod tutorial;
 mod worldmap_arrow;
@@ -132,6 +133,7 @@ mod keyboard;
 mod layer_batch;
 mod lock_check;
 mod protected;
+mod requirements;
 mod stat_read;
 pub(crate) mod taint;
 pub(crate) mod texel;
@@ -239,7 +241,7 @@ pub use aura::{
     AuraCall, AuraListRead, AuraRead, AuraState, PlayerBuffExpiry, TrackingState, UnitAuraList,
 };
 pub use backdrop::{Backdrop, Insets};
-pub use bank::{BankCall, BankState};
+pub use bank::{BankCall, BankSlotsQuery, BankState};
 pub use battlefield_live::{
     BattlefieldFlagQuery, BattlefieldIconScaleQuery, BattlefieldListQuery,
     BattlefieldPositionCountQuery, BattlefieldPositionQuery, BattlefieldScoreRead,
@@ -280,9 +282,9 @@ pub use cursor::equip::{AutoEquip, BIND_WHEN_EQUIPPED};
 pub use cursor::money::coin_icon;
 pub use cursor::swap::Swap;
 pub use cursor::{
-    CursorAction, CursorItem, CursorMacro, CursorMerchantItem, CursorMoney, CursorPayload,
-    CursorPetAction, CursorSpell, CursorStablePet, EnchantAnswer, EnchantConfirm, HeldCursor,
-    ItemPick, WorldPick, EQUIPMENT_BAG,
+    CursorAction, CursorAmmo, CursorItem, CursorMacro, CursorMerchantItem, CursorMoney,
+    CursorPayload, CursorPetAction, CursorSpell, CursorStablePet, EnchantAnswer, EnchantConfirm,
+    HeldCursor, ItemPick, WorldPick, EQUIPMENT_BAG,
 };
 pub use cvar_checks::{
     check_base_mip, check_camera_decay, check_camera_distance_max, check_camera_pitch,
@@ -304,13 +306,18 @@ pub use cvars::{
     WORLD_DETAIL_STOPS,
 };
 pub use death::{DeathAction, DeathUiState};
+pub use dialog_live::{
+    meeting_stone_text, AreaSpiritHealerSecsQuery, BinderPendingQuery, CanResetInstancesQuery,
+    InstanceBootSecsQuery, InstanceTypeQuery, MeetingStoneQuery, MeetingStoneStatus,
+    MeetingStoneText, PetUntrainerPendingQuery, SummonConfirmQuery,
+};
 pub use dialog_verbs::MeetingStoneCall;
 pub use dressup::DressUpIntent;
 pub use duel::DuelRequest;
 pub use follow::FollowRequest;
 pub use gm_survey::{GmSurveyTables, SurveyAnswerSend};
 pub use gm_ticket::{GmTicketCall, GmTicketIntent, GmTicketWrite};
-pub use gossip::{GossipCall, GossipMenu, GossipOptionView, GossipQuestRow};
+pub use gossip::{GossipCall, GossipMenu, GossipOptionView, GossipQuery, GossipQuestRow};
 pub use guild::{
     GuildCall, GuildCells, GuildMemberInfo, GuildRankEdit, GuildRankInfo, GuildState, LastOnline,
     UnitGuild, MAX_RANKS, MIN_RANKS, RANK_RIGHT_BITS,
@@ -328,8 +335,8 @@ pub use movieframe::{
     MovieReader,
 };
 pub use petition::{
-    validate_guild_name, PetitionCall, PetitionRecordView, PetitionState, PETITION_TYPE_CHARTER,
-    PETITION_TYPE_PETITION,
+    validate_guild_name, PetitionCall, PetitionQuery, PetitionRecordView, PetitionState,
+    PETITION_TYPE_CHARTER, PETITION_TYPE_PETITION,
 };
 pub use protected::InputEvents;
 pub use roster_read::{
@@ -338,7 +345,7 @@ pub use roster_read::{
 };
 pub use stat_read::{CombatRead, NoPlayer, SelfRead, UnitCombatStats};
 pub use tabard::{
-    emblem_mask_path, TabardCall, TabardHost, EMBLEM_MASK_TOKEN, TABARD_COUNTS,
+    emblem_mask_path, TabardCall, TabardHost, TabardHostQuery, EMBLEM_MASK_TOKEN, TABARD_COUNTS,
     TABARD_CREATION_COST,
 };
 pub use video_pairs::VIDEO_PAIR_CVARS;
@@ -349,12 +356,14 @@ pub(crate) use font_block::{face_loads, own_font_lua, SAME_FONT_HEIGHT};
 pub use inspect::{InspectCall, UnitReach, VisibleSlotQuery};
 pub use instance::InstanceCall;
 pub use item_stats::{
-    item_usable, ItemRecipe, ItemSetView, ItemSpellLine, ItemTemplateView, PlayerReqState,
-    TaughtSpell,
+    item_usable, ItemRecipe, ItemSetQuery, ItemSetView, ItemSpellLine, ItemTemplateView,
+    LiveItemSet, PlayerReqState, TaughtSpell,
 };
 pub use item_text::{ItemTextCall, ItemTextState};
 pub use layout_cache::{AnchorLayout, FrameLayout, LayoutPoint};
-pub use lock_check::{check_lock, LockCheck, LockOpener, LockOpeners, LockSlotView};
+pub use lock_check::{
+    check_lock, LockCheck, LockOpener, LockOpeners, LockOpenersQuery, LockSlotView,
+};
 pub use loot::{LootCall, LootRow, LootState, LOOT_PORTRAIT_UNIT};
 pub use loot_roll::{LootRollCall, LootRollEntry, LootRollsState};
 pub use macros::{
@@ -367,8 +376,9 @@ pub use mail::{
 };
 pub use measure::TextMeasure;
 pub use merchant::{
-    BuybackRowQuery, ItemStatsHead, MerchantCall, MerchantHead, MerchantHeadQuery, MerchantItem,
-    MerchantRowQuery, MerchantState, RepairAllCostQuery, RepairCosts,
+    BuybackRowQuery, ItemRepairCostQuery, ItemStatsHead, MerchantCall, MerchantHead,
+    MerchantHeadQuery, MerchantItem, MerchantRowQuery, MerchantState, RepairAllCostQuery,
+    RepairCostQuery, RepairCosts,
 };
 pub(crate) use minimap::apply_model_attrs as apply_minimap_model_attrs;
 pub use minimap::{
@@ -384,14 +394,20 @@ pub use model::{
 pub use party::{
     PartyMemberInfo, PartyRequest, PartyState, RaidMemberInfo, ReadyCheckState, SavedInstanceInfo,
 };
-pub use pet::{PetActionView, PetCall, PetStats, PET_DISMISS_WORD};
+pub use pet::{
+    PetActionView, PetBarFlags, PetBarFlagsView, PetBookNow, PetCall, PetMenuNow, PetSlot,
+    PetSlots, PetStats, PetStatsNow, PET_DISMISS_WORD,
+};
 pub use pvp::{
     decorated_name, pvp_name_global_keys, HonorNow, HonorState, InspectHonorData, InspectHonorNow,
     InspectHonorSlot, PvpCall, RankTitle,
 };
-pub use quest::{QuestCall, QuestItemView, QuestPanel, QuestRewardSpell, QuestSelect, QuestState};
+pub use quest::{
+    QuestCall, QuestGiverQuery, QuestItemView, QuestPanel, QuestRewardSpell, QuestSelect,
+    QuestState,
+};
 pub use quest_live::{
-    QuestClock, QuestClockRead, QuestCoinage, QuestHeld, QuestSlots, QuestStanding,
+    QuestClock, QuestClockRead, QuestCoinage, QuestHeld, QuestObjectName, QuestSlots, QuestStanding,
 };
 pub use quest_log::{
     QuestLogCarry, QuestObjectiveView, QuestRecordView, QuestSlotView, QUEST_LOG_SLOTS,
@@ -404,6 +420,10 @@ pub(crate) use region::{
 pub use reputation::{
     Book, FactionEntry, FactionQuery, FactionRead, ReputationBook, ReputationCall,
     ReputationListOp, ReputationState,
+};
+pub use requirements::{
+    DualWieldQuery, KnowsSpellQuery, ProficiencyQuery, RepRankQuery, ReqHead, ReqHeadQuery,
+    ReqRead, ReqSkillQuery, SkinningQuery,
 };
 pub use session::SessionRequest;
 pub use shapeshift::{ShapeshiftForm, ShapeshiftFormView, ShapeshiftList};
@@ -419,7 +439,9 @@ pub use spellbook::{
     resolve_spell_in_books, BookNow, BookSlot, BookSpell, BookTabs, NamedSpell, PetBookState,
     SpellBookState, SpellSlotView, SpellTabName, SpellTabView,
 };
-pub use stable::{StableCall, StableIntent, StablePetSlot, StableState, NUM_STABLE_SLOTS};
+pub use stable::{
+    StableCall, StableIntent, StablePetSlot, StableQuery, StableState, StableView, NUM_STABLE_SLOTS,
+};
 pub use summon::{SummonCall, SummonConfirmUiState};
 pub use talent::{
     CharacterPoints, TalentAt, TalentCall, TalentCount, TalentMasterPending, TalentPrereqView,
@@ -437,7 +459,8 @@ pub use tradeskill::{
 };
 pub use trainer::{
     ProductWait, TrainerAbilityReq, TrainerCall, TrainerGroup, TrainerService,
-    TrainerServiceCategory, TrainerSkillReq, TrainerState, TrainerTooltip, TRAINER_GROUP_KNOWN,
+    TrainerServiceCategory, TrainerServiceLive, TrainerServiceQuery, TrainerSkillReq, TrainerState,
+    TrainerTooltip, TRAINER_GROUP_KNOWN,
 };
 pub use tutorial::TutorialCall;
 pub(crate) use types::{monochrome_flag, FontMask, MeasuredText, RegionData};

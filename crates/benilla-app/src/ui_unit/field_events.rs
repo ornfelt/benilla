@@ -104,6 +104,9 @@ impl NoticeFiring<'_, '_> {
                 script.rebuild_skills();
                 self.skill_line(script, skill_id, old, shown);
             }
+            return false;
+        }
+        if notice == FieldNotice::Professions {
             script.rebuild_trade_skill(&mut |t| self.reband(t));
             return false;
         }
@@ -162,14 +165,24 @@ impl NoticeFiring<'_, '_> {
             script.fire_event("PET_BAR_UPDATE", vec![]);
             return false;
         };
+        // At the notice's place: what the refresh's close signals nests under it.
+        let at = crate::lanes::firing_now();
         self.commands.queue(move |world: &mut World| {
-            crate::ui_trainer::talk_to_trainer(world, trainer);
-            crate::ui_session::fire(world, |script| {
-                if closes {
-                    script.fire_event("PET_UI_CLOSE", vec![]);
+            let refresh = |world: &mut World| {
+                crate::ui_trainer::talk_to_trainer(world, trainer);
+                crate::ui_session::fire(world, |script| {
+                    if closes {
+                        script.fire_event("PET_UI_CLOSE", vec![]);
+                    }
+                    script.fire_event("PET_BAR_UPDATE", vec![]);
+                });
+            };
+            match at {
+                Some(at) => {
+                    crate::lanes::firing(at, || refresh(world));
                 }
-                script.fire_event("PET_BAR_UPDATE", vec![]);
-            });
+                None => refresh(world),
+            }
         });
         true
     }
@@ -503,8 +516,11 @@ pub(crate) fn fire(
         | FieldNotice::SkillLines
         | FieldNotice::SkillMax
         | FieldNotice::SkillValue { .. }
+        | FieldNotice::Professions
         | FieldNotice::PortraitMark { .. }
         | FieldNotice::PetGuidSet { .. } => {}
+        // Put on the trainer lane by the packet's handler ([`crate::ui_trainer::TrainerPasses`]).
+        FieldNotice::TrainerPass => {}
         FieldNotice::PvpPreference { on } => {
             let (toast, verbose) = super::pvp_announcement(on);
             // The verbose sentence is no catalog row, so it goes `unkeyed` to chat:
@@ -663,6 +679,7 @@ fn global_event(id: u16) -> Option<&'static str> {
         id::AREA_SPIRIT_HEALER_IN_RANGE => "AREA_SPIRIT_HEALER_IN_RANGE",
         id::AREA_SPIRIT_HEALER_OUT_OF_RANGE => "AREA_SPIRIT_HEALER_OUT_OF_RANGE",
         id::INSPECT_HONOR_UPDATE => "INSPECT_HONOR_UPDATE",
+        id::PLAYERBANKBAGSLOTS_CHANGED => "PLAYERBANKBAGSLOTS_CHANGED",
         _ => return None,
     })
 }
@@ -1802,7 +1819,6 @@ mod tests {
         let (mut app, me) = feed_world(&[(BYTES_0, 3 << 8)], spy);
         app.init_resource::<crate::ui_pet::PetBar>()
             .init_resource::<crate::ui_pet::PetAttackLatch>()
-            .init_resource::<crate::ui_pet_stats::PetStatsFeed>()
             .init_resource::<crate::net::GuidIndex>()
             .insert_resource(crate::net::SelfGuid(Some(ME)));
         let pet = app

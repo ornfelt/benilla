@@ -318,9 +318,31 @@ pub enum RecordAsk {
     /// The quest log's leaderboard on a creature objective whose name the mirror lacks: the
     /// creature cache, with the callback `0x4e07d0`, whose wait the VM keeps (`0x4e044c`).
     QuestCreature(u32),
+    /// The quest log's leaderboard on a GameObject objective with no text whose template the
+    /// cache lacks: the object cache by the id less its top bit, with the callback `0x4e0800`,
+    /// which signals `QUEST_LOG_UPDATE` when the record lands (`0x4e0387`-`0x4e039c`, `0x4e081a`).
+    QuestObject(u32),
+    /// `GetStablePetInfo` or `GetStablePetFoodTypes` (`0x4cb2ce`, `0x4cbb05`), or with `paperdoll`
+    /// `SetPetStablePaperdoll` (`0x4cba13`), on a stable record whose creature the cache lacks: the
+    /// creature cache by the record's entry, owned by the active player (`0x468550`), with the
+    /// callback `0x4cb3b0` or `0x4cba50`, kept once per call (flag 0), which signals
+    /// `PET_STABLE_UPDATE` or `PET_STABLE_UPDATE_PAPERDOLL` when the record lands (`0x4cb3bf`,
+    /// `0x4cba5f`).
+    StableCreature { entry: u32, paperdoll: bool },
     /// `GetSummonConfirmSummoner` with no name: the player-name cache by the latched summoner
     /// (`0xb4e358`), with the callback `0x48b710`, which does nothing (`0x48b6bf`-`0x48b6e1`).
     Summoner,
+    /// The item build's creator (`0x52e1f4`) or giver (`0x52e28d`) the name cache misses, by guid,
+    /// asked with the tooltip as the answer's cookie (`0x52e530`) at every build, which the VM keeps
+    /// ([`super::tooltip_item`]'s waits).
+    ItemBuildName(u64),
+    /// A set block's member the item-name cache misses (`0x52df4b`), by entry, asked with the
+    /// tooltip as the answer's cookie at every build.
+    ItemName(u32),
+    /// The item build's charter, by its item object's guid, whose petition record (`0x52b93b`) or
+    /// owner's name (`0x52b9d2`) a cache misses, asked with the tooltip as the cookie at every
+    /// build: the record by the petition id in the object's enchantment slot 0 (`0x5ef337`).
+    Petition(u64),
     /// `GetAuctionItemInfo` on a row whose bidder (`0x4cf167`) or seller (`0x4cf1c8`) the name
     /// cache misses: the player-name cache by guid, with the list's callback (`0x4cf290`,
     /// `0x4cf2b0`, `0x4cf2d0`), kept once per name and list (`0x55f080`'s dedupe flag 1).
@@ -1594,7 +1616,9 @@ mod tests {
             .unwrap()
         };
         let pick_up = f(&lua, |lua, guid| {
-            cursor::set_cursor(lua, true, |_| Some(CursorPayload::Item(held_item(guid))));
+            cursor::set_cursor(lua, true, cursor::Setter::Item, |_| {
+                Some(CursorPayload::Item(held_item(guid)))
+            });
             super::super::tick::verb(lua, |model| cursor::lock_item(model, guid));
         });
         let put_down = f(&lua, |lua, _| {

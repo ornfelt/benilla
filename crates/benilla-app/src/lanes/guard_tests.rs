@@ -102,7 +102,6 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
         "::player::net::SkinnedFeed",
         "the skinned state",
     ),
-    (Row::Queue, "::ui_bank::BankErrors", "the bank errors"),
     (
         Row::Queue,
         "::player::view_subject::FarSight",
@@ -116,22 +115,6 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
          call, through the host's bar verbs",
     ),
     (
-        Row::Queue,
-        "::ui_dialog_verbs::InstanceBoot",
-        "the instance boot",
-    ),
-    (
-        Row::Queue,
-        "::ui_dialog_verbs::MeetingStone",
-        "the meeting stone",
-    ),
-    (
-        Row::HostHeld,
-        "::ui_dialog_verbs::PetUnlearnState",
-        "the pet unlearn confirm, which `feed_dialog_verbs` fires; `ConfirmPetUnlearn`, acting in \
-         its call, reads it in the host",
-    ),
-    (
         Row::HostHeld,
         "::ui_mail::MailOpen",
         "the mailbox's list and results, the send result's equip refusal line among them, which \
@@ -142,11 +125,6 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
         "::ui_mail::pending::MailPending",
         "the pending-mail notices, whose `UPDATE_PENDING_MAIL` `feed_mail` fires; the mail verbs \
          hold it in the host",
-    ),
-    (
-        Row::Queue,
-        "::ui_instance::InstanceState",
-        "the instance state",
     ),
     (
         Row::HostHeld,
@@ -166,12 +144,6 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
         "the close counts each window's core adds to, which every latched window's feed compares",
     ),
     (
-        Row::HostHeld,
-        "::ui_petition::PetitionState",
-        "the petition state, which `feed_petition` fires from; the charter verbs, acting in their \
-         calls, hold it in the host",
-    ),
-    (
         Row::Queue,
         "::ui_quest_share::QuestShare",
         "the quest share",
@@ -183,35 +155,11 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
     ),
     (
         Row::HostHeld,
-        "::ui_gossip::GossipState",
-        "the gossip message's slots, which `feed_gossip` fires from; the gossip verbs, acting in \
-         their calls, hold it in the host",
-    ),
-    (
-        Row::HostHeld,
-        "::ui_quest::QuestGiver",
-        "the quest giver's packets, which `feed_quest` fires from; the quest verbs, acting in \
-         their calls, hold it in the host",
-    ),
-    (Row::Queue, "::ui_stable::StableErrors", "the stable errors"),
-    (
-        Row::HostHeld,
         "::ui_pet::PetAttackLatch",
         "the pet's attack latch, which a new pet's `SMSG_PET_SPELLS` lowers (`0x4bc8ce`) inside \
-         `SetPet`, whose own `PET_BAR_UPDATE` (`0x4bc90c`) `feed_pet_bar` fires; the selection's \
-         release and `PetStopAttack`, acting in their calls, hold it in the host",
-    ),
-    (
-        Row::HostHeld,
-        "::ui_stable::StableOpen",
-        "the stable's packets, which `feed_stable` fires from; the stable verbs and the pet's \
-         abandon, acting in their calls, read it in the host",
-    ),
-    (
-        Row::HostHeld,
-        "::ui_tabard::TabardOpen",
-        "the tabard vendor's packets, which `feed_tabard` fires from; the designer's save, acting \
-         in its call, holds it in the host",
+         `SetPet`, whose own `PET_BAR_UPDATE` (`0x4bc90c`) fires on the notice lane; the \
+         selection's release and `PetStopAttack`, acting in their calls, hold it in the host, \
+         and the bar's getters read it there",
     ),
     (
         Row::HostHeld,
@@ -220,24 +168,9 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
          calls, hold it in the host",
     ),
     (
-        Row::Queue,
-        "::ui_trainer::TrainerErrors",
-        "the trainer errors",
-    ),
-    (
         Row::HostHeld,
         "::death::DeathNet",
         "the death stores, which `feed_death` fires the offers and the corpse range from; the death verbs, acting in their calls, hold them in the host",
-    ),
-    (
-        Row::HostHeld,
-        "::ui_bank::BankOpen",
-        "the banker's cell, which `feed_bank` fires from; `PurchaseSlot` and `CloseBankFrame`, acting in their calls, hold it in the host",
-    ),
-    (
-        Row::HostHeld,
-        "::ui_binder::BinderState",
-        "the bind question, which `feed_binder` fires from; `ConfirmBinder`, acting in its call, reads it in the host",
     ),
     (
         Row::HostHeld,
@@ -246,28 +179,13 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
     ),
     (
         Row::HostHeld,
-        "::ui_duel::DuelState",
-        "the duel session, which `feed_duel` fires from; the duel answers, acting in their calls, read it in the host",
-    ),
-    (
-        Row::HostHeld,
         "::ui_loot_roll::LootRolls",
         "the open rolls, which `feed_loot_rolls` fires from; the votes, acting in their calls, hold them in the host",
     ),
     (
         Row::HostHeld,
-        "::ui_summon::SummonState",
-        "the summon latch, which `feed_summon` fires from; `ConfirmSummon`, acting in its call, reads it in the host",
-    ),
-    (
-        Row::HostHeld,
         "::ui_tradeskill::TradeSkillOpen",
         "the profession window's line, which `feed_trade_skill` fires from; `CloseTradeSkill`, acting in its call, holds it in the host",
-    ),
-    (
-        Row::HostHeld,
-        "::ui_trainer::TrainerOpen",
-        "the trainer's cell, which `feed_trainer` fires from; the trainer verbs, acting in their calls, hold it in the host",
     ),
     (
         Row::Edge,
@@ -303,8 +221,15 @@ const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
 const HOST_HELD_UNREAD: &[&str] = &[
     "::creature_anim::AttackStopInFlight",
     "::creature_anim::PlaySeq",
+    // Read through the host by the set block, and quiet: a member's answer rebuilds the tooltip
+    // waiting on it through the build's own wait, read as the tick runs.
+    "::item_names::ItemNames",
     "::items::Items",
     "::net::GuidIndex",
+    // Read by the trainer's description getters through the host, and quiet.
+    "::net::HomeBind",
+    // Read through the host by the item requirement getters, and quiet: no feed fires off them.
+    "::net::Proficiencies",
     "::net::SelfGuid",
     // Read by the quest log getters through the host (`QuestClock`), and quiet: the time
     // response's `QUEST_LOG_UPDATE` fires on the quest log lane.
@@ -324,6 +249,9 @@ const HOST_HELD_UNREAD: &[&str] = &[
     "::target::Selection",
     "::ui_action::PlayerActions",
     "::ui_auction::AuctionOpen",
+    // Read through the host by the bank getters, and quiet: its events fire on the bank lane at
+    // their handlers, and `PurchaseSlot` and `CloseBankFrame` hold it in their calls.
+    "::ui_bank::BankOpen",
     // Read, and quiet: the buff timers read the stamps through the host and no feed fires off
     // them; the aura fields' watcher raises `PLAYER_AURAS_CHANGED`.
     "::ui_aura::AuraDurations",
@@ -333,13 +261,26 @@ const HOST_HELD_UNREAD: &[&str] = &[
     "::ui_battlefield_positions::BattlefieldPositions",
     "::ui_battlefield_score::BattlefieldScoreboard",
     "::ui_dialog_verbs::BattlefieldQueue",
-    // Read, and quiet: `feed_dialog_verbs` pushes the deadline the time packet stores and fires
-    // nothing off it, as the packet's `AREA_SPIRIT_HEALER_IN_RANGE` goes on the notice lane.
+    // Read through the host by `GetAreaSpiritHealerTime`, and quiet: the time packet's
+    // `AREA_SPIRIT_HEALER_IN_RANGE` goes on the notice lane.
     "::ui_dialog_verbs::AreaSpiritHealer",
+    // Moved here from `NOT_YET_ON_A_LANE`, so neither list grew: the dialogs' getters and verbs
+    // read them through the host, and no feed fires off them, as their handlers' events go on the
+    // dialogs' lane.
+    "::ui_binder::BinderState",
+    "::ui_dialog_verbs::InstanceBoot",
+    "::ui_dialog_verbs::MeetingStone",
+    "::ui_dialog_verbs::PetUnlearnState",
+    "::ui_duel::DuelState",
+    "::ui_instance::InstanceState",
+    "::ui_summon::SummonState",
     // Moved here from `NOT_YET_ON_A_LANE`, so neither list grew: the inspect-honor getters read it
     // through the host, and no feed fires off it, as the reply's `INSPECT_HONOR_UPDATE` goes on
     // the notice lane at its handler and a re-target's fires in its call.
     "::ui_honor::InspectHonor",
+    // Read through the host by the gossip getters, and quiet: the draw's `GOSSIP_SHOW` fires on the
+    // gossip lane at its handler, and the gossip verbs hold it in their calls.
+    "::ui_gossip::GossipState",
     "::ui_loot::AutoLootByte",
     "::ui_loot::LootLatch",
     // Read through the host by the merchant getters, and quiet: its events fire on the merchant
@@ -347,14 +288,33 @@ const HOST_HELD_UNREAD: &[&str] = &[
     "::ui_merchant::MerchantOpen",
     "::ui_petition::GuildRegistrarState",
     "::ui_petition::PetitionRecords",
+    // Read through the host by the charter getters, and quiet: its events fire on the charter lane
+    // at their handlers and the record and name callbacks.
+    "::ui_petition::PetitionState",
+    // Moved here from `NOT_YET_ON_A_LANE`, so neither list grew: the questgiver getters read its
+    // cells through the host, and no feed fires off it, as its panels' events, lines and item
+    // callbacks go on the questgiver lane at their handlers.
+    "::ui_quest::QuestGiver",
     "::ui_session::latch::InteractLatch",
     // Read through the host by the taxi getters, and quiet: its events fire on the taxi lane at
     // their handlers.
     "::ui_taxi::TaxiState",
+    // Read through the host by the stable getters, and quiet: its events fire on the stable lane
+    // at their handlers and the creature callbacks.
+    "::ui_stable::StableOpen",
+    // Filled by the stable getters' lookups in their calls, and quiet: the creature answer's
+    // handler spends it onto the stable lane.
+    "::ui_stable::StableCreatureWaits",
+    // Read through the host by the designer's getters, and quiet: its events fire on the tabard
+    // lane at their handlers.
+    "::ui_tabard::TabardOpen",
     // Read, and quiet: `CheckTalentMasterDist` reads the latch through the host and the Accept
     // holds it; the question's `CONFIRM_TALENT_WIPE` fires on the notice lane.
     "::ui_talent_wipe::TalentWipeState",
     "::ui_tradeskill::TradeSkillOpens",
+    // Read through the host by the trainer getters, and quiet: its events fire on the trainer
+    // lane at the list, the state pass's callers and the item callbacks.
+    "::ui_trainer::TrainerOpen",
 ];
 
 /// The view pushes that read what a handler writes as the frame left it, not as each listener's
@@ -408,23 +368,10 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
     ("::ui_party::feed::feed_party", &["names::NameCache", "net::GuidIndex", "net::ObjectStore",
         "net::SelfGuid", "net::reputations::Reputations", "ui_guild::GuildState",
         "ui_party::GroupState"]),
-    ("::ui_duel::feed_duel", &["names::NameCache", "ui_duel::DuelState"]),
-    ("::ui_binder::feed_binder", &["ui_binder::BinderState"]),
-    ("::ui_dialog_verbs::feed_dialog_verbs", &["ui_dialog_verbs::AreaSpiritHealer",
-        "ui_dialog_verbs::InstanceBoot", "ui_dialog_verbs::PetUnlearnState"]),
-    ("::ui_dialog_verbs::feed_meeting_stone", &["names::NameCache",
-        "ui_dialog_verbs::MeetingStone"]),
     ("::tutorial::feed_tutorials", &["items::Items", "net::ObjectStore"]),
-    ("::ui_summon::feed_summon", &["names::NameCache", "ui_summon::SummonState"]),
-    ("::ui_gm_ticket::feed_gm_ticket", &["ui_gm_ticket::GmTicketState"]),
-    ("::ui_instance::feed_instance", &["ui_instance::InstanceState"]),
-    ("::ui_billing::poll_play_time", &["net::SessionBilling"]),
     ("::ui_logout::feed_logout", &["ui_logout::LogoutState"]),
     // The engine's follow transitions, which a `FollowUnit` a handler's listener makes arms.
     ("::ui_follow::feed_follow", &["player::follow::FollowState", "ui_follow::FollowFeed"]),
-    ("::ui_petition::feed::feed_petition", &["names::NameCache", "net::ObjectStore",
-        "net::SelfGuid", "ui_petition::GuildRegistrarState", "ui_petition::PetitionRecords",
-        "ui_petition::PetitionState"]),
     ("::ui_tooltip::drive_mouseover_tooltip", &["Transform", "go_anim::GoAnim",
         "go_templates::GameObjectTemplates", "items::Countdowns", "items::Items",
         "names::NameCache", "net::GuidIndex", "net::ObjectStore", "net::SelfGuid",
@@ -433,7 +380,7 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
         "net::GuidIndex", "net::HomeBind", "net::ObjectStore", "net::UnitSpeeds",
         "net::motion::modes::UnitMoveModes", "net::motion::remote::RemoteMotion",
         "net::reputations::Reputations", "spell::mods::SpellModifiers",
-        "ui_action::PlayerActions"]),
+        "ui_action::PlayerActions", "ui_pet::PetBar"]),
     // The ammo getters' hits fire after the push that carries their record, whenever it runs.
     ("::ui_char::feed_char", &["items::Countdowns", "items::Items", "names::NameCache",
         "net::GuidIndex", "net::ObjectStore", "ui_char::AmmoRecordHits"]),
@@ -467,17 +414,13 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
     ("::ui_macro::rebind_macro_spells", &["ui_action::ActionSlots", "ui_action::PlayerActions",
         "ui_pet::PetBar"]),
     ("::ui_macro::load_macros", &["ui_action::ActionSlots"]),
-    ("::ui_pet::bar::feed_pet_bar", &["net::GuidIndex", "net::ObjectStore", "net::SelfGuid",
-        "ui_pet::PetAttackLatch", "ui_pet::PetBar"]),
     // The pet's snapshot reads its store as of the drain's place (`ui_unit::views`); its name
     // reads as the frame left it.
     ("::ui_pet::unit::feed_pet_unit", &["names::NameCache", "net::GuidIndex", "net::ObjectStore",
         "net::SelfGuid", "ui_party::GroupState"]),
-    ("::ui_pet::menu::feed_pet_menu", &["net::GuidIndex", "net::ObjectStore", "net::SelfGuid",
+    // `UNIT_HAPPINESS`'s edge under its `Deviation:`, the bucket compared as the frame left it.
+    ("::ui_pet_stats::feed_pet_stats", &["net::GuidIndex", "net::ObjectStore", "net::SelfGuid",
         "ui_pet::PetBar"]),
-    ("::ui_pet_book::feed_pet_book", &["net::GuidIndex", "net::ObjectStore", "ui_pet::PetBar"]),
-    ("::ui_pet_stats::feed_pet_stats", &["names::NameCache", "net::GuidIndex", "net::ObjectStore",
-        "net::SelfGuid", "ui_pet::PetBar"]),
     ("::ui_cast::feed_cast_reports", &["items::Countdowns", "items::Items", "net::GuidIndex",
         "net::ObjectStore", "spell::inflight::AutoRepeatActive", "spell::inflight::PendingCast",
         "spell::inflight::QueuedMeleeSpell", "spell::targeting::SpellTargeting",
@@ -489,26 +432,9 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
         "ui_petition::PetitionRecords"]),
     ("::ui_items::feed::feed_item_stats", &["items::Items", "net::HomeBind", "net::ObjectStore",
         "spell::mods::SpellModifiers"]),
-    ("::ui_items::feed::feed_item_sets", &["item_names::ItemNames", "items::Items",
-        "net::ObjectStore", "spell::mods::SpellModifiers"]),
-    ("::ui_items::feed::ask_item_build_lookups", &["items::Countdowns", "names::NameCache",
-        "net::GuidIndex", "net::ObjectStore", "ui_petition::PetitionRecords"]),
-    ("::ui_items::feed::feed_player_req", &["net::ObjectStore", "net::Proficiencies",
-        "net::reputations::Reputations", "ui_action::LearnedAbilities",
-        "ui_action::PlayerActions"]),
-    ("::ui_items::lock_openers::feed_lock_openers", &["items::Countdowns", "net::GuidIndex",
-        "net::ObjectStore", "ui_action::PlayerActions"]),
-    ("::ui_gossip::feed_gossip", &["items::Countdowns", "names::NameCache", "net::GuidIndex",
-        "net::ObjectStore", "ui_gossip::GossipState", "world_state::WorldStates"]),
-    // The purse the trade and mail verbs read off the VM; `GetMoney` reads it through the host.
-    ("::ui_merchant::feed_purse", &["net::ObjectStore"]),
-    ("::ui_merchant::feed_repair_costs", &["items::Countdowns", "items::Items", "names::NameCache",
-        "net::GuidIndex", "net::ObjectStore", "net::SelfGuid", "net::reputations::Reputations",
-        "ui_merchant::MerchantOpen"]),
     ("::ui_auction::feed_auction", &["items::Items", "names::NameCache",
         "ui_auction::AuctionOpen"]),
     ("::ui_auction::reset_auction_on_world_enter", &["ui_auction::AuctionOpen"]),
-    ("::ui_bank::feed_bank", &["net::ObjectStore", "ui_bank::BankErrors", "ui_bank::BankOpen"]),
     ("::ui_mail::feed_mail", &["go_templates::GameObjectTemplates", "items::Countdowns",
         "items::Items", "names::NameCache", "net::GuidIndex", "net::ObjectStore",
         "ui_mail::MailOpen", "ui_mail::pending::MailPending", "world_state::WorldStates"]),
@@ -520,14 +446,6 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
         "items::Items", "names::NameCache", "net::GuidIndex", "net::ObjectStore",
         "ui_item_text::ItemTextOpen", "ui_item_text::PageTexts", "ui_mail::MailOpen",
         "world_state::WorldStates"]),
-    ("::ui_stable::feed_stable", &["names::NameCache", "net::GuidIndex", "net::ObjectStore",
-        "net::SelfGuid", "ui_pet::PetBar", "ui_stable::StableErrors", "ui_stable::StableOpen"]),
-    ("::ui_tabard::feed_tabard", &["net::ObjectStore", "ui_guild::GuildState",
-        "ui_tabard::TabardOpen"]),
-    ("::ui_trainer::feed_trainer", &["items::Items", "names::NameCache", "net::GuidIndex",
-        "net::HomeBind", "net::ObjectStore", "spell::mods::SpellModifiers",
-        "ui_action::PlayerActions", "ui_pet::PetBar", "ui_trainer::TrainerErrors",
-        "ui_trainer::TrainerOpen"]),
     ("::ui_taxi::feed_on_taxi", &["net::ObjectStore"]),
     // The getters' item callbacks, kept inside their calls, are spent as the frame left them.
     ("::ui_tradeskill::feed_trade_skill", &["items::Countdowns", "items::Items", "net::GuidIndex",
@@ -546,12 +464,8 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
         "ui_loot_roll::LootRolls"]),
     ("::ui_quest::lines::feed_quest_lines", &["items::Items", "ui_quest::lines::QuestLines",
         "ui_quest_log::QuestLog"]),
-    ("::ui_quest::feed_quest", &["go_templates::GameObjectTemplates", "items::Countdowns",
-        "items::Items", "names::NameCache", "net::GuidIndex", "net::ObjectStore",
-        "ui_quest::QuestGiver", "world_state::WorldStates"]),
     ("::ui_quest_log::feed_quest_log", &["names::NameCache", "net::ObjectStore",
-        "ui_quest::QuestGiver", "ui_quest::lines::QuestLines", "ui_quest_log::QuestLog",
-        "world_state::WorldStates"]),
+        "ui_quest::lines::QuestLines", "ui_quest_log::QuestLog", "world_state::WorldStates"]),
     ("::ui_quest_share::feed_quest_share", &["names::NameCache", "ui_quest_share::QuestShare"]),
     ("::ui_chat::broadcast::feed_broadcasts", &["ui_chat::edit::ChannelState"]),
     ("::ui_chat::channels::seed_channels", &["ui_chat::edit::ChannelState"]),
@@ -587,9 +501,18 @@ const READ_ONLY_TO_HANDLERS: &[&str] = &[
     "::console::ConsoleCommands",
     // The creature families the cast send's pet learn rung reads (`0x60c7c0`).
     "::ui_pet_stats::PetFamilyTables",
+    // The personality and loyalty names and the slot prices the host's stat and stable getters read.
+    "::ui_pet_stats::PetStatTables",
+    // The area names a trainer description's `$z` reads through the host.
+    "::QuestHeaderNamesRes",
+    "::HomeBind",
+    "::ui_trainer::TrainerOpen",
+    "::ui_stable::StableSlotPrices",
     "::AreaTableRes",
     // The server clock the quest log getters read in the host.
     "::ServerWallClock",
+    // The page materials the questgiver background getter reads in the host (`0x502230`).
+    "::PageMaterials",
     // The world map's projections the battleground position getters read in the host, and the
     // stat columns' table the status handler reads (`0x4aa9c3`).
     "::WorldMapUiData",
@@ -654,7 +577,6 @@ const READ_ONLY_TO_HANDLERS: &[&str] = &[
     "::LogPeriodicSpells",
     "::GuildMemberNotify",
     "::PetitionRecords",
-    "::ui_petition::PetitionState",
     "::ItemSubClasses",
     "::LootConfig",
     "::LootKneel",
@@ -672,6 +594,10 @@ const READ_ONLY_TO_HANDLERS: &[&str] = &[
     "::BattlefieldQueue",
     "::DuelState",
     "::SummonState",
+    // The dialogs' state the call host's getters read (`0x48b620`, `0x4ca570`, `0x495c90`).
+    "::InstanceBoot",
+    "::MeetingStone",
+    "::InstanceState",
     "::UiClock",
     "::InteractNpc",
     "::SkillLines",
@@ -695,10 +621,15 @@ const READ_ONLY_TO_HANDLERS: &[&str] = &[
     // The host's two sinks that raise no event.
     "::sound::message::MessageSounds",
     "::creature_anim::edits::UnitEdits",
+    // The proficiency masks the call host's requirement getters read (`0x5ea930`).
+    "::net::Proficiencies",
+    // `ItemSet.dbc` and the item-name cache the call host's set block reads (`0x52df5a`).
+    "::ItemSets",
+    "::ItemNames",
 ];
 
 /// Every lane's queue, by type: what a handler fills there fires in the packets' order.
-fn lane_types() -> [TypeId; 26] {
+fn lane_types() -> [TypeId; 34] {
     [
         TypeId::of::<crate::ui_items::feed::BagView>(),
         // The views lane: what each packet changed in the stores.
@@ -745,12 +676,29 @@ fn lane_types() -> [TypeId; 26] {
         TypeId::of::<crate::ui_merchant::MerchantLane>(),
         // The taxi lane: the map's open and the flight master's replies.
         TypeId::of::<crate::ui_taxi::TaxiLane>(),
+        // The dialogs' lane: the service questions, the boot, the stone, the summon, the
+        // lockouts, the duel and the ticket answers, at their packets.
+        TypeId::of::<crate::ui_dialog_verbs::DialogLane>(),
+        // The tabard lane: the designer's open and its save reply's line and signal.
+        TypeId::of::<crate::ui_tabard::TabardLane>(),
+        // The stable lane: the list's show, the result's line and the creature callbacks' signals.
+        TypeId::of::<crate::ui_stable::StableLane>(),
+        // The charter lane: the registrar's and the petition window's signals and lines.
+        TypeId::of::<crate::ui_petition::PetitionLane>(),
+        // The trainer lane: the list's and the state passes' pushes and signals.
+        TypeId::of::<crate::ui_trainer::TrainerLane>(),
+        // The bank lane: the open's signal and the refusals' lines.
+        TypeId::of::<crate::ui_bank::BankLane>(),
+        // The gossip lane: the greeting's draw.
+        TypeId::of::<crate::ui_gossip::GossipLane>(),
+        // The questgiver lane: the panels' events, the lines and the item callbacks' signals.
+        TypeId::of::<crate::ui_quest::QuestGiverLane>(),
     ]
 }
 
 /// [`lane_types`] by the lane that drains each: a queue is stripped only from its own lane's row,
 /// so another lane's read of the same type shows as the state it is.
-fn lane_queue_owners() -> [(&'static str, TypeId); 26] {
+fn lane_queue_owners() -> [(&'static str, TypeId); 34] {
     [
         ("bag view", TypeId::of::<crate::ui_items::feed::BagView>()),
         ("unit views", TypeId::of::<crate::ui_unit::views::ViewLog>()),
@@ -796,6 +744,20 @@ fn lane_queue_owners() -> [(&'static str, TypeId); 26] {
         ("social", TypeId::of::<crate::ui_social::SocialState>()),
         ("merchant", TypeId::of::<crate::ui_merchant::MerchantLane>()),
         ("taxi", TypeId::of::<crate::ui_taxi::TaxiLane>()),
+        (
+            "dialogs",
+            TypeId::of::<crate::ui_dialog_verbs::DialogLane>(),
+        ),
+        ("tabard", TypeId::of::<crate::ui_tabard::TabardLane>()),
+        ("stable", TypeId::of::<crate::ui_stable::StableLane>()),
+        ("charter", TypeId::of::<crate::ui_petition::PetitionLane>()),
+        ("trainer", TypeId::of::<crate::ui_trainer::TrainerLane>()),
+        ("bank", TypeId::of::<crate::ui_bank::BankLane>()),
+        ("gossip", TypeId::of::<crate::ui_gossip::GossipLane>()),
+        (
+            "quest giver",
+            TypeId::of::<crate::ui_quest::QuestGiverLane>(),
+        ),
     ]
 }
 
@@ -949,15 +911,19 @@ fn the_drain_runs_after_the_feeds_and_before_the_tick() {
         [
             "auction house",
             "bag view",
+            "bank",
             "battlefield",
             "cast reports",
             "cast views",
+            "charter",
             "chat",
             "chat setup arrivals",
             "cooldowns",
             "deaths",
+            "dialogs",
             "equip errors",
             "field notices",
+            "gossip",
             "guild",
             "item text",
             "item watchers",
@@ -967,10 +933,14 @@ fn the_drain_runs_after_the_feeds_and_before_the_tick() {
             "party",
             "pet cooldowns",
             "quest events",
+            "quest giver",
             "releases",
             "reputation",
             "social",
+            "stable",
+            "tabard",
             "taxi",
+            "trainer",
             "unit views"
         ]
     );
@@ -1680,6 +1650,15 @@ const LANE_READS_FRAME_FINAL: &[(&str, &[&str])] = &[
         "ui_quest::QuestGiver", "ui_session::latch::InteractLatch", "ui_stable::StableOpen",
         "ui_tabard::TabardOpen", "ui_taxi::TaxiState", "ui_trade::TradeSession",
         "ui_trainer::TrainerOpen"]),
+    // A list's copy reads the stable, the creature cache and the pet as the frame left them; its
+    // listeners read the stable through the host (#2217).
+    ("stable", &["items::Countdowns", "names::NameCache", "net::GuidIndex", "net::ObjectStore",
+        "ui_pet::PetBar", "ui_stable::StableOpen"]),
+    // A list's and a pass's push read the books, the caches, the player and the window as the
+    // frame left them (#2217).
+    ("trainer", &["items::Items", "names::NameCache", "net::GuidIndex", "net::HomeBind",
+        "net::ObjectStore", "spell::mods::SpellModifiers", "ui_action::PlayerActions",
+        "ui_pet::PetBar", "ui_trainer::TrainerOpen"]),
     ("chat", &["go_templates::GameObjectTemplates", "items::Items", "names::NameCache",
         "net::GuidIndex", "net::ObjectStore", "net::SelfGuid", "ui_chat::edit::ChannelState",
         "world_state::WorldStates"]),
