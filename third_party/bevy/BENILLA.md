@@ -128,9 +128,11 @@ the same repository's.
   after the exit despawn; the `TransitionSchedules` sets stay. `bevy_time`: `common_conditions`,
   the render-world time channel (`TimeSender`/`TimeReceiver`, `create_time_channels`,
   `TrySendError`; `time_system` reads the clock directly, as it did with no sender), and
-  `Fixed::from_seconds`/`discard_overstep`, `Time::advance_to`, `Timer::almost_finish`/
+  `Fixed::from_seconds`/`discard_overstep`, `Timer::almost_finish`/
   `remaining_secs`, `Virtual::from_max_delta`/`set_relative_speed`/`effective_speed_f64`
-  (`crossbeam-channel` left the manifest).
+  (`crossbeam-channel` left the manifest). `Time::advance_to` was cut here too and is back, as
+  stock has it with its two tests, since benilla's model-fade and mount tests call it (upstream
+  `4772489a`, #732).
 - **`bevy_transform` and `bevy_camera`, to what benilla and the kept crates call.**
   `bevy_transform`: `BuildChildrenTransformExt` (`commands.rs`), the no-std serial propagation
   (`std` is always on; the parallel one stays), `StaticTransformOptimizations::from_threshold`/
