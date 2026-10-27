@@ -6,8 +6,8 @@ Maintained by the `benilla-upstream-sync` skill. A hint, not the truth: `git rev
 Source: `main` (origin `ornfelt/benilla`, the fork: upstream benilla's commits, the fork's own
 commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `upstream`).
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
-gfx-dll-backend merged through: `5b3c2a98` pet bar: PickupPetAction needs the pet in view (#709) - 449 remaining
-trimmed-bevy merged through: `5b3c2a98` pet bar: PickupPetAction needs the pet in view (#709) - 449 remaining
+gfx-dll-backend merged through: `2b162193` Spell descriptions resolve $b, $f, $F, $i, $q, $u and $v (#622) - 506 remaining
+trimmed-bevy merged through: `2b162193` Spell descriptions resolve $b, $f, $F, $i, $q, $u and $v (#622) - 506 remaining
 `main` when last fetched: `34160cdb` Merge branch 'samwhosung:main' into main (2026-10-27)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
@@ -106,7 +106,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 76 | `0a920b52` | 2026-09-30 | upstream | unit tokens: party1target and other target chains resolve (#706) | as-is 19bd23c5 | as-is 2a329439 | as-is | no gfx side (target-chain unit tokens, shared parse_unit_token, guid-keyed reach map; CPU-side); feature-off diff unchanged by the merge; check with and without gfx, app and ui tests show only the known Windows-only failures; trimmed-bevy re-records frame.txt's Update section (the one new order AuraEvents -> feed_unit_reach, the sort order shifting with it; Update byte-identical on stock and trimmed Bevy); Windows only |
 | 77 | `4ae99c06` | 2026-09-30 | upstream | raid roster: every raid roster packet fires RAID_ROSTER_UPDATE (#708) | as-is 06886008 | as-is 07def020 | as-is | no gfx side (raid roster update count and the party feed, CPU-side); feature-off diff unchanged by the merge; check with and without gfx, benilla-app tests show only the known Windows-only failures; frame test unchanged; Windows only |
 | 78 | `5b3c2a98` | 2026-09-30 | upstream | pet bar: PickupPetAction needs the pet in view (#709) | as-is 84b17509 | as-is b35ab76e | as-is | no gfx side (pet bar pickup gate, CPU-side); feature-off diff unchanged by the merge; check with and without gfx, app and ui tests show only the known Windows-only failures; frame test unchanged; Windows only |
-| 79 | `2b162193` | 2026-09-30 | upstream | Spell descriptions resolve $b, $f, $F, $i, $q, $u and $v (#622) | as-is (this commit) | as-is 394628e6 | as-is | formats only (Spell.dbc columns for the description tokens); no gfx trigger; checked with and without gfx, benilla-formats tests green; Windows |
+| 79 | `2b162193` | 2026-09-30 | upstream | Spell descriptions resolve $b, $f, $F, $i, $q, $u and $v (#622) | as-is 70891d7a | as-is 394628e6 | as-is | formats only (Spell.dbc columns for the description tokens); no gfx trigger; checked with and without gfx, benilla-formats tests green; Windows |
 | 80 | `29c1ec6f` | 2026-09-30 | upstream | party: a roster packet updates each member's online bit (#714) | pending | pending | - |  |
 | 81 | `010e41e6` | 2026-09-30 | upstream | unit getters: chained tokens like raid3target answer their unit (#716) | pending | pending | - |  |
 | 82 | `c03ca1e4` | 2026-09-30 | upstream | Percentage spell costs use the reference power bases (#646) | pending | pending | - |  |
