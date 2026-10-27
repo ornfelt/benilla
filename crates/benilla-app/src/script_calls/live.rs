@@ -63,6 +63,9 @@ macro_rules! live_reads {
 live_reads! {
     /// Every family of the getters' live reads, each lent alone.
     pub(crate) struct LiveReads, LiveReadsState {
+        /// The unit a token names, the by-name walk's units, the relation functions, the reach,
+        /// the control exemption and the languages; first, as the unit getters ask most.
+        unit_feeds: Option<crate::ui_unit::live::UnitFeedLive<'static, 'static>>,
         /// The unit objects, the items, the stats and the auras; the auras' absent in a harness
         /// without the relations' inputs.
         units: UnitLive<'static, 'static>,
@@ -154,6 +157,7 @@ pub(crate) struct UnitLive<'w, 's> {
     names: Option<Res<'w, crate::names::NameCache>>,
     commands: Option<Res<'w, crate::net::NetCommands>>,
     tables: crate::ui_unit::NameTables<'w>,
+    families: Option<Res<'w, crate::ui_pet_stats::PetFamilyTables>>,
 }
 
 impl UnitLive<'_, '_> {
@@ -174,6 +178,7 @@ impl UnitLive<'_, '_> {
             names: self.names.as_deref(),
             commands: self.commands.as_deref(),
             tables: self.tables.get(),
+            families: self.families.as_deref(),
         });
         true
     }

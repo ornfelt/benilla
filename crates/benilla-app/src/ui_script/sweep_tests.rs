@@ -78,7 +78,7 @@ fn legs_app() -> (App, crossbeam_channel::Receiver<ClientCommand>) {
     .init_resource::<crate::ui_party::GroupState>()
     .init_resource::<crate::ui_action::UiErrorKeys>()
     .add_message::<crate::sound::LootPickupSound>()
-    .add_message::<crate::target::DeselectGuid>();
+    .init_resource::<crate::target::OwedSelects>();
     crate::ui_loot::seat_loot_steps(app.world_mut());
     (app, rx)
 }
@@ -179,6 +179,34 @@ fn the_sweep_closes_every_window_in_the_references_order() {
     assert_eq!(world.resource::<crate::ui_duel::DuelState>().arbiter, 0);
     assert_eq!(world.resource::<crate::ui_mail::MailOpen>().mailbox, None);
     assert!(!world.resource::<crate::ui_bank::BankOpen>().is_open());
+}
+
+/// The gossip leg `0x4e1f60` ends with `ResetGossipOptions` (`0x4e1f89`): after a world change
+/// the getters' rows are gone, the greeting text stays, and it runs with no menu open too.
+#[test]
+fn the_gossip_leg_resets_the_option_and_quest_slots() {
+    use benilla_protocol::messages::GossipOption;
+    let (mut app, _rx) = legs_app();
+    app.insert_non_send_resource(spied_vm(&EVENTS));
+    {
+        let mut gossip = app
+            .world_mut()
+            .resource_mut::<crate::ui_gossip::GossipState>();
+        gossip.npc = Some(GOSSIPER);
+        gossip.text = "Hello".into();
+        gossip.options = vec![GossipOption {
+            index: 0,
+            icon: 1,
+            coded: false,
+            message: "Browse".into(),
+        }];
+        gossip.quests = vec![(7, 4, 1, "A quest".into())];
+    }
+    sweep_in_place(&mut app);
+    let gossip = app.world().resource::<crate::ui_gossip::GossipState>();
+    assert_eq!(gossip.npc, None);
+    assert!(gossip.options.is_empty() && gossip.quests.is_empty());
+    assert_eq!(gossip.text, "Hello", "the text buffer is not a slot");
 }
 
 /// The latch spent, a second departure in the same world sweeps nothing (`0x490a87`).

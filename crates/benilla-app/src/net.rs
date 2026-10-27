@@ -69,10 +69,6 @@ pub(crate) struct NetOffline;
 
 impl Plugin for NetPlugin {
     fn build(&self, app: &mut App) {
-        // The release-on-enter for the ask-once caches this plugin owns.
-        crate::query_cache::register::<crate::names::NameCache>(app);
-        crate::query_cache::register::<crate::go_templates::GameObjectTemplates>(app);
-        crate::query_cache::register::<crate::items::Items>(app);
         let handles = io::spawn_net(self.connect);
         if !self.connect {
             app.insert_resource(NetOffline);
@@ -106,6 +102,7 @@ impl Plugin for NetPlugin {
             .init_resource::<crate::go_templates::GameObjectTemplates>()
             .init_resource::<crate::items::Items>()
             .init_resource::<crate::world_state::WorldStates>()
+            .init_resource::<crate::world_state::WorldStateLane>()
             .add_message::<TeleportMessage>()
             .add_message::<FieldChanged>()
             .add_message::<AuraFieldsChanged>()
@@ -1070,6 +1067,13 @@ pub(crate) enum ClientCommand {
     /// gift instead changes entry in place with no window.
     OpenItem {
         bag_index: u8,
+        slot: u8,
+    },
+    /// `CMSG_READ_ITEM`: the bag (255 for the player's own slots, else the equipped bag's inventory
+    /// slot) and the slot; the server answers `SMSG_READ_ITEM_OK` or `SMSG_READ_ITEM_FAILED` on the
+    /// item's guid.
+    ReadItem {
+        bag: u8,
         slot: u8,
     },
     /// `CMSG_WRAP_ITEM`, the paper first as on the wire. The client filters nothing; the server
@@ -2315,7 +2319,7 @@ pub(crate) struct EnteredWorldMessage {
 }
 
 /// The reference's world-enter cascade (`0x4908c0`) ran: our own player's create, at login and
-/// every cross-map worldport ([`enter_world_on_self_create`]), or a `/reload`. Its sends wait for
+/// every cross-map worldport ([`enter_world_on_self_create`]). Its sends wait for
 /// this, not [`EnteredWorldMessage`], which fires before the server has seated the player.
 #[derive(Message)]
 pub(crate) struct WorldEnterCascadeMessage;
@@ -2381,14 +2385,18 @@ impl DisconnectedMessage {
     /// login env vars: a person's launch line sets them too, and a reconnect would take the
     /// account back from whoever displaced us.
     pub(crate) fn new(reason: String, end: benilla_protocol::SessionEnd) -> Self {
-        let session_over =
-            end == benilla_protocol::SessionEnd::Lost && !crate::run_mode::unattended();
         Self {
             reason,
             end,
-            session_over,
+            session_over: session_over(end),
         }
     }
+}
+
+/// Whether a session that ended with `end` is over, back at the account screen with nothing
+/// retried ([`DisconnectedMessage::session_over`]): a loss outside an unattended run.
+pub(crate) fn session_over(end: benilla_protocol::SessionEnd) -> bool {
+    end == benilla_protocol::SessionEnd::Lost && !crate::run_mode::unattended()
 }
 
 /// A login attempt failed before the roster; the IO thread is back at its pre-logon park.

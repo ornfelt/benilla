@@ -626,7 +626,7 @@ fn parse_item_arg(lua: &Lua, v: &Value) -> mlua::Result<(i64, i32, i32, i32)> {
 /// table, `0x5d8b47`-`0x5d8b51`), whose suffix the app loads only when it is not empty (`0x5d8b6e`),
 /// `SStrPrintf(ITEM_SUFFIX_TEMPLATE, name, suffix)` (`0x5d8b78`-`0x5d8b8c`); else the name alone
 /// (`0x5d8ba5`).
-fn suffixed_name(lua: &Lua, name: &str, property: i32) -> String {
+pub(in crate::script) fn suffixed_name(lua: &Lua, name: &str, property: i32) -> String {
     let suffix = {
         let model = lua.app_data_ref::<Model>().expect("model app_data");
         u32::try_from(property)
@@ -737,7 +737,8 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
                 Value::Integer(i64::from(info.stackable)),
                 Value::String(lua.create_string(equip_loc_token(inventory_type))?),
                 // Deviation: nil for a display row with no icon, where the reference answers the
-                // unloadable `Interface\Icons\`, because `SetTexture` shows no icon for either.
+                // unloadable `Interface\Icons\`, on which `SetTexture` keeps the previous image
+                // (`0x7702ac`), so a reused button would show its old icon.
                 match &icon {
                     Some(icon) => Value::String(lua.create_string(icon)?),
                     None => Value::Nil,

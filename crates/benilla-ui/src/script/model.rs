@@ -87,27 +87,6 @@ pub(crate) fn node_deferred(
     }
 }
 
-/// What the Lua error handler is called with for one caught error: the value an error carries,
-/// its bytes as Lua wrote them, or a host's own text.
-#[derive(Clone, Debug)]
-pub(crate) enum HandlerArg {
-    Text(String),
-    Error(mlua::Error),
-}
-
-impl HandlerArg {
-    /// The one argument, in `lua`.
-    pub(crate) fn value(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
-        Ok(match self {
-            HandlerArg::Text(t) => mlua::Value::String(lua.create_string(t)?),
-            HandlerArg::Error(e) => match e.lua_value(lua) {
-                Some(v) => v,
-                None => mlua::Value::String(lua.create_string(e.lua_bytes(lua))?),
-            },
-        })
-    }
-}
-
 /// The Rust-side model behind the Lua VM, in `lua.app_data`. It holds no Lua handles, each of
 /// which is a collector root.
 #[derive(Clone)]
@@ -379,9 +358,6 @@ pub(crate) struct Model {
 
     /// Script errors caught from `pcall`'d handlers, drained by the host each frame.
     pub(crate) errors: Vec<String>,
-    /// Errors owed to `geterrorhandler()`, which the reference calls on each caught error; one the
-    /// handler itself raises skips this queue, which stops the recursion.
-    pub(crate) pending_error_dispatch: Vec<HandlerArg>,
     /// The session's retained diagnostic log, deduplicated and bounded; `errors` drains each frame.
     pub(crate) diagnostics: super::diagnostics::DiagnosticLog,
     /// Non-fatal warnings for the host, such as a dropped `inherits=` template.
@@ -400,8 +376,8 @@ pub(crate) struct Model {
     /// Each unit token's state as pushed this frame, keyed lowercased because 1.12's resolver
     /// (`0x515970`) matches with `SStrCmpI`: read it only through `unit`, where the fold lives.
     pub(crate) units_by_lower: HashMap<String, UnitState>,
-    /// The snapshot of each unit a `target` chain can end on, by guid, which the app pushes for
-    /// [`super::UnitGuids::chain_ends`]: a token with a hop that no push names reads its
+    /// The snapshot of a unit by guid, a no-host fallback a harness seats
+    /// ([`super::UiScript::set_unit_by_guid`]): a token with a hop that no push names reads its
     /// resolved guid's entry here.
     pub(crate) units_by_guid: HashMap<u64, UnitState>,
     /// Every unit `TargetByName` can pick, by guid, as the app's by-name scan sees it this frame:
@@ -439,9 +415,6 @@ pub(crate) struct Model {
     pub(crate) call_raises: super::calls::CallRaises,
     /// The binding functions' queue and mouselook state.
     pub(crate) input: super::input_verbs::InputState,
-    /// The selection a script call last moved to and signalled `PLAYER_TARGET_CHANGED` for inside
-    /// itself, for the unit feed to take as heard ([`super::UiScript::announce_selection`]).
-    pub(crate) announced_selection: Option<Option<u64>>,
     /// The protected-action gate's input events ([`super::protected`]).
     pub(crate) protected: super::protected::Flags,
     /// `DropItemOnUnit` tokens (`0x48d960`), gated by the app; a refusal silently keeps the item.
@@ -455,8 +428,9 @@ pub(crate) struct Model {
     pub(crate) ready_check: party::ReadyCheckState,
     /// Saved raid lockouts from `SMSG_RAID_INSTANCE_INFO`, which outlive any roster change.
     pub(crate) saved_instances: Vec<party::SavedInstanceInfo>,
-    /// `SetRaidRosterSelection`'s raid row index, client-side only.
-    pub(crate) raid_selection: i64,
+    /// `SetRaidRosterSelection`'s member guid (`[0xb713e8]`), client-side only; 0 selects none.
+    /// A `/reload` carries it into the next VM ([`super::UiScript::take_raid_selection`]).
+    pub(crate) raid_selection: u64,
     /// `GetTime()`'s session seconds, which only the host moves ([`super::UiScript::tick`],
     /// [`super::UiScript::set_now`]); off `_G`, as the reference's clock is the OS tick count.
     pub(crate) now: f64,
@@ -690,6 +664,9 @@ pub(crate) struct Model {
     /// `HasFullControl`, the reference's `[0xb4b3e4]`: set by `SMSG_CLIENT_CONTROL_UPDATE` for the
     /// player, boots 1, and every cast, item and cursor gate refuses at 0.
     pub(crate) player_control: bool,
+    /// `+0x1c70` bit 0 of the player: far sight is on (`CMSG_FAR_SIGHT` 1 sent), which
+    /// `HasFullControl` refuses (`0x51a142`).
+    pub(crate) far_sight_on: bool,
     /// The on-use spells that pass the item dispatcher's control gate without control of the
     /// character (`0x5d8ec0`-`0x5d8f6a`), fed by the app.
     pub(crate) control_bypass: HashSet<u32>,
@@ -742,6 +719,9 @@ pub(crate) struct Model {
     /// apart from `drag` as in the reference: a `StartMoving` or `StartSizing` outlives the button,
     /// since mouse-up's auto-stop skips a Lua drag.
     pub(crate) moving: Option<super::object::FrameMove>,
+    /// The strata of the frames whose rect a resolve stored anew, bit per [`crate::order::Strata::index`]: each
+    /// such store runs `0x764a20` (`0x76b648`), which [`super::UiScript::resolve_layout`] applies.
+    pub(crate) rects_moved: u16,
     /// `SetLayoutMode`'s value, the root's `+0xcf8` (0 at start, `0x7642a5`): while non-zero, a
     /// press with Control or Alt held is a layout drag (`0x766301`).
     pub(crate) layout_mode: i32,
@@ -848,6 +828,10 @@ pub(crate) struct Model {
     pub(crate) craft: Option<craft::CraftState>,
     /// The window is open (`[0xbdcfb8]`), which a close alone zeroes (`0x4f5fe0`).
     pub(crate) craft_open: bool,
+    /// The names of the spells in the player's four effect slots (`CGPlayer_C+0x1d10`,
+    /// `0x5ea360`), which `GetCraftName` reads at the open marker (`[0xbdcfb8]`, 0 closed); `None`
+    /// is nil.
+    pub(crate) craft_slot_names: [Option<String>; 4],
     /// The selected spell id (`0xbdcfbc`), 0 for none, which a header or an index past the rows
     /// stores (`0x4f6050`); the index answers by finding its row (`0x4f6080`).
     pub(crate) craft_selection: u32,
@@ -943,6 +927,8 @@ pub(crate) struct Model {
     pub(crate) quest_log: quest_log::QuestLogState,
     pub(crate) quest_log_selection: u32,
     pub(crate) quest_log_abandon_mark: u32,
+    /// The selected quest's minimap blip (static slot 0).
+    pub(crate) quest_blip: Option<quest_log::QuestBlip>,
     /// Item id to its tooltip view.
     pub(crate) item_templates: HashMap<u32, ItemTemplateView>,
     /// Item ids asked for and missing, for the app to answer: a lookup with a callback, which
@@ -1162,8 +1148,8 @@ pub(crate) struct Model {
     /// `"player"` pushes that carry it: corrected, never blanked. A per-login rebuild is unseen, as
     /// its verbs exist only in game (`0x850438`), not at the glue screen (`0x46abb0`).
     pub(crate) player_record: super::PlayerRecord,
-    /// `GetBindLocation()`, the bind point's area name: `""` before it lands, never nil.
-    pub(crate) bind_location: String,
+    /// `GetBindLocation()`, the bind point's area name; `None` answers the `HOME_INN` text.
+    pub(crate) bind_location: Option<String>,
     /// `GMTicketCategory.dbc` `(id, name)` rows in file order; the ids are wire values.
     pub(crate) gm_ticket_categories: Vec<(u32, String)>,
     /// `CheckBinderDist()`: the innkeeper's question is live and in range; false hides its dialog.
@@ -1206,9 +1192,14 @@ impl Model {
             .unwrap_or_else(|| std::rc::Rc::new(super::NoNameLists))
     }
 
-    /// The text a `SetText` stores (`0x771d80` with its expand flag): the separator pass
-    /// `0x771c50` while `SetEuropeanNumbers` holds the switch (`0x771d9f`), else the text itself.
+    /// The text a `SetText` stores (`0x771d80` with its expand flag): the grammar escapes `|1` and
+    /// `|2` rewritten (`0x7716f0`, no locale gate), then the separator pass `0x771c50` while
+    /// `SetEuropeanNumbers` holds the switch (`0x771d9f`).
     pub(crate) fn localized_text(&self, text: String) -> String {
+        let text = match crate::strings::expand_grammar_escapes(&text) {
+            std::borrow::Cow::Borrowed(_) => text,
+            std::borrow::Cow::Owned(rewritten) => rewritten,
+        };
         if self.european_numbers {
             crate::strings::swap_number_separators(&text)
         } else {
@@ -1221,27 +1212,19 @@ impl Model {
         self.fonts.block_of(name)
     }
 
-    /// Records a caught script error for the host, the retained log and the Lua error handler: `log`
-    /// is the decorated text the host and the retained log keep, `handler` the one value the error
-    /// handler is called with. An error raised by the handler itself goes to `errors` directly,
-    /// which stops the recursion.
-    pub(crate) fn record_script_error(&mut self, log: String, handler: String) {
-        self.record_error(log, HandlerArg::Text(handler));
-    }
-
-    /// A script error whose log row is `log` and whose handler hears `handler`.
-    pub(crate) fn record_error(&mut self, log: String, handler: HandlerArg) {
+    /// Records a caught script error for the host and the retained log. The Lua error handler has
+    /// heard it already, at the raise, through the runner's error function
+    /// ([`super::stdlib::error_function`]); an error no script raised reaches no handler.
+    pub(crate) fn record_error(&mut self, log: String) {
         self.diagnostics
             .record(super::diagnostics::DiagnosticKind::Error, &log);
-        self.pending_error_dispatch.push(handler);
         self.errors.push(log);
     }
 
-    /// [`Self::record_script_error`] for an error mlua caught: the log keeps mlua's `Display` (its
-    /// word and traceback), the handler gets the error value itself, as `lua_pcall` hands its
-    /// error function the value raised (`0x703b40`).
+    /// [`Self::record_error`] for an error mlua caught: the log keeps mlua's `Display` (its word
+    /// and traceback).
     pub(crate) fn record_lua_error(&mut self, e: &mlua::Error) {
-        self.record_error(e.to_string(), HandlerArg::Error(e.clone()));
+        self.record_error(e.to_string());
     }
 
     /// Records a non-fatal warning for the host's terminal and the retained diagnostic log.
@@ -1431,7 +1414,6 @@ impl Model {
             layout_chain: None,
             layout_screen: None,
             errors: Vec::new(),
-            pending_error_dispatch: Vec::new(),
             diagnostics: Default::default(),
             warnings: Vec::new(),
             // 1024x768 until the host calls `set_screen_size`; y-up `[bottom, left, top, right]`.
@@ -1459,7 +1441,6 @@ impl Model {
             call_raises: Default::default(),
             input: Default::default(),
             protected: Default::default(),
-            announced_selection: None,
             drop_item_on_unit: Vec::new(),
             joined_channels: Vec::new(),
             party: party::PartyState::default(),
@@ -1565,6 +1546,7 @@ impl Model {
             shapeshift_forms: Vec::new(),
             pet_bar: super::pet::PetBarState::default(),
             player_control: true,
+            far_sight_on: false,
             control_bypass: HashSet::new(),
             containers: HashMap::new(),
             container_cooldowns: HashMap::new(),
@@ -1583,6 +1565,7 @@ impl Model {
             drag_registered: HashMap::new(),
             drag: None,
             moving: None,
+            rects_moved: 0,
             layout_mode: 0,
             european_numbers: false,
             locale: 0,
@@ -1624,6 +1607,7 @@ impl Model {
             trade_skill_repeat_count: 0,
             craft: None,
             craft_open: false,
+            craft_slot_names: Default::default(),
             craft_selection: 0,
             craft_rows: Vec::new(),
             craft_visible: 0,
@@ -1662,6 +1646,7 @@ impl Model {
             quest_log: quest_log::QuestLogState::default(),
             quest_log_selection: 0,
             quest_log_abandon_mark: 0,
+            quest_blip: None,
             item_templates: HashMap::new(),
             item_sets: HashMap::new(),
             random_properties: HashMap::new(),
@@ -1704,7 +1689,7 @@ impl Model {
             screenshot_asks: 0,
             realm_name: String::new(),
             player_record: super::PlayerRecord::default(),
-            bind_location: String::new(),
+            bind_location: None,
             gm_ticket_categories: Vec::new(),
             binder_pending: false,
             summon_confirm: super::summon::SummonConfirmUiState::default(),
@@ -1823,9 +1808,7 @@ impl Model {
         {
             return;
         }
-        let changed = self.arena.frame(h).is_some_and(|f| f.scale != scale);
-        self.arena.set_scale(h, scale);
-        if changed {
+        if self.arena.set_scale(h, scale, force) {
             // The effective scale cascades down the subtree, an input of each frame's node.
             self.touch_layout_subtree(h);
             self.touch_measure_all();
@@ -2337,6 +2320,7 @@ impl Model {
     /// The layout step of a write to region `rh`'s shown bit that `set_region_hidden` could not
     /// wrap, given whether it drew before.
     pub(crate) fn note_region_draw(&mut self, rh: RegionHandle, drew: bool) {
+        self.note_region_registered(rh, drew, false);
         let now = self.region_draws(rh);
         if drew == now || self.region_owner_loading(rh) {
             return;
@@ -2345,6 +2329,16 @@ impl Model {
             self.undefer_region(rh);
         } else {
             self.defer_region(rh);
+        }
+    }
+
+    /// The draw place of region `rh` after a write that may register it (`0x77fcb0`), given
+    /// whether it drew before and whether the write unregistered it first (a new layer,
+    /// `0x77fdb1`): one that draws now and did not, or was relinked, takes its layer list's tail
+    /// (`0x76a860`). The load window does not gate the link, only the deferral (`0x77fcd7`).
+    pub(crate) fn note_region_registered(&mut self, rh: RegionHandle, drew: bool, relinked: bool) {
+        if self.region_draws(rh) && (!drew || relinked) {
+            self.arena.restamp_region(rh);
         }
     }
 

@@ -186,8 +186,7 @@ impl ScriptCallHost<'_, '_> {
     /// `SetSelection` (`0x493540`) signals inside whatever runs it: the teardown's
     /// `PET_BAR_UPDATE` (`0x4bd6b4`) before the store and the send, the change's signals before
     /// the re-swing (`0x4938c8`), each point running its listeners there, and what they left
-    /// applied once the turn ends, with the host lent. The unit, action and pet feeds take the
-    /// change as heard.
+    /// applied once the turn ends, with the host lent.
     pub(crate) fn engine_select(&mut self, script: &mut UiScript, select: EngineSelect) {
         #[cfg(test)]
         self.census_probe();
@@ -221,6 +220,25 @@ impl ScriptCallHost<'_, '_> {
                 mark: self.appliers.reports().mark_at(mark),
             };
             let owed = self.appliers.select().start_attack(guid);
+            self.settle_selection(script, &mut at, owed);
+            self.commit_views(script);
+        });
+        script.hosted(self, |_| ());
+    }
+
+    /// `SelectTarget(0)` (`0x493540`) from an engine writer outside any call, such as the
+    /// world-enter cascade's (`0x490927`): the deselect and its teardown signal in place, a
+    /// charmed player's refused (`0x493590`) and an empty selection a no-op.
+    pub(crate) fn engine_clear_target(&mut self, script: &mut UiScript, mark: crate::lanes::Mark) {
+        #[cfg(test)]
+        self.census_probe();
+        script.host_out(|script| {
+            let mut at = Signalled {
+                selected: self.appliers.select().selected(),
+                latched: self.appliers.pet().attack_latched(),
+                mark: self.appliers.reports().mark_at(mark),
+            };
+            let owed = self.appliers.select().clear_target();
             self.settle_selection(script, &mut at, owed);
             self.commit_views(script);
         });
@@ -359,8 +377,7 @@ impl ScriptCallHost<'_, '_> {
     /// signalled, in its order: the release's `PET_BAR_UPDATE` when it called a possessed unit off
     /// (`0x493a18` → `0x4bd6b4`), the usable refresh (`0x493892`, `0x493a69`), then
     /// `PLAYER_TARGET_CHANGED` (`0x49389c`, `0x493a73`), with `"target"` seated for the
-    /// listeners and the script's next line. The unit feed takes the change as heard. Whether
-    /// it signalled.
+    /// listeners and the script's next line. Whether it signalled.
     fn signal_selection(&mut self, script: &mut UiScript, at: &mut Signalled) -> bool {
         let selected = self.appliers.select().selected();
         if selected == at.selected {
@@ -376,7 +393,6 @@ impl ScriptCallHost<'_, '_> {
             states.usable_refresh(script).fire(script);
         }
         script.fire_event("PLAYER_TARGET_CHANGED", vec![]);
-        script.announce_selection(selected);
         at.selected = selected;
         at.latched = appliers.pet().attack_latched();
         true
@@ -641,6 +657,7 @@ impl CallHost for ScriptCallHost<'_, '_> {
             latched: appliers.pet().attack_latched(),
             mark: appliers.reports().mark(),
         };
+        let owed_from = appliers.select().owed_mark();
         let mut tail: Option<CallTail> = None;
         // The confirm popup an item pick or a Yes raised, signalled with the call's reports.
         let mut popup = None;
@@ -868,6 +885,11 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::RecordAsk(ask) => appliers.asks().apply(script, ask),
         }
         self.settle_selection(script, &mut at, owed);
+        // A deselect the call's own steps raised, a dead unit's loot close's (`0x48f369`), signals
+        // inside it (`0x493a73`), before the call returns.
+        while let Some(owed) = self.appliers.select().owed_deselect(owed_from) {
+            self.settle_selection(script, &mut at, owed);
+        }
         let appliers = &mut self.appliers;
         // A selection this call made with the targeting cursor up was handed to the cast
         // (`SelectTarget`, `0x4935d5`) and is bound now, before the next call reads either.
@@ -1100,6 +1122,17 @@ impl<P: SystemParam + 'static> VmWith<'_, '_, P> {
         if let Some(script) = self.script.as_deref_mut() {
             if let Some(host) = self.set.p1().as_mut() {
                 host.engine_slot_written(script);
+            }
+        }
+    }
+
+    /// An engine writer's `SelectTarget(0)`, signalled in place with the host
+    /// ([`ScriptCallHost::engine_clear_target`]); with no VM or no host nobody listens and the
+    /// selection stands.
+    pub(crate) fn engine_clear_target(&mut self, mark: crate::lanes::Mark) {
+        if let Some(script) = self.script.as_deref_mut() {
+            if let Some(host) = self.set.p1().as_mut() {
+                host.engine_clear_target(script, mark);
             }
         }
     }
@@ -1365,13 +1398,6 @@ mod tests {
                 status: 1,
                 flags: 0,
             });
-        if selected {
-            *world.resource_mut::<Selection>() = Selection {
-                target: Some(old),
-                guid: Some(OLD),
-                ..Default::default()
-            };
-        }
         let mut script = UiScript::new().expect("a VM");
         script.set_spellbook(SpellBookState {
             tabs: vec![SpellTabView {
@@ -1386,19 +1412,32 @@ mod tests {
                 ..Default::default()
             }],
         });
-        if selected {
-            // The frame's unit snapshot, as the last feed pushed it.
-            script.set_unit(
-                "target",
-                Some(benilla_ui::script::UnitState {
-                    exists: true,
-                    ..Default::default()
-                }),
-            );
-        }
         record_reports(&script);
         world.insert_non_send_resource(script);
-        Frame { app, rx }
+        let mut f = Frame { app, rx };
+        if selected {
+            // The world entry first, as a session has it (`0x490927` clears a target there): the
+            // target comes after.
+            settle(&mut f);
+            f.rx.try_iter().for_each(drop);
+            *f.app.world_mut().resource_mut::<Selection>() = Selection {
+                target: Some(old),
+                guid: Some(OLD),
+                ..Default::default()
+            };
+            // The frame's unit snapshot, as the last feed pushed it.
+            f.app
+                .world_mut()
+                .non_send_resource_mut::<UiScript>()
+                .set_unit(
+                    "target",
+                    Some(benilla_ui::script::UnitState {
+                        exists: true,
+                        ..Default::default()
+                    }),
+                );
+        }
+        f
     }
 
     /// Every catalog line and cast-failure string defined as its own key, but the default
@@ -1477,6 +1516,26 @@ mod tests {
     }
 
     /// `MOB` at 3 yd, alive, with `fields` over its health.
+    /// `guid`'s object typed a player (`OBJECT_FIELD_TYPE` 0x19, player-controlled), as the getters
+    /// name a unit the object manager holds (typemask 8).
+    pub(super) fn as_player(world: &mut World, guid: u64) {
+        typed(world, guid, &[(2, 0x19), (46, 0x8)]);
+    }
+
+    /// `guid`'s object typed a creature (`OBJECT_FIELD_TYPE` 0x9).
+    pub(super) fn as_creature(world: &mut World, guid: u64) {
+        typed(world, guid, &[(2, 0x9)]);
+    }
+
+    fn typed(world: &mut World, guid: u64, pairs: &[(u16, u32)]) {
+        let entity = world.resource::<GuidIndex>().0[&guid];
+        world
+            .get_mut::<ObjectStore>(entity)
+            .unwrap()
+            .0
+            .merge(benilla_protocol::ObjectFields::from_pairs(pairs));
+    }
+
     fn spawn_mob(f: &mut Frame, fields: &[(u16, u32)]) {
         let world = f.app.world_mut();
         let mut pairs = vec![(HEALTH, 100), (28, 100)];
@@ -1791,6 +1850,10 @@ mod tests {
                 (16, ME as u32),
                 (17, 0),
             ])));
+        // Our name as the getters read it off the name cache at the call (`0x609210`).
+        world
+            .resource_mut::<crate::names::NameCache>()
+            .insert_player(ME, "Me".into(), None);
         let mut script = world.non_send_resource_mut::<UiScript>();
         let named = |guid, name: &str| UnitState {
             exists: true,
@@ -1935,9 +1998,7 @@ mod tests {
         world
             .resource_mut::<crate::names::NameCache>()
             .insert_player(NEW, "Red Whelp".into(), None);
-        world
-            .run_system_once(crate::ui_unit::feed_name_candidates)
-            .expect("the candidate feed runs as a one-shot system");
+        as_player(world, NEW);
         run(
             &mut f,
             r#"local l = CreateFrame("Frame")
@@ -1967,9 +2028,7 @@ mod tests {
         world
             .resource_mut::<crate::names::NameCache>()
             .insert_player(NEW, "Red Whelp".into(), None);
-        world
-            .run_system_once(crate::ui_unit::feed_name_candidates)
-            .expect("the candidate feed runs as a one-shot system");
+        as_player(world, NEW);
         let plate = |key: u64| PlateState {
             key,
             top_centre: (400.0, 400.0),
@@ -2043,9 +2102,7 @@ mod tests {
         world
             .resource_mut::<crate::names::NameCache>()
             .insert_player(NEW, "Red Whelp".into(), None);
-        world
-            .run_system_once(crate::ui_unit::feed_name_candidates)
-            .expect("the candidate feed runs as a one-shot system");
+        as_player(world, NEW);
         benilla_world::world_point::init_world_point_resources(world);
         world.insert_resource(crate::ui_chat::commands::SlashCommands::build(
             |name| (name == "SLASH_SCRIPT1").then(|| "/script".to_string()),
@@ -2072,9 +2129,7 @@ mod tests {
         names.insert_player(OLD, "Old Mob".into(), None);
         names.insert_player(MOB, "Red Affinity".into(), None);
         names.insert_player(NEW, "Red Whelp".into(), None);
-        world
-            .run_system_once(crate::ui_unit::feed_name_candidates)
-            .expect("the candidate feed runs as a one-shot system");
+        as_creature(world, MOB);
         let named = eval::<String>(
             &mut f,
             "TargetByName('Red Affinity', true) return UnitName('target')",
@@ -2131,9 +2186,6 @@ mod tests {
             let mut names = world.resource_mut::<crate::names::NameCache>();
             names.insert_player(MOB, "Red Affinity".into(), None);
             names.insert_player(TWIN, "Red Affinity".into(), None);
-            world
-                .run_system_once(crate::ui_unit::feed_name_candidates)
-                .expect("the candidate feed runs as a one-shot system");
             let shown = eval::<i64>(
                 &mut f,
                 "TargetByName('Red Affinity') return UnitHealth('target')",
@@ -2187,9 +2239,6 @@ mod tests {
             let mut names = world.resource_mut::<crate::names::NameCache>();
             names.insert_player(OLD, "Olly".into(), None);
             names.insert_player(ME, "Me".into(), None);
-            world
-                .run_system_once(crate::ui_unit::feed_name_candidates)
-                .expect("the candidate feed runs as a one-shot system");
             lead_party(f.app.world_mut(), OLD, "Olly");
             let mut script = f.app.world_mut().non_send_resource_mut::<UiScript>();
             script.set_unit(
@@ -2241,9 +2290,6 @@ mod tests {
             world
                 .resource_mut::<crate::names::NameCache>()
                 .insert_player(ME, "Kelvin".into(), None);
-            world
-                .run_system_once(crate::ui_unit::feed_name_candidates)
-                .expect("the candidate feed runs as a one-shot system");
             lead_party(f.app.world_mut(), OLD, "Olly");
             let mut script = f.app.world_mut().non_send_resource_mut::<UiScript>();
             script.set_unit(
@@ -2298,9 +2344,6 @@ mod tests {
         let mut names = world.resource_mut::<crate::names::NameCache>();
         names.insert_player(MOB, "Red Affinity".into(), None);
         names.insert_player(TWIN, "Red Affinity".into(), None);
-        world
-            .run_system_once(crate::ui_unit::feed_name_candidates)
-            .expect("the candidate feed runs as a one-shot system");
         let shown = eval::<i64>(
             &mut f,
             "TargetByName('Red Affinity') return UnitHealth('target')",
@@ -2702,6 +2745,11 @@ mod tests {
             }],
         });
         f.app.world_mut().insert_non_send_resource(script);
+        // This VM's world entry first, as a session has it (`0x490927` clears a target there):
+        // the selection comes after.
+        let selected = std::mem::take(&mut *f.app.world_mut().resource_mut::<Selection>());
+        settle(f);
+        *f.app.world_mut().resource_mut::<Selection>() = selected;
     }
 
     /// The unit feed, which signals the selection's change; the calls its handlers make apply
@@ -3597,10 +3645,6 @@ mod tests {
         ] {
             let mut f = frame(true);
             with_things_to_select(&mut f);
-            f.app
-                .world_mut()
-                .run_system_once(crate::ui_unit::feed_name_candidates)
-                .unwrap();
             let seen = with_hosted_vm(f.app.world_mut(), |s| {
                 s.expect("a VM")
                     .eval::<Option<String>>(&format!(r#"{lua} return UnitName("target")"#))

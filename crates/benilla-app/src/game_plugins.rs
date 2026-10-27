@@ -1406,7 +1406,8 @@ pub(crate) mod schedule_tests {
         let after_restore = reach(restore);
         for reader in [
             "::player::controller::control",
-            "::ui_unit::feed_player_control",
+            // The drain, which fires the notices the restore signals.
+            "::lanes::fire_in_order",
             "::ui_action::state::feed_action_state",
             "::player::camera_saved::load_camera_pose",
             "::tutorial::watch_self",
@@ -1434,8 +1435,6 @@ pub(crate) mod schedule_tests {
          "the first sighting of the coinage only seeds the memo, so a frame with no self plays nothing and loses nothing"),
         ("::ui_script::sweep::arm_leaving_world_on_self_create",
          "`Added<SelfPlayer>` is relative to this system's own last run, so a tag that lands after a run is still seen at the next"),
-        ("::ui_session::release::release_on_field_edges",
-         "it is in Net after `apply_net_updates`, unordered against the tag; its self-only branch needs a form change on a latch that is not open, which a create burst never raises"),
         ("::death::drive_death_look",
          "level-driven: it writes the fade from the ghost flag every frame and re-reads self each time, so a frame with no self is overwritten by the next"),
         ("::tutorial::run_world_enter_cascade",
@@ -2046,15 +2045,17 @@ pub(crate) mod schedule_tests {
           player's body in the world, and its `.drain(..)` is of the VM's own script errors, \
           raised by the gesture it just made"),
         ("death/mod.rs", "feed_death", Because::MemoLatched,
-         "`feed.vm: VmMemo<DeathAnnounced>`: a fresh memo makes the first snapshot an edge and re-announces a held offer, confirm and corpse range"),
-        ("death/mod.rs", "signal_death", Because::MemoLatched,
-         "our death's leg, run in its packet with the VM deferred: its `PLAYER_DEAD` is parked for the deaths lane, whose drain runs only with the interface up (`ingame_ui_up`), and its memo is `feed.vm`, a `VmMemo<DeathAnnounced>`, which a fresh VM reads as `None`, so `feed_death` signals `PLAYER_DEAD` at its first sight of the body dead"),
+         "`feed.vm: VmMemo<DeathAnnounced>`: a fresh memo takes the first snapshot as no edge and re-announces a held offer, confirm and corpse range; the arrival's owed signal is world-scoped and spent only under the interface"),
+        ("death/mod.rs", "signal", Because::MemoLatched,
+         "the death state's signal: our death's leg (`signal_death`), run in its packet with the VM deferred, its `PLAYER_DEAD` parked for the deaths lane, whose drain runs only with the interface up (`ingame_ui_up`); and an arrival's, which `feed_death` spends only while `ingame_ui_up` holds and keeps owed in the world-scoped `arrival_owed` until then. Its memo is `feed.vm`, a `VmMemo<DeathAnnounced>`"),
         ("net/objects/update.rs", "on_update_end", Because::Deliberate,
          "a net handler whose take is the packet's own pass, the blocks its write pass recorded, documented at the line: it publishes nothing to the VM, whose `UNKNOWNOBJECT` text it reads only to name a party member's pet; its notices go to the gated field-notice firing"),
         ("screenshot.rs", "ask_for_captures", Because::FilledByVm,
          "`pending` holds only the VM's own `Screenshot()` asks, and the take spawns a capture, publishing nothing"),
         ("screenshot.rs", "report_captures", Because::FilledByVm,
          "the outcome chain starts with the VM's own `Screenshot()` call"),
+        ("vplates.rs", "drive_vplates", Because::Deliberate,
+         "its take is the hits queued for plates: a hit before the interface is up has no plate to flash, since a plate exists only once this driver has bound it under a loaded interface, so a dropped one loses nothing"),
         ("target/click.rs", "select_on_plate_click", Because::FilledByVm,
          "filled only by a nameplate frame's click, which a frameless VM has no plate to make"),
         ("ui_action/cooldown_lane.rs", "fire_cooldowns", Because::Deliberate,
@@ -2099,6 +2100,8 @@ pub(crate) mod schedule_tests {
          "its takes are the sound side's stream reports, sent again every frame and keyed by a movie number only the VM that started the movie holds, and the VM's own audio starts, which only `StartMovie` leaves"),
         ("ui_script/movie.rs", "upload_movie_pictures", Because::Deliberate,
          "per-frame upload scratch, not a queue: it reads each playing movie's picture as it stands"),
+        ("world_state_ui.rs", "fire_world_states", Because::Deliberate,
+         "a lane's firing, run only by the drain: `drop_world_state_signals`, gated on the interface being down, empties the lane the frame its items land, so none fires into a later VM"),
         ("ui_tradeskill.rs", "fire_list_rebuilds", Because::Deliberate,
          "a lane's firing, run only by the drain: `drop_list_rebuilds`, gated on the interface being down, empties the lane the frame its items land, so none fires into a later VM"),
     ];

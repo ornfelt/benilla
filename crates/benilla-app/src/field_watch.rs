@@ -93,6 +93,12 @@ pub(crate) enum FieldNotice {
     /// `0x5ff51b`), `UNIT_FIELD_BYTES_1` byte 3's bit `0x2` (`0x5ff83a`), its form and its combo
     /// points (`0x5de011`, `0x5ddff0`).
     UsableRefresh,
+    /// `SetPlayerControl` (`0x4958e0`) on a change of our own `[0xb4b3e4]` (`0x4958ea`), from
+    /// `SMSG_CLIENT_CONTROL_UPDATE`'s handler through `0x5fa600` (`0x5fa6b1`): the flag
+    /// `HasFullControl` reads seated, then `PLAYER_CONTROL_GAINED` (`0x4958f7`) or
+    /// `PLAYER_CONTROL_LOST` (`0x49590b`); its usable refresh follows (`0x4958fc`, `0x495910`), its
+    /// [`Self::UsableRefresh`].
+    PlayerControl { in_control: bool },
     /// `OnShapeshiftFormChanged` (`0x5de010`) on the active player's form byte: after the usable
     /// refresh (`0x5de011`, its [`Self::UsableRefresh`]), `ACTIONBAR_UPDATE_STATE` and
     /// `CURRENT_SPELL_CAST_CHANGED` (`0x5de016` → `0x4b3250`), then the bonus bar's offset and
@@ -157,6 +163,20 @@ impl NoticeLane {
         for notice in notices {
             self.write(notice);
         }
+    }
+
+    /// The stamp of the first notice waiting after `at` that `which` picks: where a callback's
+    /// tail goes that comes after the signals the notify pass wrote for it.
+    pub(crate) fn first_after(
+        &self,
+        at: crate::lanes::Stamp,
+        which: impl Fn(&FieldNotice) -> bool,
+    ) -> Option<crate::lanes::Stamp> {
+        let from = self.0.partition_point(|(s, _)| *s <= at);
+        self.0
+            .range(from..)
+            .find(|(_, n)| which(n))
+            .map(|(s, _)| *s)
     }
 
     /// The head's stamp.
@@ -226,8 +246,11 @@ pub(crate) mod id {
     pub(crate) const INSPECT_HONOR_UPDATE: u16 = 525;
     pub(crate) const PLAYER_REGEN_DISABLED: u16 = 190;
     pub(crate) const PLAYER_REGEN_ENABLED: u16 = 191;
+    pub(crate) const PLAYER_FARSIGHT_FOCUS_CHANGED: u16 = 198;
+    pub(crate) const LANGUAGE_LIST_CHANGED: u16 = 258;
     pub(crate) const PET_ATTACK_START: u16 = 334;
     pub(crate) const PET_ATTACK_STOP: u16 = 335;
+    pub(crate) const LOCALPLAYER_PET_RENAMED: u16 = 331;
     pub(crate) const PLAYER_GUILD_UPDATE: u16 = 345;
     pub(crate) const UPDATE_FACTION: u16 = 372;
     pub(crate) const TABARD_CANSAVE_CHANGED: u16 = 376;
@@ -461,6 +484,10 @@ const PLAYER_AURAS: (u16, u16) = (0xa4, 0x138);
 /// byte 1, the player section's `+0x1029` (`0x5dd9d0`-`0x5dd9d9`), one byte each.
 const SHAPESHIFT_FORM: (u16, u16) = (0x212, 1);
 const COMBO_POINTS: (u16, u16) = (0x1029, 1);
+
+/// The active player's far-sight watch `0x5de0d0`, registered in `0x5dd8a0` (`0x5dda45`):
+/// `PLAYER_FARSIGHT`, the guid at the player section's `+0x830`, 8 bytes.
+const FARSIGHT: (u16, u16) = (0x830, 8);
 
 /// Which list a watch sits on: at one field the type watchers run ahead of the object's own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -940,6 +967,12 @@ pub(crate) fn placed_values(
         if let Some(at) = at(PLAYER_SECTION, COMBO_POINTS, List::Object) {
             pass.push(at, FieldNotice::UsableRefresh);
             pass.push(at, FieldNotice::ComboPoints);
+        }
+        // `0x5de0d0`: the far-sight update, then `PLAYER_FARSIGHT_FOCUS_CHANGED` bare on every
+        // change, whether or not the new guid resolves (`0x5de14e`, `0x5de167`).
+        if let Some(at) = at(PLAYER_SECTION, FARSIGHT, List::Object) {
+            let id = id::PLAYER_FARSIGHT_FOCUS_CHANGED;
+            pass.push(at, FieldNotice::Global { id });
         }
         // Registered at world entry (`0x4de430`), after the bridge's watch on the same range.
         if let Some(at) = at(PLAYER_SECTION, QUEST_LOG_WATCH, List::Object) {

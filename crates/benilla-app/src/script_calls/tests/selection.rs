@@ -87,7 +87,7 @@ fn with_pet_attacking(f: &mut Frame, possessed: bool) {
 
 /// `SetSelection` refreshes the usable states (`0x493892`) and signals `PLAYER_TARGET_CHANGED`
 /// (`0x49389c`) before it returns, and so does its release (`0x493a69`, `0x493a73`): the chunk's
-/// next line has heard both, in that order, and the feeds signal the change no second time.
+/// next line has heard both, in that order, and the feeds signal no change of their own.
 #[test]
 fn a_selection_call_signals_its_target_change_inside_the_call() {
     let mut f = frame(true);
@@ -110,12 +110,10 @@ fn a_selection_call_signals_its_target_change_inside_the_call() {
     assert_eq!(seen(&mut f), "SPELL_UPDATE_USABLE,PLAYER_TARGET_CHANGED");
     feeds(&mut f);
     assert_eq!(events(&mut f).len(), 2, "the release's, once");
-    // A change no call made is the feeds' to signal, each once.
+    // The feeds signal no change: every writer of the selection signals its own.
     f.app.world_mut().resource_mut::<Selection>().guid = Some(NEW);
     feeds(&mut f);
-    let mut heard = events(&mut f);
-    heard.sort();
-    assert_eq!(heard, ["PLAYER_TARGET_CHANGED", "SPELL_UPDATE_USABLE"]);
+    assert_eq!(events(&mut f), Vec::<String>::new());
 }
 
 /// The release `0x493910` calls a possessed unit off (`0x4bd650` at `0x493a18`) behind
@@ -539,15 +537,13 @@ fn pick_wire(f: &Frame) -> Vec<String> {
         .collect()
 }
 
-/// `MOB` is named, as the unit feed names it to the VM.
+/// `MOB` is named in the name cache, which the getters read at the call off a held unit.
 fn with_named_mob(f: &mut Frame) {
     let world = f.app.world_mut();
     world
         .resource_mut::<crate::names::NameCache>()
         .insert_player(MOB, "Red Affinity".into(), None);
-    world
-        .run_system_once(crate::ui_unit::feed_name_candidates)
-        .expect("the candidate feed runs as a one-shot system");
+    as_creature(world, MOB);
 }
 
 /// TryCast's attack pick (`0x6e4efb` → `0x612df0` → `0x493f60`) commits through `SetSelection`,
@@ -890,4 +886,63 @@ fn a_teardowns_strike_cancel_reports_before_the_target_change() {
     );
     run(&mut f, r#"ClearTarget() SEEN = table.concat(ORDER, ",")"#);
     assert_eq!(seen(&mut f), "SPELLCAST_STOP,PLAYER_TARGET_CHANGED");
+}
+
+/// `UnitCreatureFamily("target")` (`0x51a310`) reads the held unit's cached creature record
+/// (`0x6055e0`: `[[unit+0xb30]+0x1c]`) through `CreatureFamily.dbc` inside its call, though no
+/// snapshot carries the word; a unit whose record the cache lacks answers nil.
+#[test]
+fn a_creature_family_is_read_off_the_held_units_record() {
+    const OBJECT_FIELD_TYPE: u16 = 2;
+    const OBJECT_FIELD_ENTRY: u16 = 3;
+    const BOAR: u32 = 1_126;
+    let mut f = frame(false);
+    // A unit object (`TYPEMASK_OBJECT | TYPEMASK_UNIT`) of the boar's template.
+    spawn_mob(
+        &mut f,
+        &[(OBJECT_FIELD_TYPE, 0x9), (OBJECT_FIELD_ENTRY, BOAR)],
+    );
+    // The world entry first, as a session has it: the target comes after.
+    settle(&mut f);
+    f.app.world_mut().resource_mut::<Selection>().guid = Some(MOB);
+    settle(&mut f);
+    let family =
+        |f: &mut Frame| eval::<Option<String>>(f, r#"return UnitCreatureFamily("target")"#);
+    assert_eq!(family(&mut f), None, "no record cached yet");
+
+    let world = f.app.world_mut();
+    world
+        .resource_mut::<crate::names::NameCache>()
+        .insert_creature(
+            BOAR,
+            Some(crate::names::CreatureRecord {
+                name: "Stonetusk Boar".into(),
+                subname: None,
+                creature_type: 1,
+                pet_family: 5,
+                rank: 0,
+                type_flags: 0,
+                pet_spell_list: 0,
+                civilian: false,
+                racial_leader: false,
+                display_id: 607,
+            }),
+        );
+    world.insert_resource(crate::ui_pet_stats::PetFamilyTables {
+        families: benilla_formats::CreatureFamilies::from_rows([(
+            5,
+            benilla_formats::CreatureFamily {
+                name: "Boar".into(),
+                icon: "Interface\\Icons\\Ability_Hunter_Pet_Boar".into(),
+                pet_food_mask: 0,
+                min_scale: 1.0,
+                min_scale_level: 0,
+                max_scale: 1.0,
+                max_scale_level: 0,
+                skill_lines: [0, 0],
+            },
+        )]),
+        foods: Default::default(),
+    });
+    assert_eq!(family(&mut f).as_deref(), Some("Boar"));
 }

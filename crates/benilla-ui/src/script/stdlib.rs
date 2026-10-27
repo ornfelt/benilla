@@ -3,9 +3,10 @@
 //! - [`sandbox`]: no filesystem, OS or native reach (`io`, `os`, `package`, `require`, `dofile`,
 //!   `loadfile`, `load`, `module`, `newproxy` and `debug` removed) and the reference's
 //!   `debugstack`.
-//! - [`install`]: the 1.12 bare globals (string, table and math aliases, the `debug*` family, the
+//! - [`install`]: the 1.12 bare globals the engine adds (the `debug*` family, the
 //!   error-handler pair), `time` and `date`.
 
+use mlua::benilla_lua::vm::{LuaError, Vm};
 use mlua::{Lua, Value, Variadic};
 
 /// An mlua error's bare Lua message: what `lua_pcall` leaves for a 1.12 error function (`0x703b40`)
@@ -79,7 +80,8 @@ pub(super) fn sandbox(lua: &Lua) -> mlua::Result<()> {
     Ok(())
 }
 
-/// Install the stdlib layer: the bare globals and `time`/`date`.
+/// Install the stdlib layer: the error handler, `time`/`date`, the profile verbs, the `debug*`
+/// stubs.
 pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     install_error_handler(lua)?;
     install_time(lua)?;
@@ -124,24 +126,260 @@ fn install_profile(lua: &Lua) -> mlua::Result<()> {
     Ok(())
 }
 
-/// The handler `seterrorhandler` holds, `None` until one is given.
-pub(super) fn error_handler(lua: &Lua) -> Option<mlua::Function> {
-    lua.named_registry_value::<Option<mlua::Function>>(super::REG_ERRORHANDLER)
+/// The value `seterrorhandler` holds, `None` while the slot is -1 (no handler).
+fn error_handler(lua: &Lua) -> Option<Value> {
+    lua.named_registry_value::<Value>(super::REG_ERRORHANDLER)
+        .ok()
+        .filter(|v| !v.is_nil())
+}
+
+/// The error function every script runner passes `lua_pcall` (`0x703b40`, made at `0x703a5c` and
+/// held at `[0x8722c8]`), so it runs at the raise, inside the failing script: `this`, `event` and
+/// `arg1`..`argN` are still its own and its frames are on the stack. With the slot at -1
+/// (`0x703b45`) it answers the message. Otherwise it pushes the held value under the message
+/// (`lua_insert(-2)`) and calls it, `lua_call(1, 1)` (`0x703b6d`), answering its result: what a
+/// status reads (`0x704b7f`) and what a failed `GetText` answers (`0x703cb2`). The call is
+/// unprotected: a number raises `attempt to call a number value`, and any error there runs this
+/// again for that error (`luaG_errormsg`, `0x6fc780`) until `luaD_call` throws status 5 at depth
+/// 225 (`0x6f65cf`), `error in error handling`. The host's log reads the message from
+/// [`with_capture`], since the call may answer anything.
+fn error_function_native(vm: &mut Vm, nargs: usize) -> Result<usize, LuaError> {
+    let msg = vm.arg(nargs, 0);
+    let key = vm.str(super::REG_ERRORHANDLER.as_bytes());
+    let held = vm.heap.table(vm.registry).get(key);
+    if held.is_nil() {
+        vm.push(msg);
+        return Ok(1);
+    }
+    let text = vm.display(msg);
+    let first = CAPTURES.with(|c| match c.borrow_mut().last_mut() {
+        Some(top) if top.original.is_none() => {
+            top.original = Some(text);
+            true
+        }
+        _ => false,
+    });
+    match vm.call_value(held, &[msg], 1) {
+        Ok(out) => {
+            vm.push(
+                out.first()
+                    .copied()
+                    .unwrap_or(mlua::benilla_lua::Value::Nil),
+            );
+            Ok(1)
+        }
+        Err(e) => {
+            if first {
+                let failed = vm.display(e.value);
+                CAPTURES.with(|c| {
+                    if let Some(top) = c.borrow_mut().last_mut() {
+                        top.failed = Some(failed);
+                    }
+                });
+            }
+            Err(e)
+        }
+    }
+}
+
+/// What the error function saw for one runner's call: the message it was called with first and
+/// what the handler raised on it. A runner's call nests inside a handler's only after it, so the
+/// innermost runner's is the top.
+#[derive(Default)]
+struct Capture {
+    original: Option<String>,
+    failed: Option<String>,
+}
+
+thread_local! {
+    static CAPTURES: std::cell::RefCell<Vec<Capture>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Run one runner's call with its own [`Capture`]. An error the held handler heard comes back as
+/// the message it heard, with the handler's own failure after it, for the host's log.
+pub(crate) fn with_capture<T>(call: impl FnOnce() -> mlua::Result<T>) -> mlua::Result<T> {
+    struct Pop;
+    impl Drop for Pop {
+        fn drop(&mut self) {
+            CAPTURES.with(|c| c.borrow_mut().pop());
+        }
+    }
+    CAPTURES.with(|c| c.borrow_mut().push(Capture::default()));
+    let pop = Pop;
+    let r = call();
+    let seen = CAPTURES.with(|c| c.borrow_mut().last_mut().map(std::mem::take));
+    drop(pop);
+    r.map_err(|e| match seen {
+        Some(Capture {
+            original: Some(original),
+            failed,
+        }) => mlua::Error::RuntimeError(match failed {
+            Some(f) => format!("{original} — error handler failed: {f}"),
+            None => original,
+        }),
+        _ => e,
+    })
+}
+
+/// The error function the runners call scripts under, `[0x8722c8]`; `None` in a state that never
+/// installed it.
+pub(crate) fn error_function(lua: &Lua) -> Option<mlua::Function> {
+    lua.named_registry_value::<Option<mlua::Function>>(REG_ERRORFUNCTION)
         .ok()
         .flatten()
 }
 
-/// `seterrorhandler(f)` / `geterrorhandler()`, engine globals in 1.12 (`0x702900`, `0x702950`)
-/// over one registry reference, `[0x8722cc]`. It starts at -1 (`0x7039e0`), so `geterrorhandler()`
+/// The registry slot of [`error_function`].
+const REG_ERRORFUNCTION: &str = "__benilla_errorfunction";
+
+/// Run a script function as the runners do: under the error function (`0x704e4f`-`0x704e79`).
+pub(crate) fn run_under_error_function(lua: &Lua, f: &mlua::Function) -> mlua::Result<()> {
+    with_capture(|| match error_function(lua) {
+        Some(h) => f.call_under::<()>(&h, ()),
+        None => f.call::<()>(()),
+    })
+}
+
+/// Call the Lua global `name` as the engine calls `GetText` (`0x703c43`-`0x703cad`) and
+/// `GetPluralIndex` (`0x703d14`-`0x703d47`): looked up at the call, `lua_pcall` under the runners'
+/// error function, one result. `Err` is a failed call's value, what the error function answered
+/// (`0x703b40`); a global that is no function fails as `lua_pcall` does, at the call. The call
+/// has a [`Capture`] of its own, so what the error function hears is never taken for the error of
+/// the script it runs inside.
+pub(crate) fn call_global_under_error_function(
+    lua: &Lua,
+    name: &str,
+    args: impl mlua::IntoLuaMulti,
+) -> Result<Value, Value> {
+    let handler = error_function(lua);
+    let raised = |e: mlua::Error| match e {
+        mlua::Error::LuaValue { value: Some(v), .. } => v.get(lua).unwrap_or(Value::Nil),
+        e => lua
+            .create_string(lua_message(&e))
+            .map_or(Value::Nil, Value::String),
+    };
+    let call = || match lua.globals().get::<Value>(name).unwrap_or(Value::Nil) {
+        Value::Function(f) => match &handler {
+            Some(h) => f.call_under::<Value>(h, args),
+            None => f.call::<Value>(args),
+        }
+        .map_err(raised),
+        other => {
+            let message = format!("attempt to call a {} value", other.type_name());
+            Err(match &handler {
+                Some(h) => h.call::<Value>(message).unwrap_or_else(raised),
+                None => lua
+                    .create_string(&message)
+                    .map_or(Value::Nil, Value::String),
+            })
+        }
+    };
+    // `Ok` either way, so the call's capture is dropped unread: the engine logs nothing of it.
+    with_capture(|| Ok(call())).unwrap_or_else(|e| Err(raised(e)))
+}
+
+/// `FrameScriptExecuteBuffer` (`0x704ae0`): compile `src` as the chunk `name` and run it under the
+/// error function (`lua_pcall(0, 0, -2)`, `0x704b68`). A chunk that fails to compile goes to the
+/// error function directly, `lua_pcall(1, 0, 0)` (`0x704b42`): no `this` set, nothing on the
+/// stack, and what that call raises is the host log's alone. `prepare` sees the compiled function
+/// before it runs. Answers the compile or run error for the host's log.
+pub(crate) fn execute_buffer(
+    lua: &Lua,
+    src: &[u8],
+    name: impl AsRef<[u8]>,
+    prepare: impl FnOnce(&mlua::Function),
+) -> mlua::Result<()> {
+    execute_buffer_reported(lua, src, name, prepare).map_err(|(e, _)| e)
+}
+
+/// [`execute_buffer`], its error paired with the text `0x704ae0` reports into a load status as
+/// `%s` at severity 2: the compiler's message (`0x704b31`), or what the error function left on
+/// the stack after the failed run (`0x704b8d`), read with `lua_tostring` (`0x6f3690`).
+pub(crate) fn execute_buffer_reported(
+    lua: &Lua,
+    src: &[u8],
+    name: impl AsRef<[u8]>,
+    prepare: impl FnOnce(&mlua::Function),
+) -> Result<(), (mlua::Error, Vec<u8>)> {
+    let compiled = lua
+        .load(src)
+        .set_name(name)
+        .set_mode(mlua::ChunkMode::Text)
+        .into_function();
+    match compiled {
+        Ok(f) => {
+            prepare(&f);
+            let mut top = None;
+            let ran = with_capture(|| {
+                let r = match error_function(lua) {
+                    Some(h) => f.call_under::<()>(&h, ()),
+                    None => f.call::<()>(()),
+                };
+                if let Err(e) = &r {
+                    top = Some(stack_text(lua, e));
+                }
+                r
+            });
+            ran.map_err(|e| (e, top.unwrap_or_default()))
+        }
+        Err(e) => {
+            let message = e.lua_bytes(lua);
+            call_error_function(lua, &message);
+            Err((e, message))
+        }
+    }
+}
+
+/// `lua_tostring` of the value a failed protected call leaves: a string's bytes, a number as
+/// text, and `(null)` for any other, which answers NULL to the `%s` (`0x82e280`).
+fn stack_text(lua: &Lua, e: &mlua::Error) -> Vec<u8> {
+    match e.lua_value(lua) {
+        Some(v @ (mlua::Value::String(_) | mlua::Value::Integer(_) | mlua::Value::Number(_))) => {
+            match lua.coerce_string(v) {
+                Ok(Some(s)) => s.as_bytes().to_vec(),
+                _ => b"(null)".to_vec(),
+            }
+        }
+        Some(_) => b"(null)".to_vec(),
+        None => e.lua_bytes(lua),
+    }
+}
+
+/// The error function called directly on `message`, as [`execute_buffer`] calls it for a compile
+/// failure (`0x704b42`), outside any failing call; a handler that fails there is logged with the
+/// message it was given ([`with_capture`]).
+pub(crate) fn call_error_function(lua: &Lua, message: &[u8]) {
+    let Some(h) = error_function(lua) else {
+        return;
+    };
+    // A capture of its own, so an enclosing runner's is not written.
+    let called = with_capture(|| lua.create_string(message).and_then(|m| h.call::<()>(m)));
+    if let Err(he) = called {
+        lua.app_data_mut::<super::Model>()
+            .expect("model app_data")
+            .record_lua_error(&he);
+    }
+}
+
+/// `seterrorhandler` / `geterrorhandler()`, engine globals in 1.12 (`0x702900`, `0x702950`) over
+/// one registry reference, `[0x8722cc]`. It starts at -1 (`0x7039e0`), so `geterrorhandler()`
 /// answers nil until something is set; in the running client FrameXML sets `_ERRORMESSAGE` first
-/// (`BasicControls.xml:16`), so every addon finds that. `seterrorhandler` takes a function alone
-/// and raises its `Usage:` on anything else, nil included, so the slot can never be cleared.
+/// (`BasicControls.xml:16`), so every addon finds that. `seterrorhandler` checks that argument 1 is
+/// a function (`0x702908`), then drops the old reference and takes a new one on the stack's top
+/// (`0x702930`): the last argument, whatever it is, and a nil there is -1 (`0x6f534a`), no handler.
 fn install_error_handler(lua: &Lua) -> mlua::Result<()> {
+    lua.set_named_registry_value(
+        REG_ERRORFUNCTION,
+        lua.create_native("?", error_function_native)?,
+    )?;
     let g = lua.globals();
     g.set(
         "seterrorhandler",
-        lua.create_function(|lua, f: Value| match f {
-            Value::Function(f) => lua.set_named_registry_value(super::REG_ERRORHANDLER, f),
+        lua.create_function(|lua, args: Variadic<Value>| match args.first() {
+            Some(Value::Function(_)) => {
+                let top = args.last().cloned().unwrap_or(Value::Nil);
+                lua.set_named_registry_value(super::REG_ERRORHANDLER, top)
+            }
             _ => Err(mlua::Error::RuntimeError(
                 "Usage: seterrorhandler(errfunc)".into(),
             )),
@@ -149,80 +387,22 @@ fn install_error_handler(lua: &Lua) -> mlua::Result<()> {
     )?;
     g.set(
         "geterrorhandler",
-        lua.create_function(|lua, ()| Ok(error_handler(lua)))?,
+        lua.create_function(|lua, ()| Ok(error_handler(lua).unwrap_or(Value::Nil)))?,
     )?;
     Ok(())
 }
 
 /// The stdlib layer in Lua, run once at construction.
 const WOW_STDLIB: &str = r#"
--- ── the bare string family ─────────────────────────────────────────────────────────────────────
--- Every name here is present in the REAL 1.12 client's global table — the in-world `_G` captured
--- from the running reference client (19,572 entries), which is the
--- authority this file answers to.
+-- ── the bare aliases are not here ──────────────────────────────────────────────────────────────
+-- The bare table, math and string names (`strlen`, `tinsert`, `sin`, `PI`, …) are the client's own
+-- start-up chunk, `compat.lua`, which `benilla_lua::new_state` runs; this file adds nothing to them.
 --
 -- `strmatch`, `strrev`, `gmatch`, `strlenutf8` and `strcmputf8i` come from Blizzard's *Era*
 -- enumeration, which a Classic Era addon may reach for. **None of them exist in
 -- 1.12** — `string.match`/`gmatch` are Lua 5.1 additions the 5.0 client never had — and Era is
 -- not our target. They stay out; adding a global the client does not have is how an addon that
 -- feature-detects gets sent down a path we cannot honour.
-strlen  = string.len
-strsub  = string.sub
-strupper = string.upper
-strlower = string.lower
-strrep  = string.rep
-strfind = string.find
-strbyte = string.byte
-strchar = string.char
-gsub    = string.gsub
-tinsert = table.insert
-tremove = table.remove
--- `getn`, `sort`, `foreach` and `foreachi` are bound by `lua50`, which owns the
--- 5.0 shapes of `table.getn`/`setn` and must not be shadowed by a second implementation here.
-
--- ── the bare math aliases (the same 1.12 global family; the reference FrameXML uses them
--- unqualified — WorldMapFrame's overlay pool calls ceil/mod, CooldownFrame floor, …). `mod` is
--- fmod under a 5.0-era name (stock 5.1 dropped math.mod).
-ceil  = math.ceil
-floor = math.floor
-abs   = math.abs
-max   = math.max
-min   = math.min
-sqrt  = math.sqrt
-mod   = math.mod        -- 5.0's name for fmod; `math.fmod` is removed by `lua50`
-random = math.random
--- `randomseed` is an ENGINE global in 1.12 exactly like `random` beside it (the captured `_G` types
--- both `function engine`), and it is the half that was missing: `IgniteStatus` calls it at file
--- scope in its OnLoad and dies on `attempt to call global 'randomseed'`. Seeding a PRNG is the one
--- thing an addon does that has no FrameXML counterpart to copy, so the bare name is all it has.
-randomseed = math.randomseed
--- `PI` is an ENGINE global in 1.12, not a FrameXML one: the reference reads it bare (UIParent.lua's
--- `elapsedTime * 2 * PI * ROTATIONS_PER_SECOND`, TabardFrame.lua l.61-68) and no shipped FrameXML
--- file ever assigns it (grepped over the whole 1.12 extraction) — so the client supplies it, here,
--- beside the rest of the bare math family.
-PI = math.pi
--- The 1.12 bare trig globals are DEGREE-based (the reference CombatText's fountain scroll calls
--- cos/sin with degree arguments); rad/deg ride along as the same family.
-function sin(d) return math.sin(math.rad(d)) end
-function cos(d) return math.cos(math.rad(d)) end
-rad = math.rad
-deg = math.deg
--- The rest of the bare math family, each verified present in the real 1.12 client's global
--- table (the captured `_G`).
--- `tan` and the inverses follow sin/cos into DEGREES — same family, same convention; that is
--- consistent-with the verified sin/cos finding rather than separately byte-verified, and it is
--- the convention every addon rotation helper assumes (`atan2` returning degrees is why
--- `atan2(dy, dx)` feeds a texture rotation directly).
-function tan(d) return math.tan(math.rad(d)) end
-function asin(x) return math.deg(math.asin(x)) end
-function acos(x) return math.deg(math.acos(x)) end
-function atan(x) return math.deg(math.atan(x)) end
-function atan2(y, x) return math.deg(math.atan2(y, x)) end
-exp = math.exp
-log = math.log
-log10 = math.log10
-frexp = math.frexp
-ldexp = math.ldexp
 
 -- ── the debug* family: six verified STUBS and two real ones ────────────────────────────────────
 --
@@ -257,9 +437,6 @@ end
 -- client too, or that define the name themselves under their own namespace.
 -- An addon reaching for one of these is reaching for a later client's API, and it should find
 -- what it would find there: nothing.
-
--- `format`, the bare `string.format`.
-format = string.format
 "#;
 
 /// `time([t])` and `date([format [, when]])`: 1.12 engine globals (`0x7035a0`, `0x7033a0`), Lua
@@ -306,10 +483,7 @@ fn install_time(lua: &Lua) -> mlua::Result<()> {
             let (c, isdst) = if utc {
                 (crate::civil::from_unix(secs), false)
             } else {
-                match crate::civil::local(secs) {
-                    Some(local) => local,
-                    None => return Ok(mlua::Value::Nil),
-                }
+                crate::civil::local(secs)
             };
             // `*t` exactly, its NUL compared too (`0x70343c`), answers a table.
             if body == b"*t" {
@@ -510,6 +684,10 @@ impl TimeWriter<'_> {
     /// `_store_num` (`0x413a0e`) after its case copied `#` into `_no_lead_zeros` (`0xcf7288`):
     /// the number's last `digits` digits, zero-padded, or with `#` its digits alone
     /// (`0x413a7d`). Too little room ends the output.
+    ///
+    /// Deviation: with `#` and one byte of room, `_store_number` writes no digit and its reversal
+    /// swaps before it tests (`0x413ab3`), trading the last byte written for the stale byte after
+    /// it in the caller's buffer, which then ends the client's answer; here the output is kept.
     fn num(&mut self, mut n: i32, digits: usize) {
         if self.alternate {
             let start = self.out.len();

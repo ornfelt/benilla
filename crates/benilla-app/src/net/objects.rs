@@ -97,8 +97,9 @@ pub(crate) struct Scene<'w, 's> {
     /// ([`crate::ui_unit::views`]).
     view_log: ResMut<'w, crate::ui_unit::views::ViewLog>,
     field_notices: ResMut<'w, crate::field_watch::NoticeLane>,
-    /// The guid-scoped selection teardowns (`0x493910(guid, 1)`) a watcher raises.
-    deselect: MessageWriter<'w, crate::target::DeselectGuid>,
+    /// The guid-scoped selection teardowns (`0x493910(guid, 1)`) a watcher raises, run at the
+    /// packet's end; absent in a harness without targets.
+    deselect: Option<ResMut<'w, crate::target::OwedSelects>>,
     speed_changes: MessageWriter<'w, SpeedChangeMessage>,
     self_moves: MessageWriter<'w, super::SelfMoveMessage>,
     hard_landings: MessageWriter<'w, crate::creature_anim::HardLanding>,
@@ -143,6 +144,8 @@ pub(crate) struct Scene<'w, 's> {
     pending: Query<'w, 's, (Entity, &'static Guid), With<update::ReleasePending>>,
     creatures: Option<Res<'w, crate::entities::Creatures>>,
     held_displays: Query<'w, 's, &'static mut update::HeldDisplay>,
+    /// The viewer's zone and the objects' positions a party member's snapshot stores (`0x5f0880`).
+    place: crate::ui_party::net::SnapshotPlace<'w, 's>,
 }
 
 /// The item watchers' reads of the scene ([`crate::item_watch::Watch`]).

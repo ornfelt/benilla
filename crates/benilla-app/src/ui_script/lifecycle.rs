@@ -199,7 +199,7 @@ fn seed_vm_clock(world: &mut World, script: &mut UiScript) {
 }
 
 /// Start the new VM's `GetGameTime()` at the game clock as it stands: the reference's clock is one
-/// object (`0xce8538`) built at start-up with every field -1 (`0x643300`, `0x642300`) and reset
+/// object (`0xce8538`) built at start-up with its time at -1 (`0x643300`, `0x642300`) and reset
 /// by no logout or `ReloadUI`, so a VM answers -1, -1 before any server time and the last known
 /// time after it, from the first line its addons run.
 fn seed_game_time(world: &World, script: &mut UiScript) {
@@ -463,6 +463,9 @@ pub(crate) fn load_ingame_ui_on_world_entry(world: &mut World) {
 
 /// [`load_ingame_ui_on_world_entry`] under the `"player"` its edge has.
 fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
+    // `UI_Init` zeroes the release timer (`0x490131`, `0x490137`), with or without a UI; its
+    // place in the load is unseen here, as the new VM reads the death snapshot only after it.
+    crate::death::zero_release_timer(world);
     // The parked VM goes back into the world, where the CVar fold reads it; a reload has none
     // parked and uses the live one.
     unpark_glue_vm(world);
@@ -567,16 +570,16 @@ fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
         .is_none_or(crate::cvars::Cvars::addon_version_check);
     // Per-VM `Update` claims the load itself reads, seeded now: the zone-channel catalog (empty,
     // `General` would be filed and joined as a custom channel), the binding table (stock
-    // `ActionButton_OnLoad` paints the hotkeys), the default language (`ChatFrame_OnEvent`'s
-    // `PLAYER_ENTERING_WORLD` arm stores it, `ChatFrame.lua:1275-1276`) and the language table a
-    // file-scope `SendChatMessage` names its tongue from.
+    // `ActionButton_OnLoad` paints the hotkeys) and the language table a file-scope
+    // `SendChatMessage` names its tongue from. The default language is never seeded: it is the
+    // held player's (`0x49fce9`), and a login's load runs before the player's create can arrive
+    // (the login-verify handler is registered after it, `0x401789`), so the load reads none.
     crate::ui_chat::seed_zone_channel_catalog(world, &mut script);
     crate::bindings::seed_bindings_for_vm(world, &mut script);
     // The engine globals a previous VM folded out: the quest log's fold mask and the tradeskill
     // repeat.
     crate::ui_quest_log::seed_quest_folds(world, &mut script);
     crate::ui_tradeskill::seed_repeat(world, &mut script);
-    crate::ui_unit::seed_default_language(world, &mut script);
     crate::ui_unit::seed_language_table(world, &mut script);
     // The world map's continent and zone lists: static DBC data in the reference, read at file
     // scope (Astrolabe builds its whole zone table from `GetMapContinents`/`GetMapZones` there).
@@ -607,6 +610,12 @@ fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
     } else {
         Default::default()
     };
+    // Our own `[0xb4b3e4]`, which `HasFullControl` reads and a reload leaves as it stands; its
+    // changes signal where the control packet stores them.
+    let in_control = !world
+        .get_resource::<crate::player::OwnControlLost>()
+        .is_some_and(|c| c.0);
+    script.set_player_control(in_control);
     // No sound during the load edge, as in the reference's `UI_Init` (`0x48fbfa` → `0x49016d`).
     // Each phase runs with a call host lent, built off the world as a system's would be, so a call
     // a file or an `ADDON_LOADED` or `VARIABLES_LOADED` handler makes applies inside its verb, as
@@ -1037,8 +1046,8 @@ fn close_ui_session(world: &mut World, root: ShutdownRoot) {
     if let Some(mut minimap) = world.get_resource_mut::<crate::minimap::MinimapWidget>() {
         minimap.0 = None;
     }
-    // And the signals the frame's deaths and releases parked in it, for their lanes.
-    crate::target::drop_parked_deaths(world);
+    // And the signals the frame's field callbacks and releases parked in it, for their lanes.
+    crate::field_callbacks::drop_parked(world);
     crate::target::drop_parked_releases(world);
 }
 
@@ -1371,6 +1380,7 @@ mod tests {
             "::sound::interior::leave_world",
             "::sound::zone::leave_world",
             "::camera_saved::save_on_session_end",
+            "::area::clear_committed_zone",
             // The pass's end: the hosts' unit edits applied after them (`crate::vm_pass`).
             "::creature_anim::edits::flush_unit_edits",
         ];
@@ -1498,7 +1508,7 @@ mod tests {
         }
     }
 
-    /// The game clock is one object built at start-up with every field -1 (`0x643300`, `0x642300`)
+    /// The game clock is one object built at start-up with its time at -1 (`0x643300`, `0x642300`)
     /// that no logout or `ReloadUI` resets, and `GetGameTime` reads it unguarded (`0x515ee0`), so a
     /// VM answers -1, -1 before any server time and the last known time after it, from the first
     /// line its addons run.
@@ -1680,6 +1690,29 @@ mod tests {
             reload(false).1,
             0,
             "no cascade before our own player's create"
+        );
+    }
+
+    /// `UI_Init` zeroes the release timer at each load (`0x490131`, `0x490137`), so a `/reload`
+    /// after our death answers 0 (`0x4962b6`) and shows no DEATH popup.
+    #[test]
+    fn a_reload_zeroes_the_release_timer() {
+        let mut world = World::new();
+        world.insert_resource(State::new(crate::client_state::ClientState::InWorld));
+        world.insert_resource(crate::run_mode::CaptureMode);
+        world.init_resource::<Messages<crate::net::WorldEnterCascadeMessage>>();
+        world.init_resource::<super::super::SweptWorlds>();
+        world.init_resource::<super::super::LeavingWorldArmed>();
+        world.init_resource::<crate::death::DeathNet>();
+        world.spawn(crate::net::SelfPlayer);
+        world
+            .resource_mut::<crate::death::DeathNet>()
+            .arm_release(true, 0.0);
+        world.insert_resource(ReloadUiPending(true));
+        run_pending_reload(&mut world);
+        assert_eq!(
+            world.resource::<crate::death::DeathNet>().release,
+            crate::death::ReleaseTimer::Unset
         );
     }
 

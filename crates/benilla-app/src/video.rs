@@ -4,9 +4,9 @@
 //!
 //! Deviation: `gxWindow "0"` is borderless fullscreen, not 1.12's exclusive mode-set at
 //! `gxResolution`, because Wayland has no client mode-setting (winit ignores
-//! `Fullscreen::Exclusive` there), X11's XRandR changes the desktop's mode and a crash leaves it
-//! changed, and macOS has no exclusive mode. Bevy's `WindowMode::Fullscreen` also panics on a live
-//! change that cannot resolve a monitor (`bevy_winit::winit_windows:91`, `system.rs:333`).
+//! `Fullscreen::Exclusive` there), and X11's XRandR changes the desktop's mode and a crash leaves
+//! it changed. Bevy's `WindowMode::Fullscreen` also panics on a live change that cannot resolve a
+//! monitor (`bevy_winit::winit_windows:91`, `system.rs:333`).
 //!
 //! The `gx*` rows are latched until `RestartGx()`, as in 1.12; a restart re-asserts them against
 //! the window rather than re-creating the device, since wgpu reconfigures the surface live.
@@ -373,7 +373,8 @@ pub(crate) fn on_cvar(
         }
         // Not applied until the next launch (the filter policy is published once at the end of
         // `CvarLoad`); the reference registers both with `flags = 1` and applies them live.
-        // `anisotropic` takes the reference's clamp to `[1, 16]` (`0x689110`).
+        // `anisotropic` is refused outside `[1, 16]` before it reaches here (`0x689110`,
+        // `check_anisotropic`); the clamp covers a saved value, which the file read does not check.
         "trilinear" => tex_filter.trilinear = ev.flag(),
         "anisotropic" => {
             tex_filter.aniso = (v as u32).clamp(
@@ -407,8 +408,8 @@ pub(crate) fn on_cvar(
             );
         }
         // Weather Intensity 0..3: the reference's callback `0x67b870` jumps (`0x67b8e8`) to the
-        // quality cells {0.1, 0.33, 0.66, 1.0} at `[0x8680ec]`. Its off-grid handling is
-        // untraced; this clamps.
+        // quality cells {0.1, 0.33, 0.66, 1.0} at `[0x8680ec]`, and refuses a value outside 0..=3
+        // before it applies (`check_weather_density`); the clamp covers a saved value.
         "weatherdensity" => weather.weather_density = v.trunc().clamp(0.0, 3.0) as u8,
         // Spell Detail (`0x689510`): `SStrToInt`, clamped to [0, 2] in the handler's own copy,
         // echoed, then the emission scalar 0.33, 0.66 or 1.0 through `0x7adfb0`, shared with
