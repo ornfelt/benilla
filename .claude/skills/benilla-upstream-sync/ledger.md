@@ -8,7 +8,7 @@ commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `ups
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
 gfx-dll-backend merged through: `5b3c2a98` pet bar: PickupPetAction needs the pet in view (#709) - 449 remaining
 trimmed-bevy merged through: `5b3c2a98` pet bar: PickupPetAction needs the pet in view (#709) - 449 remaining
-`main` when last fetched: `0d2619ad` Merge branch 'samwhosung:main' into main (2026-10-26)
+`main` when last fetched: `34160cdb` Merge branch 'samwhosung:main' into main (2026-10-27)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
@@ -106,7 +106,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 76 | `0a920b52` | 2026-09-30 | upstream | unit tokens: party1target and other target chains resolve (#706) | as-is 19bd23c5 | as-is 2a329439 | as-is | no gfx side (target-chain unit tokens, shared parse_unit_token, guid-keyed reach map; CPU-side); feature-off diff unchanged by the merge; check with and without gfx, app and ui tests show only the known Windows-only failures; trimmed-bevy re-records frame.txt's Update section (the one new order AuraEvents -> feed_unit_reach, the sort order shifting with it; Update byte-identical on stock and trimmed Bevy); Windows only |
 | 77 | `4ae99c06` | 2026-09-30 | upstream | raid roster: every raid roster packet fires RAID_ROSTER_UPDATE (#708) | as-is 06886008 | as-is 07def020 | as-is | no gfx side (raid roster update count and the party feed, CPU-side); feature-off diff unchanged by the merge; check with and without gfx, benilla-app tests show only the known Windows-only failures; frame test unchanged; Windows only |
 | 78 | `5b3c2a98` | 2026-09-30 | upstream | pet bar: PickupPetAction needs the pet in view (#709) | as-is 84b17509 | as-is b35ab76e | as-is | no gfx side (pet bar pickup gate, CPU-side); feature-off diff unchanged by the merge; check with and without gfx, app and ui tests show only the known Windows-only failures; frame test unchanged; Windows only |
-| 79 | `2b162193` | 2026-09-30 | upstream | Spell descriptions resolve $b, $f, $F, $i, $q, $u and $v (#622) | pending | pending | - |  |
+| 79 | `2b162193` | 2026-09-30 | upstream | Spell descriptions resolve $b, $f, $F, $i, $q, $u and $v (#622) | as-is (this commit) | as-is 394628e6 | as-is | formats only (Spell.dbc columns for the description tokens); no gfx trigger; checked with and without gfx, benilla-formats tests green; Windows |
 | 80 | `29c1ec6f` | 2026-09-30 | upstream | party: a roster packet updates each member's online bit (#714) | pending | pending | - |  |
 | 81 | `010e41e6` | 2026-09-30 | upstream | unit getters: chained tokens like raid3target answer their unit (#716) | pending | pending | - |  |
 | 82 | `c03ca1e4` | 2026-09-30 | upstream | Percentage spell costs use the reference power bases (#646) | pending | pending | - |  |
@@ -555,6 +555,64 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 525 | `73114e22` | 2026-10-26 | upstream | One seam for live getter reads, and a guard on frame-final reads (#2428) | pending | pending | - |  |
 | 526 | `0d1cef52` | 2026-10-26 | upstream | Window input dispatches record by record, in arrival order (#2429) | pending | pending | - |  |
 | 527 | `0d2619ad` | 2026-10-25 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
+| 528 | `cef40a82` | 2026-10-26 | upstream | Guild getters and events read at each packet's place, as 1.12.1's do (#2433) | pending | pending | - |  |
+| 529 | `57984482` | 2026-10-26 | upstream | Guild notes and a letter's text are profanity-masked, as in 1.12.1 (#2434) | pending | pending | - |  |
+| 530 | `42db0b49` | 2026-10-26 | upstream | Party and raid getters read at each packet's place, as 1.12.1's do (#2435) | pending | pending | - |  |
+| 531 | `f81dfe0a` | 2026-10-26 | upstream | Reputation getters read at each packet's place, as 1.12.1's do (#2438) | pending | pending | - |  |
+| 532 | `095e1f45` | 2026-10-26 | upstream | Name cache and creature record getters read live, as 1.12.1's do (#2440) | pending | pending | - |  |
+| 533 | `a49ed515` | 2026-10-26 | upstream | Buff timers read their expiry stamps live, as 1.12.1's do (#2441) | pending | pending | - |  |
+| 534 | `24327a02` | 2026-10-26 | upstream | The video lists answer during the UI load, built on their first call (#2442) | pending | pending | - |  |
+| 535 | `f57549d5` | 2026-10-26 | upstream | An outline at a 1.5 display scale rings one texel a pass, as 1.12.1's (#2443) | pending | pending | - |  |
+| 536 | `016b18a9` | 2026-10-26 | upstream | Group gates read the live group; raid rows are stored at the rebuild (#2444) | pending | pending | - |  |
+| 537 | `a1f2f36c` | 2026-10-26 | upstream | Reloading dead keeps the DEATH popup, now a recorded deviation (#2445) | pending | pending | - |  |
+| 538 | `fa947ea2` | 2026-10-26 | upstream | Account data syncs with the server, as 1.12.1 does (#2447) | pending | pending | - |  |
+| 539 | `e8c5b606` | 2026-10-26 | upstream | The quest log reads live at the call; its events fire at their packets (#2449) | pending | pending | - |  |
+| 540 | `f304e3a1` | 2026-10-26 | upstream | A drunk player's honor title takes their real gender, a deviation (#2452) | pending | pending | - |  |
+| 541 | `73c5ff88` | 2026-10-26 | upstream | widescreen 0 lays the interface out 4:3, stretched across the window (#2453) | pending | pending | - |  |
+| 542 | `5de4942f` | 2026-10-26 | upstream | The party colour and the meeting stone read the party slots (#2454) | pending | pending | - |  |
+| 543 | `721c408d` | 2026-10-26 | upstream | Target and npc tokens read live; a released target ends at its release (#2455) | pending | pending | - |  |
+| 544 | `807067ba` | 2026-10-26 | upstream | Skills, talents and spellbook read live; their events fire at packets (#2456) | pending | pending | - |  |
+| 545 | `6354cd98` | 2026-10-26 | upstream | The battlefield reads live; its events fire at their packets (#2457) | pending | pending | - |  |
+| 546 | `19b67fee` | 2026-10-26 | upstream | Friends, ignore and who read live; their events fire at their packets (#2458) | pending | pending | - |  |
+| 547 | `18a99340` | 2026-10-26 | upstream | The stance bar reads live; the mirror timers fire at their packets (#2459) | pending | pending | - |  |
+| 548 | `1f75ed73` | 2026-10-26 | upstream | Inspect and honor read live; the honor reply fires at its packet (#2460) | pending | pending | - |  |
+| 549 | `fe4b12bc` | 2026-10-26 | upstream | The merchant and flight map read live; their events fire at packets (#2461) | pending | pending | - |  |
+| 550 | `5f714779` | 2026-10-26 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
+| 551 | `af5bfa58` | 2026-10-26 | upstream | The dialogs read live; their events fire on a lane at their packets (#2463) | pending | pending | - |  |
+| 552 | `b7eb1203` | 2026-10-26 | upstream | The trainer, stable, tabard and charter read live; events at packets (#2465) | pending | pending | - |  |
+| 553 | `f9489c65` | 2026-10-26 | upstream | A DXT or raw BLP shorter than the palette window decodes (#2466) | pending | pending | - |  |
+| 554 | `d3b5a4a5` | 2026-10-26 | upstream | The pet bar, menu, stats and book read live; presses signal in call (#2467) | pending | pending | - |  |
+| 555 | `03a90574` | 2026-10-26 | upstream | Stairs climb: the floor is classified by the face, not the contact (#2473) | pending | pending | - |  |
+| 556 | `15dd7b52` | 2026-10-26 | upstream | Item requirements, lock openers and sets read live as of their packet (#2496) | pending | pending | - |  |
+| 557 | `f060e0e1` | 2026-10-26 | upstream | Bank, gossip, purse and repair costs read live; events at packets (#2542) | pending | pending | - |  |
+| 558 | `9e4d2408` | 2026-10-26 | upstream | Cursor pickups gate on control; ammo slot, indestructible items, clicks (#2571) | pending | pending | - |  |
+| 559 | `8d4ef580` | 2026-10-27 | upstream | The quest giver reads live and fires its events at their packets (#2608) | pending | pending | - |  |
+| 560 | `6de8e4e0` | 2026-10-27 | upstream | Lua verbs raise the client's usage lines, in its gate order (#2619) | pending | pending | - |  |
+| 561 | `71c9adb0` | 2026-10-27 | upstream | Lua arguments coerce and gate as the client reads them (#2622) | pending | pending | - |  |
+| 562 | `7bfa173f` | 2026-10-26 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
+| 563 | `92c8d2d4` | 2026-10-27 | upstream | Comments cite the right addresses and the facts their rulings rest on (#2641) | pending | pending | - |  |
+| 564 | `9692f493` | 2026-10-27 | upstream | Entering the world dead releases the body, as 1.12.1 does (#2642) | pending | pending | - |  |
+| 565 | `6db07056` | 2026-10-27 | upstream | GameTooltip setters check and answer as their 1.12.1 handlers (#2653) | pending | pending | - |  |
+| 566 | `99d87d14` | 2026-10-27 | upstream | Widget setters gate and read back as their 1.12.1 handlers (#2655) | pending | pending | - |  |
+| 567 | `b18d08f6` | 2026-10-27 | upstream | Lua's string, base and math libraries and the aliases match 1.12.1 (#2660) | pending | pending | - |  |
+| 568 | `ad0fd897` | 2026-10-27 | upstream | Lua getters answer what their 1.12.1 handlers answer (#2663) | pending | pending | - |  |
+| 569 | `40e64e94` | 2026-10-27 | upstream | Unit relations, reach and languages read live; six frame-end feeds go (#2667) | pending | pending | - |  |
+| 570 | `eca3152f` | 2026-10-27 | upstream | Chat notices, markup, font sizes and script maps follow 1.12.1 (#2669) | pending | pending | - |  |
+| 571 | `36406d72` | 2026-10-27 | upstream | Drag raise, mouse order, anchors, scale and draw place follow 1.12.1 (#2671) | pending | pending | - |  |
+| 572 | `ab15e9c9` | 2026-10-27 | upstream | Script errors reach the error handler at the raise, as 1.12.1 does (#2674) | pending | pending | - |  |
+| 573 | `6aef15f7` | 2026-10-27 | upstream | Numerals and sscanf convert as 1.12.1's C runtime does (#2675) | pending | pending | - |  |
+| 574 | `403f9998` | 2026-10-27 | upstream | GM tickets, cursor casts, hover, gossip and plate flashes follow 1.12.1 (#2685) | pending | pending | - |  |
+| 575 | `9f492e98` | 2026-10-27 | upstream | Held units and by-name searches read live; two frame-end feeds go (#2689) | pending | pending | - |  |
+| 576 | `cbd8e0fa` | 2026-10-27 | upstream | Sorted particles, party snapshots, CVar floats and GetText follow 1.12.1 (#2691) | pending | pending | - |  |
+| 577 | `217a10df` | 2026-10-27 | upstream | The XML loader and the SavedVariables writer follow 1.12.1 (#2693) | pending | pending | - |  |
+| 578 | `395974a2` | 2026-10-27 | upstream | Lane guard names the flip's bar; login cache clears run in the handler (#2698) | pending | pending | - |  |
+| 579 | `c5fc904f` | 2026-10-27 | upstream | Cursor and cast drops, arrival target clear, loot and chat follow 1.12.1 (#2699) | pending | pending | - |  |
+| 580 | `cf90bdc5` | 2026-10-27 | upstream | Frames build one inherited level at a time; anchors are never retried (#2702) | pending | pending | - |  |
+| 581 | `f65f4bf1` | 2026-10-27 | upstream | Grammar escapes, raid selection, world states and CVars follow 1.12.1 (#2708) | pending | pending | - |  |
+| 582 | `f40fc60c` | 2026-10-27 | upstream | Field callbacks run inside the dispatch, in the notify pass's order (#2709) | pending | pending | - |  |
+| 583 | `05075f09` | 2026-10-27 | upstream | Status lines, message frames, quest panels, page text and cache wipes (#2714) | pending | pending | - |  |
+| 584 | `40b6613f` | 2026-10-27 | upstream | Selection writes signal inside their packet or call, as 1.12.1 does (#2717) | pending | pending | - |  |
+| 585 | `34160cdb` | 2026-10-27 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
 
 ## Special handling
 
