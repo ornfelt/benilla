@@ -6,9 +6,9 @@ Maintained by the `benilla-upstream-sync` skill. A hint, not the truth: `git rev
 Source: `main` (origin `ornfelt/benilla`, the fork: upstream benilla's commits, the fork's own
 commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `upstream`).
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
-gfx-dll-backend merged through: `4772489a` Arriving bodies composite off the main thread and show once dressed (#732) - 496 remaining
-trimmed-bevy merged through: `4772489a` Arriving bodies composite off the main thread and show once dressed (#732) - 496 remaining
-`main` when last fetched: `34160cdb` Merge branch 'samwhosung:main' into main (2026-10-27)
+gfx-dll-backend merged through: `87f65faf` fix: stamp the chat log and FrameXML.log in local time (#723) - 518 remaining
+trimmed-bevy merged through: `87f65faf` fix: stamp the chat log and FrameXML.log in local time (#723) - 518 remaining
+`main` when last fetched: `16aa08ff` Merge branch 'samwhosung:main' into main (2026-10-28)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
@@ -117,7 +117,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 87 | `7e117809` | 2026-09-30 | upstream | /errors: the selected error is copyable, in a read-only EditBox (#730) | as-is f22e122e | as-is c9c6e034 | as-is | no gfx side (ScriptLogFrame.xml read-only EditBox in benilla's layer, layer tests; CPU-side and the generic UI quads); feature-off diff unchanged by the merge; check with and without gfx and trimmed-bevy check clean, no tests run (by request); Windows only |
 | 88 | `15e83f24` | 2026-09-30 | upstream | Ghost and underwater ambience beds resolve by their reference names (#731) | as-is 85e47831 | as-is bcafb134 | as-is | no gfx side (ghost and underwater ambience bed names in sound::kit and zone, SoundEntries resolution; light.rs is a doc comment only; CPU-side); feature-off diff unchanged by the merge; check with and without gfx and trimmed-bevy check clean, no tests run (by request); Windows only |
 | 89 | `4772489a` | 2026-09-30 | upstream | Arriving bodies composite off the main thread and show once dressed (#732) | as-is bed75686 | adapted 472abe5c | needed | no gfx side (async skin composite per arriving look, body and mount built once the atlas lands, appear fade from arrival, sections read outside the archive lock; CPU-side, a later-spawned body draws through the existing material path); feature-off diff unchanged by the merge; trimmed-bevy restores `Time::advance_to` in the vendored bevy_time (see Special handling); check with and without gfx and trimmed-bevy check clean, no tests run (by request); adds systems after WorldStage::Net and before EntityVisualsSet, so trimmed-bevy's frame.txt likely needs a re-record - frame test not run; touches the vendored Bevy on trimmed-bevy; Windows only |
-| 90 | `87f65faf` | 2026-10-01 | upstream | fix: stamp the chat log and FrameXML.log in local time (#723) | pending | pending | - |  |
+| 90 | `87f65faf` | 2026-10-01 | upstream | fix: stamp the chat log and FrameXML.log in local time (#723) | as-is (this merge) | as-is e4b59f2b | as-is | no gfx side (log-line stamp from GetLocalTime / localtime_r, CPU-side; windows-sys gains Win32_System_SystemInformation, the lock unchanged); a platform seam: the Windows path built here, the unix path not; feature-off diff unchanged by the merge; check with and without gfx and trimmed-bevy check clean; the new stamp test is `cfg(all(test, unix))`, so no test runs on Windows; Windows only |
 | 91 | `e9f0e89a` | 2026-10-01 | upstream | EditBox events fire from each box's flush, as 1.12.1 orders them (#734) | pending | pending | - |  |
 | 92 | `be9e3d8a` | 2026-10-01 | upstream | Keys are named by the active layout, as 1.12.1 names them (#748) | pending | pending | - |  |
 | 93 | `f22ec001` | 2026-10-01 | upstream | EditBox caret keys, selection and focus blink follow 1.12.1 (#750) | pending | pending | - |  |
@@ -613,6 +613,29 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 583 | `05075f09` | 2026-10-27 | upstream | Status lines, message frames, quest panels, page text and cache wipes (#2714) | pending | pending | - |  |
 | 584 | `40b6613f` | 2026-10-27 | upstream | Selection writes signal inside their packet or call, as 1.12.1 does (#2717) | pending | pending | - |  |
 | 585 | `34160cdb` | 2026-10-27 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
+| 586 | `1343fbbd` | 2026-10-27 | upstream | Helm and cloak toggles, account-data reads and the login burst's hold (#2718) | pending | pending | - |  |
+| 587 | `19c4bb99` | 2026-10-27 | upstream | Other crates' tests set the local zone through civil's guard (#2719) | pending | pending | - |  |
+| 588 | `beb1e124` | 2026-10-27 | upstream | Mouse moves and wheel turns are input records in arrival order (#2720) | pending | pending | - |  |
+| 589 | `6ee671bc` | 2026-10-27 | upstream | Our player's create does its own writes inside its packet (#2723) | pending | pending | - |  |
+| 590 | `39de572f` | 2026-10-28 | upstream | Transport props animate and cull with their ship, engine sound included (#2724) | pending | pending | - |  |
+| 591 | `7c7a7f3e` | 2026-10-28 | upstream | The verb census sweeps the whole suite and counts writes after a signal (#2726) | pending | pending | - |  |
+| 592 | `09c276fe` | 2026-10-28 | upstream | Bag and item reads answer as of their packet; logout reads no player (#2728) | pending | pending | - |  |
+| 593 | `fcc83ee9` | 2026-10-28 | upstream | The mouse commands arm and release the world click at their record (#2732) | pending | pending | - |  |
+| 594 | `d9039e6d` | 2026-10-28 | upstream | Pet cooldowns, happiness and unit auras are written at their packet (#2734) | pending | pending | - |  |
+| 595 | `07ed1e27` | 2026-10-28 | upstream | smoke.sh no longer fails clean runs when grep -q quits early (#2735) | pending | pending | - |  |
+| 596 | `c1507a28` | 2026-10-28 | upstream | Trade getters read the session live; its events fire at their packet (#2736) | pending | pending | - |  |
+| 597 | `4cbd96a3` | 2026-10-28 | upstream | A tabard or taxi close in its open's frame now runs after the open (#2737) | pending | pending | - |  |
+| 598 | `55962b51` | 2026-10-28 | upstream | OffhandHasWeapon answers nil at PLAYER_LOGOUT, with no player held (#2738) | pending | pending | - |  |
+| 599 | `1a78118f` | 2026-10-28 | upstream | Mail getters read the session live; its events fire at their packet (#2742) | pending | pending | - |  |
+| 600 | `194b7ee7` | 2026-10-28 | upstream | A path ends with the unit turned to the packet's final facing (#2745) | pending | pending | - |  |
+| 601 | `62088a62` | 2026-10-28 | upstream | The container bound's deviation covers the bank and the keyring (#2746) | pending | pending | - |  |
+| 602 | `15cf220d` | 2026-10-28 | upstream | The world click's legs run inside the mouse commands' calls (#2748) | pending | pending | - |  |
+| 603 | `fd3639ba` | 2026-10-28 | upstream | A listener unregistered by the one before runs once, then the walk ends (#2750) | pending | pending | - |  |
+| 604 | `78e360a2` | 2026-10-28 | upstream | Every saved cache asks again after a disconnect, under one deviation (#2751) | pending | pending | - |  |
+| 605 | `745a3980` | 2026-10-28 | upstream | The bar's equip signals its cursor set ahead of the equip send (#2753) | pending | pending | - |  |
+| 606 | `62399b7a` | 2026-10-28 | upstream | Auction getters read the house live; its events fire at their packet (#2754) | pending | pending | - |  |
+| 607 | `07ba2b0e` | 2026-10-28 | upstream | Mail send item, stationery list and texture read as 1.12.1 reads them (#2757) | pending | pending | - |  |
+| 608 | `16aa08ff` | 2026-10-28 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
 
 ## Special handling
 
