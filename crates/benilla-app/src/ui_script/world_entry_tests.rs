@@ -229,7 +229,7 @@ fn quitting_from_the_character_screen_does_not_blank_the_session_it_wrote() {
         .remove_non_send_resource::<benilla_ui::script::UiScript>()
         .expect("the glue VM is live at the character screen");
     // At the character screen there is no active player and no world to sweep.
-    super::shutdown_ui_state(&mut script, identity.as_ref());
+    super::shutdown_ui_state(&mut script, identity.as_ref(), false);
 
     assert_eq!(
         std::fs::read_to_string(&saved).ok().as_deref(),
@@ -376,7 +376,7 @@ fn a_shutdown_with_no_world_fires_logout_without_leaving_world() {
         let mut script = app
             .world_mut()
             .non_send_resource_mut::<benilla_ui::script::UiScript>();
-        super::shutdown_ui_state(&mut script, None);
+        super::shutdown_ui_state(&mut script, None, false);
     };
     let seen = |app: &App, global: &str| {
         app.world()
@@ -1820,11 +1820,11 @@ fn an_anchor_form_file_is_restored_and_rewritten_as_the_rect() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
-/// A layout section the server's file replaced is seated again into the live tree, as the
-/// reference's reader (`0x490380`) runs once the section lands (`0x5afd19`); without the arrival
-/// the loader reads once per VM.
+/// The layout reader (`0x490380`) registers through `0x5afe50` (`0x4900c2`): held while its
+/// section is pending, it seats the file once the section settles (`0x5afaca`), and again into the
+/// live tree when the server's file lands (`0x5afd19`); otherwise it reads once per VM.
 #[test]
-fn a_layout_section_from_the_server_is_seated_again() {
+fn the_layout_reader_waits_for_its_section_and_seats_each_settling() {
     use bevy::ecs::system::RunSystemOnce;
 
     let _l = ENV_LOCK
@@ -1847,7 +1847,18 @@ fn a_layout_section_from_the_server_is_seated_again() {
             .expect("the layout loader ran")
     };
     load(&mut world);
-    assert_eq!(window_geometry(&world).0, 413.0);
+    assert_eq!(
+        window_geometry(&world).0,
+        100.0,
+        "pending: the reader is held"
+    );
+    load(&mut world);
+    assert_eq!(window_geometry(&world).0, 100.0, "still pending");
+    world
+        .resource::<crate::account_data::AccountData>()
+        .settle_section_for_test(crate::account_data::LAYOUT);
+    load(&mut world);
+    assert_eq!(window_geometry(&world).0, 413.0, "settled: the file seated");
 
     std::fs::write(&path, "Frame: LayoutProbe\nW: 222\nH: 111\n").unwrap();
     load(&mut world);
@@ -2968,6 +2979,56 @@ fn a_reload_keeps_the_damage_text_font_the_login_read() {
         face(&world).as_deref(),
         Some("Fonts\\SECOND.TTF"),
         "the next world entry does"
+    );
+
+    drop(world);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// A `/reload` releases every command: its shutdown's leave clears the once-per-world latch
+/// (`0x490c20`, `0x490a8d`), so the re-init's world-enter cascade runs its release of every
+/// command (`0x490168` → `0x4908c0` → `0x49093c` → `0x5144c0`). A right held and a mouselook
+/// through a reload are gone after it: a left press arms its click, and no look channel stands.
+#[test]
+fn a_reload_releases_the_mouse_commands_and_the_mouselook() {
+    use benilla_ui::script::{ClickCall, ClickMode, UiScript};
+    benilla_formats::wow_data_or_skip!();
+    let _l = ENV_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (tmp, _c, _h) = hermetic_probe("mouse-commands");
+    let mut world = booted_world();
+    world.init_resource::<crate::player::CameraControl>();
+    // Whether a left press's `CameraOrSelectOrMoveStart` arms a click (`0x51481a`).
+    let left_arms = |world: &mut World| {
+        let mut script = world.non_send_resource_mut::<UiScript>();
+        script.take_click_calls();
+        script
+            .run_binding("CameraOrSelectOrMoveStart() CameraOrSelectOrMoveStop()")
+            .unwrap();
+        script.take_click_calls().first() == Some(&ClickCall::Arm(ClickMode::Select))
+    };
+
+    log_in_as(&mut world, "Onehunter", 1);
+    world.spawn(crate::net::SelfPlayer);
+    world
+        .non_send_resource::<UiScript>()
+        .run_binding("TurnOrActionStart()")
+        .unwrap();
+    world
+        .resource_mut::<crate::player::CameraControl>()
+        .world_mouse
+        .mouselook_for_test();
+    assert!(!left_arms(&mut world), "the right command holds its bit");
+
+    reload(&mut world, crate::client_state::ClientState::InWorld);
+    assert!(left_arms(&mut world), "the reloaded VM holds no bit");
+    assert!(
+        !world
+            .resource::<crate::player::CameraControl>()
+            .world_mouse
+            .turn_held(),
+        "the reload ended the mouselook"
     );
 
     drop(world);

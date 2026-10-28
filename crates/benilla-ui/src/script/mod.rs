@@ -17,6 +17,7 @@ mod action;
 mod action_bar_toggles;
 mod addon_message;
 mod auction;
+mod auction_live;
 mod aura;
 mod backdrop;
 mod bank;
@@ -111,6 +112,7 @@ mod gossip;
 mod guild;
 mod guild_read;
 mod handler_prof;
+mod held;
 mod host;
 mod hyperlink;
 mod lfg;
@@ -243,6 +245,7 @@ pub use auction::{
     AuctionStartRequest, AuctionState, AuctionSubCategory, BidVerdict, BIDDER, LIST, OWNER,
     SORT_KEYS,
 };
+pub use auction_live::{AuctionCanQuery, AuctionDepositRate, AuctionRowQuery};
 pub use aura::{
     AuraCall, AuraListRead, AuraRead, AuraState, PlayerBuffExpiry, TrackingState, UnitAuraList,
 };
@@ -330,8 +333,12 @@ pub use guild::{
     UnitGuild, MAX_RANKS, MIN_RANKS, RANK_RIGHT_BITS,
 };
 pub use guild_read::{GuildAnswer, GuildRead, OwnGuild, UnitGuildRead};
-pub use host::{CallHost, CallTail, Deferring};
-pub use input_verbs::{BindingInput, FiredInput, HeldInput, LookCall, PostureCall, ViewAxis};
+pub use held::{BagGuidQuery, BagHead, BagItemsQuery, BagQuery, BagSlotQuery, HasKeyQuery};
+pub use host::{CallHost, CallTail, Deferring, LiveReader};
+pub use input_verbs::{
+    BindingInput, ClickCall, ClickMode, ClickPress, FiredInput, HeldInput, LookCall, PostureCall,
+    ViewAxis,
+};
 pub use item_calls::ItemCall;
 pub use item_read::{ItemInfoFields, ItemKey, ItemRead, ItemRoll};
 pub use lfg::LfgDungeon;
@@ -378,8 +385,9 @@ pub use macros::{
     MAX_MACRO_BODY, MAX_MACRO_NAME,
 };
 pub use mail::{
-    MailCall, MailInboxRow, MailInvoice, MailRowVerb, MailSendRequest, MailState, PackageView,
-    StationeryView,
+    MailBox, MailBoxQuery, MailCall, MailInboxRow, MailInvoice, MailLookup, MailRowQuery,
+    MailRowVerb, MailSendRequest, MailState, NewMailQuery, PackageQuery, PackageView,
+    StationeryQuery, StationeryTextureQuery, StationeryView, MAIL_ROW_STRINGS,
 };
 pub use measure::TextMeasure;
 pub use merchant::{
@@ -461,7 +469,10 @@ pub use tooltip_aura::{AuraKey, AuraTooltipView};
 pub use tooltip_item::SpellCastUiQuery;
 pub use tooltip_spell::{ReputationRequirement, SpellTooltipView};
 pub use tooltip_text::{KeyedArg, TextPart, TooltipText};
-pub use trade::{TradeCall, TradeOpenItem, TradeSideState, TradeSlotItem, TradeState, TRADE_SLOTS};
+pub use trade::{
+    TradeCall, TradeMoney, TradeMoneyQuery, TradeOpenItem, TradeSideState, TradeSlotItem,
+    TradeSlotQuery, TradeState, TRADE_SLOTS,
+};
 pub use tradeskill::{
     TradeSkillCall, TradeSkillDifficulty, TradeSkillReagent, TradeSkillRecipe, TradeSkillState,
 };
@@ -496,7 +507,7 @@ pub use worldmap::{
     WorldMapOverlayView, WorldMapSheetRow, WorldMapState, WorldMapZoneView,
 };
 pub use worldstate::WorldStateUiView;
-pub use worn_display::WornDisplay;
+pub use worn_display::{WornDisplay, WornDisplaySet};
 pub use zone_text::{ZonePvp, ZoneTexts};
 
 use mlua::Lua;
@@ -822,6 +833,8 @@ impl UiScript {
         let lua = install_framescript(VmKind::InGame)?;
         install_in_game(&lua)?;
         object::guard_receivers(&lua)?;
+        #[cfg(any(test, feature = "test-support"))]
+        census::survey_listener(&lua);
         Ok(Self::host(lua))
     }
 

@@ -47,11 +47,9 @@ pub(crate) use item::EnchantConfirmItem;
 pub(crate) use pick::{
     publish_go_pick, publish_unit_pick, spell_opens_go, GoPick, GoPickChecks, PickChecks, UnitPick,
 };
-pub(crate) use world::{commit_ground_cast_on_click, commit_object_cast_on_click};
+pub(crate) use world::ClickCommits;
 
 use bevy::prelude::*;
-
-use benilla_world::interact::WorldRightPress;
 
 /// The inputs of `BindTarget 0x6e5b40`'s unit and corpse arms and of their read-only mirror
 /// `0x6e6460` ([`SpellTargeting::can_target_unit`], [`bind_target_unit`],
@@ -490,26 +488,16 @@ impl SpellTargeting {
     }
 }
 
-/// Right-click cancels on the down edge (WorldFrame `OnMouseDown 0x483c40` → `0x492c20` →
-/// `StopTargeting 0x6e4900`), sends nothing and consumes nothing: the press still turns the camera.
-/// A held cursor payload pre-empts it (`0x492b50`), and a press over a UI frame never reaches it.
-/// Whether a UI-frame right-click also cancels in the reference is untraced. The rotate-placement
-/// skip on flag `0xceca90` (effect `0x51`) is not built.
-pub(crate) fn cancel_targeting_on_right_press(
-    mut presses: MessageReader<WorldRightPress>,
-    payload_held: Res<crate::ui_script::CursorPayloadHeld>,
-    mut cursor: crate::spell::CursorCancel,
-) {
-    if !cursor.active() {
-        // A press buffered while idle must not replay as a cancel once the mode turns on.
-        presses.clear();
-        return;
+/// The world frame's right-press hook's first leg (`0x492c20`, `0x492c26`-`0x492c3f`): a pending
+/// target is cancelled (`StopTargeting 0x6e4900`), sending nothing and consuming nothing, so the
+/// press still turns the camera. It tests no payload; a press the payload's clear consumed
+/// (`0x492b50`) or a UI frame took never reaches it ([`crate::target::trace_press`]). The
+/// rotate-placement skip on flag `0xceca90` (effect `0x51`) is not built.
+pub(crate) fn cancel_targeting_on_right_press(mut cursor: crate::spell::CursorCancel) {
+    if cursor.active() {
+        debug!("ui_action: targeting cancelled (right-click)");
+        cursor.stop_targeting();
     }
-    if presses.read().last().is_none() || payload_held.0 {
-        return;
-    }
-    debug!("ui_action: targeting cancelled (right-click)");
-    cursor.stop_targeting();
 }
 
 /// [`SpellTargeting::picks_self`] as the feed published it, which the world pick reads
@@ -863,9 +851,10 @@ mod tests {
         );
     }
 
-    /// What the aura feed pushes each frame for the units this world holds, us and the selection:
-    /// the resolver's inputs, and the object manager's index of them. `SpellCanTargetUnit`
-    /// resolves its token through the inputs, and the feed asks the verdict of each unit they list.
+    /// What the resolver feed pushes each frame for the units this world holds, us and the
+    /// selection: the resolver's inputs, and the object manager's index of them.
+    /// `SpellCanTargetUnit` resolves its token through the inputs, and the feed asks the verdict of
+    /// each unit they list.
     fn publish_guids(world: &mut World) {
         let me = world
             .query_filtered::<Entity, With<SelfPlayer>>()
@@ -1121,7 +1110,7 @@ mod tests {
             let mut index = world.resource_mut::<crate::net::GuidIndex>();
             index.0.insert(PET, pet);
             arm(&mut world, HEAL, 0x0002);
-            // The index of us and the ally, then the aura feed's inputs with the chain's units:
+            // The index of us and the ally, then the resolver feed's inputs with the chain's units:
             // each held unit and the target it names.
             publish_guids(&mut world);
             world.non_send_resource_mut::<UiScript>().set_unit_guids(

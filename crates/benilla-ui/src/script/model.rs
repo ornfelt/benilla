@@ -343,6 +343,8 @@ pub(crate) struct Model {
     /// `0x7663e6` to the capture, else the hovered frame, so a chorded press keeps the capture;
     /// cleared at `0x7664bb` once no button is down. A title-region press captures nothing.
     pub(crate) mouse_capture: Option<FrameHandle>,
+    /// The last press the world input hook `0x492b50` ate, so the world frame never saw it.
+    pub(crate) press_hooked: bool,
     /// Per frame, when its last single `OnClick` fired: the client's `[CButton+0x334]`, the whole
     /// double-click state. It has no button identity (left then right makes a double), is zeroed
     /// when a double fires, and nothing else clears it, not hide, disable or the cursor leaving.
@@ -509,8 +511,8 @@ pub(crate) struct Model {
     /// An inspect-honor query is out (`0xb71fcc`); `RequestInspectHonorData` (`0x4c80a0`) refuses
     /// while set. Cleared by a reply (`0x4c6f4c`) or by the app clearing the slot (`0x4c6f9d`).
     pub(crate) inspect_honor_pending: bool,
-    /// `ShowingHelm()`: `PLAYER_FLAGS`' `HIDE_HELM` bit as pushed, set ahead on `ShowHelm` because
-    /// the wire verb is a blind toggle. Starts shown, as a fresh character's flags are 0.
+    /// `ShowingHelm()` with no host free to ask: `PLAYER_FLAGS`' `HIDE_HELM` bit clear, as
+    /// pushed. Starts shown, as a fresh character's flags are 0.
     pub(crate) helm_shown: bool,
     /// `ShowingCloak()`, the same for `HIDE_CLOAK`.
     pub(crate) cloak_shown: bool,
@@ -671,15 +673,14 @@ pub(crate) struct Model {
     /// character (`0x5d8ec0`-`0x5d8f6a`), fed by the app.
     pub(crate) control_bypass: HashSet<u32>,
 
-    /// Bag contents by API bag id (0 is the backpack).
+    /// A harness's copy of the bags by API bag id (0 is the backpack), read only with no host to
+    /// ask ([`super::held`]).
     pub(crate) containers: HashMap<i64, container::ContainerState>,
-    /// Per `(bag, slot)`, `(start, duration, enabled)` in `GetTime` seconds, stamped at push.
-    pub(crate) container_cooldowns: HashMap<(i64, u32), (f64, f64, bool)>,
-    /// The same triple for a worn item, by live-API slot id (1..=19); the cooldown query is keyed
-    /// by the item's entry (`0x6e2ed0`), so a worn trinket answers as a bagged one does. Kept off
-    /// the doll snapshot, which is pushed on change.
+    /// A harness's copy of the same triple for a worn item, by live-API slot id (1..=19), read
+    /// only with no host to ask; the cooldown query is keyed by the item's entry (`0x6e2ed0`), so
+    /// a worn trinket answers as a bagged one does.
     pub(crate) worn_cooldowns: HashMap<usize, (f64, f64, bool)>,
-    /// `HasKey()`: a keys-family item in equipment, bags, bank or keyring; gates the keyring UI.
+    /// A harness's `HasKey()`, read only with no host to ask ([`super::held::has_key`]).
     pub(crate) has_key: bool,
     /// What the cursor carries; nothing moves locally, the server's updates settle the bags.
     pub(crate) cursor: Option<cursor::CursorPayload>,
@@ -887,12 +888,11 @@ pub(crate) struct Model {
 
     /// The auction house's lists and session as the app last pushed them, `None` until this VM's
     /// first push, and the auction calls. `auction_selected` is each list's selected auction id, 0
-    /// for none (`0x4cfda0`/`0x4cfec0`); `auction_can_query` is the 5 s throttle.
+    /// for none (`0x4cfda0`/`0x4cfec0`).
     pub(crate) auction: Option<auction::AuctionState>,
     /// The Browse tab's class tree, seeded once per VM.
     pub(crate) auction_item_classes: Vec<auction::AuctionCategory>,
     pub(crate) auction_selected: [u32; 3],
-    pub(crate) auction_can_query: bool,
     /// The sell slot's item, resolved to its guid when `StartAuction` fires.
     pub(crate) auction_sell_item: Option<cursor::CursorItem>,
 
@@ -1402,6 +1402,7 @@ impl Model {
             minimap_blip: None,
             mouse_down_on: HashMap::new(),
             mouse_capture: None,
+            press_hooked: false,
             last_click: HashMap::new(),
             pending_size_changed: Vec::new(),
             content_writes: Vec::new(),
@@ -1549,7 +1550,6 @@ impl Model {
             far_sight_on: false,
             control_bypass: HashSet::new(),
             containers: HashMap::new(),
-            container_cooldowns: HashMap::new(),
             worn_cooldowns: HashMap::new(),
             has_key: false,
             cursor: None,
@@ -1633,7 +1633,6 @@ impl Model {
             auction: None,
             auction_item_classes: Vec::new(),
             auction_selected: [0; 3],
-            auction_can_query: true,
             auction_sell_item: None,
             trade: None,
             trade_partner: 0,

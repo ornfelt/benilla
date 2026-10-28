@@ -29,6 +29,10 @@ pub(crate) mod disjoint;
 mod engine;
 pub(crate) mod live;
 mod windows;
+mod world_click;
+pub(crate) use world_click::submit_waiting_clicks;
+#[cfg(test)]
+pub(crate) use world_click::{error_lines, record_error_lines, release_click, take_error_lines};
 
 /// `DoEmote` (`0x5ef560`) in the reference's order: a posture emote's stand change to a state but 0
 /// runs its local apply's leave (`0x5f0790`), the loot close (`0x48f200` at `0x5f07d5`) then the
@@ -48,7 +52,7 @@ macro_rules! emote_in_order {
 disjoint::disjoint_set! {
     /// The appliers, one per owner of the state a call touches, each lent alone: they share state
     /// with one another (the net channel, the cast ladder), never with what holds the host.
-    pub(crate) struct Appliers, AppliersState {
+    pub(crate) struct Appliers, AppliersState, watched {
         /// The selection.
         select: crate::target::ScriptSelect<'static, 'static>,
         /// The targeting cursor.
@@ -124,7 +128,7 @@ disjoint::disjoint_set! {
         /// The sends of the action bar, the worn display, the Help window, the unserved systems,
         /// the inspect window, the reader, the aura cancel, the minimap and the pet trainer.
         action_bar: crate::ui_action::ActionBarSteps<'static>,
-        worn: crate::ui_unit::WornDisplaySteps<'static>,
+        worn: crate::ui_unit::WornDisplaySteps<'static, 'static>,
         gm_ticket: crate::ui_gm_ticket::GmTicketSteps<'static>,
         inspect: crate::ui_inspect::InspectSteps<'static, 'static>,
         item_text: crate::ui_item_text::ItemTextSteps<'static>,
@@ -140,6 +144,8 @@ disjoint::disjoint_set! {
         asks: engine::RecordAsks<'static, 'static>,
         /// What the getters read as they run ([`live::LiveReads`]).
         live: live::LiveReads<'static, 'static>,
+        /// The world click's arm, its pick and its legs.
+        click: crate::target::ClickLegs<'static, 'static>,
     }
 }
 
@@ -182,6 +188,12 @@ impl ScriptCallHost<'_, '_> {
         }
     }
 
+    /// End the lend the census is watching ([`disjoint::end_lend`]): the appliers are all unlent.
+    #[cfg(test)]
+    fn census_done(&mut self) {
+        self.appliers.end_lend();
+    }
+
     /// An engine writer's selection outside any call, signalled in place as an engine turn, as
     /// `SetSelection` (`0x493540`) signals inside whatever runs it: the teardown's
     /// `PET_BAR_UPDATE` (`0x4bd6b4`) before the store and the send, the change's signals before
@@ -198,6 +210,8 @@ impl ScriptCallHost<'_, '_> {
             };
             self.settle_selection(script, &mut at, select.owed);
             self.commit_views(script);
+            #[cfg(test)]
+            self.census_done();
         });
         script.hosted(self, |_| ());
     }
@@ -222,6 +236,8 @@ impl ScriptCallHost<'_, '_> {
             let owed = self.appliers.select().start_attack(guid);
             self.settle_selection(script, &mut at, owed);
             self.commit_views(script);
+            #[cfg(test)]
+            self.census_done();
         });
         script.hosted(self, |_| ());
     }
@@ -241,6 +257,8 @@ impl ScriptCallHost<'_, '_> {
             let owed = self.appliers.select().clear_target();
             self.settle_selection(script, &mut at, owed);
             self.commit_views(script);
+            #[cfg(test)]
+            self.census_done();
         });
         script.hosted(self, |_| ());
     }
@@ -296,6 +314,8 @@ impl ScriptCallHost<'_, '_> {
     fn at_point(&mut self, script: &mut UiScript, mark: &mut crate::ui_cast::ReportMark) {
         self.signal_reports(script, mark);
         self.commit_views(script);
+        #[cfg(test)]
+        self.census_done();
         script.signal_point(self);
     }
 
@@ -528,15 +548,10 @@ impl ScriptCallHost<'_, '_> {
     /// the cell cleared (`0x4f502b`) and `GUILD_REGISTRAR_CLOSED` (`0x4f503a`), its signal once
     /// per run of the core, as the call's tail.
     fn close_registrar(&mut self) -> Option<CallTail> {
-        use crate::ui_session::NpcWindow;
         let npc = self.appliers.petition().registrar_npc()?;
         let reenters = self.appliers.latch().release(npc);
         self.appliers.petition().clear_registrar();
         let runs = 1 + usize::from(reenters);
-        let latch = self.appliers.latch();
-        for _ in 0..runs {
-            latch.note_closed(NpcWindow::Registrar);
-        }
         Some(Box::new(move |script: &mut UiScript| {
             for _ in 0..runs {
                 script.fire_event("GUILD_REGISTRAR_CLOSED", vec![]);
@@ -549,15 +564,10 @@ impl ScriptCallHost<'_, '_> {
     /// the latch, then the cell cleared (`0x4f58df`) and `CLOSE_TABARD_FRAME` (`0x4f58f8`), once
     /// per run of the core, as the call's tail, after the preview's undo (`0x4f58ce`).
     fn close_tabard(&mut self) -> Option<CallTail> {
-        use crate::ui_session::NpcWindow;
         let vendor = self.appliers.tabard().vendor()?;
         let reenters = self.appliers.latch().release(vendor);
         self.appliers.tabard().clear_vendor();
         let runs = 1 + usize::from(reenters);
-        let latch = self.appliers.latch();
-        for _ in 0..runs {
-            latch.note_closed(NpcWindow::Tabard);
-        }
         Some(Box::new(move |script: &mut UiScript| {
             script.end_tabard_preview();
             for _ in 0..runs {
@@ -696,6 +706,13 @@ impl CallHost for ScriptCallHost<'_, '_> {
                                 debug!("script_calls: macro {id} is empty");
                             }
                         }));
+                    }
+                    // `SetCursorItem`'s signals (`0x494bb6`, `0x494c54`) run their listeners
+                    // before `AutoEquipCursorItem` goes on (`0x5e18d5`), and its send.
+                    crate::ui_action::UseOutcome::Equip => {
+                        self.at_point(script, &mut at.mark);
+                        self.listened(&mut at);
+                        crate::ui_action::finish_equip(&mut self.appliers.action(), script);
                     }
                     crate::ui_action::UseOutcome::Done => {}
                 }
@@ -847,7 +864,7 @@ impl CallHost for ScriptCallHost<'_, '_> {
             }
             ScriptCall::Instance(InstanceCall::Reset) => appliers.instance().reset(),
             ScriptCall::Pvp(PvpCall::Toggle) => appliers.pvp().toggle(),
-            ScriptCall::WornDisplay(which) => appliers.worn().flip(which),
+            ScriptCall::WornDisplay(set) => appliers.worn().set(set),
             ScriptCall::ActionBar(call) => appliers.action_bar().apply(call),
             ScriptCall::GmTicket(GmTicketCall::Ticket(intent)) => {
                 appliers.gm_ticket().ticket(intent);
@@ -883,6 +900,7 @@ impl CallHost for ScriptCallHost<'_, '_> {
                 appliers.auction().wait_for_name(guid, list);
             }
             ScriptCall::RecordAsk(ask) => appliers.asks().apply(script, ask),
+            ScriptCall::WorldClick(step) => self.world_click(script, &mut at, step),
         }
         self.settle_selection(script, &mut at, owed);
         // A deselect the call's own steps raised, a dead unit's loot close's (`0x48f369`), signals
@@ -950,6 +968,8 @@ impl CallHost for ScriptCallHost<'_, '_> {
         // confirm (`0x495d60`), all signalled below as the call returns, under its input events.
         let ready = self.appliers.reports().ready_since(script, at.mark);
         self.commit_views(script);
+        #[cfg(test)]
+        self.census_done();
         if ready.is_empty() && popup.is_none() {
             return tail;
         }
@@ -1054,7 +1074,12 @@ impl<P: SystemParam + 'static> VmWith<'_, '_, P> {
         if let Some(host) = self.set.p1().as_ref() {
             host.census_probe();
         }
-        let r = script.host_out(|script| f(Some(script), self.set.p0()));
+        let r = script.host_out(|script| {
+            let r = f(Some(script), self.set.p0());
+            #[cfg(test)]
+            self.set.end_lend();
+            r
+        });
         match self.set.p1().as_mut() {
             Some(host) => script.hosted(host, |_| ()),
             None => {

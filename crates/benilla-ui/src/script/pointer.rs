@@ -166,6 +166,12 @@ impl UiScript {
         model.arena.frame(fh)?.name.clone()
     }
 
+    /// The cursor the last mouse event left (`[root+0x1118]`, `+0x111c`), which the wheel walks at
+    /// (`0x766524`) whatever the wheel event's own position.
+    pub fn saved_cursor(&self) -> (f32, f32) {
+        self.model_ref().cursor_pos
+    }
+
     /// Move the cursor to `(x, y)`. When the hovered frame changes, fires `OnLeave` on the old one
     /// if still live and `OnEnter` on the new, both with the arg globals untouched; a disabled
     /// Button takes the hover but fires neither ([`button::hover_notify_runs`]). A frame move or
@@ -309,6 +315,9 @@ impl UiScript {
     /// `"<Button>ButtonUp"`. Its `down` argument is not 1.12, whose firer (`0x779540`) passes only
     /// the button name. Returns whether the UI consumed the event.
     pub fn mouse_button(&mut self, x: f32, y: f32, button: &str, down: bool) -> bool {
+        if down {
+            self.model_mut().press_hooked = false;
+        }
         // ── The layout drag, ahead of everything ─────────────────────────────────────────────────
         //
         // With `SetLayoutMode` on, a press with Control (`0x41f8f0(1)`) or Alt (`0x41f8f0(2)`) held
@@ -380,6 +389,7 @@ impl UiScript {
             // `ClearCursor(1, 1)` at `0x492bb5`; the handler returns without a capture, a raise or
             // a press slot, so no frame sees this press and its release finds none to go to.
             self.model_mut().cursor_pos = (x, y);
+            self.model_mut().press_hooked = true;
             verb(&self.lua, cursor::clear_cursor);
             return true;
         }
@@ -532,7 +542,7 @@ impl UiScript {
                     && over_world(&model, hit_handle)
                     && over_world(&model, pressed)
                     && !capture_lost
-                    && cursor::world_drop_click(&mut model);
+                    && cursor::world_drop_click(&self.lua, &mut model);
                 // The Button release slot `0x7792d0` (below, after `OnMouseUp`) does nothing on a
                 // started drag (`0x7792df` tests `0x76c040`), which already un-pressed the button.
                 (None, release, dropped, None, pressed.filter(|_| !started), None, None)

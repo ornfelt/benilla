@@ -70,6 +70,8 @@ live_reads! {
         /// without the relations' inputs.
         units: UnitLive<'static, 'static>,
         items: crate::ui_items::live::ItemLive<'static, 'static>,
+        /// The active player's bags; absent in a harness without the item stores.
+        bags: Option<crate::ui_items::BagLive<'static, 'static>>,
         stats: StatsLive<'static, 'static>,
         auras: Option<crate::ui_aura::AuraLive<'static, 'static>>,
         /// The player's cooldown lists.
@@ -131,6 +133,12 @@ live_reads! {
         item_sets: crate::ui_items::ItemSetLive<'static, 'static>,
         /// The questgiver panel's cells, its rows' records and the turn-in's held counts.
         quest_giver: crate::ui_quest::QuestGiverLive<'static, 'static>,
+        /// The trade window's offers, its partner cell and the money offers.
+        trade: crate::ui_trade::TradeLive<'static>,
+        /// The mailbox cell, its rows, the pending-mail time, the stationery and the packages.
+        mail: crate::ui_mail::MailLive<'static, 'static>,
+        /// The auction rows' records, the browse throttle and the house's deposit rate.
+        auction: crate::ui_auction::AuctionLive<'static, 'static>,
         #[cfg(test)]
         probe: tests::ProbeLive<'static>,
     }

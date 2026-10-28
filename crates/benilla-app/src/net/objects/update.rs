@@ -351,7 +351,6 @@ fn on_object_create(In(ev): In<SessionEvent>, mut sc: Scene) {
         }
     };
     sc.pass.copies.insert(guid, moved);
-    bag_write(&mut sc, guid, None);
     notify_in_place(
         &mut sc,
         Notify::Create {
@@ -386,7 +385,7 @@ fn on_item_create(In(ev): In<SessionEvent>, mut sc: Scene) {
         (Some(e), _) => {
             found_live(&mut sc, e);
             match sc.stores.get_mut(e) {
-                Ok(mut store) => write_fields(&mut store.0, fields),
+                Ok(mut store) => write_logged(&mut sc.view_log, guid, &mut store, fields),
                 Err(_) => Vec::new(),
             }
         }
@@ -398,6 +397,7 @@ fn on_item_create(In(ev): In<SessionEvent>, mut sc: Scene) {
             }),
         ) => {
             let moved = write_fields(&mut store, fields);
+            sc.view_log.replaced(guid, None);
             let e =
                 crate::items::spawn_item(&mut sc.commands, &mut sc.index, guid, store, container);
             if let Body::Item { countdowns, .. } = body {
@@ -408,13 +408,13 @@ fn on_item_create(In(ev): In<SessionEvent>, mut sc: Scene) {
         }
         (None, None) => {
             allocate(&mut sc, guid, item_type(container));
+            sc.view_log.replaced(guid, None);
             crate::items::spawn_item(&mut sc.commands, &mut sc.index, guid, fields, container);
             sc.pass.unshown.insert(guid);
             Vec::new()
         }
     };
     sc.pass.copies.insert(guid, moved);
-    bag_write(&mut sc, guid, None);
     notify_in_place(
         &mut sc,
         Notify::Create {
@@ -424,37 +424,16 @@ fn on_item_create(In(ev): In<SessionEvent>, mut sc: Scene) {
     );
 }
 
-/// A write of what the bag view reads: any item or container object coming, changing or going,
-/// or our player's own create or release, or its seats or level (the keyring's size) in `sent`.
-/// The frame's first stamps where the view changes ([`crate::ui_items::feed::BagView`]).
-fn bag_write(sc: &mut Scene, guid: u64, sent: Option<&[u16]>) {
-    use benilla_protocol::field::{FIELD_PLAYER_INV_SLOT_HEAD, FIELD_UNIT_LEVEL};
-    /// The 113 seats, two fields each (`PLAYER_FIELD_INV_SLOT_HEAD` through the keyring's last).
-    const SEATS: std::ops::Range<u16> =
-        FIELD_PLAYER_INV_SLOT_HEAD..FIELD_PLAYER_INV_SLOT_HEAD + 226;
-    let read = benilla_protocol::guid::is_item(guid)
-        || (sc.self_guid.0 == Some(guid)
-            && sent.is_none_or(|f| {
-                f.iter()
-                    .any(|&i| i == FIELD_UNIT_LEVEL || SEATS.contains(&i))
-            }));
-    if read {
-        sc.bag_view.wrote();
-    }
-}
-
 /// A block's write into a held store ([`write_fields`]), logged for the views a listener reads
 /// ([`crate::ui_unit::views::ViewLog`]): the dwords it moved, or the store whole when it had no
-/// type to diff by. An item's store no token names, and goes unlogged.
+/// type to diff by. An item's too, whose stack, durability and slots the bag getters read as its
+/// packet left them.
 fn write_logged(
     log: &mut crate::ui_unit::views::ViewLog,
     guid: u64,
     store: &mut ObjectStore,
     delta: ObjectFields,
 ) -> Vec<(u16, u32, u32)> {
-    if guid::is_item(guid) {
-        return write_fields(&mut store.0, delta);
-    }
     let untyped = store.0.created_as().is_none().then(|| store.clone());
     let moved = write_fields(&mut store.0, delta);
     match untyped {
@@ -509,7 +488,6 @@ fn on_object_values(In(ev): In<SessionEvent>, mut sc: Scene) {
     };
     if let Some(moved) = moved {
         sc.pass.copies.insert(guid, moved);
-        bag_write(&mut sc, guid, Some(&sent));
     }
     notify_in_place(&mut sc, Notify::Values { guid, sent });
 }
@@ -583,8 +561,12 @@ fn on_object_move(In(ev): In<SessionEvent>, mut sc: Scene) {
 /// The active-mover global (`0xc4da98`) by guid, as [`crate::player`] seats it: the claimed
 /// foreign mover, else our own, and none while control is lost (`0x5fa600` zeroes it).
 fn active_mover(sc: &Scene) -> Option<u64> {
-    let player = sc.player.as_ref().filter(|p| !p.control_lost)?;
-    player.foreign_mover.or(sc.self_guid.0)
+    sc.player.as_ref()?;
+    let lock = sc.mover_lock.as_deref().copied().unwrap_or_default();
+    if lock.control_lost {
+        return None;
+    }
+    lock.foreign_mover.or(sc.self_guid.0)
 }
 
 /// A near-objects block (`0x467230`): each listed released object but our own player comes back
@@ -668,10 +650,7 @@ fn respawn(sc: &mut Scene, guid: u64, body: Body, store: ObjectFields, pose: Opt
         }
     }
     sc.pass.reactivated.push(guid);
-    if !guid::is_item(guid) {
-        sc.view_log.replaced(guid, None);
-    }
-    bag_write(sc, guid, None);
+    sc.view_log.replaced(guid, None);
 }
 
 /// The out-of-range list, which the protocol hands over only as a packet's first block
@@ -790,7 +769,10 @@ fn on_object_destroyed(In(ev): In<SessionEvent>, mut sc: Scene, script: Option<N
     let Some(e) = sc.index.0.remove(&guid) else {
         return;
     };
-    bag_write(&mut sc, guid, None);
+    // The unit's destructor zeroes the active mover it names (`0x5fb631`-`0x5fb655`).
+    if let Some(mover) = sc.mover.as_deref_mut() {
+        mover.forget(guid);
+    }
     // An item has no model to fade, so it goes now with its countdown cells.
     if benilla_protocol::guid::is_item(guid) {
         sc.commands.entity(e).despawn();
@@ -857,7 +839,10 @@ fn release(sc: &mut Scene, guid: u64) {
     let Some(e) = sc.index.0.remove(&guid) else {
         return;
     };
-    bag_write(sc, guid, None);
+    // `CGUnit_C::Release` zeroes the active mover it names (`0x5fbc26`-`0x5fbc3b` → `0x6006b0`).
+    if let Some(mover) = sc.mover.as_deref_mut() {
+        mover.forget(guid);
+    }
     let kept = sc
         .stores
         .get(e)
@@ -903,7 +888,12 @@ fn release(sc: &mut Scene, guid: u64) {
 
 /// The end of the packet: the notify pass over every block (`0x46522d`-`0x46528b`), then each
 /// brought-back object's vtable slot 3 (`0x465290`-`0x4652ff`).
-fn on_update_end(In(ev): In<SessionEvent>, mut sc: Scene, script: Option<NonSend<UiScript>>) {
+fn on_update_end(
+    In(ev): In<SessionEvent>,
+    mut sc: Scene,
+    script: Option<NonSend<UiScript>>,
+    mut arrival: super::arrival::Arrival,
+) {
     let SessionEvent::ObjectUpdateEnd = ev else {
         return;
     };
@@ -944,7 +934,7 @@ fn on_update_end(In(ev): In<SessionEvent>, mut sc: Scene, script: Option<NonSend
             // values block above does; benilla's [`notify`] fires nothing for either.
             Notify::Create { guid, kind } => {
                 if unshown.remove(&guid) {
-                    create_hook(&mut sc, guid, kind, script.as_deref());
+                    create_hook(&mut sc, guid, kind, script.as_deref(), &mut arrival);
                 } else {
                     let moved = copies.get(&guid).unwrap_or(&none);
                     let block = Notified::new(Sent::All, moved);
@@ -996,6 +986,25 @@ fn notify(sc: &mut Scene, guid: u64, block: Notified, bridged: bool) {
             .find(|&(index, _, _)| index == benilla_protocol::field::FIELD_GAMEOBJECT_STATE);
         if let (Some((_, _, state)), Ok(mut go)) = (state, sc.go_anims.get_mut(e)) {
             go.set_wire_state(state);
+        }
+    }
+    // `0x5ee990`'s helm and cloak arms re-dress the piece by its moved bit (`0x5eea45`-`0x5eea8e`),
+    // and the visible-item watch a slot by the flag (`0x5dee30` → `0x5df0de`): the watch covers the
+    // slot's whole 0x30 bytes (`0x5e2541`), so a creator or enchant move counts as the entry's.
+    if kind == ObjectType::Player {
+        if let Ok(mut pins) = sc.worn_pins.get_mut(e) {
+            for (index, old, new) in block.edges() {
+                if index == benilla_protocol::field::FIELD_PLAYER_FLAGS {
+                    pins.flags_moved(old ^ new);
+                }
+                for slot in [0u8, 14] {
+                    let first = benilla_protocol::field::FIELD_PLAYER_VISIBLE_ITEM_1_CREATOR
+                        + 12 * u16::from(slot);
+                    if (first..first + 12).contains(&index) {
+                        pins.visible_moved(slot);
+                    }
+                }
+            }
         }
     }
     let me = sc.self_guid.0;
@@ -1150,9 +1159,16 @@ fn mirror_guild(sc: &mut Scene) {
 /// object's record: an item's record set-up (`0x5d8400` → `0x5d8300`); a unit's `PostInit`
 /// (`0x5fb880`), whose display resolve asks a creature's record (`0x60afb0`, at `0x60b15b`); a
 /// player's (`0x5debe0`), its name (`0x5dec12` → `0x609210`) and guild tag (`0x5dec19`) ahead of another
-/// player's party record (`0x5dec5f`, the active player skipped at `0x5dec48`-`0x5dec5b`); a game
-/// object's template (`0x5f7c40`, at `0x5f7d81`), whose lockId decides use-vs-cast.
-fn create_hook(sc: &mut Scene, guid: u64, kind: Created, script: Option<&UiScript>) {
+/// player's party record (`0x5dec5f`, the active player skipped at `0x5dec48`-`0x5dec5b`), and for
+/// the active player its arrival last (`0x5dec7b`, [`super::arrival`]); a game object's template
+/// (`0x5f7c40`, at `0x5f7d81`), whose lockId decides use-vs-cast.
+fn create_hook(
+    sc: &mut Scene,
+    guid: u64,
+    kind: Created,
+    script: Option<&UiScript>,
+    arrival: &mut super::arrival::Arrival,
+) {
     let Some(fields) = sc
         .index
         .0
@@ -1210,6 +1226,8 @@ fn create_hook(sc: &mut Scene, guid: u64, kind: Created, script: Option<&UiScrip
             sc.group.member_object(guid, true);
             if sc.self_guid.0 != Some(guid) {
                 compare_party_record(sc, guid, &fields, script);
+            } else {
+                super::arrival::arrive(sc, arrival, guid, &fields);
             }
         }
         Created::World(EntityKind::Unit) => {
@@ -1285,6 +1303,10 @@ fn display_changed(sc: &mut Scene, e: Entity, guid: u64, fields: &ObjectFields) 
         return;
     }
     held.0 = creatures.records_row(display);
+    // The body rebuilt (`0x60abe0`) dresses both pieces by the flag (`0x5ed802`, `0x5ed81a`).
+    if let Ok(mut pins) = sc.worn_pins.get_mut(e) {
+        pins.rebuilt();
+    }
     sc.names.ask_creature_record(guid, fields, &sc.net);
 }
 

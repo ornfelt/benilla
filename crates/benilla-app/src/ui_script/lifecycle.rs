@@ -10,7 +10,7 @@ use benilla_ui::script::UiScript;
 use benilla_world::frame_pace::FrameStep;
 
 use super::manifest::silenced_ui_load;
-use super::{load_ingame_ui, CursorPayloadHeld, PlayerUiHover, UiClock, UiKeyboardCapture};
+use super::{load_ingame_ui, PlayerUiHover, UiClock, UiKeyboardCapture};
 use crate::ui_script::addons;
 
 /// The startup's glue: built, then put up on the screen the `movie` CVar picks
@@ -196,6 +196,12 @@ fn seed_vm_clock(world: &mut World, script: &mut UiScript) {
             ui_now: now,
         };
     }
+    if let Some(mut clock) = world.get_resource_mut::<super::HostClock>() {
+        clock.0 = UiClock {
+            anchor,
+            ui_now: now,
+        };
+    }
 }
 
 /// Start the new VM's `GetGameTime()` at the game clock as it stands: the reference's clock is one
@@ -341,9 +347,10 @@ fn unpark_glue_vm(world: &mut World) {
 /// socket threads only enqueue (`0x537b7c`; `SMSG_PONG` at `0x537b56` the one bypass), and the
 /// login request waits for the UI (`0x46c272`).
 ///
-/// Two terms, because the latch trails the wire by a frame: `apply_net_updates` drains `Connected`
-/// and the login burst behind it in one pass, and the `InWorld` transition that arms the latch and
-/// parks the VM runs at the next frame's `StateTransition`; the `InWorld` term covers that frame.
+/// Two terms, because the latch trails the wire by a frame: [`crate::net::apply_net_updates`]
+/// drains `Connected`, holding the login burst behind it until the load has run, and the `InWorld`
+/// transition that arms the latch and parks the VM runs at the next frame's `StateTransition`; the
+/// `InWorld` term covers that frame.
 pub(crate) fn ingame_ui_up(
     pending: Option<Res<PendingEntryUiLoad>>,
     state: Option<Res<State<crate::client_state::ClientState>>>,
@@ -585,8 +592,9 @@ fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
     // scope (Astrolabe builds its whole zone table from `GetMapContinents`/`GetMapZones` there).
     crate::ui_world_map::seed_world_map_catalog(world, &mut script);
     // The auction filter menus: `ItemClass.dbc` and `ItemSubClass.dbc` read inside the verbs, so a
-    // file-scope `GetAuctionItemClasses()` (and the stock `AuctionFrameBrowse_OnLoad`) sees them.
-    crate::ui_auction::seed_item_classes(world, &mut script);
+    // file-scope `GetAuctionItemClasses()` (and the stock `AuctionFrameBrowse_OnLoad`) sees them;
+    // and the lists the house holds, with their order and key stacks.
+    crate::ui_auction::seed_vm(world, &mut script);
     // Screen size and measurer before the first `<OnLoad>`: this VM is loaded before `tick_script`
     // seats either, and the load measures text (the stock tab template's `OnLoad` sizes from its
     // text width, `UIPanelTemplates.xml:370-373`), which answers 0 with no measurer.
@@ -914,9 +922,18 @@ fn cancel_move_action(world: &mut World) {
 /// ordered against each other; the layout save is here because a `/reload` never leaves
 /// `InWorld`. No autosave, as the reference has none (the layout cache's crash-only debounce in
 /// [`crate::ui_layout`] is ours).
-pub(crate) fn shutdown_ui_state(script: &mut UiScript, identity: Option<&(String, String)>) {
+///
+/// `layout_held`: the layout section is pending, its reader held, so its write is skipped
+/// (`0x5afed0` returns at `0x5afee0`).
+pub(crate) fn shutdown_ui_state(
+    script: &mut UiScript,
+    identity: Option<&(String, String)>,
+    layout_held: bool,
+) {
     script.fire_event("PLAYER_LOGOUT", vec![]);
-    crate::ui_layout::save_now(script, identity);
+    if !layout_held {
+        crate::ui_layout::save_now(script, identity);
+    }
     crate::ui_saved::save(script);
     addons::save_addon_variables(script, identity);
     addons::save_enable_state(script, identity);
@@ -996,10 +1013,13 @@ fn close_ui_session(world: &mut World, root: ShutdownRoot) {
     let identity = world
         .get_resource::<AddOnIdentity>()
         .and_then(|id| id.0.clone());
+    let layout_held = world
+        .get_resource::<crate::account_data::AccountData>()
+        .is_some_and(|data| data.pending(crate::account_data::LAYOUT));
     if !ui_never_loaded {
         crate::script_calls::with_hosted_vm(world, |script| {
             if let Some(script) = script {
-                shutdown_ui_state(script, identity.as_ref());
+                shutdown_ui_state(script, identity.as_ref(), layout_held);
             }
         });
         // The shutdown's account-data writes (`0x490c55`-`0x490c79` through `0x5afed0`) arm
@@ -1039,9 +1059,6 @@ fn close_ui_session(world: &mut World, root: ShutdownRoot) {
         keys.typing = false;
         keys.arrows_fall_through = false;
         keys.consumed.clear();
-    }
-    if let Some(mut held) = world.get_resource_mut::<CursorPayloadHeld>() {
-        *held = CursorPayloadHeld::default();
     }
     if let Some(mut minimap) = world.get_resource_mut::<crate::minimap::MinimapWidget>() {
         minimap.0 = None;
@@ -1098,6 +1115,15 @@ pub(crate) fn run_pending_reload(world: &mut World) {
         // worldport's run from their own packets.
         crate::ui_quest::world_enter_cascade(world);
         world.write_message(crate::net::WorldEnterCascadeMessage);
+        // Its release of every command (`0x49093c` → `0x5144c0`): the shutdown's leave cleared
+        // the once-per-world latch (`0x490c20`, `0x490a8d`), so the cascade runs whole. The new
+        // VM's mouse commands start clear; the look session's channels and the armed click go.
+        if let Some(mut rig) = world.get_resource_mut::<crate::player::CameraControl>() {
+            rig.world_mouse.release_all();
+        }
+        if let Some(mut arm) = world.get_resource_mut::<crate::target::ClickArm>() {
+            arm.disarm();
+        }
     }
 }
 
@@ -1123,9 +1149,12 @@ pub(crate) fn shutdown_on_exit(
     let identity = world
         .get_resource::<AddOnIdentity>()
         .and_then(|id| id.0.clone());
+    let layout_held = world
+        .get_resource::<crate::account_data::AccountData>()
+        .is_some_and(|data| data.pending(crate::account_data::LAYOUT));
     crate::script_calls::with_hosted_vm(world, |script| {
         if let Some(script) = script {
-            shutdown_ui_state(script, identity.as_ref());
+            shutdown_ui_state(script, identity.as_ref(), layout_held);
         }
     });
     if silenced {

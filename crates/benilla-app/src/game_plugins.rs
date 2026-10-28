@@ -65,7 +65,6 @@ use crate::ui_net::UiNetPlugin;
 use crate::ui_party::UiPartyPlugin;
 use crate::ui_pass::PlayerUiPlugin;
 use crate::ui_pet::UiPetPlugin;
-use crate::ui_pet_stats::UiPetStatsPlugin;
 use crate::ui_petition::UiPetitionPlugin;
 use crate::ui_quest::UiQuestPlugin;
 use crate::ui_quest_log::UiQuestLogPlugin;
@@ -206,7 +205,6 @@ impl PluginGroup for GamePlugins {
             // After UiActionPlugin, whose `Spells` and cooldown clock it shares.
             .add(UiPetPlugin)
             .add(ChrClassesPlugin)
-            .add(UiPetStatsPlugin)
             .add(UiNetPlugin)
             .add(UiCastPlugin)
             .add(UiMirrorPlugin)
@@ -366,10 +364,6 @@ pub(crate) mod schedule_tests {
         /// The systems whose declared access covers the call host's
         /// ([`crate::script_calls::ScriptCallHost`]): every one that writes the VM.
         pub hosted: HashSet<SystemKey>,
-        /// The systems whose own access names [`crate::net::SelfPlayer`]: a read of the
-        /// component, or a `With`, `Without`, `Added` or `Has` on it. Read off each system's
-        /// access set; a system that reads every component (`EntityRef`, `&World`) names none.
-        pub uses_self: HashSet<SystemKey>,
         /// The build's own order, system to system, with the sync points it placed when the
         /// census reads [`SyncPoints::Built`].
         pub built: Vec<(SystemKey, SystemKey)>,
@@ -496,24 +490,10 @@ pub(crate) mod schedule_tests {
                     )
                 })
                 .collect();
-            let self_player = world
-                .components()
-                .get_id(TypeId::of::<crate::net::SelfPlayer>());
             let mut systems = HashMap::new();
             let mut holds_vm = HashSet::new();
             let mut hosted = HashSet::new();
-            let mut uses_self = HashSet::new();
             for (key, system, conds) in graph.systems.iter() {
-                if let (Some(id), Some(with_access)) = (self_player, graph.systems.get(key)) {
-                    let names_it = with_access.access.filtered_accesses().iter().any(|fa| {
-                        fa.contains(id)
-                            || (!fa.access().has_read_all_components()
-                                && fa.access().has_component_read(id))
-                    });
-                    if names_it {
-                        uses_self.insert(key);
-                    }
-                }
                 if let (Some(vm), Some(with_access)) = (vm, graph.systems.get(key)) {
                     let access = with_access.access.combined_access();
                     if access.has_resource_read(vm) || access.has_resource_write(vm) {
@@ -666,7 +646,6 @@ pub(crate) mod schedule_tests {
                 non_send,
                 holds_vm,
                 hosted,
-                uses_self,
                 built,
             }
         })
@@ -982,6 +961,11 @@ pub(crate) mod schedule_tests {
     ///   the precast tail's loot release) is the name cache alone, a pure cache;
     ///   `lanes::guard_tests` checks that it stays so, and that no exclusive system is among them. Commands a firing defers, which the drain applies after
     ///   it, are outside that model;
+    /// - the input records' dispatch (`ui_script::input::dispatch_input_records`), exclusive as
+    ///   each record's binding runs the click's legs in its calls before the next record, against
+    ///   the 72 world systems no declared order places against it, which bevy lists with no
+    ///   component: every one of them the net drain (`net::apply::apply_net_updates`), exclusive
+    ///   too, meets the same way, none a host;
     /// - the minimap's draw (`minimap::emit_minimap`), which reads `QuestGiver`'s dialog statuses,
     ///   against `ui_panes::feed_character_panes`, which lends the call host, whose quest verbs
     ///   write that window's cell and panel latches and never a status.
@@ -989,7 +973,7 @@ pub(crate) mod schedule_tests {
     /// Raising the ceiling is a claim that a new undeclared order is acceptable: make it with the
     /// reason read off the dump, or declare the order (`.after`, a set, a `chain`). A resource
     /// that commutes by construction belongs in [`Classes`].
-    const UPDATE_ACTIONABLE_CEILING: usize = 1_694;
+    const UPDATE_ACTIONABLE_CEILING: usize = 1_731;
     const UPDATE_ACTIONABLE_SLACK: usize = 40;
 
     fn ratchet(what: &str, n: usize, ceiling: usize, slack: usize) {
@@ -1100,8 +1084,10 @@ pub(crate) mod schedule_tests {
     /// `video::apply_present_mode` and `video::apply_window_mode` and before `paint_script`, which
     /// puts the barrier between `video::drain_restart_gx` and those two applies on the paint's path
     /// (its commands fire the `gx*` CVar events whose observer writes the `VideoConfig` they read).
-    /// Without those two edges the count is 57. `WOW_SYNC_DUMP=1` lists each barrier's neighbours.
-    const UPDATE_SYNC_POINT_CEILING: usize = 58;
+    /// Without those two edges the count is 57. Lowered to 54 when the click's dispatchers queued
+    /// their window opens as unit edits, the call host applying the world click inside its call.
+    /// `WOW_SYNC_DUMP=1` lists each barrier's neighbours.
+    const UPDATE_SYNC_POINT_CEILING: usize = 54;
     const UPDATE_SYNC_POINT_SLACK: usize = 4;
 
     #[test]
@@ -1361,9 +1347,9 @@ pub(crate) mod schedule_tests {
         ),
     ];
 
-    /// The create's control restore (`player::regain_control_on_arrival`) is registered in the
-    /// built client and ordered: after the self create it answers, before the controller and the
-    /// readers of the flags it clears. A lost `add_systems` line, or a lost `.after`, fails here.
+    /// The create's control restore (`player::regain_control_on_arrival`) runs inside the net
+    /// drain, our own create's packet, and the controller and the readers of the lock it clears
+    /// run after the drain. A lost `.after` fails here.
     #[test]
     fn the_control_restore_runs_after_the_create_and_before_its_readers() {
         let mut app = headless_client();
@@ -1397,12 +1383,7 @@ pub(crate) mod schedule_tests {
             }
             seen
         };
-        let restore = one("::wire_in::regain_control_on_arrival");
-        let create = one("::net::apply::enter_world_on_self_create");
-        assert!(
-            reach(create).contains(&restore),
-            "the restore runs after the self create"
-        );
+        let restore = one("::net::apply::apply_net_updates");
         let after_restore = reach(restore);
         for reader in [
             "::player::controller::control",
@@ -1411,7 +1392,6 @@ pub(crate) mod schedule_tests {
             "::ui_action::state::feed_action_state",
             "::player::camera_saved::load_camera_pose",
             "::tutorial::watch_self",
-            "::ui_trade::answer_trade_request",
             "::poi_marker::expire_marker",
             "::glue_session::logout_smoke::debug_logout_smoke",
         ] {
@@ -1422,132 +1402,6 @@ pub(crate) mod schedule_tests {
         }
     }
 
-    /// Why an `Update` system that names [`crate::net::SelfPlayer`] may run with no declared order
-    /// after `tag_self_player`, keyed by a fragment of its full name (a generic's whole family is one row), with the reason it
-    /// is safe. The world-enter drain spawns our entity and every creature in one frame and the tag comes
-    /// later in the Net stage, so a system between the two sees no self.
-    const UNORDERED_AFTER_THE_SELF_TAG: &[(&str, &str)] = &[
-        ("::ui_chat::language::feed_language_skills",
-         "with no self it resets to the default list and a `have_player` flag forces a recompute once self exists"),
-        ("::ui_chat::language::feed_default_language",
-         "with no self it resets to the default language and a `have_player` flag forces a recompute once self exists"),
-        ("::sound::money::play_coin_on_coinage_change",
-         "the first sighting of the coinage only seeds the memo, so a frame with no self plays nothing and loses nothing"),
-        ("::ui_script::sweep::arm_leaving_world_on_self_create",
-         "`Added<SelfPlayer>` is relative to this system's own last run, so a tag that lands after a run is still seen at the next"),
-        ("::death::drive_death_look",
-         "level-driven: it writes the fade from the ghost flag every frame and re-reads self each time, so a frame with no self is overwritten by the next"),
-        ("::tutorial::run_world_enter_cascade",
-         "`armed` stays set until self exists, so the welcome and questgiver triggers wait for the tag rather than being spent, and the arrival's `Added<SelfPlayer>` is relative to this system's own last run, so a tag that lands after a run is still seen at the next"),
-    ];
-
-    /// Every `Update` system that names `SelfPlayer` (reads it, or filters on it) is ordered after
-    /// `tag_self_player`, or ahead of the net drain, or argued in
-    /// [`UNORDERED_AFTER_THE_SELF_TAG`]: a system that reads self and uses change detection must
-    /// not run between the drain's changes and the tag, or a frame that finds no self still
-    /// advances its change ticks and loses what changed. One ahead of the drain (the frame's input
-    /// records) reads the world as the last frame left it, and sees the tag and every change the
-    /// drain made at its next run. Fails an unordered user, a row for a system that is ordered
-    /// after all, and a stale row.
-    #[test]
-    fn every_system_that_names_self_runs_after_the_tag_or_argues_why_not() {
-        let mut app = headless_client();
-        let c = census(&mut app, Update, SyncPoints::Declared);
-        if !type_names_available(&c) {
-            eprintln!(
-                "skipped: this build carries no type names (bevy/debug rides with the dev feature)"
-            );
-            return;
-        }
-        let tag = {
-            let suffix = "::net::apply::tag_self_player";
-            let mut hits = c.systems.iter().filter(|(_, s)| s.name.ends_with(suffix));
-            match (hits.next(), hits.next()) {
-                (Some((k, _)), None) => *k,
-                _ => panic!("exactly one system named `…{suffix}` in Update"),
-            }
-        };
-        let mut succ: HashMap<SystemKey, Vec<SystemKey>> = HashMap::new();
-        for (a, b) in &c.dependencies {
-            succ.entry(*a).or_default().push(*b);
-        }
-        let reach = |start: SystemKey| {
-            let mut seen = HashSet::new();
-            let mut stack = vec![start];
-            while let Some(n) = stack.pop() {
-                for m in succ.get(&n).into_iter().flatten() {
-                    if seen.insert(*m) {
-                        stack.push(*m);
-                    }
-                }
-            }
-            seen
-        };
-        let after_tag = reach(tag);
-        let drain = {
-            let suffix = "::net::apply::apply_net_updates";
-            let mut hits = c.systems.iter().filter(|(_, s)| s.name.ends_with(suffix));
-            match (hits.next(), hits.next()) {
-                (Some((k, _)), None) => *k,
-                _ => panic!("exactly one system named `…{suffix}` in Update"),
-            }
-        };
-        let mut pred: HashMap<SystemKey, Vec<SystemKey>> = HashMap::new();
-        for (a, b) in &c.dependencies {
-            pred.entry(*b).or_default().push(*a);
-        }
-        let before_drain = {
-            let mut seen = HashSet::new();
-            let mut stack = vec![drain];
-            while let Some(n) = stack.pop() {
-                for m in pred.get(&n).into_iter().flatten() {
-                    if seen.insert(*m) {
-                        stack.push(*m);
-                    }
-                }
-            }
-            seen
-        };
-        let mut users: Vec<SystemKey> = c.uses_self.iter().copied().filter(|k| *k != tag).collect();
-        users.sort_by(|a, b| c.name(*a).cmp(c.name(*b)));
-        let (mut ordered, mut argued) = (0, 0);
-        let mut offenders = Vec::new();
-        let mut stale = Vec::new();
-        for k in &users {
-            let name = c.name(*k);
-            let row = UNORDERED_AFTER_THE_SELF_TAG
-                .iter()
-                .find(|(part, _)| name.contains(part));
-            match (after_tag.contains(k) || before_drain.contains(k), row.is_some()) {
-                (true, false) => ordered += 1,
-                (true, true) => stale.push(format!(
-                    "{name}: argued in UNORDERED_AFTER_THE_SELF_TAG but ordered after the tag or ahead of the drain — drop the row"
-                )),
-                (false, true) => argued += 1,
-                (false, false) => offenders.push(name.to_string()),
-            }
-        }
-        for (part, _) in UNORDERED_AFTER_THE_SELF_TAG {
-            if !users.iter().any(|k| c.name(*k).contains(part)) {
-                stale.push(format!(
-                    "`…{part}…` does not name SelfPlayer in Update — drop its row"
-                ));
-            }
-        }
-        eprintln!(
-            "SelfPlayer users in Update: {} — {ordered} after the tag or ahead of the drain, {argued} argued",
-            users.len()
-        );
-        assert!(
-            offenders.is_empty(),
-            "these systems name `SelfPlayer` in `Update` with no declared order after \
-             `tag_self_player` or ahead of the drain — `.after(WorldStage::Net)`, or argue it in \
-             UNORDERED_AFTER_THE_SELF_TAG:\n  {}",
-            offenders.join("\n  ")
-        );
-        assert!(stale.is_empty(), "stale rows:\n  {}", stale.join("\n  "));
-    }
-
     /// A nameplate's right-click is `SelectTarget` (`0x492870`), which with a targeting cursor up
     /// binds the cast and returns, and then the unit's interact (`0x492881`), so the cast goes out
     /// ahead of what the interact does. The click's select parks the unit; the target chain's bind
@@ -1556,7 +1410,11 @@ pub(crate) mod schedule_tests {
     #[test]
     fn a_plates_interact_runs_after_the_bind_of_the_unit_its_click_parked() {
         let mut app = headless_client();
-        let c = census(&mut app, Update, SyncPoints::Declared);
+        let c = census(
+            &mut app,
+            crate::target::WorldClickLegs,
+            SyncPoints::Declared,
+        );
         if !type_names_available(&c) {
             eprintln!(
                 "skipped: this build carries no type names (bevy/debug rides with the dev feature)"
@@ -1567,7 +1425,7 @@ pub(crate) mod schedule_tests {
             let mut hits = c.systems.iter().filter(|(_, s)| s.name.ends_with(suffix));
             match (hits.next(), hits.next()) {
                 (Some((k, _)), None) => *k,
-                _ => panic!("exactly one system named `…{suffix}` in Update"),
+                _ => panic!("exactly one system named `…{suffix}` in the click's legs"),
             }
         };
         let (select, bind, interact) = (
@@ -1647,13 +1505,17 @@ pub(crate) mod schedule_tests {
         assert!(after(cancel).contains(&tick), "the cancel before the tick");
     }
 
-    /// The world click's trade leg runs ahead of its select (`0x4925d0`: the trade request at
+    /// A plate click's trade leg runs ahead of its select (`0x4925d0`: the trade request at
     /// `0x49278e`, `SelectTarget` at `0x49280c`), so the targeting cursor it tests (`0x492668`)
     /// is the one the click found, not what the select's bind left.
     #[test]
-    fn the_world_clicks_trade_leg_runs_before_its_select() {
+    fn a_plate_clicks_trade_leg_runs_before_its_select() {
         let mut app = headless_client();
-        let c = census(&mut app, Update, SyncPoints::Declared);
+        let c = census(
+            &mut app,
+            crate::target::WorldClickLegs,
+            SyncPoints::Declared,
+        );
         if !type_names_available(&c) {
             eprintln!(
                 "skipped: this build carries no type names (bevy/debug rides with the dev feature)"
@@ -1664,10 +1526,10 @@ pub(crate) mod schedule_tests {
             let mut hits = c.systems.iter().filter(|(_, s)| s.name.ends_with(suffix));
             match (hits.next(), hits.next()) {
                 (Some((k, _)), None) => *k,
-                _ => panic!("exactly one system named `…{suffix}` in Update"),
+                _ => panic!("exactly one system named `…{suffix}` in the click's legs"),
             }
         };
-        let trade = one("::ui_action::drop_item::trade_on_world_click");
+        let trade = one("::ui_action::drop_item::trade_on_plate_click");
         let mut succ: HashMap<SystemKey, Vec<SystemKey>> = HashMap::new();
         for (a, b) in &c.dependencies {
             succ.entry(*a).or_default().push(*b);
@@ -1681,15 +1543,10 @@ pub(crate) mod schedule_tests {
                 }
             }
         }
-        for select in [
-            "::target::click::select_on_plate_click",
-            "::target::click::select_on_click",
-        ] {
-            assert!(
-                seen.contains(&one(select)),
-                "the trade leg runs before {select}"
-            );
-        }
+        assert!(
+            seen.contains(&one("::target::click::select_on_plate_click")),
+            "the trade leg runs before the plate's select"
+        );
     }
 
     /// The `Startup` VM, the stock glue's, is built after the glyph cache:
@@ -1823,8 +1680,8 @@ pub(crate) mod schedule_tests {
     /// `BankFrame.lua:127-128`, …), which the reference seats before the show: the packet's handler
     /// writes `[0xb4e2d0]` (`0x4e26fa` → `0x4e1fe9` → `0x4930d0`) and only then fires
     /// `GOSSIP_SHOW` (`0x4e27df`). Here the latch reaches the token through `feed_interact_npc` and
-    /// `feed_units`, so each window's feed runs after both, or a show whose text is cached fires in
-    /// the same frame as the open with the token unset. Read off the declared graph.
+    /// `feed_units`, so `feed_units` runs after the first; each window's show fires on its lane in
+    /// the drain, after every feed ([`crate::lanes`]). Read off the declared graph.
     #[test]
     fn every_latched_windows_show_reads_the_token_its_latch_seated() {
         let mut app = headless_client();
@@ -1862,19 +1719,10 @@ pub(crate) mod schedule_tests {
             after(one("::ui_session::feed_interact_npc")).contains(&units),
             "feed_units runs after feed_interact_npc, which publishes the latch it names \"npc\" by"
         );
-        let seated = after(units);
-        let stale: Vec<&str> = ["::ui_auction::feed_auction", "::ui_trade::feed_trade"]
-            .into_iter()
-            .filter(|feed| !seated.contains(&one(feed)))
-            .collect();
-        assert!(
-            stale.is_empty(),
-            "these windows' shows can read \"npc\" before feed_units seats it: {stale:?}"
-        );
     }
 
     /// The sets of the frame's input records, which run ahead of the net drain.
-    const INPUT_RECORD_SETS: &[&str] = &["UiInput", "WorldMouse", "WorldClicks"];
+    const INPUT_RECORD_SETS: &[&str] = &["UiInput", "WorldMouse"];
 
     /// The VM ticks once a frame (`extract::tick_script`, in `UiTick`): the window input rides
     /// the input records' sets ([`INPUT_RECORD_SETS`]) ahead of the net drain, and a push the tick
@@ -2061,7 +1909,7 @@ pub(crate) mod schedule_tests {
         ("ui_action/cooldown_lane.rs", "fire_cooldowns", Because::Deliberate,
          "a lane's firing, run only by the drain: `drop_cooldown_log`, gated on the interface being down, drops the log the frame it is written, so no signal fires into a later VM"),
         ("ui_action/drain.rs", "drain_click_casts", Because::FilledByVm,
-         "filled only by a world right-click on a GameObject or a body; the drain sends casts to the wire"),
+         "filled only by a nameplate's right-click, which a frameless VM has no plate to make, or a crate's `Interact`; the world click's own casts drain inside its call, and the drain sends casts to the wire"),
         ("ui_action/recount.rs", "recount", Because::Deliberate,
          "no system: the item lane's firing calls it per run (`item_lane::fire_run`), inside the lanes' drain, which runs only with the interface up (`ingame_ui_up`)"),
         ("ui_char.rs", "feed_char", Because::FilledByVm,
@@ -2086,8 +1934,6 @@ pub(crate) mod schedule_tests {
          "a roll exists only after a group member loots under group loot; leftovers are cleared at socket teardown (another player's act: coincidence-only residual)"),
         ("ui_macro/mod.rs", "load_macros", Because::MemoLatched,
          "`MacroFiles.identity` is a `VmMemo`, so a new session re-reads the files and re-fires UPDATE_MACROS; also `InWorldGated`"),
-        ("ui_mail/mod.rs", "feed_mail", Because::SelfHealing,
-         "the window queues are mailbox-click replies; the one server push (`SMSG_RECEIVED_MAIL`) is re-asked by `send_query_next_mail_time_on_enter`, whose reply sets `notify` unconditionally"),
         ("ui_panes.rs", "feed_character_panes", Because::FilledByVm,
          "the answers answer the VM's own build requests and arms on panes it listed; a frameless VM lists none, and an answer for another VM's rows is dropped"),
         ("ui_quest_share.rs", "feed_quest_share", Because::PlayerRoundTrip,
@@ -2104,6 +1950,8 @@ pub(crate) mod schedule_tests {
          "a lane's firing, run only by the drain: `drop_world_state_signals`, gated on the interface being down, empties the lane the frame its items land, so none fires into a later VM"),
         ("ui_tradeskill.rs", "fire_list_rebuilds", Because::Deliberate,
          "a lane's firing, run only by the drain: `drop_list_rebuilds`, gated on the interface being down, empties the lane the frame its items land, so none fires into a later VM"),
+        ("ui_trade/lane.rs", "open", Because::Deliberate,
+         "no system: the trade lane's firing calls it for the open's item, inside the drain, which runs only with the interface up; `drop_trade_events`, gated on the interface being down, empties the lane the frame its items land"),
     ];
 
     /// `ui_chat/feed.rs` → `ui_chat::feed`; `target/mod.rs` → `target`; `lib.rs` → ``.

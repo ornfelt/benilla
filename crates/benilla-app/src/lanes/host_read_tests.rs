@@ -37,8 +37,8 @@ use crate::game_plugins::schedule_tests::{census, type_names_available, SyncPoin
 
 /// The most rows [`super::guard_tests::READS_FRAME_FINAL`] may hold, and the most inputs across
 /// them: each only falls, so lower it when a row or an input goes.
-const FRAME_FINAL_FEEDS: usize = 43;
-const FRAME_FINAL_INPUTS: usize = 238;
+const FRAME_FINAL_FEEDS: usize = 38;
+const FRAME_FINAL_INPUTS: usize = 200;
 
 /// The systems that may run after the dispatch (`apply_net_updates`) and run ahead of the drain
 /// (`fire_in_order`), by a suffix of the system's name, with what each writes of the host's live
@@ -52,21 +52,10 @@ const FRAME_FINAL_INPUTS: usize = 238;
 /// access does not show; `exclusive` a system whose access Bevy does not report.
 #[rustfmt::skip]
 const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
-    ("::net::apply::tag_self_player", &["Commands net::SelfPlayer"],
-        "tags our created entity as the player, which the token resolver finds it by; the \
-         reference makes it the active player inside its create (`0x5dea50`)"),
     ("::net::motion::remote::extrapolate_remote_units", &["Transform"],
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
-    ("::player::wire_in::regain_control_on_arrival", &["player::state::OwnControlLost"],
-        "gives control back on our own create, which the stance bar's usability walk reads \
-         (`0x6e3dc3`), and pushes its signals onto the notice lane at its own place; the \
-         reference raises it inside the create (`0x5deb56`), and the arrival it answers is a \
-         system's message, not a handler's"),
     ("::spell::group_relation::publish_group_roster", &["spell::group_relation::GroupRoster"],
         "copies the group's roster, which the relation reads take, once the packets are in"),
-    ("::spell::mods::track_class_family", &["spell::mods::SpellModifiers"],
-        "keeps the class family the stance bar's usability walk prices a cost through; the \
-         reference stores it inside our own create (`0x5debcc` → `0x6e6ca0`)"),
     ("::transport::compose_riders", &["Transform"],
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
     ("::ui_action::feed::feed_actions", &["ui_action::PlayerActions"],
@@ -78,9 +67,10 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
          writes the list as it walks the slots"),
     ("::ui_action::unlearn::clear_unlearned_slots", &["ui_action::PlayerActions"],
         "drains the unlearned spells the bar clears; the known spells are the handlers' alone"),
-    ("::ui_aura::feed_auras", &["ui_aura::AuraFeedMemory"],
-        "rebuilds the raid filter's books and the world entry's player the aura walk reads, and \
-         keeps the clock pair the buff timers map the duration stamps through"),
+    ("::ui_auction::reset_auction_on_world_enter", &["ui_auction::AuctionOpen"],
+        "empties the lists, the throttle and the session at the world-enter cascade \
+         (`0x490a05` → `0x4cc280`), which the reference runs inside our own player's create \
+         (`0x4908c0`)"),
     ("::ui_battlefield::reset_on_world_enter", &["ui_battlefield::Battlefield"],
         "clears the list and the notices waiting on names at the world-enter cascade \
          (`0x4a9db0`), which the reference runs inside our own player's create (`0x4908c0`)"),
@@ -98,17 +88,19 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
     ("::ui_instance::track_instance_state", &["ui_instance::InstanceState"],
         "latches the dungeon just left once the map the transfer lands on is known, which the \
          reference latches inside the map load and the packet (`0x464ff0`, `0x49e6ac`)"),
-    ("::ui_items::feed::feed_item_stats", &["items::Items"],
-        "takes the item cache's fresh and dropped records as it pushes them"),
-    ("::ui_items::feed::feed_random_properties", &["items::RandomProperties"],
-        "writes the random-suffix table as it pushes it, once per VM"),
     ("::ui_macro::rebind_macro_spells", &["ui_action::PlayerActions"],
         "drains the superseded ranks the bar's macros take; the known spells are the handlers' \
          alone"),
+    ("::ui_mail::send_query_next_mail_time_on_enter", &["ui_mail::MailOpen",
+        "ui_mail::pending::MailPending"],
+        "the mail init (`0x4acb10`) clears the session and stamps \"no mail\" at the world-enter \
+         cascade (`0x4909f6`), which the reference runs inside our own player's create \
+         (`0x4908c0`)"),
+    ("::ui_mail::stationery::count_papers_on_enter", &["ui_mail::stationery::UsableStationery"],
+        "the mail init (`0x4acb10`) counts the papers' items it awaits and rebuilds the stationery \
+         list when none is (`0x4acbd7`) at the world-enter cascade (`0x4909f6`), which the \
+         reference runs inside our own player's create (`0x4908c0`)"),
     ("::ui_party::feed::feed_party", &["UiScript"], "a field event's listeners read its push"),
-    ("::ui_pet::drain::arm_owed_pet_gcds", &["ui_pet::PetBar"],
-        "puts the GCDs the pet's sends owe into its list, which the reference arms at the send \
-         (`0x6e58fb`)"),
     ("::ui_pet::unit::feed_pet_unit", &["UiScript"], "a field event's listeners read its push"),
     ("::ui_session::close_npc_session_out_of_range<benilla_app::ui_binder::BinderState>",
         &["ui_binder::BinderState"],
@@ -159,6 +151,12 @@ const AFTER_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
         &["ui_pet::PetBar"],
         "drops the pet's cooldown log, run only while no in-game interface \
          is up, so no listener exists; it goes with the log"),
+    ("::ui_mail::step_pending_mail", &["ui_mail::pending::MailPending"],
+        "steps the pending-mail time in the world frame's update (its slot `0x38`, `0x4818d0` → \
+         `0x4ade60`), which the frame pass runs after the packets (`0x420d6a` after `0x420d55`)"),
+    ("::ui_mail::lane::drop_mail_events", &["ui_mail::pending::MailPending"],
+        "drops the mail lane, a parked close's tail with its query kept, run only while no \
+         in-game interface is up, so no listener exists"),
     ("::ui_reputation::drop_reputation_log", &["net::reputations::Reputations"],
         "drops the reputation log, run only while no in-game interface \
          is up, so no listener exists; it goes with the log"),

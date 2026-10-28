@@ -10,7 +10,7 @@ use benilla_formats::{ChrClasses, ChrRaces, Reaction};
 use benilla_protocol::messages::ObjectType;
 use benilla_ui::script::{
     parse_unit_token, resolve_unit_in, ScriptValue, UiScript, UnitObject, UnitObjectRead,
-    UnitState, UnitTokenGlobals, UnitTokenObjects, UnitTokenParse, WornDisplay,
+    UnitState, UnitTokenGlobals, UnitTokenObjects, UnitTokenParse, WornDisplay, WornDisplaySet,
 };
 
 use crate::creature_type::CreatureTypeSources;
@@ -95,8 +95,7 @@ struct UnitFeedMemo {
     last_combo: Option<(u8, u64)>,
     /// Our faction template's `(friend, enemy)` masks, as last pushed.
     faction_masks: Option<Option<(u32, u32)>>,
-    /// `(HIDE_HELM, HIDE_CLOAK)`, pushed on the edge only: the Options setter flips the VM's
-    /// belief ahead of the server, and a per-frame push would snap it back.
+    /// `(HIDE_HELM, HIDE_CLOAK)`, as last pushed.
     worn_hidden: Option<(bool, bool)>,
     /// `PLAYER_FIELD_BYTES` byte 2 (`GetActionBarToggles`, `0x4e7660`); no field watch, no event.
     action_bar_toggles: Option<u8>,
@@ -1054,6 +1053,12 @@ impl benilla_ui::script::SelfRead for StoreObject<'_> {
     fn shapeshift_form(&self) -> u8 {
         self.0 .0.unit_shapeshift_form()
     }
+    fn shows_helm(&self) -> bool {
+        !self.0 .0.player_hides_helm()
+    }
+    fn shows_cloak(&self) -> bool {
+        !self.0 .0.player_hides_cloak()
+    }
 }
 
 /// `PLAYER_FLAGS` bit 7, free-for-all PvP (vmangos `Player.h:322`).
@@ -1136,21 +1141,54 @@ impl PvpSteps<'_> {
     }
 }
 
-/// `ShowHelm` and `ShowCloak` past the VM's belief, inside their calls
+/// `ShowHelm` and `ShowCloak`, inside their calls
 /// ([`benilla_ui::script::ScriptCall::WornDisplay`]).
 #[derive(bevy::ecs::system::SystemParam)]
-pub(crate) struct WornDisplaySteps<'w> {
+pub(crate) struct WornDisplaySteps<'w, 's> {
     net: Res<'w, NetCommands>,
+    me: Query<
+        'w,
+        's,
+        (&'static ObjectStore, &'static mut crate::entities::WornPins),
+        With<SelfPlayer>,
+    >,
+    items: Res<'w, crate::items::Items>,
 }
 
-impl WornDisplaySteps<'_> {
-    /// The flip's bodiless packet (`0x5ee6e3`, `push 0x2b9`, and its cloak twin): the VM, which
-    /// alone knows what the Options row did, has already decided it is needed.
-    pub(crate) fn flip(&self, which: WornDisplay) {
-        let _ = self.net.0.send(match which {
-            WornDisplay::Helm => crate::net::ClientCommand::ToggleHelm,
-            WornDisplay::Cloak => crate::net::ClientCommand::ToggleCloak,
-        });
+impl WornDisplaySteps<'_, '_> {
+    /// The show or hide method on the active player, nothing with none (`0x48de43`): the model's
+    /// piece re-dressed, then the toggle the live bit owes.
+    pub(crate) fn set(&mut self, set: WornDisplaySet) {
+        let Ok((store, mut pins)) = self.me.single_mut() else {
+            return;
+        };
+        let s = &store.0;
+        let hidden = match set.piece {
+            WornDisplay::Helm => s.player_hides_helm(),
+            WornDisplay::Cloak => s.player_hides_cloak(),
+        };
+        // The piece on the model, on the native display alone (`0x5ee690`, `0x5ee75e`); a show only
+        // for a worn item whose record gives a display (`0x5ee66e`, `0x5ee67b`).
+        let display = s
+            .player_visible_item_entry(crate::entities::WornPins::equipment_slot(set.piece))
+            .and_then(|entry| self.items.template(entry, 0, crate::query_cache::Ask::Read))
+            .map_or(0, |t| t.display_info_id);
+        let native =
+            s.unit_displayid().is_some() && s.unit_displayid() == s.unit_native_displayid();
+        if native && (display != 0 || !set.show) {
+            // A hide while the record is still asked for is re-dressed when it lands (`0x5ed880`).
+            let waiting = s
+                .player_visible_item_entry(crate::entities::WornPins::equipment_slot(set.piece))
+                .is_some_and(|entry| !self.items.template_known(entry));
+            pins.pin(set.piece, set.show, waiting);
+        }
+        // The bodiless toggle only while the bit says the opposite (`0x5ee6c4`, `0x5ee783`).
+        if set.show == hidden {
+            let _ = self.net.0.send(match set.piece {
+                WornDisplay::Helm => crate::net::ClientCommand::ToggleHelm,
+                WornDisplay::Cloak => crate::net::ClientCommand::ToggleCloak,
+            });
+        }
     }
 }
 
@@ -1353,6 +1391,8 @@ fn feed_units(
     mut enter_usable: Option<ResMut<crate::ui_action::EnterUsable>>,
     // The known spells the arrival's replay registers, whose language legs signal.
     actions: Option<Res<crate::ui_action::PlayerActions>>,
+    // The buff cache the cascade sets up on the new player object (`0x490983` → `0x4e4100`).
+    mut auras: crate::ui_aura::AuraEntry,
 ) {
     let arrived = !arrivals.is_empty();
     // The pushes are an engine turn, as they read the relation inputs a call can write; the
@@ -1591,8 +1631,8 @@ fn feed_units(
                 gate.audit("feed_units", "the world-enter events");
                 // `"player"` names us when the cascade runs, from our own create: the stock windows
                 // bind their model panes to it here (`PaperDollFrame.lua:39`), so it is seated
-                // ahead of the aura feed's full resolver push, which this feed is not ordered
-                // against.
+                // ahead of the resolver feed's full push (`feed_unit_guids`), which this feed is
+                // not ordered against.
                 script.seat_player_guid(me.0);
                 // The arrival's ghost state (`0x5deb2a` → `0x5de9c0`) runs ahead of its cascade
                 // (`0x5deb60`): alive, `PLAYER_UNGHOST` (`0x5dea2a`), with no gate before it; a
@@ -1654,8 +1694,7 @@ fn feed_units(
             }
         }
 
-        // The hide bits for `ShowingHelm()`/`ShowingCloak()`, on the edge only: the setter flips
-        // the VM's belief on the click, and a stale push before the server answers would undo it.
+        // The hide bits for `ShowingHelm()`/`ShowingCloak()` with no host free to ask.
         if let Some((store, _)) = self_pair {
             let hidden = (store.0.player_hides_helm(), store.0.player_hides_cloak());
             if memo.worn_hidden != Some(hidden) {
@@ -1715,6 +1754,8 @@ fn feed_units(
     vm.run(|script| {
         if let Some(script) = script {
             script.fire_world_enter_head(enter.bonus_bar_offset, usable_changed);
+            crate::ui_aura::enter_world(script, &mut auras);
+            script.fire_world_enter_watchers();
         }
     });
     // `0x4909c9` → `0x4bc6f0`: `SetPetGuid(0, 0)` as an engine turn on the bar and the VM, its
@@ -2486,7 +2527,7 @@ mod tests {
         }
     }
 
-    /// The range verbs end to end, with the aura feed that pushes the resolver's inputs and the
+    /// The range verbs end to end, with the resolver feed that pushes its inputs and the
     /// host that measures the unit each names at the call: `CheckInteractDistance` and `CanInspect`
     /// answer for a `target` chain (`0x48ba00` and `0x48a1b0` resolve their token through
     /// `0x515970`), on the unit the chain names and not on the base.
@@ -3026,7 +3067,7 @@ mod tests {
                 guid: Some(target.guid),
                 ..Default::default()
             });
-            // The resolver's inputs the aura feed would push: us and the target, both held.
+            // The resolver's inputs its feed would push: us and the target, both held.
             app.world_mut()
                 .non_send_resource_mut::<UiScript>()
                 .set_unit_guids(&benilla_ui::script::UnitGuids {

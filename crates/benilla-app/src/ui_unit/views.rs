@@ -14,8 +14,7 @@
 //! member's group record before it signals (`0x5e5110`: `0x5e54c4`, `0x5e54d8`, then `0x5e54fa`),
 //! so the log holds the records too, and the roster cells a group list or ending writes (its party
 //! slots before its first signal `0x5e6c66`, its leader, loot and raid rows after), whole per
-//! packet; and the views built over them: the group tokens, the pet and every unit's aura list
-//! ([`families`]).
+//! packet; and the views built over them: the group tokens and the pet ([`families`]).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -188,18 +187,16 @@ impl ViewLog {
         self.open = false;
     }
 
-    /// The world left at once (a worldport, a disconnect, a logout): every unit the object manager
-    /// holds is logged as its store stands, a destroy for each the teardown takes. For one it
-    /// keeps, the entry holds the store unchanged, which undoing and replaying leaves as it is.
+    /// The world left at once (a worldport, a disconnect, a logout): every object the object
+    /// manager holds is logged as its store stands, a destroy for each the teardown takes. For one
+    /// it keeps, the entry holds the store unchanged, which undoing and replaying leaves as it is.
     pub(crate) fn torn_down<'a>(
         &mut self,
         index: &GuidIndex,
         store: impl Fn(Entity) -> Option<&'a ObjectStore>,
     ) {
         for (&guid, &e) in &index.0 {
-            if !benilla_protocol::guid::is_item(guid) {
-                self.replaced(guid, store(e).cloned());
-            }
+            self.replaced(guid, store(e).cloned());
         }
         self.close();
     }
@@ -705,11 +702,6 @@ fn readable_guids<'a>(
     live: &impl Fn(u64) -> Option<&'a ObjectStore>,
 ) -> Readable {
     let g = script.unit_guids_view();
-    let mut grouped: HashSet<u64> = (g.party.into_iter().chain(g.party_pets))
-        .chain(g.raid.iter().copied())
-        .chain(g.raid_pets.iter().copied())
-        .collect();
-    grouped.remove(&0);
     let mut out: HashSet<u64> = [g.player, g.pet, g.target, g.mouseover, g.npc, pet]
         .into_iter()
         .chain(g.party)
@@ -731,27 +723,28 @@ fn readable_guids<'a>(
         out.extend(live(m.guid).and_then(|s| s.0.unit_pet_guid()));
     }
     out.remove(&0);
-    Readable { all: out, grouped }
+    Readable { all: out }
 }
 
-/// The guids some view reads ([`readable_guids`]), and of them those a group token names, whose
-/// aura list a roster record stands in for (`0x519735`).
+/// The guids some view reads ([`readable_guids`]).
 #[derive(Default)]
 struct Readable {
     all: HashSet<u64>,
-    grouped: HashSet<u64>,
 }
 
-/// The items a store's seats name that the getters walk at mask 0 (`0x622420`): the active
-/// player's equipment and equipped bags (0-22), backpack and keyring, private fields only its store
-/// carries, whose weapons the stat getters read (`UnitAttackSpeed` `0x518f19`, `HasWandEquipped`
-/// `0x4c99c2`) and whose whole set the bar's worn and reagent walks read; and a container's slots.
+/// The items a store's seats name: the active player's equipment and equipped bags (0-22),
+/// backpack, bank seats, bank bags and keyring, private fields only its store carries, whose
+/// weapons the stat getters read (`UnitAttackSpeed` `0x518f19`, `HasWandEquipped` `0x4c99c2`),
+/// whose whole set the bar's worn and reagent walks read (`0x622420`) and the bag getters find by
+/// seat (`0x6228a0`); and a container's slots.
 fn carried(f: &ObjectFields) -> Vec<Option<u64>> {
     use benilla_protocol::messages::ObjectType;
     match f.created_as() {
         Some(ObjectType::Player) => (0..23)
             .map(|i| f.player_inv_slot(i))
             .chain((0..16).map(|i| f.player_pack_slot(i)))
+            .chain((0..24).map(|i| f.player_bank_slot(i)))
+            .chain((0..6).map(|i| f.player_bank_bag_slot(i)))
             .chain((0..32).map(|i| f.player_keyring_slot(i)))
             .collect(),
         Some(ObjectType::Container) => (0..36).map(|i| f.container_slot(i)).collect(),
@@ -976,7 +969,13 @@ impl UnitViews {
                 _ => {}
             }
         }
-        queue.extend(stores.iter().filter(|g| readable.all.contains(g)));
+        // Every item the frame changed too: the bag getters find an item by its seat or a bag's
+        // slot as its packet left them, wherever the item came from.
+        queue.extend(
+            stores
+                .iter()
+                .filter(|g| readable.all.contains(g) || benilla_protocol::guid::is_item(**g)),
+        );
         while let Some(guid) = queue.pop() {
             if scratch.contains_key(&guid) {
                 continue;
@@ -1066,7 +1065,6 @@ pub(crate) struct ViewSources<'w, 's> {
     /// What the group tokens read beside the roster: the faction table and the area names.
     factions: Option<Res<'w, crate::target::Factions>>,
     areas: Option<Res<'w, crate::area::AreaTableRes>>,
-    auras: crate::ui_aura::AuraViews<'w>,
     start: Option<Res<'w, FrameStart>>,
 }
 
@@ -1100,7 +1098,6 @@ fn fire_unit_views(
             self_q,
             factions,
             areas,
-            auras,
             start,
         } = &src;
         let live = |e: Entity| all.get(e).ok().cloned();
@@ -1185,12 +1182,7 @@ fn fire_unit_views(
         if let Some(roster) = roster.as_mut() {
             group.bypass_change_detection().swap_cells(roster);
         }
-        let UnitViews {
-            scratch,
-            saved,
-            readable,
-            ..
-        } = &mut *views;
+        let UnitViews { scratch, saved, .. } = &mut *views;
         let scratch = &*scratch;
         let object =
             |guid: u64| scratch_as_of(scratch, guid, by_guid(guid).and_then(|e| all.get(e).ok()));
@@ -1246,7 +1238,6 @@ fn fire_unit_views(
         };
         let ctx = families::Families {
             dirty: &dirty,
-            grouped: &readable.grouped,
             object: &object,
             me: me.map(|(s, g)| (g, s)),
             live_me: self_q
@@ -1261,8 +1252,6 @@ fn fire_unit_views(
             guild,
             factions: factions.as_deref(),
             areas: areas.as_deref().map(|a| &a.0),
-            auras,
-            world: &world,
             ffa: &ffa,
         };
         pushes += families::push(script, saved, &ctx);
