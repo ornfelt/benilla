@@ -32,6 +32,7 @@ use crate::ffi::{
 use crate::input::{self, Scancodes};
 
 pub(crate) fn build(app: &mut App) {
+    app.add_message::<GfxRawKey>();
     app.insert_resource(InputTrace::from_env()).add_systems(
         Last,
         (
@@ -147,6 +148,34 @@ impl CursorState {
             .entry(CursorKey::Native(shape))
             // SAFETY: the live window; `shape` is a `native_cursor` value.
             .or_insert_with(|| unsafe { ffi::gfx_dll_create_native_cursor(window, shape) })
+    }
+}
+
+/// A key message's platform code, the part of winit's raw `WindowEvent::KeyboardInput`
+/// (bevy_winit's `RawWinitWindowEvent`) that [`KeyboardInput`] drops. Sent just before the key's
+/// [`KeyboardInput`], for a reader that names keys by the active layout.
+#[derive(Message, Clone, Copy, Debug)]
+pub struct GfxRawKey {
+    /// The key, as its [`KeyboardInput`] carries it.
+    pub key_code: KeyCode,
+    /// The window backend's own code for it ([`ffi::GfxKeyEvent::scancode`]).
+    pub scancode: u32,
+    /// Which platform family [`Self::scancode`] belongs to.
+    pub family: Scancodes,
+}
+
+impl GfxRawKey {
+    /// The scancode the way winit's Windows backend gives it (`PhysicalKeyExtScancode`), the
+    /// extended keys at `0xE0xx` where gfx sets bit `0x100`; `None` off Win32 scancodes.
+    pub fn windows_scancode(&self) -> Option<u32> {
+        (self.family == Scancodes::Windows).then(|| {
+            let low = self.scancode & 0xff;
+            if self.scancode & 0x100 != 0 {
+                0xe000 | low
+            } else {
+                low
+            }
+        })
     }
 }
 
@@ -276,6 +305,11 @@ pub(crate) fn pump(world: &mut World, events: &[GfxEvent]) {
                 }
                 let text = text_buf.as_ref().and_then(input::character_text);
                 let key_code = input::physical_key(k.physical, k.key, k.scancode, family);
+                world.write_message(GfxRawKey {
+                    key_code,
+                    scancode: k.scancode,
+                    family,
+                });
                 let shift = k.mods & key_mods::SHIFT != 0;
                 let logical = {
                     let mut held = world.get_mut::<PressedKeys>(entity);
@@ -932,6 +966,23 @@ fn check_keyboard_focus_lost(
 mod tests {
     use super::*;
     use bevy::asset::RenderAssetUsages;
+
+    #[test]
+    fn a_win32_scancode_reads_the_way_winit_gives_it() {
+        let key = |scancode, family| GfxRawKey {
+            key_code: KeyCode::KeyQ,
+            scancode,
+            family,
+        };
+        assert_eq!(key(0x10, Scancodes::Windows).windows_scancode(), Some(0x10));
+        // The numpad Enter, extended.
+        assert_eq!(
+            key(0x11c, Scancodes::Windows).windows_scancode(),
+            Some(0xe01c)
+        );
+        assert_eq!(key(0x14, Scancodes::Sdl).windows_scancode(), None);
+        assert_eq!(key(0x18, Scancodes::Xkb).windows_scancode(), None);
+    }
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
     fn image(w: u32, h: u32) -> Image {

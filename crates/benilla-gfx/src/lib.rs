@@ -55,6 +55,7 @@ pub use render::{GfxRender, GfxRenderSystems};
 pub use runner::GfxMsaaCounts;
 pub use timer::GfxGpuMeter;
 pub use ui::GfxUiLane;
+pub use window::GfxRawKey;
 
 /// `group` (the `DefaultPlugins` set) with wgpu's renderer swapped out for gfx.
 pub fn swap_in(group: PluginGroupBuilder) -> PluginGroupBuilder {

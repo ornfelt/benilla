@@ -122,3 +122,7 @@ copies, to iterate without a rebuild.
   layout that depends on that late pass (the chat dock over the bottom-left action bar) can end
   in a different place, and with it the frames anchored above the bottom bars (bags, the default
   tooltip).
+- Keys named by the active layout (`bindings/layout.rs`): on Windows the win32 and glfw windows
+  name a key from its scancode as winit's does, but an SDL window's scancodes are USB usages, and
+  on Linux the gfx window reports no unshifted character, so there a letter or punctuation key
+  keeps its US name (an AZERTY Z binds as W).

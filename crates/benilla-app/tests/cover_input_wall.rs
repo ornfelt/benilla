@@ -20,8 +20,8 @@ enum Verdict {
 }
 use Verdict::{Open, Plumbing, Swallowed};
 
-/// Every `bevy::input::…` / `bevy::window::…` leaf the workspace names, plus the prelude input
-/// items, each with its verdict.
+/// Every `bevy::input::…` / `bevy::window::…` / `bevy::winit::…` leaf the workspace names, plus
+/// the prelude input items, each with its verdict.
 const VERDICTS: &[(&str, Verdict)] = &[
     // ── The channels the cover takes ────────────────────────────────────────────────────────
     ("ButtonInput", Swallowed),
@@ -76,6 +76,7 @@ const VERDICTS: &[(&str, Verdict)] = &[
     ("CustomCursor", Plumbing),
     ("CustomCursorImage", Plumbing),
     ("InputPlugin", Plumbing),
+    ("WinitPlugin", Plumbing),
     ("InputSystems", Plumbing),
     ("Key", Plumbing),
     ("KeyCode", Plumbing),
@@ -179,11 +180,11 @@ fn every_input_channel_the_client_reads_has_a_verdict_under_the_cover() {
     );
 }
 
-/// Every input identifier `text` names: the leaf of any `bevy::input::…`/`bevy::window::…` path
-/// (grouped `use` braces expanded), plus the prelude names.
+/// Every input identifier `text` names: the leaf of any `bevy::input::…`/`bevy::window::…`/
+/// `bevy::winit::…` path (grouped `use` braces expanded), plus the prelude names.
 fn input_names(text: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
-    for prefix in ["bevy::input::", "bevy::window::"] {
+    for prefix in ["bevy::input::", "bevy::window::", "bevy::winit::"] {
         let mut rest = text;
         while let Some(at) = rest.find(prefix) {
             rest = &rest[at + prefix.len()..];
