@@ -19,6 +19,7 @@ pub(super) fn register(app: &mut App) {
         .net_handler(K::LootClearMoney, on_clear_money)
         .net_handler(K::LootReleaseResponse, on_release_response)
         .net_handler(K::LootMasterList, on_master_list)
+        .net_handler(K::PlayerName, on_player_name)
         .net_handler(K::FishNotHooked, on_fish_verdict)
         .net_handler(K::FishEscaped, on_fish_verdict)
         .net_handler(K::ItemPushResult, on_item_push_result)
@@ -228,9 +229,21 @@ fn on_release_response(
     }
 }
 
-fn on_master_list(In(ev): In<SessionEvent>, mut loot: ResMut<LootState>) {
+fn on_master_list(
+    In(ev): In<SessionEvent>,
+    mut loot: ResMut<LootState>,
+    group: Res<crate::ui_party::GroupState>,
+) {
     if let SessionEvent::LootMasterList { candidates } = ev {
-        loot_master_list(candidates, &mut loot);
+        loot_master_list(&candidates, &mut loot, &group);
+    }
+}
+
+/// The name answer runs the candidate lookups' callbacks waiting on the guid, after the cache
+/// filed it (`0x55f426`-`0x55f452`); an empty name is the answer for an unknown guid.
+fn on_player_name(In(ev): In<SessionEvent>, mut loot: ResMut<LootState>) {
+    if let SessionEvent::PlayerName { guid, name, .. } = ev {
+        loot.name_answered(guid, !name.is_empty());
     }
 }
 
@@ -445,10 +458,11 @@ fn loot_release_response(
     super::close_interaction(loot, latch, None)
 }
 
-/// `SMSG_LOOT_MASTER_LIST`, staged: it lands just ahead of the response it belongs to.
-fn loot_master_list(candidates: Vec<u64>, loot: &mut LootState) {
+/// `SMSG_LOOT_MASTER_LIST` (`0x61c550`): the candidate array, placed off the roster as this packet
+/// finds it. vmangos sends it just ahead of the response it belongs to (`Player.cpp:8080`).
+fn loot_master_list(candidates: &[u64], loot: &mut LootState, group: &crate::ui_party::GroupState) {
     debug!("net: master-loot candidates: {} eligible", candidates.len());
-    loot.set_master_candidates(candidates);
+    loot.set_master_candidates(candidates, group);
 }
 
 /// `OnItemPush 0x491a60`'s arm (`0x491b56`/`0x491b61`): only our own push animates and its own
@@ -1340,7 +1354,7 @@ mod tests {
         "Interface\\FrameXML\\StaticPopup.xml",
     ];
 
-    /// [`tabbed_world`] under the stock `ui` files, with the unit feed and both creatures named.
+    /// [`tabbed_world`] under the stock `ui` files, with the token seats and both creatures named.
     fn stock_app(ui: &[&[&str]]) -> App {
         use benilla_ui::script::UiScript;
         let mut s = UiScript::new().expect("VM");
@@ -1378,7 +1392,7 @@ mod tests {
             .init_resource::<crate::sound::MessageSounds>()
             .init_resource::<crate::ui_guild::GuildState>()
             .insert_non_send_resource(s);
-        crate::ui_unit::add_unit_feed(&mut app);
+        crate::ui_unit::add_token_seats(&mut app);
         app
     }
 
@@ -1393,7 +1407,7 @@ mod tests {
     }
 
     /// The issue's symptom on the stock frames: the Tab target is on `TargetFrame` when the body's
-    /// window opens, and the unit feed then names the body there (`TargetFrame.lua:63`,
+    /// window opens, and the target's name reads the body there (`TargetFrame.lua:63`,
     /// `UnitFrame.lua:25`).
     #[test]
     fn the_stock_target_frame_names_the_looted_body() {

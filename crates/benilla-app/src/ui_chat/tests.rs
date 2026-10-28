@@ -1978,7 +1978,7 @@ fn a_speaker_that_cannot_animate_queues_no_talk_gesture() {
     let laugh_words = |n: u32| (n == 1).then(|| "lol".to_string());
     let speak = |tries: u16, flags: Option<u32>| {
         select_gesture(CHAT_MSG_SAY, "lol", laugh_words)
-            .filter(|_| !gesture_prevented(tries, flags))
+            .filter(|_| !gesture_prevented(tries == 0, flags))
             .into_iter()
             .count()
     };
@@ -2705,9 +2705,8 @@ fn a_channel_send_carries_the_numbered_slots_name() {
         ],
         ..Default::default()
     };
-    let mut script = in_world_vm();
-    script.set_joined_channels(channels.names());
-    let (mut world, rx) = super::chat_world(script);
+    let (mut world, rx) = super::chat_world(in_world_vm());
+    world.insert_resource(channels);
     super::run_chat(
         &mut world,
         r#"
@@ -2808,9 +2807,11 @@ fn a_channel_number_sends_as_the_walk_and_the_notices_leave_its_slot() {
             super::feed::deliver(script, &mut windows, channels, &mut notice(name, byte));
         }
     };
-    // One `SendChatMessage` to channel 1, and what reached the wire.
-    let send_to_1 = |script: benilla_ui::script::UiScript| {
+    // One `SendChatMessage` to channel 1 against the slots `channels` hold, and what reached the
+    // wire.
+    let send_to_1 = |script: benilla_ui::script::UiScript, channels: &ChannelState| {
         let (mut world, rx) = super::chat_world(script);
+        world.insert_resource(channels.clone());
         super::run_chat(&mut world, r#"SendChatMessage("lf1m", "CHANNEL", nil, 1)"#).expect("lua");
         let sent: Vec<_> = rx
             .try_iter()
@@ -2846,7 +2847,7 @@ fn a_channel_number_sends_as_the_walk_and_the_notices_leave_its_slot() {
         false,
         &crossing,
     );
-    let (sent, _) = send_to_1(script);
+    let (sent, _) = send_to_1(script, &channels);
     assert_eq!(
         sent,
         to("General - Elwynn Forest"),
@@ -2874,7 +2875,7 @@ fn a_channel_number_sends_as_the_walk_and_the_notices_leave_its_slot() {
         false,
         &[("Trade - City", "3")],
     );
-    let (sent, mut script) = send_to_1(script);
+    let (sent, mut script) = send_to_1(script, &channels);
     assert_eq!(sent, [], "a suspended slot sends nothing");
     cross(
         &mut script,
@@ -2883,7 +2884,7 @@ fn a_channel_number_sends_as_the_walk_and_the_notices_leave_its_slot() {
         true,
         &[("Trade - City", "2")],
     );
-    let (sent, _) = send_to_1(script);
+    let (sent, _) = send_to_1(script, &channels);
     assert_eq!(sent, to("Trade - City"), "confirmed again");
 }
 
@@ -2896,15 +2897,11 @@ fn an_empty_line_sends_nothing_but_afk_and_dnd() {
     use super::edit::{ChannelSlot, ChannelState};
     use crate::net::ChatKind;
 
-    let mut script = in_world_vm();
-    script.set_joined_channels(
-        ChannelState {
-            joined: vec![ChannelSlot::confirmed("General - Elwynn Forest", 1).into()],
-            ..Default::default()
-        }
-        .names(),
-    );
-    let (mut world, rx) = super::chat_world(script);
+    let (mut world, rx) = super::chat_world(in_world_vm());
+    world.insert_resource(ChannelState {
+        joined: vec![ChannelSlot::confirmed("General - Elwynn Forest", 1).into()],
+        ..Default::default()
+    });
     world.insert_resource(super::away::AfkMirror(2));
     super::run_chat(&mut world, SYSTEM_TAP).expect("lua");
     super::run_chat(
@@ -3483,6 +3480,8 @@ fn the_call_host_applies_the_chat_calls_inside_the_verb() {
     let (tx, rx) = crossbeam_channel::unbounded();
     app.insert_resource(NetCommands(tx));
     app.world_mut().insert_non_send_resource(in_world_vm());
+    // `SendChatMessage` needs the player object (`0x49f219`).
+    crate::test_support::hold_self_player(app.world_mut(), 0x7, &[]);
     let sent_at_each_line = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     let seen = sent_at_each_line.clone();
     crate::script_calls::with_hosted_vm(app.world_mut(), |s| {

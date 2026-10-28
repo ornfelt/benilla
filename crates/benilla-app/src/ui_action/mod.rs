@@ -48,7 +48,7 @@ mod reactive;
 mod reactive_tests;
 pub(crate) mod recount;
 mod state;
-pub(crate) use state::{wears_entry, ActionStateMemory, ActionStates, EnterUsable};
+pub(crate) use state::{wears_entry, ActionStateMemory, ActionStates};
 pub(crate) mod toggle;
 mod unlearn;
 mod weapon_icon;
@@ -126,6 +126,16 @@ pub(crate) struct PlayerActions {
     /// arrival order, whose bar slots the unlearn clears (`0x5ea253` into `0x4e5e20`), drained by
     /// the bar's clear (`unlearn`).
     pub unlearned: Vec<u32>,
+    /// `[0xc4d2a8]` (count `[0xc4d2a4]`): `SMSG_INITIAL_SPELLS`'s list in wire order, which our
+    /// player's arrival learns one spell at a time (`0x5dea8b`-`0x5deab9`).
+    pub initial: Vec<u32>,
+    /// `[0xb71108]` (count `[0xb71104]`): the form bar's spells in bar order, which the registrar
+    /// grows one learn at a time and the book's reset empties ([`crate::ui_shapeshift`]).
+    pub forms: Vec<u32>,
+    /// The form-list edits since our latest create, while its arrival waits on the arrival lane:
+    /// the reference's arrival runs inside the create's packet, ahead of every later learn, so the
+    /// arrival's replay applies these after its own ([`crate::ui_world_enter`]).
+    pub form_edits: Option<Vec<crate::ui_shapeshift::FormEdit>>,
     /// Set by every book change, cleared once the feed re-resolves slot identity, which a
     /// landed item template ([`crate::items::Items::template_epoch`]) also triggers. Between
     /// resolves an item slot's count moves only by the item watchers' recount (`recount`).
@@ -196,22 +206,20 @@ impl Spells {
     /// the caster's cast speed, with no clamp, so row 18's negative time survives. A missing row
     /// returns 0 before the modifier (`0x6e338a`). `caster` is the unit the speed is read off, the
     /// player or, for a pet spell, its charm else its summon (`0x6e33e8`-`0x6e3416`), `None` when
-    /// it is not streamed, which skips the multiply (`0x6e341d`). `reads` hears the level when the
-    /// row scales by it and the speed when it is read.
+    /// it is not streamed, which skips the multiply (`0x6e341d`).
     pub(crate) fn cast_time_unclamped_ms(
         &self,
         def: &benilla_formats::SpellDisplay,
         caster: Option<&benilla_protocol::ObjectFields>,
         level: crate::spell::SpellLevel,
         mods: &crate::spell::SpellModifiers,
-        reads: &mut dyn crate::spell::SpellReads,
     ) -> i32 {
         let Some(row) = self.cast_times.get(def.casting_time_index) else {
             return 0;
         };
         // The row's level, `0x6e3130`, read only by a row that scales by it.
         let caster_level = if row.reads_caster_level() {
-            level.read(def, reads)
+            level.read(def)
         } else {
             0
         };
@@ -223,7 +231,6 @@ impl Spells {
         else {
             return time;
         };
-        reads.unit(crate::spell::UnitField::CastSpeed);
         // A field never sent is the descriptor's 0, which casts in no time; vmangos sends 1.0 for
         // that reason (`Player.cpp:464-466`).
         let speed = caster.unit_mod_cast_speed().unwrap_or(0.0);
@@ -253,8 +260,7 @@ impl Spells {
         level: crate::spell::SpellLevel,
         mods: &crate::spell::SpellModifiers,
     ) -> u32 {
-        let time =
-            self.cast_time_unclamped_ms(def, caster, level, mods, &mut crate::spell::Unrecorded);
+        let time = self.cast_time_unclamped_ms(def, caster, level, mods);
         time.max(0) as u32
     }
 }
@@ -285,7 +291,6 @@ impl Spells {
 pub(crate) fn run_feed_action_state_once(world: &mut World) {
     use bevy::ecs::system::RunSystemOnce;
     world.init_resource::<state::ActionStateMemory>();
-    world.init_resource::<state::EnterUsable>();
     world
         .run_system_once(state::feed_action_state)
         .expect("the action-state feed runs as a one-shot system");
@@ -431,9 +436,7 @@ impl Plugin for UiActionPlugin {
         // A UI-only harness has no net stack; declaring a message twice is idempotent.
         app.add_message::<crate::net::FieldChanged>()
             .init_resource::<state::ActionEvents>()
-            .init_resource::<state::EnterUsable>()
             .init_resource::<state::ActionStateMemory>()
-            .add_message::<crate::net::WorldEnterCascadeMessage>()
             .init_resource::<PlayerActions>()
             .init_resource::<ActionSlots>()
             .init_resource::<LearnedAbilities>()
@@ -464,24 +467,16 @@ impl Plugin for UiActionPlugin {
                         .after(crate::ui_macro::MacroBindings)
                         .after(ranks::normalize_action_ranks)
                         .before(feed::feed_actions),
-                    // Our player's arrival recount, after the dead objects' locks go.
-                    recount::recount_item_actions
-                        .in_set(UnitFeed)
-                        .after(crate::ui_items::locks::forget_gone_item_locks)
-                        .before(feed::feed_actions),
                     feed::feed_actions.in_set(UnitFeed),
                     // A seat: the world-enter events' handlers read the slots' state, which the
                     // reference's arrival stores before its enter cascade (`0x5deafc`, `0x5deb60`).
                     // After the macros' bound spells, which a macro slot resolves through.
                     state::feed_action_state
                         .in_set(UnitFeed)
-                        .in_set(crate::ui_unit::WorldEnterSeats)
                         .after(crate::player::ControlRestore)
                         .after(crate::ui_macro::MacroBindings)
                         .after(feed::feed_actions),
-                    // After the unit snapshots, which its handlers read (the target stored at
-                    // `0x4936e2`, a watched field written before its watch runs), and ahead of the
-                    // events its producers precede: the select's `PLAYER_TARGET_CHANGED` and the
+                    // Ahead of the events its producers precede: the select's `PLAYER_TARGET_CHANGED` and the
                     // combo points' event (the unit events), the watched fields' own events (the
                     // field notices, whose lane fires after every feed) and the form's cast
                     // change (the cast reports).
@@ -489,7 +484,6 @@ impl Plugin for UiActionPlugin {
                         .in_set(UnitFeed)
                         .in_set(CooldownEvents)
                         .after(state::feed_action_state)
-                        .after(crate::ui_unit::UnitSnapshots)
                         .before(crate::ui_cast::feed_cast_reports),
                     // The latches must be current before the target chain's cursor reads them.
                     track_learned_abilities

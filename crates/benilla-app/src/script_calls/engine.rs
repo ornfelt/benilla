@@ -62,6 +62,9 @@ pub(crate) struct RecordAsks<'w, 's> {
     ammo_hits: Option<ResMut<'w, crate::ui_char::AmmoRecordHits>>,
     cooldowns: Option<ResMut<'w, crate::spell::Cooldowns>>,
     quest: Option<ResMut<'w, crate::ui_quest::QuestGiver>>,
+    /// The quest cache the rebuild's lookups ask, and the leaderboard's creature waits.
+    quest_log: Option<ResMut<'w, crate::ui_quest_log::QuestLog>>,
+    latch_refreshes: Option<ResMut<'w, crate::ui_quest::LatchRefreshes>>,
     craft: Option<ResMut<'w, crate::ui_craft::CraftItemWaits>>,
     trade_skill: Option<ResMut<'w, crate::ui_tradeskill::TradeSkillItemWaits>>,
     merchant: Option<ResMut<'w, crate::ui_merchant::MerchantOpen>>,
@@ -77,8 +80,8 @@ pub(crate) struct RecordAsks<'w, 's> {
 }
 
 impl RecordAsks<'_, '_> {
-    /// `ask` inside its getter, whose VM a hit the mirror lacked is told.
-    pub(crate) fn apply(&mut self, script: &mut UiScript, ask: RecordAsk) {
+    /// `ask` inside its getter.
+    pub(crate) fn apply(&mut self, ask: RecordAsk) {
         use crate::query_cache::Ask;
         match ask {
             RecordAsk::PlayerName(guid) | RecordAsk::ItemBuildName(guid) => {
@@ -112,6 +115,16 @@ impl RecordAsks<'_, '_> {
                 if let (Some(items), Some(entry)) = (self.items.as_deref(), entry) {
                     if items.template(entry, 0, Ask::Event(&self.net)).is_none() {
                         items.wait(entry, crate::items::RecordCallback::SendMail);
+                    }
+                }
+            }
+            // The sell item's object first (`0x4ce24e`, `0x4ce5cf`), then its entry's record with
+            // the object's guid (`0x4ce263`, `0x4ce5e8`).
+            RecordAsk::AuctionSellItem(guid) => {
+                let entry = self.objects.object(guid).and_then(|f| f.object_entry());
+                if let (Some(items), Some(entry)) = (self.items.as_deref(), entry) {
+                    if items.template(entry, guid, Ask::Event(&self.net)).is_none() {
+                        items.wait(entry, crate::items::RecordCallback::AuctionSellItem);
                     }
                 }
             }
@@ -204,8 +217,21 @@ impl RecordAsks<'_, '_> {
                 }
             }
             RecordAsk::QuestCreature(entry) => {
-                if let Some(names) = self.names.as_deref() {
-                    crate::ui_quest_log::ask_quest_creature(names, &self.net, script, entry);
+                if let (Some(names), Some(log)) =
+                    (self.names.as_deref(), self.quest_log.as_deref_mut())
+                {
+                    log.ask_creature(names, &self.net, entry);
+                }
+            }
+            RecordAsk::QuestRecord(quest_id) => {
+                if let Some(log) = self.quest_log.as_deref_mut() {
+                    log.ask_record(&self.net, quest_id);
+                }
+            }
+            // The sweep `0x5eb070`: every giver's status asked again.
+            RecordAsk::QuestGiverStatuses => {
+                if let Some(latch) = self.latch_refreshes.as_deref_mut() {
+                    latch.0 = latch.0.wrapping_add(1);
                 }
             }
             RecordAsk::QuestObject(entry) => {
@@ -233,6 +259,14 @@ impl RecordAsks<'_, '_> {
             // The house verbs keep its wait ([`crate::ui_auction::AuctionVerbs::wait_for_name`]).
             RecordAsk::AuctionName { guid, list } => {
                 debug!("record ask: auction name {guid:#x} for list {list} has no house here");
+            }
+            // The loot steps keep its wait ([`crate::ui_loot::LootSteps::wait_for_name`]).
+            RecordAsk::MasterLootName(guid) => {
+                debug!("record ask: master-loot candidate {guid:#x} has no loot window here");
+            }
+            // The reader's steps keep its wait ([`crate::ui_item_text::ItemTextSteps`]).
+            RecordAsk::ItemTextCreator(guid) => {
+                debug!("record ask: item text creator {guid:#x} has no reader here");
             }
             RecordAsk::Mail { mail_id, lookup } => self.mail.look_up(&self.net, mail_id, lookup),
         }

@@ -167,6 +167,15 @@ fn new_vm<E: std::fmt::Display>(
     }
     seed_vm_clock(world, &mut script);
     seed_game_time(world, &mut script);
+    // The ping's statics (`0xbc787c`, `0xbc7880`), which nothing clears, a `ReloadUI` included.
+    if let Some(ping) = world.get_resource::<crate::minimap::MinimapPing>() {
+        script.set_minimap_ping_point(ping.point());
+    }
+    // The joined-channel slots, the copy the lookups read with no host lent, so a `/reload`'s
+    // load reads `GetChannelName` as the slot array stands.
+    if let Some(channels) = world.get_resource::<crate::ui_chat::ChannelState>() {
+        channels.mirror_into(&mut script);
+    }
     // The reference seeds `rand` with the clock before `WinMain` (`0x5b800b`). Deviation: a
     // capture run (`scenario_active`) keeps the CRT's default seed, 1, so its frames reproduce.
     if crate::run_mode::scenario_active() {
@@ -583,9 +592,9 @@ fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
     // (the login-verify handler is registered after it, `0x401789`), so the load reads none.
     crate::ui_chat::seed_zone_channel_catalog(world, &mut script);
     crate::bindings::seed_bindings_for_vm(world, &mut script);
-    // The engine globals a previous VM folded out: the quest log's fold mask and the tradeskill
-    // repeat.
-    crate::ui_quest_log::seed_quest_folds(world, &mut script);
+    // The engine globals a previous VM folded out: the quest log's fold mask, with the records its
+    // cache holds, and the tradeskill repeat.
+    crate::ui_quest_log::seed_quest_log(world, &mut script);
     crate::ui_tradeskill::seed_repeat(world, &mut script);
     crate::ui_unit::seed_language_table(world, &mut script);
     // The world map's continent and zone lists: static DBC data in the reference, read at file
@@ -1081,8 +1090,8 @@ pub(crate) struct ReloadUiPending(pub(crate) bool);
 /// reads it.
 /// The load runs under the live player, which never left. `UI_Init` then enters the world-enter
 /// cascade itself (`0x490168`), firing the `PLAYER_LOGIN` it armed and `PLAYER_ENTERING_WORLD`;
-/// ours fire from [`crate::ui_unit`]'s feed on the new VM's first `Update`, once it has re-seated
-/// the player. In-world only, as the reference's gate (`0x494a50(0xa)`) is; elsewhere the request
+/// ours is the arrival lane's item ([`crate::ui_world_enter::Entry::Reload`]), which fires in the
+/// drain after the new VM's feeds have seated it. In-world only, as the reference's gate (`0x494a50(0xa)`) is; elsewhere the request
 /// is dropped, and the glue's own rebuild is [`super::glue::run_pending_glue_rebuild`]'s.
 pub(crate) fn run_pending_reload(world: &mut World) {
     if !std::mem::take(&mut world.resource_mut::<ReloadUiPending>().0) {
@@ -1111,10 +1120,12 @@ pub(crate) fn run_pending_reload(world: &mut World) {
         .next()
         .is_some();
     if seated {
-        // The cascade's questgiver reset (`0x49099c` → `0x500af0`), which a login's and a
-        // worldport's run from their own packets.
-        crate::ui_quest::world_enter_cascade(world);
-        world.write_message(crate::net::WorldEnterCascadeMessage);
+        // The cascade itself, as an item on the arrival lane at this place
+        // ([`crate::ui_world_enter`]).
+        if let Some(mut lane) = world.get_resource_mut::<crate::ui_world_enter::ArrivalLane>() {
+            lane.push(crate::ui_world_enter::Entry::Reload);
+        }
+        crate::ui_world_enter::owe_window_resets(world);
         // Its release of every command (`0x49093c` → `0x5144c0`): the shutdown's leave cleared
         // the once-per-world latch (`0x490c20`, `0x490a8d`), so the cascade runs whole. The new
         // VM's mouse commands start clear; the look session's channels and the armed click go.
@@ -1537,6 +1548,31 @@ mod tests {
         }
     }
 
+    /// The ping's two statics (`0xbc787c`, `0xbc7880`) outlive the VM, so a new one answers the
+    /// stored point from its first line: due north of a player at the origin, half the zoom
+    /// diameter out.
+    #[test]
+    fn a_new_vm_inherits_the_stored_ping() {
+        let mut world = World::new();
+        world.init_resource::<crate::minimap::MinimapPing>();
+        let d = 2.0 * benilla_ui::widget::minimap_radius_yd(3, 3, false);
+        world.resource_mut::<crate::minimap::MinimapPing>().member(
+            (0.5 * d, 0.0),
+            0xDEAD,
+            None,
+            None,
+        );
+        let mut script = new_vm(&mut world, UiScript::new).expect("a VM");
+        script.set_minimap_player(Some((0.0, 0.0)));
+        script
+            .run(r#"m = CreateFrame("Minimap", "Minimap")"#)
+            .unwrap();
+        let (x, y) = script
+            .eval::<(f64, f64)>("return m:GetPingPosition()")
+            .unwrap();
+        assert!(x.abs() < 1e-6 && (y - 0.5).abs() < 1e-6, "{x} {y}");
+    }
+
     /// The game clock is one object built at start-up with its time at -1 (`0x643300`, `0x642300`)
     /// that no logout or `ReloadUI` resets, and `GetGameTime` reads it unguarded (`0x515ee0`), so a
     /// VM answers -1, -1 before any server time and the last known time after it, from the first
@@ -1686,16 +1722,16 @@ mod tests {
     }
 
     /// A `ReloadUI()` runs the leave-world sweep (`0x490c20`, past the armed latch) and then
-    /// re-enters the world-enter cascade (`0x490168`), whose readers re-send the time, mail,
-    /// battlefield and meeting-stone queries, only with the active player set (`0x490166 je`).
+    /// re-enters the world-enter cascade (`0x490168`), queued on the arrival lane, only with the
+    /// active player set (`0x490166 je`).
     #[test]
     fn a_reload_sweeps_and_reenters_the_world_enter_cascade_once_the_player_exists() {
-        use crate::net::WorldEnterCascadeMessage;
+        use crate::ui_world_enter::{ArrivalLane, Entry};
         let reload = |seated: bool| {
             let mut world = World::new();
             world.insert_resource(State::new(crate::client_state::ClientState::InWorld));
             world.insert_resource(crate::run_mode::CaptureMode);
-            world.init_resource::<Messages<WorldEnterCascadeMessage>>();
+            world.init_resource::<ArrivalLane>();
             world.init_resource::<super::super::SweptWorlds>();
             world.init_resource::<super::super::LeavingWorldArmed>();
             world
@@ -1708,16 +1744,12 @@ mod tests {
             run_pending_reload(&mut world);
             assert!(!world.resource::<ReloadUiPending>().0, "the reload ran");
             let sweeps = world.resource::<super::super::SweptWorlds>().0;
-            let cascades = world
-                .resource_mut::<Messages<WorldEnterCascadeMessage>>()
-                .drain()
-                .count();
-            (sweeps, cascades)
+            (sweeps, world.resource::<ArrivalLane>().entries())
         };
-        assert_eq!(reload(true), (1, 1), "in the world");
+        assert_eq!(reload(true), (1, vec![Entry::Reload]), "in the world");
         assert_eq!(
             reload(false).1,
-            0,
+            Vec::<Entry>::new(),
             "no cascade before our own player's create"
         );
     }
@@ -1729,7 +1761,6 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(State::new(crate::client_state::ClientState::InWorld));
         world.insert_resource(crate::run_mode::CaptureMode);
-        world.init_resource::<Messages<crate::net::WorldEnterCascadeMessage>>();
         world.init_resource::<super::super::SweptWorlds>();
         world.init_resource::<super::super::LeavingWorldArmed>();
         world.init_resource::<crate::death::DeathNet>();
@@ -1754,7 +1785,7 @@ mod tests {
             let mut world = World::new();
             world.insert_resource(State::new(crate::client_state::ClientState::InWorld));
             world.insert_resource(crate::run_mode::CaptureMode);
-            world.init_resource::<Messages<crate::net::WorldEnterCascadeMessage>>();
+            world.init_resource::<crate::ui_world_enter::ArrivalLane>();
             world.init_resource::<super::super::SweptWorlds>();
             world.init_resource::<super::super::LeavingWorldArmed>();
             world.init_resource::<crate::ui_quest::QuestGiver>();
@@ -1778,6 +1809,7 @@ mod tests {
             );
             world.insert_resource(ReloadUiPending(true));
             run_pending_reload(&mut world);
+            crate::ui_world_enter::fire_lane(&mut world);
             let cells = &world.resource::<crate::ui_quest::QuestGiver>().cells.state;
             (cells.greeting.clone(), cells.active_titles.clone())
         };

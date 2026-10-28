@@ -267,7 +267,10 @@ pub use binder::BinderCall;
 pub use binding_abi::{ftol, record_float, s_str_to_float, s_str_to_int};
 pub use calls::{spell_owner, ItemCallback, NearestMode, QueuedCall, RecordAsk, ScriptCall};
 pub use camera_view::{CameraViewRequest, CAMERA_VIEW_COUNT};
-pub use channel::{ChannelCommand, JoinedChannel, RecruitmentPlan, ZoneChannelRow};
+pub use channel::{
+    channel_send_target, ChannelCommand, JoinedChannel, JoinedChannelsQuery, RecruitmentPlan,
+    ZoneChannelRow,
+};
 pub use char_stats::{
     weapon_subclass_skill, BankBagSlots, InvSlotView, InventorySlots, BANK_BAG_SLOT_COUNT,
     INVENTORY_SLOT_COUNT, SKILL_DEFENSE, SKILL_UNARMED,
@@ -279,6 +282,7 @@ pub use chat_send::{
 };
 pub use chat_types::ChatTypeColor;
 pub use chat_window::{message_group_index, ChatWindowLook, MESSAGE_GROUPS};
+pub use clock::GameTimeQuery;
 pub use console_exec::s_str_tokenize;
 pub use console_exec::{console_word, cvar_name_arg, no_such_cvar, set_args};
 pub use container::{
@@ -293,7 +297,7 @@ pub use cursor::swap::Swap;
 pub use cursor::{
     CursorAction, CursorAmmo, CursorItem, CursorMacro, CursorMerchantItem, CursorMoney,
     CursorPayload, CursorPetAction, CursorSpell, CursorStablePet, EnchantAnswer, EnchantConfirm,
-    HeldCursor, ItemPick, WorldPick, EQUIPMENT_BAG,
+    HeldCursor, ItemPick, TargetingWants, TargetingWantsQuery, WorldPick, EQUIPMENT_BAG,
 };
 pub use cvar_checks::{
     check_anisotropic, check_dist_cull, check_error_filter, check_error_level_max,
@@ -373,12 +377,15 @@ pub use item_stats::{
     item_usable, ItemRecipe, ItemSetQuery, ItemSetView, ItemSpellLine, ItemTemplateView,
     LiveItemSet, PlayerReqState, TaughtSpell,
 };
-pub use item_text::{ItemTextCall, ItemTextState};
+pub use item_text::{ItemTextCall, ItemTextCreator, ItemTextQuery, ItemTextState, ItemTextView};
 pub use layout_cache::{AnchorLayout, FrameLayout, LayoutPoint};
 pub use lock_check::{
     check_lock, LockCheck, LockOpener, LockOpeners, LockOpenersQuery, LockSlotView,
 };
-pub use loot::{LootCall, LootRow, LootState, LOOT_PORTRAIT_UNIT};
+pub use loot::{
+    LootCall, LootRow, LootSlotQuery, LootState, LootWindow, LootWindowQuery, MasterLootCandidate,
+    MasterLootCandidateQuery, LOOT_PORTRAIT_UNIT,
+};
 pub use loot_roll::{LootRollCall, LootRollEntry, LootRollsState};
 pub use macros::{
     macro_lines, MacroBinding, MacroDerives, MacroState, MacroView, CHARACTER_ID_BASE, MAX_MACROS,
@@ -422,7 +429,8 @@ pub use quest::{
     QuestState,
 };
 pub use quest_live::{
-    QuestClock, QuestClockRead, QuestCoinage, QuestHeld, QuestObjectName, QuestSlots, QuestStanding,
+    QuestClock, QuestClockRead, QuestCoinage, QuestCreatureName, QuestHeld, QuestObjectName,
+    QuestPlayer, QuestSlots, QuestStanding, QuestText,
 };
 pub use quest_log::{
     QuestBlip, QuestLogCarry, QuestObjectiveView, QuestRecordView, QuestSlotView, QUEST_LOG_SLOTS,
@@ -452,7 +460,7 @@ pub use social_read::{SocialAnswer, SocialRead};
 pub use sound::{MusicRequest, SoundRequest};
 pub use spellbook::{
     resolve_spell_in_books, BookNow, BookSlot, BookSpell, BookTabs, NamedSpell, PetBookState,
-    SpellBookState, SpellSlotView, SpellTabName, SpellTabView,
+    SpellBookState, SpellCanTargetQuery, SpellSlotView, SpellTabName, SpellTabView,
 };
 pub use stable::{
     StableCall, StableIntent, StablePetSlot, StableQuery, StableState, StableView, NUM_STABLE_SLOTS,
@@ -465,9 +473,9 @@ pub use talent::{
 pub use taxi::{
     TaxiCall, TaxiMapHead, TaxiMapQuery, TaxiNodeQuery, TaxiNodeType, TaxiUiNode, TaxiUiState,
 };
-pub use tooltip_aura::{AuraKey, AuraTooltipView};
+pub use tooltip_aura::{AuraKey, AuraTooltipView, AuraViewQuery};
 pub use tooltip_item::SpellCastUiQuery;
-pub use tooltip_spell::{ReputationRequirement, SpellTooltipView};
+pub use tooltip_spell::{ReputationRequirement, SpellTooltipView, SpellViewQuery};
 pub use tooltip_text::{KeyedArg, TextPart, TooltipText};
 pub use trade::{
     TradeCall, TradeMoney, TradeMoneyQuery, TradeOpenItem, TradeSideState, TradeSlotItem,
@@ -508,7 +516,7 @@ pub use worldmap::{
 };
 pub use worldstate::WorldStateUiView;
 pub use worn_display::{WornDisplay, WornDisplaySet};
-pub use zone_text::{ZonePvp, ZoneTexts};
+pub use zone_text::{PlayerFactionMasksQuery, ZonePvp, ZoneTexts};
 
 use mlua::Lua;
 

@@ -6,7 +6,9 @@
 //!
 //! - [`super::guard_tests::READS_FRAME_FINAL`], held here to its count: the feeds that push a
 //!   view of what a handler writes, which a getter reads in place of the live state. A family's
-//!   getters going live ([`crate::script_calls::live`]) drops its feed's row.
+//!   getters going live ([`crate::script_calls::live`]) drops its feed's row; a hover's build the
+//!   reference too makes outside every packet is
+//!   [`super::guard_tests::BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE`]'s, which stays.
 //! - [`BETWEEN_THE_DISPATCH_AND_THE_DRAIN`]: the systems after the dispatch and ahead of the drain
 //!   that write what the host's live reads read, or push a view the drain waits for, where the
 //!   reference writes inside a packet. A listener fired inside the dispatch would read each as the
@@ -37,8 +39,8 @@ use crate::game_plugins::schedule_tests::{census, type_names_available, SyncPoin
 
 /// The most rows [`super::guard_tests::READS_FRAME_FINAL`] may hold, and the most inputs across
 /// them: each only falls, so lower it when a row or an input goes.
-const FRAME_FINAL_FEEDS: usize = 38;
-const FRAME_FINAL_INPUTS: usize = 200;
+const FRAME_FINAL_FEEDS: usize = 20;
+const FRAME_FINAL_INPUTS: usize = 119;
 
 /// The systems that may run after the dispatch (`apply_net_updates`) and run ahead of the drain
 /// (`fire_in_order`), by a suffix of the system's name, with what each writes of the host's live
@@ -52,11 +54,12 @@ const FRAME_FINAL_INPUTS: usize = 200;
 /// access does not show; `exclusive` a system whose access Bevy does not report.
 #[rustfmt::skip]
 const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
-    ("::net::motion::remote::extrapolate_remote_units", &["Transform"],
+    ("::net::motion::remote::extrapolate_remote_units", &["Commands net::motion::spline::Spline",
+        "Transform", "net::motion::remote::RemoteMotion"],
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
     ("::spell::group_relation::publish_group_roster", &["spell::group_relation::GroupRoster"],
         "copies the group's roster, which the relation reads take, once the packets are in"),
-    ("::transport::compose_riders", &["Transform"],
+    ("::transport::compose_riders", &["Transform", "net::motion::remote::RemoteMotion"],
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
     ("::ui_action::feed::feed_actions", &["ui_action::PlayerActions"],
         "clears the bar's re-resolve flag; the known spells the book and the talents read are \
@@ -67,39 +70,16 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
          writes the list as it walks the slots"),
     ("::ui_action::unlearn::clear_unlearned_slots", &["ui_action::PlayerActions"],
         "drains the unlearned spells the bar clears; the known spells are the handlers' alone"),
-    ("::ui_auction::reset_auction_on_world_enter", &["ui_auction::AuctionOpen"],
-        "empties the lists, the throttle and the session at the world-enter cascade \
-         (`0x490a05` → `0x4cc280`), which the reference runs inside our own player's create \
-         (`0x4908c0`)"),
-    ("::ui_battlefield::reset_on_world_enter", &["ui_battlefield::Battlefield"],
-        "clears the list and the notices waiting on names at the world-enter cascade \
-         (`0x4a9db0`), which the reference runs inside our own player's create (`0x4908c0`)"),
-    ("::ui_battlefield_positions::reset_on_world_enter",
-        &["ui_battlefield_positions::BattlefieldPositions"],
-        "clears the last positions packet on world entry, ahead of any packet of the new world"),
-    ("::ui_battlefield_score::reset_on_world_enter", &["ui_battlefield_score::BattlefieldScoreboard"],
-        "zeroes the board at the world-enter cascade (`0x4a9db0`), which the reference runs \
-         inside our own player's create (`0x4908c0`)"),
     ("::ui_char::feed_char", &["UiScript"], "a field event's listeners read its push"),
-    ("::ui_dialog_verbs::meeting_stone_enter_world", &["ui_dialog_verbs::MeetingStone"],
-        "resets the status text to `UNKNOWN` at the world-enter cascade (`0x490a14` → \
-         `0x4c9f40`), which the reference runs inside our own player's create (`0x4908c0`); a \
-         `0x295` the frame's packets rebuilt keeps its text, as the create comes first"),
+    ("::ui_item_text::apply_reads", &["ui_item_text::ItemTextOpen"],
+        "a click's or a bag use's read, queued in its input or its call, which the reference \
+         opens inside them (`0x5f58c0`, `0x4e32e0`), ahead of the packets (`0x420d23`)"),
     ("::ui_instance::track_instance_state", &["ui_instance::InstanceState"],
         "latches the dungeon just left once the map the transfer lands on is known, which the \
          reference latches inside the map load and the packet (`0x464ff0`, `0x49e6ac`)"),
     ("::ui_macro::rebind_macro_spells", &["ui_action::PlayerActions"],
         "drains the superseded ranks the bar's macros take; the known spells are the handlers' \
          alone"),
-    ("::ui_mail::send_query_next_mail_time_on_enter", &["ui_mail::MailOpen",
-        "ui_mail::pending::MailPending"],
-        "the mail init (`0x4acb10`) clears the session and stamps \"no mail\" at the world-enter \
-         cascade (`0x4909f6`), which the reference runs inside our own player's create \
-         (`0x4908c0`)"),
-    ("::ui_mail::stationery::count_papers_on_enter", &["ui_mail::stationery::UsableStationery"],
-        "the mail init (`0x4acb10`) counts the papers' items it awaits and rebuilds the stationery \
-         list when none is (`0x4acbd7`) at the world-enter cascade (`0x4909f6`), which the \
-         reference runs inside our own player's create (`0x4908c0`)"),
     ("::ui_party::feed::feed_party", &["UiScript"], "a field event's listeners read its push"),
     ("::ui_pet::unit::feed_pet_unit", &["UiScript"], "a field event's listeners read its push"),
     ("::ui_session::close_npc_session_out_of_range<benilla_app::ui_binder::BinderState>",
@@ -114,11 +94,6 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
         &["ui_talent_wipe::TalentWipeState"],
         "closes the respec question once the player leaves service range, which \
          `CheckTalentMasterDist` reports; the reference tests the range at the call (`0x5df980`)"),
-    ("::ui_tooltip::spell_feed::feed_spell_tooltips", &["items::Items"],
-        "writes the item cache as it builds the spell tooltips"),
-    ("::ui_unit::feed_units", &["UiScript", "ui_pet::PetAttackLatch", "ui_pet::PetBar"],
-        "a field event's listeners read its push; the world entry's pet reset writes the bar and \
-         lowers the attack latch (`0x4bc6f0`, `0x4bc8ce`)"),
 ];
 
 /// The systems between the dispatch and the drain that write what the host's live reads read,
@@ -128,16 +103,30 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
 /// held to its systems' access by the same test.
 #[rustfmt::skip]
 const AFTER_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
-    ("::net::motion::facing::drive_display_facing", &["Transform"],
+    ("::net::motion::facing::drive_display_facing", &["Commands net::motion::remote::RemoteMotion",
+        "Commands net::motion::spline::Spline", "Transform"],
         "turns the units' models toward their facing; unit movement is \
          frame time, which the reference runs after the packets (`0x420d63` after `0x420d55`)"),
     ("::net::motion::spline::ground_clamp_creatures", &["Transform"],
         "settles the creatures on the ground; unit movement is \
          frame time, which the reference runs after the packets (`0x420d63` after `0x420d55`)"),
-    ("::net::motion::spline::sample_splines", &["Transform"],
+    ("::net::motion::remote::drain_pending_moves", &["Commands net::motion::spline::Spline",
+        "net::motion::remote::RemoteMotion"],
+        "fires the relayed moves queued past their arrival in the movement tick (event 5's \
+         `0x616800` → `0x615b10` → `0x616620` → `0x615c30`), frame time, which the reference \
+         runs after the packets (`0x420d63` after `0x420d55`)"),
+    ("::net::game_time::tick_game_time", &["net::game_time::ServerTime"],
+        "steps the game clock by the frame time, the category 5 handler `0x401ec0` → `0x6c5d50` \
+         → `0x6435a0`, which the reference runs after the packets (`0x420d63` after \
+         `0x420d55`)"),
+    ("::net::motion::spline::sample_splines", &["Commands net::motion::spline::Spline",
+        "Transform"],
         "moves the units along their splines; unit movement is \
          frame time, which the reference runs after the packets (`0x420d63` after `0x420d55`)"),
-    ("::transport::ground_deck_riders", &["Transform"],
+    ("::player::camera_saved::load_camera_pose", &["player::state::Player"],
+        "benilla's own reason, no reference fact: it restores the camera pitch from benilla's own \
+         per-character file once the roster names the character, and no getter reads the pitch"),
+    ("::transport::ground_deck_riders", &["Transform", "net::motion::remote::RemoteMotion"],
         "settles the riders on their decks; unit movement is \
          frame time, which the reference runs after the packets (`0x420d63` after `0x420d55`)"),
     ("::transport::tick_transports", &["Transform"],
@@ -154,6 +143,9 @@ const AFTER_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
     ("::ui_mail::step_pending_mail", &["ui_mail::pending::MailPending"],
         "steps the pending-mail time in the world frame's update (its slot `0x38`, `0x4818d0` → \
          `0x4ade60`), which the frame pass runs after the packets (`0x420d6a` after `0x420d55`)"),
+    ("::ui_loot::drop_loot_steps", &["ui_loot::LootState"],
+        "drops the loot lane's window signals, its pushes kept, run only while no in-game \
+         interface is up, so no listener exists"),
     ("::ui_mail::lane::drop_mail_events", &["ui_mail::pending::MailPending"],
         "drops the mail lane, a parked close's tail with its query kept, run only while no \
          in-game interface is up, so no listener exists"),
@@ -439,6 +431,11 @@ fn flip_readiness() {
         (
             "AFTER_THE_PACKETS_IN_THE_REFERENCE (stays)",
             AFTER_THE_PACKETS_IN_THE_REFERENCE.len(),
+            String::new(),
+        ),
+        (
+            "BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE (stays)",
+            g::BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE.len(),
             String::new(),
         ),
     ];

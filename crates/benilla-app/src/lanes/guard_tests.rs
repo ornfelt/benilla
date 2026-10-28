@@ -68,14 +68,6 @@ pub(super) const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
     ),
     (
         Row::Queue,
-        "Messages<benilla_app::net::WorldEnterCascadeMessage>",
-        "the world-enter cascade, which our own create's arrival writes inside its packet \
-         (`0x5deb60` → `0x4908c0`) and whose readers (the action bar's slot pass, the item \
-         recount) fire off it in system order, where the reference runs the cascade in the \
-         arrival",
-    ),
-    (
-        Row::Queue,
         "::ui_action::errors::MountErrors",
         "the mount refusals",
     ),
@@ -88,22 +80,6 @@ pub(super) const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
         Row::Queue,
         "::ui_action::errors::UiErrorTexts",
         "the wire's error texts",
-    ),
-    (
-        Row::HostHeld,
-        "::minimap::ping::MinimapPing",
-        "the members' minimap pings, which `drive_minimap_ping` fires; our own `PingLocation`, \
-         acting in its call, holds the ping in the host",
-    ),
-    (
-        Row::Queue,
-        "::net::PlayedTimeAnswer",
-        "the played-time answer",
-    ),
-    (
-        Row::Queue,
-        "::player::net::SkinnedFeed",
-        "the skinned state",
     ),
     (
         Row::Queue,
@@ -135,16 +111,6 @@ pub(super) const NOT_YET_ON_A_LANE: &[(Row, &str, &str)] = &[
         "::ui_logout::SessionPosts",
         "the exit and the cinematic stop a session verb posts, which nothing the script reads \
          waits on",
-    ),
-    (
-        Row::Queue,
-        "::ui_quest_share::QuestShare",
-        "the quest share",
-    ),
-    (
-        Row::Queue,
-        "::ui_quest::lines::QuestLines",
-        "the quest lines",
     ),
     (
         Row::HostHeld,
@@ -189,6 +155,10 @@ pub(super) const HOST_HELD_UNREAD: &[&str] = &[
     // waiting on it through the build's own wait, read as the tick runs.
     "::item_names::ItemNames",
     "::items::Items",
+    // Moved here from `NOT_YET_ON_A_LANE`, so neither list grew: read, and quiet. A member's ping
+    // stores the point at its packet and signals on the notice lane (`0x4ee330`), our own
+    // `PingLocation` holds it in the host in its call, and only a new VM's seed reads it.
+    "::minimap::ping::MinimapPing",
     "::net::GuidIndex",
     // Read by the trainer's description getters through the host, and quiet.
     "::net::HomeBind",
@@ -198,6 +168,7 @@ pub(super) const HOST_HELD_UNREAD: &[&str] = &[
     // Read by the quest log getters through the host (`QuestClock`), and quiet: the time
     // response's `QUEST_LOG_UPDATE` fires on the quest log lane.
     "::net::ServerWallClock",
+    // Read through the host by `GetGameTime` (`0x515ee0`), and quiet: no event signals the clock.
     "::net::game_time::ServerTime",
     // Read, and quiet: the control packet's handler and our own create's arrival signal its
     // changes on the notice lane in place (`0x4958e0`), and the action bar's diff of it is
@@ -321,24 +292,20 @@ pub(super) const HOST_HELD_UNREAD: &[&str] = &[
 /// a row whose feed or inputs moved fails until it matches.
 #[rustfmt::skip]
 pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
-    ("::player::net::feed_player_skinned", &["player::net::SkinnedFeed"]),
+    // The hover's pick runs outside every packet (`0x481790` → `0x4828d0` → `0x482090` →
+    // `0x492e70` → `0x492890`), but its plate is rebuilt inside them, each rebuild the whole
+    // builder over every input here: the unit's by the name-query callback `0x5fb840`, the
+    // creature cache callback `0x604660` and `OnEntryChanged` `0x604600` (each through `0x491a00`,
+    // `0x4919d0` → `0x529fe0`) and the unit-flags watcher (`0x5ff7be`); the game object's by its
+    // lock key's cache callback `0x52ad10`; the corpse's by its owner's name callback `0x52afe0`.
+    ("::ui_tooltip::drive_mouseover_tooltip", &["go_anim::GoAnim",
+        "go_templates::GameObjectTemplates", "items::Countdowns", "items::Items",
+        "names::NameCache", "net::GuidIndex", "net::ObjectStore", "net::SelfGuid",
+        "net::reputations::Reputations", "ui_action::PlayerActions", "ui_guild::GuildState"]),
+
     ("::death::feed_death", &["Transform", "death::DeathNet", "items::Countdowns", "items::Items",
         "names::NameCache", "net::GuidIndex", "net::NetStatus", "net::ObjectStore",
         "net::SelfGuid"]),
-    ("::minimap::ping::drive_minimap_ping", &["minimap::ping::MinimapPing",
-        "ui_party::GroupState"]),
-    ("::minimap::feed_game_time", &["net::game_time::ServerTime"]),
-    ("::minimap::blips::drive_blip_tooltip", &["items::Countdowns", "names::NameCache",
-        "net::GuidIndex", "net::ObjectStore"]),
-    // The four tokens' snapshots read the stores as of the drain's place (`ui_unit::views`); the
-    // XP pair, the rest state, the combo points, the bar toggles and the worn display read the
-    // live store, and every snapshot its names, relations, selection and group; the world entry's
-    // pet reset reads the bar's guid and the attack latch, and its replay's language legs the
-    // known spells, as the frame left them.
-    ("::ui_unit::feed_units", &["names::NameCache", "net::GuidIndex", "net::ObjectStore",
-        "net::SelfGuid", "net::reputations::Reputations", "target::Selection",
-        "ui_action::PlayerActions", "ui_guild::GuildState", "ui_party::GroupState",
-        "ui_pet::PetAttackLatch", "ui_pet::PetBar"]),
     // The party and raid tokens read the members' stores, records and the roster's cells as of
     // the drain's place (`ui_unit::views`), and the group getters read the cells through the host;
     // the roster push is their no-host fallback, and every snapshot's names and relations read as
@@ -350,20 +317,9 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
     ("::ui_logout::feed_logout", &["ui_logout::LogoutState"]),
     // The engine's follow transitions, which a `FollowUnit` a handler's listener makes arms.
     ("::ui_follow::feed_follow", &["player::follow::FollowState", "ui_follow::FollowFeed"]),
-    ("::ui_tooltip::drive_mouseover_tooltip", &["go_anim::GoAnim",
-        "go_templates::GameObjectTemplates", "items::Countdowns", "items::Items",
-        "names::NameCache", "net::GuidIndex", "net::ObjectStore", "net::SelfGuid",
-        "net::reputations::Reputations", "ui_action::PlayerActions", "ui_guild::GuildState"]),
-    ("::ui_tooltip::spell_feed::feed_spell_tooltips", &["items::Countdowns", "items::Items",
-        "net::GuidIndex", "net::HomeBind", "net::ObjectStore", "net::UnitSpeeds",
-        "net::motion::modes::UnitMoveModes", "net::motion::remote::RemoteMotion",
-        "net::reputations::Reputations", "spell::mods::SpellModifiers",
-        "ui_action::PlayerActions", "ui_pet::PetBar"]),
     // The ammo getters' hits fire after the push that carries their record, whenever it runs.
     ("::ui_char::feed_char", &["items::Countdowns", "items::Items", "names::NameCache",
         "net::GuidIndex", "net::ObjectStore", "ui_char::AmmoRecordHits"]),
-    ("::ui_action::recount::recount_item_actions", &["items::Countdowns", "items::Items",
-        "net::GuidIndex", "net::ObjectStore"]),
     ("::ui_action::feed::feed_actions", &["items::Countdowns", "items::Items", "net::GuidIndex",
         "net::ObjectStore", "ui_action::ActionSlots", "ui_action::PlayerActions",
         "ui_action::errors::MountErrors",
@@ -376,11 +332,6 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
         "player::state::OwnControlLost", "player::state::StandPending", "spell::cooldowns::Cooldowns",
         "spell::mods::SpellModifiers", "target::Selection", "ui_action::ActionSlots",
         "ui_action::PlayerActions", "ui_action::state::ActionStateMemory", "ui_pet::PetBar"]),
-    // The ranged-slot item scales a ranged spell's range, read as the frame left it (#2217).
-    ("::spell::targeting::feed_targeting_to_vm", &["items::Items", "names::NameCache",
-        "net::GuidIndex", "net::ObjectStore", "net::UnitSpeeds", "net::motion::modes::UnitMoveModes",
-        "net::motion::remote::RemoteMotion", "net::reputations::Reputations",
-        "spell::mods::SpellModifiers", "spell::targeting::SpellTargeting", "ui_party::GroupState"]),
     // The resolver's guids, pushed before the drain and read with the host lent too: the
     // mouseover, the group rows past a token's own, the pet records and every row of the field
     // events' fan-out, which the `UNIT_HAPPINESS` gate reads. The aura getters walk each unit
@@ -404,13 +355,6 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
     ("::ui_items::locks::forget_gone_item_locks", &["net::GuidIndex"]),
     ("::ui_items::feed::feed_item_stats", &["items::Items", "net::HomeBind", "net::ObjectStore",
         "spell::mods::SpellModifiers"]),
-    ("::ui_auction::reset_auction_on_world_enter", &["ui_auction::AuctionOpen"]),
-    ("::ui_mail::send_query_next_mail_time_on_enter", &["ui_mail::MailOpen",
-        "ui_mail::pending::MailPending"]),
-    ("::ui_item_text::feed_item_text", &["go_templates::GameObjectTemplates", "items::Countdowns",
-        "items::Items", "names::NameCache", "net::GuidIndex", "net::ObjectStore",
-        "ui_item_text::ItemTextOpen", "ui_item_text::PageTexts", "ui_mail::MailOpen",
-        "world_state::WorldStates"]),
     ("::ui_taxi::feed_on_taxi", &["net::ObjectStore"]),
     // The getters' item callbacks, kept inside their calls, are spent as the frame left them.
     ("::ui_tradeskill::feed_trade_skill", &["items::Countdowns", "items::Items", "net::GuidIndex",
@@ -422,19 +366,21 @@ pub(super) const READS_FRAME_FINAL: &[(&str, &[&str])] = &[
         "net::GuidIndex", "net::ObjectStore", "spell::mods::SpellModifiers",
         "ui_action::PlayerActions", "ui_craft::CraftItemWaits", "ui_craft::CraftOpen",
         "ui_pet::PetBar"]),
-    ("::ui_loot::feed_loot", &["items::Countdowns", "items::Items", "names::NameCache",
-        "net::GuidIndex", "net::ObjectStore", "ui_loot::AutoLootByte", "ui_loot::LootLatch",
-        "ui_loot::LootState", "ui_party::GroupState"]),
     ("::ui_loot_roll::feed_loot_rolls", &["items::Items", "names::NameCache", "net::SelfGuid",
         "ui_loot_roll::LootRolls"]),
-    ("::ui_quest::lines::feed_quest_lines", &["items::Items", "ui_quest::lines::QuestLines",
-        "ui_quest_log::QuestLog"]),
-    ("::ui_quest_log::feed_quest_log", &["names::NameCache", "net::ObjectStore",
-        "ui_quest::lines::QuestLines", "ui_quest_log::QuestLog", "world_state::WorldStates"]),
-    ("::ui_quest_share::feed_quest_share", &["names::NameCache", "ui_quest_share::QuestShare"]),
-    ("::ui_chat::broadcast::feed_broadcasts", &["ui_chat::edit::ChannelState"]),
-    ("::ui_chat::channels::seed_channels", &["ui_chat::edit::ChannelState"]),
-    ("::ui_chat::feed::played_time_bridge", &["net::PlayedTimeAnswer"]),
+];
+
+/// The view pushes [`READS_FRAME_FINAL`]'s test finds whose build the reference too makes outside
+/// every packet, held to their inputs the same way, with why: a hover's build that runs at a mouse
+/// move (`0x7660d0`) or the paint pass's repeat pick (`CSimpleTop::OnLayerUpdate` `0x765650`) and
+/// that no cache callback rebuilds inside a handler, so a listener fired inside the dispatch reads
+/// what the last build left, as 1.12.1's does. They stay after the flip.
+#[rustfmt::skip]
+pub(super) const BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
+    ("::minimap::blips::drive_blip_tooltip", &["items::Countdowns", "names::NameCache",
+        "net::GuidIndex", "net::ObjectStore"],
+        "the minimap's probe `0x4eb0c0`, its slot `0x3c`, which the hover pick calls at a mouse \
+         move and at the paint pass's repeat pick (`0x7660d0`, from `0x765650`)"),
 ];
 
 /// The resources the handlers fill through a shared reference, which their declared access shows
@@ -460,6 +406,13 @@ const FILLED_THROUGH_A_READ: &[&str] = &[
 /// in system order, or a system that pushes onto a lane off it at its own place, passes every
 /// check here unseen.
 const READ_ONLY_TO_HANDLERS: &[&str] = &[
+    // The character's language skills and word pools, which a page's show rewrites it by
+    // (`0x4e3856`). Not read-only in substance: `feed_language_skills` recomputes the skills
+    // every frame, after the dispatch, from the skill lines the handlers write, where the
+    // reference reads the skill live at the show (`0x4e3837` → `GetIndexedSpellSkill`). A show
+    // inside a packet reads them as the last frame left them: a frame-final read the flip must
+    // make live (#2168), which no list here measures, a handler's read of a feed's output.
+    "::ui_chat::language::ChatLanguages",
     // The usable stationery list, whose first paper the list parse gives a row with none
     // (`0x4ad565`); the paper callback's handler writes it, through its own `ResMut`.
     "::ui_mail::stationery::UsableStationery",
@@ -635,10 +588,12 @@ const READ_ONLY_TO_HANDLERS: &[&str] = &[
     "::ui_script::InspectMode",
     "bevy_input::button_input::ButtonInput<bevy_input::keyboard::KeyCode>",
     "bevy_input::mouse::AccumulatedMouseMotion",
+    // The frame a quest-share line starts its bounded wait for a name at.
+    "bevy_diagnostic::frame_count_diagnostics_plugin::FrameCount",
 ];
 
 /// Every lane's queue, by type: what a handler fills there fires in the packets' order.
-fn lane_types() -> [TypeId; 37] {
+fn lane_types() -> [TypeId; 38] {
     [
         // The views lane: what each packet changed in the stores.
         TypeId::of::<crate::ui_unit::views::ViewLog>(),
@@ -710,12 +665,14 @@ fn lane_types() -> [TypeId; 37] {
         // The mail lane: the list's and the results' signals and lines, the cores' halves, the
         // record callbacks' and the pending-mail time's.
         TypeId::of::<crate::ui_mail::MailLane>(),
+        // Our player's arrival, stamped at its create.
+        TypeId::of::<crate::ui_world_enter::ArrivalLane>(),
     ]
 }
 
 /// [`lane_types`] by the lane that drains each: a queue is stripped only from its own lane's row,
 /// so another lane's read of the same type shows as the state it is.
-fn lane_queue_owners() -> [(&'static str, TypeId); 37] {
+fn lane_queue_owners() -> [(&'static str, TypeId); 38] {
     [
         ("unit views", TypeId::of::<crate::ui_unit::views::ViewLog>()),
         (
@@ -784,6 +741,10 @@ fn lane_queue_owners() -> [(&'static str, TypeId); 37] {
         ),
         ("trade", TypeId::of::<crate::ui_trade::TradeLane>()),
         ("mail", TypeId::of::<crate::ui_mail::MailLane>()),
+        (
+            "arrival",
+            TypeId::of::<crate::ui_world_enter::ArrivalLane>(),
+        ),
     ]
 }
 
@@ -935,6 +896,7 @@ fn the_drain_runs_after_the_feeds_and_before_the_tick() {
     assert_eq!(
         lanes,
         [
+            "arrival",
             "auction house",
             "bank",
             "battlefield",
@@ -1684,8 +1646,13 @@ fn every_view_push_of_what_a_handler_writes_is_listed() {
         return;
     }
     let row = |system: &str| {
+        let built = BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE
+            .iter()
+            .map(|(s, inputs, _)| (*s, *inputs));
         READS_FRAME_FINAL
             .iter()
+            .copied()
+            .chain(built)
             .find(|(s, _)| format!("::{system}").ends_with(s))
     };
     let mut wrong: Vec<String> = pushes
@@ -1705,20 +1672,26 @@ fn every_view_push_of_what_a_handler_writes_is_listed() {
         })
         .collect();
     wrong.sort();
+    let built = BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE
+        .iter()
+        .map(|(s, inputs, _)| (*s, *inputs));
     let stale: Vec<&str> = READS_FRAME_FINAL
         .iter()
+        .copied()
+        .chain(built)
         .filter(|(s, _)| {
             !pushes
                 .keys()
                 .any(|system| format!("::{system}").ends_with(s))
         })
-        .map(|(s, _)| *s)
+        .map(|(s, _)| s)
         .collect();
     assert!(
         wrong.is_empty(),
         "these feeds push views off state a handler writes, read as the frame left it: version \
          what they read through the views lane, or give each its row in READS_FRAME_FINAL as it \
-         stands:\n  {}",
+         stands, or in BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE for a build the reference too \
+         makes outside every packet:\n  {}",
         wrong.join("\n  ")
     );
     assert!(stale.is_empty(), "stale rows: {stale:?}");
@@ -1745,6 +1718,13 @@ pub(super) const LANE_READS_FRAME_FINAL: &[(&str, &[&str])] = &[
     // The chat setup's restore reads the channel rows its shortcuts and auto-joins come from as
     // the frame left them, past the notices of the packets after the section's.
     ("chat setup arrivals", &["ui_chat::edit::ChannelState"]),
+    // Our arrival's legs read and reset what later packets of its frame write, as the frame left
+    // it: the book the replay learns, the battlefield and stone it resets and asks again for, the
+    // death stores its death state reads and its corpse ask resets, the class family it sets, and
+    // the connection the clock resync asks through.
+    ("arrival", &["death::DeathNet", "net::NetStatus", "spell::mods::SpellModifiers",
+        "ui_action::PlayerActions", "ui_battlefield::Battlefield",
+        "ui_dialog_verbs::MeetingStone"]),
     // The watchers' callbacks: the quest log's slots, the skill line's race and class and the
     // bonus bar's form off our live descriptor, as the frame left them (#2217); the aura
     // watcher's own store is the one its packet left, and the buff timers read the duration
@@ -1759,30 +1739,18 @@ pub(super) const LANE_READS_FRAME_FINAL: &[(&str, &[&str])] = &[
     // left it.
     ("unit views", &["names::NameCache", "net::GuidIndex", "net::ObjectStore", "net::SelfGuid",
         "target::Selection", "ui_guild::GuildState", "ui_party::GroupState"]),
-    // A landing's record expands its text's macros against the player's name and the world states
-    // as the frame left them, as the quest log's feed expands the held ones (#2217).
-    ("quest events", &["names::NameCache", "net::ObjectStore", "world_state::WorldStates"]),
     ("cast reports", &["items::Countdowns", "items::Items", "net::GuidIndex", "net::ObjectStore",
         "ui_action::cast_lines::CastFailRedisplays"]),
     ("item watchers", &["items::Countdowns", "items::Items", "names::NameCache", "net::GuidIndex",
         "net::ObjectStore", "ui_trade::TradeSession"]),
     ("auction house", &["items::Items", "names::NameCache", "net::SelfGuid",
         "ui_auction::AuctionOpen"]),
-    // The master-loot candidates placed and named off the raid roster's subgroups as the frame
-    // left it, not as the push's packet did (`0x61c550`, #2217).
+    // The sweep's party and raid test (`0x4c2030`, `0x4c203d`), the pushes' owners and their
+    // names, the source's object and the records a copier and a push read, as the frame left them
+    // (#2217); the getters read the window each step's packet left through the host.
     ("loot", &["items::Countdowns", "items::Items", "names::NameCache", "net::GuidIndex",
         "net::ObjectStore", "ui_loot::AutoLootByte", "ui_loot::LootLatch",
         "ui_loot::LootMoveStart", "ui_party::GroupState"]),
-    // The reader's open reads the object, its records and the text caches as the frame left them,
-    // past the answers still on its lane; its register closes whichever latched window holds the
-    // latch, reading that window's state as the frame left it.
-    ("item text", &["go_templates::GameObjectTemplates", "items::Countdowns", "items::Items",
-        "net::GuidIndex", "net::ObjectStore", "ui_auction::AuctionOpen", "ui_bank::BankOpen",
-        "ui_gossip::GossipState", "ui_item_text::ItemTextOpen", "ui_item_text::PageTexts",
-        "ui_mail::MailOpen", "ui_merchant::MerchantOpen", "ui_petition::GuildRegistrarState",
-        "ui_quest::QuestGiver", "ui_session::latch::InteractLatch", "ui_stable::StableOpen",
-        "ui_tabard::TabardOpen", "ui_taxi::TaxiState", "ui_trade::TradeSession",
-        "ui_trainer::TrainerOpen"]),
     // A list's copy reads the stable, the creature cache and the pet as the frame left them; its
     // listeners read the stable through the host (#2217).
     ("stable", &["items::Countdowns", "names::NameCache", "net::GuidIndex", "net::ObjectStore",

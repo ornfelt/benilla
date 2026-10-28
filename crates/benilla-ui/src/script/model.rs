@@ -5,7 +5,7 @@ use crate::widget::{FrameHandle, RegionHandle, WidgetArena};
 
 use super::{
     auction, backdrop, bank, camera_view, char_stats, chat_window, colorselect, container, craft,
-    cursor, death, gossip, guild, item_calls, item_text, loot, loot_roll, macros, mail, merchant,
+    cursor, death, gossip, guild, item_text, loot, loot_roll, macros, mail, merchant,
     parse_unit_token, party, petition, pvp, quest, quest_log, reputation, simplehtml, skills,
     slider, social, spellbook, stable, taxi, trade, tradeskill, trainer, weapon_enchant,
     ActionSlot, AuraState, FontObject, ItemTemplateView, MusicRequest, PlayerReqState, RegionData,
@@ -385,9 +385,6 @@ pub(crate) struct Model {
     /// Every unit `TargetByName` can pick, by guid, as the app's by-name scan sees it this frame:
     /// the binding resolves against it so the rest of its chunk reads the new selection.
     pub(crate) name_candidates: HashMap<u64, super::NameCandidate>,
-    /// A selection call moved the `"target"` view inside a chunk; the app's unit feed re-pushes
-    /// `"target"` from the committed selection, whatever its memo holds.
-    pub(crate) target_view_moved: bool,
     /// The player's auras in the reference cache's insertion order (`0xbc6040`), durations joined:
     /// the `GetPlayerBuff` family's list.
     pub(crate) player_auras: Vec<AuraState>,
@@ -691,9 +688,6 @@ pub(crate) struct Model {
     /// The world pick under the cursor (`[this+0x350]`): a world click drops no payload on an
     /// object, only an item on terrain, and anything over nothing.
     pub(crate) world_pick: cursor::WorldPick,
-    /// The item calls the verb segment running now filed, which its binding hands the host as the
-    /// segment ends ([`item_calls::submit_item_calls`]).
-    pub(crate) item_calls: Vec<item_calls::ItemCall>,
     /// Targeting wants an item (`0x6e6330`): a bag or paper-doll click becomes a pick.
     pub(crate) item_pick_armed: bool,
     /// Targeting wants a location (`0x6e6320`, the word's `0x60`): a minimap click casts at the
@@ -750,9 +744,6 @@ pub(crate) struct Model {
     pub(crate) merchant: Option<merchant::MerchantState>,
     /// The repair costs `SetInventoryItem` and `SetBagItem` return.
     pub(crate) repair_costs: merchant::RepairCosts,
-    /// The buys a drop verb made of a held vendor row, into a slot or a bag, handed to the host as
-    /// the verb returns ([`merchant::MerchantCall::BuyInSlot`], [`merchant::MerchantCall::BuyIntoBag`]).
-    pub(crate) merchant_drops: Vec<merchant::MerchantCall>,
     /// Repair mode (`InRepairMode`).
     pub(crate) repair_mode: bool,
 
@@ -968,6 +959,12 @@ pub(crate) struct Model {
     pub(crate) aura_tooltip_asks: HashSet<super::AuraKey>,
     /// The tooltips whose spell or aura render missed its view, re-rendered when the app answers.
     pub(crate) spell_tooltip_waits: HashMap<FrameHandle, super::tooltip_spell::ViewWait>,
+    /// Each tooltip's last fresh spell build, kept until its next clear for the rebuild an item
+    /// answer runs (`+0x39c`, `+0x3b0`, `0x52f820`).
+    pub(crate) spell_builds: HashMap<FrameHandle, super::tooltip_spell::SpellBuild>,
+    /// The item records each tooltip's spell builds missed, the answer's cookie; an answer is
+    /// taken whether or not the tooltip still keeps a spell.
+    pub(crate) spell_item_waits: HashMap<FrameHandle, Vec<u32>>,
     /// Each tooltip's last item build, kept until its next clear for the rebuild a cache answer
     /// runs (`+0x380`..`+0x440`, `0x52e530`).
     pub(crate) item_builds: HashMap<FrameHandle, super::tooltip_item::build::ItemBuild>,
@@ -1429,7 +1426,6 @@ impl Model {
             units_by_lower: HashMap::new(),
             units_by_guid: HashMap::new(),
             name_candidates: HashMap::new(),
-            target_view_moved: false,
             player_auras: Vec::new(),
             unit_auras: HashMap::new(),
             unit_guids: Default::default(),
@@ -1555,7 +1551,6 @@ impl Model {
             cursor: None,
             cursor_grid: false,
             world_pick: cursor::WorldPick::default(),
-            item_calls: Vec::new(),
             item_pick_armed: false,
             location_pick_armed: false,
             pending_wrap: None,
@@ -1576,7 +1571,6 @@ impl Model {
             gossip: None,
             merchant: None,
             repair_costs: Default::default(),
-            merchant_drops: Vec::new(),
             repair_mode: false,
             stable: Default::default(),
             bank: None,
@@ -1664,6 +1658,8 @@ impl Model {
             aura_tooltips: HashMap::new(),
             aura_tooltip_asks: HashSet::new(),
             spell_tooltip_waits: HashMap::new(),
+            spell_builds: HashMap::new(),
+            spell_item_waits: HashMap::new(),
             item_builds: HashMap::new(),
             item_cache_waits: HashMap::new(),
             item_cache_misses: Vec::new(),

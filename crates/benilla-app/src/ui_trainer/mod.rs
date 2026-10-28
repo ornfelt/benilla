@@ -15,8 +15,8 @@ use benilla_protocol::messages::{trainer_spell_state, TrainerSpell};
 use bevy::prelude::*;
 
 use benilla_ui::script::{
-    TrainerAbilityReq, TrainerService, TrainerServiceLive, TrainerSkillReq, TrainerState,
-    TrainerTooltip, UiScript, TRAINER_GROUP_KNOWN,
+    TrainerAbilityReq, TrainerService, TrainerServiceLive, TrainerSkillReq, TrainerState, UiScript,
+    TRAINER_GROUP_KNOWN,
 };
 
 use crate::entities::ItemDisplays;
@@ -84,10 +84,12 @@ pub(crate) struct TrainerOpen {
     /// The trainer the records were listed by, which a close leaves: the records stay until the
     /// next list (the close zeroes only the cell and the counts, `0x4d747c`-`0x4d7486`).
     pub(crate) listed: Option<u64>,
+    /// The cascade's reset, owed from its item's push ([`TrainerOpen::settle_world_reset`]).
+    pub(crate) world_reset: crate::ui_world_enter::OwedReset,
 }
 
 impl TrainerOpen {
-    /// Open (or replace) the window with a trainer's freshly-listed services.
+    /// Open (or replace) the window with a trainer's freshly-listed services, past an owed reset.
     pub(crate) fn open(
         &mut self,
         trainer: u64,
@@ -95,6 +97,7 @@ impl TrainerOpen {
         services: Vec<TrainerSpell>,
         greeting: String,
     ) {
+        self.settle_world_reset();
         self.trainer = Some(trainer);
         self.listed = Some(trainer);
         self.trainer_type = trainer_type;
@@ -134,7 +137,7 @@ pub(crate) fn pass_owed(open: Option<&TrainerOpen>, lane: Option<&mut TrainerLan
 /// ([`crate::field_watch::FieldNotice::TrainerPass`]) and the getters' item callbacks.
 #[derive(SystemParam)]
 pub(crate) struct TrainerPasses<'w> {
-    open: Option<Res<'w, TrainerOpen>>,
+    open: Option<ResMut<'w, TrainerOpen>>,
     lane: Option<ResMut<'w, TrainerLane>>,
 }
 
@@ -142,6 +145,13 @@ impl TrainerPasses<'_> {
     /// One caller's pass, at its place ([`pass_owed`]).
     pub(crate) fn owed(&mut self) {
         pass_owed(self.open.as_deref(), self.lane.as_deref_mut());
+    }
+
+    /// Our create's trainer reset, owed from its packet ([`TrainerOpen::settle_world_reset`]).
+    pub(crate) fn owe_world_reset(&mut self) {
+        if let Some(open) = self.open.as_mut() {
+            open.world_reset.owe();
+        }
     }
 }
 
@@ -152,41 +162,6 @@ impl TrainerPasses<'_> {
 pub(crate) fn ask_item_record(items: &Items, commands: &NetCommands, entry: u32, owner: u64) {
     if items.template(entry, owner, Ask::Event(commands)).is_none() {
         items.wait(entry, crate::items::RecordCallback::Trainer);
-    }
-}
-
-/// The spells the last list's services show as tooltips, which the spell-tooltip feed pushes, the
-/// list's handler writing them so a list is hoverable in its frame: a pet-learn service's view is
-/// built against the pet (the builder's unit selector, `0x533a7f`).
-#[derive(Resource, Default, PartialEq)]
-pub(crate) struct TrainerTooltipSubjects {
-    pub(crate) player: Vec<u32>,
-    pub(crate) pet: Vec<u32>,
-}
-
-impl TrainerTooltipSubjects {
-    /// The subjects of `services`' tooltips, each spell once.
-    fn of(services: &[TrainerSpell], spells: &SpellCatalog) -> Self {
-        let mut subjects = Self::default();
-        for wire in services {
-            if let TrainerTooltip::Spell {
-                spell_id,
-                alt_caster,
-            } = service_tooltip(wire.spell, spells)
-            {
-                let list = if alt_caster {
-                    &mut subjects.pet
-                } else {
-                    &mut subjects.player
-                };
-                list.push(spell_id);
-            }
-        }
-        for list in [&mut subjects.player, &mut subjects.pet] {
-            list.sort_unstable();
-            list.dedup();
-        }
-        subjects
     }
 }
 
@@ -202,7 +177,6 @@ impl Plugin for UiTrainerPlugin {
         net::register(app);
         lane::add_trainer_lane(app);
         app.init_resource::<TrainerOpen>()
-            .init_resource::<TrainerTooltipSubjects>()
             .add_latched_window::<TrainerOpen>()
             // `0x490ad5` → `0x4d7400` → `0x4d7440(0)`, the core.
             .add_sweep_leg(SweepLeg::Trainer, close_core);
@@ -626,7 +600,7 @@ fn pet_view<'a>(
 
 /// The resources a service description's `$`-tokens read beside the caster's descriptor: the
 /// spell-modifier tables and the bind point `$z` names, the same two reads the item and spell
-/// tooltip feeds make.
+/// tooltips make.
 #[derive(SystemParam)]
 pub(crate) struct DescriptionReads<'w> {
     spell_mods: Option<Res<'w, crate::spell::SpellModifiers>>,
@@ -685,38 +659,29 @@ impl TrainerReads<'_, '_> {
             spells: Some(&spells.catalog),
             items: Some(items),
         };
-        let player_level = |d: &benilla_formats::SpellDisplay| {
-            crate::spell::player_spell_level(store, skills, d, &mut crate::spell::Unrecorded)
-        };
+        let player_level =
+            |d: &benilla_formats::SpellDisplay| crate::spell::player_spell_level(store, skills, d);
         let pet_skill_level = |d: &benilla_formats::SpellDisplay| {
             d.skill_level(crate::spell::pet_skill_value(pet.map(|p| &p.0)))
         };
         // `$c` and `$p` (`0x6e31b0`, `0x6e3300`) at the same caster's level and fields.
         let player_cost = |d: &benilla_formats::SpellDisplay| {
-            store.map_or(-1, |s| {
-                crate::spell::usable::power_cost(d, s, skills, mods, &mut crate::spell::Unrecorded)
-            })
+            store.map_or(-1, |s| crate::spell::usable::power_cost(d, s, skills, mods))
         };
         let player_per_second = |d: &benilla_formats::SpellDisplay| {
             let level = crate::spell::SpellLevel::Player { me: store, skills };
-            crate::spell::usable::per_second_cost(d, level, &mut crate::spell::Unrecorded)
+            crate::spell::usable::per_second_cost(d, level)
         };
         let pet_level =
             |d: &benilla_formats::SpellDisplay| crate::spell::SpellLevel::Known(pet_skill_level(d));
         let pet_cost = |d: &benilla_formats::SpellDisplay| {
             pet.map_or(-1, |p| {
                 let level = pet_level(d);
-                crate::spell::usable::power_cost_at(
-                    d,
-                    &p.0,
-                    level,
-                    mods,
-                    &mut crate::spell::Unrecorded,
-                )
+                crate::spell::usable::power_cost_at(d, &p.0, level, mods)
             })
         };
         let pet_per_second = |d: &benilla_formats::SpellDisplay| {
-            crate::spell::usable::per_second_cost(d, pet_level(d), &mut crate::spell::Unrecorded)
+            crate::spell::usable::per_second_cost(d, pet_level(d))
         };
         let ctx = TokenContext {
             durations: &spells.durations,
@@ -904,6 +869,37 @@ pub(crate) fn close_core(world: &mut World) {
     }
 }
 
+impl TrainerOpen {
+    /// The world-enter cascade's trainer reset (`0x4909ab` → `0x4d73e0`), which signals nothing:
+    /// the trainer's guid, selection, total and greeting zeroed (`0x4d73e2`-`0x4d73f6`), so the
+    /// getters find no services. The sweep ahead of every cascade has closed the window, so only
+    /// the records a close leaves go here. Owed from the cascade's push, it runs at the cascade's
+    /// place or ahead of a later list ([`crate::ui_world_enter::OwedReset`]).
+    pub(crate) fn settle_world_reset(&mut self) {
+        if self.world_reset.take() {
+            self.trainer = None;
+            self.services.clear();
+            self.greeting.clear();
+        }
+    }
+}
+
+/// The trainer reset in the cascade's place, unless a later list ran it first: the engine's
+/// records, then the VM's rows and selection, its collapsed lines kept
+/// ([`UiScript::reset_trainer_world_state`]).
+pub(crate) fn reset_on_world_enter(
+    mut vm: crate::script_calls::VmWith<Option<ResMut<'static, TrainerOpen>>>,
+) {
+    if let Some(mut open) = vm.own() {
+        open.settle_world_reset();
+    }
+    vm.run(|script| {
+        if let Some(script) = script {
+            script.reset_trainer_world_state();
+        }
+    });
+}
+
 /// A `/reload`'s VM gets the window the engine holds (`0xb737b0`, `0xb73a10`), rows and all, with
 /// no `TRAINER_SHOW`: the list's resets, then its push and sort.
 pub(crate) fn seed_reloaded_vm(world: &mut World, script: &mut UiScript) {
@@ -928,7 +924,7 @@ pub(crate) fn seed_reloaded_vm(world: &mut World, script: &mut UiScript) {
 /// `SMSG_TRAINER_LIST`'s open, `0x4d7440(trainer)`: the open trainer's own list re-lists in place
 /// (`0x4d7459`); a zero guid is the close core (`0x4d7461`), after which the list builds on the
 /// zero cell; any other registers on the latch (`0x4d74ce`), then the cell (`0x4d74d5`). The
-/// builder's `TRAINER_SHOW` (`0x4d7b73`) goes on the lane, with the rows' tooltip subjects.
+/// builder's `TRAINER_SHOW` (`0x4d7b73`) goes on the lane.
 pub(crate) fn open_trainer(
     world: &mut World,
     trainer: u64,
@@ -941,19 +937,9 @@ pub(crate) fn open_trainer(
     } else if world.resource::<TrainerOpen>().trainer != Some(trainer) {
         crate::ui_session::register(world, trainer);
     }
-    let subjects = world
-        .get_resource::<Spells>()
-        .map(|spells| TrainerTooltipSubjects::of(&services, &spells.catalog));
     world
         .resource_mut::<TrainerOpen>()
         .open(trainer, trainer_type, services, greeting);
-    if let (Some(subjects), Some(mut held)) =
-        (subjects, world.get_resource_mut::<TrainerTooltipSubjects>())
-    {
-        if *held != subjects {
-            *held = subjects;
-        }
-    }
     if let Some(mut lane) = world.get_resource_mut::<TrainerLane>() {
         lane.push(TrainerEvent::Show);
     }

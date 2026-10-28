@@ -21,7 +21,7 @@
 //! `0x4c70b0`, and the weapon arms of the visible-item watch `0x5e2810`. The item watchers' and the
 //! inventory watcher's runs are [`crate::item_watch`]'s.
 
-use benilla_protocol::messages::ObjectType;
+use benilla_protocol::messages::{quest_slot_state, ObjectType, PLAYER_QUEST_LOG_SLOTS};
 use benilla_protocol::{ObjectFields, OwnerFallback};
 use bevy::prelude::*;
 
@@ -60,6 +60,12 @@ pub(crate) enum FieldNotice {
     /// A callback's `FrameScript_SignalEvent(id)` (`0x703e50`): the event with no arguments, for
     /// every listener, whatever unit raised it.
     Global { id: u16 },
+    /// The quest-slot watcher `0x5ddd80` on one of the active player's twenty quest-log entries,
+    /// registered in `0x5dd8a0`, for a slot that gained `quest_id`: a new id over none, or the
+    /// same id with its failed bit cleared (`0x5dde17`-`0x5dde34`). The update packet's handler
+    /// shows its accept line at its place ([`crate::ui_quest::lines`]), so this never reaches the
+    /// lane.
+    QuestAccepted { quest_id: u32 },
     /// The quest log's watcher `0x4de4d0` on the active player, registered at world entry on the
     /// 0xf0 bytes at the player section's `+0x28` (`0x4de43b`-`0x4de456`): the rebuild and its
     /// `QUEST_LOG_UPDATE`.
@@ -147,6 +153,21 @@ pub(crate) enum FieldNotice {
     /// The skill value watch's profession list rebuild (`0x5de434` → `0x4fca20`), behind its
     /// trainer pass (`0x5de42d`).
     Professions,
+    /// `SetAreaSpiritHealer(0, 0)` (`0x4921c0`) as the ghost flag clears (`0x5dea20`), ahead of
+    /// `PLAYER_UNGHOST`: a pending wave's aura cancel, `CMSG_CANCEL_AURA` with its
+    /// `AREA_SPIRIT_HEALER_OUT_OF_RANGE`. The packet's handler runs it at its place and writes
+    /// the signal, so this never reaches the lane.
+    AreaSpiritHealerClear,
+    /// `SMSG_PLAYED_TIME`'s handler `0x401850`, after its console lines: `TIME_PLAYED_MSG` with
+    /// the total and the level's time (`0x4018df`).
+    PlayedTime { total: u32, level: u32 },
+    /// `SMSG_PLAYER_SKINNED`'s handler `0x5e7d40`: `PLAYER_SKINNED` with the byte's truth
+    /// (`0x5e7d57` → `0x48f412`).
+    Skinned { free_repop: bool },
+    /// A group member's ping, `0x4ee330` from `MSG_MINIMAP_PING`'s handler (`0x5e41bd`): the
+    /// VM's statics store the point, then `MINIMAP_PING` with the token the packet resolved
+    /// (`0x4ee48d`).
+    MinimapPing(crate::minimap::MemberPing),
 }
 
 /// The notice lane: each notice stamped as a handler writes it ([`crate::lanes::stamp`]), fired
@@ -205,6 +226,7 @@ impl NoticeLane {
     }
 
     /// The notices waiting, in order.
+    #[cfg(test)]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &FieldNotice> {
         self.0.iter().map(|(_, n)| n)
     }
@@ -247,6 +269,7 @@ pub(crate) mod id {
     pub(crate) const UNIT_CLASSIFICATION_CHANGED: u16 = 187;
     pub(crate) const PLAYER_FLAGS_CHANGED: u16 = 407;
     pub(crate) const UNIT_QUEST_LOG_CHANGED: u16 = 522;
+    pub(crate) const UPDATE_LFG_TYPES: u16 = 531;
     pub(crate) const INSPECT_HONOR_UPDATE: u16 = 525;
     pub(crate) const PLAYER_REGEN_DISABLED: u16 = 190;
     pub(crate) const PLAYER_REGEN_ENABLED: u16 = 191;
@@ -366,6 +389,8 @@ pub(crate) fn bridge_len(id: u16) -> u16 {
 /// `0x51bd90` (`0x51bd93`).
 const VISIBLE_ITEMS_WATCH: (u16, u16) = (0x118, 0x390);
 const QUEST_LOG_WATCH: (u16, u16) = (0x28, 0xf0);
+/// One quest slot, three dwords: the id, the state and counters, the timer.
+const QUEST_SLOT_BYTES: u16 = 12;
 
 /// The active player's point counters' watch `0x4c7000`, `PLAYER_CHARACTER_POINTS1` and `2` at
 /// the player section's `+0xe48`, 8 bytes, registered at world entry (`0x4c6fce`, `0x4c6fd8`).
@@ -856,6 +881,10 @@ pub(crate) fn placed_values(
         let id = id::SPELLS_CHANGED;
         pass.push(at, FieldNotice::Global { id });
         pass.push(at, FieldNotice::TrainerPass);
+        // The type-list recount (`0x5edb8a` → `0x4e89c0`) signals `UPDATE_LFG_TYPES` (`0x4e8b0e`),
+        // behind the quest-giver sweep (`0x5edb85`).
+        let id = id::UPDATE_LFG_TYPES;
+        pass.push(at, FieldNotice::Global { id });
     }
 
     // The bridge (`0x51bbb0`), the object's own watches. The happiness watch carries its field's
@@ -887,7 +916,8 @@ pub(crate) fn placed_values(
             if around.me == Some(guid) {
                 let flags = fields.player_flags();
                 // 0x10, the ghost state (`0x5eeab4` → `0x5de9c0`) on either edge: set, its
-                // tutorial (`0x5de9eb`-`0x5de9f0`); clear, `PLAYER_UNGHOST` (`0x5dea2a`).
+                // tutorial (`0x5de9eb`-`0x5de9f0`); clear, the healer's clear (`0x5dea20`), then
+                // `PLAYER_UNGHOST` (`0x5dea2a`).
                 if flipped & 0x10 != 0 {
                     if flags & 0x10 != 0 {
                         pass.push(
@@ -897,6 +927,7 @@ pub(crate) fn placed_values(
                             },
                         );
                     } else {
+                        pass.push(at, FieldNotice::AreaSpiritHealerClear);
                         let id = id::PLAYER_UNGHOST;
                         pass.push(at, FieldNotice::Global { id });
                     }
@@ -987,7 +1018,37 @@ pub(crate) fn placed_values(
             let id = id::PLAYER_FARSIGHT_FOCUS_CHANGED;
             pass.push(at, FieldNotice::Global { id });
         }
-        // Registered at world entry (`0x4de430`), after the bridge's watch on the same range.
+        // The slot watchers `0x5ddd80`, one 12-byte watch a quest slot (`0x5dd974`-`0x5dd99e`),
+        // registered on the active player's arrival (`0x5dd8a0`), ahead of the log's own watcher
+        // below. Each compares its slot against the copy its packet's write took (`0x5dde14`,
+        // `[ebx+0x10]`), the id and the state byte (`+0x7`): a quest gained shows its accept line
+        // (`0x5dde66`); then the run ends in the quest-list rebuild `0x4e8be0` (`0x5dde98`), which
+        // signals `UPDATE_LFG_TYPES` (`0x4e8c70`). One run per slot that moved.
+        for slot in 0..u16::from(PLAYER_QUEST_LOG_SLOTS) {
+            let slot_watch = (
+                QUEST_LOG_WATCH.0 + QUEST_SLOT_BYTES * slot,
+                QUEST_SLOT_BYTES,
+            );
+            let Some((fired, _, list)) = at(PLAYER_SECTION, slot_watch, List::Object) else {
+                continue;
+            };
+            let place = (fired, PLAYER_SECTION + QUEST_LOG_WATCH.0 / 4, list);
+            if let Some(now) = fields.player_quest_log(slot as u8) {
+                let id_field = PLAYER_SECTION + slot_watch.0 / 4;
+                let was = |field: u16, now: u32| block.edge(field).map_or(now, |(old, _)| old);
+                let (id, was_id) = (now.quest_id, was(id_field, now.quest_id));
+                let fail = now.state & quest_slot_state::FAIL != 0;
+                let was_state = was(id_field + 1, u32::from(now.state) << 24) >> 24;
+                let was_fail = was_state as u8 & quest_slot_state::FAIL != 0;
+                if id != 0 && (was_id == 0 || (was_id == id && !fail && was_fail)) {
+                    pass.push(place, FieldNotice::QuestAccepted { quest_id: id });
+                }
+            }
+            let id = id::UPDATE_LFG_TYPES;
+            pass.push(place, FieldNotice::Global { id });
+        }
+        // Registered at world entry (`0x4de430`), after the bridge's watch on the same range and
+        // the slot watchers.
         if let Some(at) = at(PLAYER_SECTION, QUEST_LOG_WATCH, List::Object) {
             pass.push(at, FieldNotice::QuestLog);
         }
@@ -1195,6 +1256,71 @@ mod tests {
     /// The field of player-section byte `offset`.
     fn pf(offset: u16) -> u16 {
         PLAYER_SECTION + offset / 4
+    }
+
+    /// The quest-slot watcher `0x5ddd80`, one 12-byte watch a slot (`0x5dd990`), against the copy
+    /// (`0x5dde14`): a quest in a slot that held none, or the same quest with its failed bit
+    /// cleared (`0x5dde17`-`0x5dde34`); a kept quest, a kept failure, a slot swapping quests and a
+    /// cleared slot announce nothing. It runs ahead of the log's watcher, which world entry
+    /// registered after it (`0x4de430`), its line ahead of its rebuild's `UPDATE_LFG_TYPES`.
+    #[test]
+    fn the_quest_slot_watcher_announces_a_filled_slot_and_a_cleared_failure_only() {
+        let accepted = |notices: &[FieldNotice]| -> Vec<u32> {
+            notices
+                .iter()
+                .filter_map(|n| match n {
+                    FieldNotice::QuestAccepted { quest_id } => Some(*quest_id),
+                    _ => None,
+                })
+                .collect()
+        };
+        let slot = |k: u16| pf(0x28 + 12 * k);
+        let failed = 2u32 << 24;
+        let mut me = player();
+        let prior = [
+            (slot(1), 7),
+            (slot(2), 8),
+            (slot(2) + 1, failed),
+            (slot(3), 9),
+            (slot(3) + 1, failed),
+            (slot(4), 10),
+            (slot(5), 11),
+        ];
+        assert_eq!(
+            accepted(&block(&mut me, Some(ME), ME, &prior)),
+            [7, 8, 9, 10, 11]
+        );
+        let now = [
+            (slot(0), 783),
+            (slot(2) + 1, 0),
+            (slot(3) + 1, failed | 1),
+            (slot(4), 12),
+            (slot(5), 0),
+        ];
+        assert_eq!(accepted(&block(&mut me, Some(ME), ME, &now)), [783, 8]);
+        let lfg = FieldNotice::Global {
+            id: id::UPDATE_LFG_TYPES,
+        };
+        assert_eq!(
+            block(&mut me, Some(ME), ME, &[(slot(0), 0)]),
+            [
+                bridge(ME, id::UNIT_QUEST_LOG_CHANGED),
+                lfg,
+                FieldNotice::QuestLog
+            ],
+            "a cleared slot"
+        );
+        assert_eq!(
+            block(&mut me, Some(ME), ME, &[(slot(0), 50)]),
+            [
+                bridge(ME, id::UNIT_QUEST_LOG_CHANGED),
+                FieldNotice::QuestAccepted { quest_id: 50 },
+                lfg,
+                FieldNotice::QuestLog
+            ]
+        );
+        let mut other = player();
+        assert!(accepted(&block(&mut other, Some(ME), OTHER, &[(slot(0), 50)])).is_empty());
     }
 
     /// The bridge's event id names the field `id + 6`; each moved field is one notice, in field
@@ -1816,10 +1942,18 @@ mod tests {
 
     /// The active player's log carries the quest log's own watcher (`0x4de430`, registered after
     /// the bridge's on the same 0xf0 bytes): one run a block, however many slots moved, and none
-    /// for an equal rewrite.
+    /// for an equal rewrite. Each slot that moved also runs its own watcher `0x5ddd80`: a quest
+    /// gained shows its accept line, then its quest-list rebuild signals `UPDATE_LFG_TYPES`
+    /// (`0x5dde98` → `0x4e8c70`), ahead of the log's.
     #[test]
     fn the_active_players_quest_log_watcher_runs_once_per_block() {
         let mut me = player();
+        // Slots 0 (fields 198-200), 1 (201-203) and 19 (255-257) moved. The log's watcher runs at
+        // the first field the block visits, slot 0's, so after that slot's own watcher and ahead
+        // of the later slots'.
+        let lfg = FieldNotice::Global {
+            id: id::UPDATE_LFG_TYPES,
+        };
         assert_eq!(
             block(
                 &mut me,
@@ -1827,9 +1961,48 @@ mod tests {
                 ME,
                 &[(198, 5), (199, 3), (201, 7), (257, 1)]
             ),
-            [bridge(ME, 522), FieldNotice::QuestLog]
+            [
+                bridge(ME, 522),
+                FieldNotice::QuestAccepted { quest_id: 5 },
+                lfg,
+                FieldNotice::QuestLog,
+                FieldNotice::QuestAccepted { quest_id: 7 },
+                lfg,
+                lfg,
+            ]
         );
         assert!(block(&mut me, Some(ME), ME, &[(198, 5), (201, 7)]).is_empty());
+    }
+
+    /// A quest slot's watcher `0x5ddd80` runs once for the slot, whichever of its three dwords
+    /// moved (a quest taken, a counter, an abandon), and signals `UPDATE_LFG_TYPES` for the
+    /// active player alone; a quest log outside the 20 slots is no slot.
+    #[test]
+    fn a_quest_slot_change_signals_the_lfg_types_once_per_slot() {
+        let lfg = FieldNotice::Global {
+            id: id::UPDATE_LFG_TYPES,
+        };
+        let mut me = player();
+        assert_eq!(
+            block(&mut me, Some(ME), ME, &[(198, 5), (199, 3), (200, 9)]),
+            [
+                bridge(ME, 522),
+                FieldNotice::QuestAccepted { quest_id: 5 },
+                lfg,
+                FieldNotice::QuestLog
+            ]
+        );
+        // The slot's counter word alone is a change of the slot.
+        assert_eq!(
+            block(&mut me, Some(ME), ME, &[(199, 4)]),
+            [bridge(ME, 522), lfg, FieldNotice::QuestLog]
+        );
+        // Another player's log is not the active player's: no slot watcher.
+        let mut other = player();
+        assert_eq!(
+            block(&mut other, Some(ME), OTHER, &[(198, 5)]),
+            [bridge(OTHER, 522)]
+        );
     }
 
     /// The pet number signals the classification; an entry change names the unit only when the
@@ -1935,8 +2108,8 @@ mod tests {
 
     /// `0x5ee990`'s ghost arm runs the ghost state `0x5de9c0` on either edge of bit 0x10
     /// (`0x5eeab4` → `0x5eeabc`), after `PLAYER_FLAGS_CHANGED` (`0x5eea35`): set, its tutorial
-    /// (`0x5de9eb`-`0x5de9f0`); clear, `PLAYER_UNGHOST` (`0x5dea25`-`0x5dea2a`), with no gate
-    /// before it, so the health plays no part. Another player's ghost bit reaches neither.
+    /// (`0x5de9eb`-`0x5de9f0`); clear, the healer's clear (`0x5dea20`) and `PLAYER_UNGHOST`
+    /// (`0x5dea25`-`0x5dea2a`), with no gate before them, so the health plays no part. Another player's ghost bit reaches neither.
     #[test]
     fn the_ghost_bit_runs_the_ghost_state_on_either_edge() {
         let flags = pf(PLAYER_FLAGS.0);
@@ -1948,7 +2121,11 @@ mod tests {
         );
         assert_eq!(
             block(&mut me, Some(ME), ME, &[(flags, 0)]),
-            [changed, FieldNotice::Global { id: 401 }],
+            [
+                changed,
+                FieldNotice::AreaSpiritHealerClear,
+                FieldNotice::Global { id: 401 }
+            ],
             "with no health in the store"
         );
         let mut other = player();
@@ -2063,7 +2240,11 @@ mod tests {
         );
         assert_eq!(
             block(&mut me, Some(ME), ME, &[(flags, 0)]),
-            [changed, FieldNotice::Global { id: 401 }],
+            [
+                changed,
+                FieldNotice::AreaSpiritHealerClear,
+                FieldNotice::Global { id: 401 }
+            ],
             "the ghost bit's clear runs the ghost state too, its event and no tutorial"
         );
         let mut other = player();
@@ -2158,7 +2339,9 @@ mod tests {
     }
 
     /// The level's type watcher signals the book for the active player alone (`0x5edb6f`), then
-    /// runs the trainer's pass (`0x5edb80`), ahead of the bridge's `UNIT_LEVEL` on the same field.
+    /// runs the trainer's pass (`0x5edb80`) and the type-list recount, which signals
+    /// `UPDATE_LFG_TYPES` (`0x5edb8a` → `0x4e8b0e`), ahead of the bridge's `UNIT_LEVEL` on the same
+    /// field.
     #[test]
     fn a_level_change_signals_the_book_for_the_active_player() {
         let mut me = player();
@@ -2169,6 +2352,9 @@ mod tests {
                     id: id::SPELLS_CHANGED
                 },
                 FieldNotice::TrainerPass,
+                FieldNotice::Global {
+                    id: id::UPDATE_LFG_TYPES
+                },
                 bridge(ME, id::UNIT_LEVEL)
             ]
         );

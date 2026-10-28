@@ -21,7 +21,6 @@ const ME: u64 = 0x10;
 /// guid and the self-cast flag the cast targeting reads.
 fn feed_inputs(app: &mut App) {
     app.add_message::<crate::net::FieldChanged>()
-        .add_message::<crate::net::WorldEnterCascadeMessage>()
         .init_resource::<crate::item_lane::ItemLane>()
         .insert_resource(crate::net::SelfGuid(Some(ME)))
         .init_resource::<crate::spell::AutoSelfCast>()
@@ -30,18 +29,15 @@ fn feed_inputs(app: &mut App) {
         .init_resource::<crate::net::Reputations>();
 }
 
-/// The feed's two halves, around the unit snapshots as the plugin orders them.
+/// The feed's two halves, as the plugin orders them.
 fn add_action_feed(app: &mut App) {
     app.init_resource::<ActionEvents>()
-        .init_resource::<EnterUsable>()
         .init_resource::<super::ActionStateMemory>()
         .add_systems(
             Update,
             (
-                feed_action_state.before(crate::ui_unit::UnitSnapshots),
-                fire_action_events
-                    .in_set(crate::ui_action::CooldownEvents)
-                    .after(crate::ui_unit::UnitSnapshots),
+                feed_action_state,
+                fire_action_events.in_set(crate::ui_action::CooldownEvents),
                 // The cooldown lane, after every feed, as the drain fires it.
                 crate::ui_action::fire_cooldown_lane,
             )
@@ -731,7 +727,6 @@ fn a_broken_worn_weapon_draws_no_equipped_border() {
             .insert_resource(slots)
             .insert_resource(crate::ui_macro::MacroBoundSpells::default())
             .insert_resource(Spells::empty_for_tests())
-            .add_message::<crate::net::WorldEnterCascadeMessage>()
             .init_resource::<Cooldowns>()
             .init_resource::<crate::spell::SpellModifiers>()
             .init_resource::<crate::ui_script::UiClock>()
@@ -855,6 +850,8 @@ fn the_bars_ammo_leg_reads_the_subclass_flags() {
                 |_, _, _| {},
             );
         app.update();
+        // The world entry's refresh stores the pair `IsUsableAction` reads (`0x490979`).
+        enter_refresh(&mut app);
         app.world()
             .non_send_resource::<UiScript>()
             .eval::<bool>("return (IsUsableAction(1)) and true or false")
@@ -982,6 +979,8 @@ fn lost_control_greys_the_bar_but_the_immunity_spell() {
     };
 
     app.update();
+    // The world entry's refresh stores the pairs `IsUsableAction` reads (`0x490979`).
+    enter_refresh(&mut app);
     assert_eq!(
         lit(&app),
         [true, true, true],
@@ -1456,6 +1455,8 @@ fn a_refresh_that_changes_a_slot_signals_the_bar_then_the_spells() {
         &["ACTIONBAR_UPDATE_USABLE", "SPELL_UPDATE_USABLE"],
     );
     frame(&mut app);
+    // The world entry's refresh stores the pairs (`0x490979`).
+    enter_refresh(&mut app);
     set_control_in_place(&mut app, true);
     assert_eq!(
         frame(&mut app),
@@ -1476,7 +1477,7 @@ fn usable_reader_app() -> App {
         .init_resource::<crate::ui_chat::ChatLog>()
         .init_resource::<crate::sound::MessageSounds>()
         .init_resource::<crate::ui_guild::GuildState>();
-    crate::ui_unit::add_unit_feed(&mut app);
+    crate::ui_unit::add_token_seats(&mut app);
     app.world()
         .non_send_resource::<UiScript>()
         .run(
@@ -1810,16 +1811,13 @@ fn a_bag_query_on_a_missing_record_flushes_when_the_record_lands() {
     assert!(frame(&mut app).is_empty(), "once");
 }
 
-/// The feed's two halves sit around the unit snapshots, and its signals come ahead of the events
-/// its producers precede. The push half seats the action states before the snapshots, which
-/// `PLAYER_ENTERING_WORLD`'s handlers read. The fire half runs after the snapshots are this
-/// frame's, and signals before `UNIT_HEALTH` and
-/// `UNIT_MANA` (the type watchers ahead of the object's bridge at one field, `0x46544a`),
+/// The feed's push half runs ahead of its fire half, whose signals come ahead of the events its
+/// producers precede: `UNIT_HEALTH` and `UNIT_MANA` (the type watchers ahead of the object's bridge at one field, `0x46544a`),
 /// `PLAYER_REGEN_DISABLED` (`0x5ff51b` ahead of `0x5ff533`), `PLAYER_COMBO_POINTS` (`0x5ddff0`)
 /// and the form's cast change (`0x5de011` ahead of `0x5de016`). Read off the declared graph; skips
 /// where bevy carries no system names.
 #[test]
-fn the_feed_runs_around_the_snapshots_and_before_the_events_its_producers_precede() {
+fn the_feed_pushes_then_signals_ahead_of_the_events_its_producers_precede() {
     use crate::game_plugins::schedule_tests::{census, headless_client, SyncPoints};
     use std::collections::HashSet;
 
@@ -1858,14 +1856,7 @@ fn the_feed_runs_around_the_snapshots_and_before_the_events_its_producers_preced
     };
     let key = |name: &str| named(name).unwrap_or_else(|| panic!("{name} is scheduled"));
     let fire = key("::fire_action_events");
-    assert!(
-        later_than(push).contains(&key("::ui_unit::feed_units")),
-        "the push half runs before the unit snapshots"
-    );
-    assert!(
-        later_than(key("::ui_unit::feed_units")).contains(&fire),
-        "the fire half runs after the unit snapshots"
-    );
+    assert!(later_than(push).contains(&fire), "the push half runs first");
     let seen = later_than(fire);
     for later in ["::lanes::fire_in_order", "::ui_cast::feed_cast_reports"] {
         assert!(
@@ -1941,11 +1932,11 @@ fn placing_or_clearing_a_slot_stores_its_pair_with_no_usable_event() {
 
 /// `0x4e5c00` signals `ACTIONBAR_UPDATE_USABLE` alone for its callers other than `0x4b31c0`: a
 /// reload's world entry against the cache the last VM left (`0x4e4f90`; the cache is zeroed only
-/// by `InitializeGame`, `0x4e4f50`), whose event the enter cascade signals inside itself
+/// by `InitializeGame`, `0x4e4f50`), which the enter cascade refreshes and signals inside itself
 /// (`0x490979`), each `BAG_UPDATE` (`0x4f9374`) and `EditMacro` (`0x4f132e`). A pair that changed
-/// with no refresh signals nothing. Our player's arrival writes every slot before its enter
-/// cascade refreshes (`0x5deafc`, `0x5deb60`), so it signals nothing; a reload writes none
-/// (`0x495664` reaches no `0x5dea50`).
+/// with no refresh signals nothing, a new VM's feed included. Our player's arrival writes every
+/// slot before its enter cascade refreshes (`0x5deafc`, `0x5deb60`), so it signals nothing; a
+/// reload writes none (`0x495664` reaches no `0x5dea50`).
 #[test]
 fn the_cache_refreshes_alone_at_a_reload_a_bag_update_and_a_macro_edit() {
     const FROSTBOLT: u32 = 116;
@@ -1969,13 +1960,13 @@ fn the_cache_refreshes_alone_at_a_reload_a_bag_update_and_a_macro_edit() {
     set_mana_quietly(&mut app, 100);
     assert!(frame(&mut app).is_empty(), "no caller, no event");
     app.insert_non_send_resource(UiScript::new().unwrap());
-    app.world_mut()
-        .write_message(crate::net::WorldEnterCascadeMessage);
     record(&mut app, &USABLE);
-    take_enter_usable(&mut app);
-    assert!(frame(&mut app).is_empty(), "the cascade signals it");
     assert!(
-        take_enter_usable(&mut app),
+        frame(&mut app).is_empty(),
+        "the new VM's feed refreshes nothing"
+    );
+    assert!(
+        enter_refresh(&mut app),
         "a reload's world entry finds the pair the last VM's cache held changed"
     );
 
@@ -2003,21 +1994,28 @@ fn the_cache_refreshes_alone_at_a_reload_a_bag_update_and_a_macro_edit() {
 
     set_mana_quietly(&mut app, 500);
     assert!(frame(&mut app).is_empty());
-    take_enter_usable(&mut app);
     arrive(&mut app, 500);
     assert!(frame(&mut app).is_empty());
     assert!(
-        !take_enter_usable(&mut app),
+        !enter_refresh(&mut app),
         "our player's arrival stores every slot ahead of its refresh"
     );
 }
 
-/// Whether the world entry's refresh owes the cascade its `ACTIONBAR_UPDATE_USABLE`, taken.
-fn take_enter_usable(app: &mut App) -> bool {
-    std::mem::take(&mut app.world_mut().resource_mut::<EnterUsable>().0)
+/// The enter cascade's refresh of the cache (`0x490979` → `0x4e4f90` → `0x4e5c00`): whether it
+/// found a pair changed, which owes its `ACTIONBAR_UPDATE_USABLE`.
+fn enter_refresh(app: &mut App) -> bool {
+    use bevy::ecs::system::RunSystemOnce;
+    app.world_mut()
+        .run_system_once(
+            |mut states: ActionStates, mut script: NonSendMut<UiScript>| {
+                states.enter_world_refresh(&mut script)
+            },
+        )
+        .expect("the refresh runs")
 }
 
-/// Our player created anew with `mana`, and the enter cascade its arrival runs.
+/// Our player created anew with `mana`, whose arrival's slot pass the next feed stores.
 fn arrive(app: &mut App, mana: u32) {
     let old = app.world().resource::<crate::net::GuidIndex>().0[&ME];
     app.world_mut().despawn(old);
@@ -2037,8 +2035,6 @@ fn arrive(app: &mut App, mana: u32) {
         .resource_mut::<crate::net::GuidIndex>()
         .0
         .insert(ME, me);
-    app.world_mut()
-        .write_message(crate::net::WorldEnterCascadeMessage);
 }
 
 /// The arrival's loop (`0x5deae2`-`0x5deb12`) writes each slot but a spell word the player does
@@ -2068,11 +2064,10 @@ fn an_arrival_skips_a_spell_the_player_does_not_know() {
     frame(&mut app);
     set_mana_quietly(&mut app, 100);
     assert!(frame(&mut app).is_empty(), "no caller, no event");
-    take_enter_usable(&mut app);
     arrive(&mut app, 100);
     assert!(frame(&mut app).is_empty(), "the cascade signals it");
     assert!(
-        take_enter_usable(&mut app),
+        enter_refresh(&mut app),
         "the unknown spell's slot kept its pair"
     );
 
@@ -2084,7 +2079,7 @@ fn an_arrival_skips_a_spell_the_player_does_not_know() {
     assert!(frame(&mut app).is_empty());
     arrive(&mut app, 500);
     assert!(frame(&mut app).is_empty());
-    assert!(!take_enter_usable(&mut app), "both known: both stored");
+    assert!(!enter_refresh(&mut app), "both known: both stored");
 }
 
 /// A macro bound to a spell out of the pet's book (`[rec+0x568] != 0`, `0x4e5a50`) is read through

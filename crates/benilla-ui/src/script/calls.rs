@@ -319,9 +319,16 @@ pub enum RecordAsk {
         owner: u64,
         callback: ItemCallback,
     },
-    /// The quest log's leaderboard on a creature objective whose name the mirror lacks: the
-    /// creature cache, with the callback `0x4e07d0`, whose wait the VM keeps (`0x4e044c`).
+    /// The quest log's leaderboard on a creature objective whose name the cache lacks: the
+    /// creature cache, with the callback `0x4e07d0`, which signals `QUEST_LOG_UPDATE` when the
+    /// record lands (`0x4e044c`, `0x4e07ea`); the host keeps the wait.
     QuestCreature(u32),
+    /// The quest log's rebuild on a slot whose quest record the mirror lacks: the quest cache,
+    /// with the callback `0x4de8b0` (`0x4de65f`-`0x4de679`), whose wait the VM keeps.
+    QuestRecord(u32),
+    /// The expiry latch's quest-giver refresh (`0x4df531` → `0x5eb070`): every giver's status
+    /// asked again.
+    QuestGiverStatuses,
     /// The quest log's leaderboard on a GameObject objective with no text whose template the
     /// cache lacks: the object cache by the id less its top bit, with the callback `0x4e0800`,
     /// which signals `QUEST_LOG_UPDATE` when the record lands (`0x4e0387`-`0x4e039c`, `0x4e081a`).
@@ -351,6 +358,14 @@ pub enum RecordAsk {
     /// cache misses: the player-name cache by guid, with the list's callback (`0x4cf290`,
     /// `0x4cf2b0`, `0x4cf2d0`), kept once per name and list (`0x55f080`'s dedupe flag 1).
     AuctionName { guid: u64, list: usize },
+    /// `GetMasterLootCandidate` on a candidate the name cache misses: the player-name cache by
+    /// guid with the callback `0x4c2fb0`, kept once per call (dedupe flag 0, `0x4c2f61`), which
+    /// signals `UPDATE_MASTER_LOOT_LIST` when the name lands found (`0x4c2fb6`-`0x4c2fbf`).
+    MasterLootName(u64),
+    /// `ItemTextGetCreator` on a creator the name cache misses: the player-name cache by guid with
+    /// the callback `0x4e32b0` (`0x4e39b9`), kept once per call (dedupe flag 0), which opens the
+    /// reader again when the name lands found (`0x4e32b6`-`0x4e32d5`).
+    ItemTextCreator(u64),
     /// `GetSendMailItem` on an attachment whose record the mirror lacks, by its object's guid:
     /// for an object the engine holds (`0x468460`, `0x4ae5e1`), the item cache by the object's
     /// entry (`[[obj+0x8]+0xc]`, `0x4ae5e7`-`0x4ae5f2`) with guid 0 (`0x4ae5ec`-`0x4ae5ef`) and the
@@ -358,6 +373,13 @@ pub enum RecordAsk {
     /// `MAIL_SEND_INFO_UPDATE` for a found record (`0x4ae716`-`0x4ae71f`). A gone object asks
     /// nothing.
     SendMailItem(u64),
+    /// `CalculateAuctionDeposit` and `GetAuctionSellItemInfo` on a sell slot item whose record the
+    /// mirror lacks, by its object's guid: for an object the engine holds (`0x468460`, `0x4ce24e`,
+    /// `0x4ce5cf`), the item cache by the object's entry (`[[obj+0x8]+0xc]`) with the object's own
+    /// guid (`0x4ce263`, `0x4ce5e8`) and the callback `0x4ce2f0` (`0x4ce25e`, `0x4ce5e3`), kept once
+    /// per call, which signals `NEW_AUCTION_UPDATE` for a found record (`0x4ce2fa`-`0x4ce2ff`). A
+    /// gone object asks nothing.
+    AuctionSellItem(u64),
     /// A mail getter's lookups on the row of `mail_id` that the mirror lacks a record for, each
     /// with the callback that signals `MAIL_INBOX_UPDATE` for a found record, kept once per call
     /// (dedupe flag 0): the session holds the keys ([`super::MailLookup`]).

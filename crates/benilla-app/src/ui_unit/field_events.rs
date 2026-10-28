@@ -14,8 +14,8 @@ use benilla_ui::strings::Arg;
 use crate::field_watch::{FieldNotice, NoticeLane};
 use crate::lanes::Until;
 
-/// The feeds that push what a field event's handlers read: the unit tokens' snapshots with the XP
-/// and rest values (`feed_units`), the group's and the pet's tokens, the player's combat stats and
+/// The feeds that push what a field event's handlers read: the group's and the pet's tokens, the
+/// player's combat stats and
 /// inventory, the inspected unit's slots, the honor block and the watched faction. The lanes'
 /// drain runs after all of them, as the update handler writes every block of its packet before its
 /// notify pass (`0x46520e`, `0x465222`, then `0x46522d`).
@@ -138,11 +138,36 @@ impl NoticeFiring<'_, '_> {
             return false;
         }
         fire(script, &mut self.sink, notice);
+        if let FieldNotice::Unit {
+            guid,
+            id: crate::field_watch::id::UNIT_HEALTH,
+        } = notice
+        {
+            self.tooltip_health(script, guid);
+        }
         false
     }
 }
 
 impl NoticeFiring<'_, '_> {
+    /// The unit tooltip's own watcher on the health of the unit it shows (`0x529560`, which the
+    /// render registers on the object, `0x52a0a8`), after the bridge's: `guid`'s health as its
+    /// packet left it.
+    fn tooltip_health(&self, script: &mut UiScript, guid: u64) {
+        let store = self
+            .index
+            .as_ref()
+            .and_then(|i| i.0.get(&guid))
+            .and_then(|&e| self.views.get(e).ok());
+        if let Some(store) = store {
+            script.tooltip_unit_health(
+                guid,
+                store.0.unit_health().unwrap_or(0),
+                store.0.unit_max_health().unwrap_or(0),
+            );
+        }
+    }
+
     /// `SetPetGuid`'s signals in its order (`0x4bc847`-`0x4bc911`): on a change, `UNIT_PET`, then,
     /// with a pet trainer open and our player held, `TalkToTrainer` on it (`0x4bc8b2`), then, when
     /// the new guid resolves as a unit (`0x4bc8e4`) that `IsPlayerOrHunterPet` passes (`0x4bc8ef`),
@@ -541,6 +566,25 @@ pub(crate) fn fire(
         | FieldNotice::PetGuidSet { .. } => {}
         // Put on the trainer lane by the packet's handler ([`crate::ui_trainer::TrainerPasses`]).
         FieldNotice::TrainerPass => {}
+        // Run at its place by the packet's handler ([`crate::net::objects`]), its signal written
+        // there.
+        FieldNotice::AreaSpiritHealerClear | FieldNotice::QuestAccepted { .. } => {}
+        // `%d%d` (`0x4018d5`): the two counts as numbers, which `ChatFrame_DisplayTimePlayed`
+        // prints (`ChatFrame.lua:1279`).
+        FieldNotice::PlayedTime { total, level } => script.fire_event(
+            "TIME_PLAYED_MSG",
+            vec![
+                ScriptValue::Int(i64::from(total)),
+                ScriptValue::Int(i64::from(level)),
+            ],
+        ),
+        // `%d` (`0x48f408`): the stock `UIParent.lua` hides the resurrect offers and prints
+        // `DEATH_CORPSE_SKINNED`.
+        FieldNotice::Skinned { free_repop } => script.fire_event(
+            "PLAYER_SKINNED",
+            vec![ScriptValue::Int(i64::from(free_repop))],
+        ),
+        FieldNotice::MinimapPing(ping) => ping.fire(script),
         FieldNotice::PvpPreference { on } => {
             let (toast, verbose) = super::pvp_announcement(on);
             // The verbose sentence is no catalog row, so it goes `unkeyed` to chat:
@@ -703,6 +747,7 @@ fn global_event(id: u16) -> Option<&'static str> {
         id::PLAYER_FARSIGHT_FOCUS_CHANGED => "PLAYER_FARSIGHT_FOCUS_CHANGED",
         id::LANGUAGE_LIST_CHANGED => "LANGUAGE_LIST_CHANGED",
         id::LOCALPLAYER_PET_RENAMED => "LOCALPLAYER_PET_RENAMED",
+        id::UPDATE_LFG_TYPES => "UPDATE_LFG_TYPES",
         _ => return None,
     })
 }
@@ -1308,7 +1353,7 @@ mod tests {
         assert!(heard(&mut app, FieldNotice::Player { id: 406 }).is_empty());
     }
 
-    /// A self player seated in a world that runs `feed_units`, its VM
+    /// A self player seated in a world that seats the four tokens' copies, its VM
     /// recording what `lua` registers.
     fn feed_world(pairs: &[(u16, u32)], lua: &str) -> (App, Entity) {
         use crate::net::{Guid, NetCommands, ObjectStore, SelfPlayer};
@@ -1316,7 +1361,6 @@ mod tests {
         app.add_message::<crate::net::FieldChanged>()
             .init_resource::<crate::field_watch::NoticeLane>()
             .init_resource::<crate::target::Selection>()
-            .init_resource::<super::super::UnitFeedState>()
             .init_resource::<crate::names::NameCache>()
             .init_resource::<crate::net::Reputations>()
             .init_resource::<crate::ui_party::GroupState>()
@@ -1354,18 +1398,29 @@ mod tests {
         out
     }
 
-    /// A values block with new XP: `PLAYER_XP_UPDATE`'s handler reads the new `UnitXP`, because
-    /// the schedule runs every push the field events' handlers read ahead of the firing.
+    /// A frame's feeds, then our create's arrival item fired (`0x5dec7b` → `0x5dea50`).
+    fn arrive(app: &mut App) {
+        app.update();
+        crate::ui_world_enter::push_arrival(app.world_mut());
+        crate::ui_world_enter::fire_lane(app.world_mut());
+    }
+
+    /// A frame's feeds, then a `/reload`'s cascade fired (`0x490168`).
+    fn reenter(app: &mut App) {
+        app.update();
+        app.world_mut()
+            .get_resource_or_init::<crate::ui_world_enter::ArrivalLane>()
+            .push(crate::ui_world_enter::Entry::Reload);
+        crate::ui_world_enter::fire_lane(app.world_mut());
+    }
+
+    /// Every feed whose push a field event's handlers read runs ahead of the drain that fires it,
+    /// as the update handler writes every block of its packet before its notify pass (`0x46520e`,
+    /// `0x465222`, then `0x46522d`).
     #[test]
-    fn the_xp_handler_reads_the_xp_its_block_wrote() {
-        const XP: u16 = 716;
+    fn the_field_event_pushes_run_ahead_of_the_drain() {
         let mut headless = crate::game_plugins::schedule_tests::headless_client();
         let ahead = [
-            crate::test_support::runs_before(
-                &mut headless,
-                super::super::feed_units,
-                crate::lanes::fire_in_order,
-            ),
             crate::test_support::runs_before(
                 &mut headless,
                 crate::ui_char::feed_char,
@@ -1382,54 +1437,7 @@ mod tests {
                 crate::lanes::fire_in_order,
             ),
         ];
-        assert_eq!(ahead, [true; 4], "feed_units, char, party, pet");
-
-        // In that order: the block lands, the push, the firing.
-        let (mut app, me) = feed_world(
-            &[(XP, 10), (XP + 1, 100)],
-            r#"SEEN = {}
-               local f = CreateFrame("Frame")
-               f:RegisterEvent("PLAYER_XP_UPDATE")
-               f:SetScript("OnEvent", function()
-                   table.insert(SEEN, event .. " " .. UnitXP("player"))
-               end)"#,
-        );
-        app.world_mut()
-            .run_system_once(super::super::feed_units)
-            .unwrap();
-        let mut edges = Vec::new();
-        let fields = {
-            let mut store = app
-                .world_mut()
-                .get_mut::<crate::net::ObjectStore>(me)
-                .unwrap();
-            store.0.merge_diff(
-                benilla_protocol::ObjectFields::from_pairs(&[(XP, 30)]),
-                |i, o, n| edges.push((i, o, n)),
-            );
-            store.0.clone()
-        };
-        let notices = crate::field_watch::values(
-            &crate::field_watch::Around {
-                me: Some(ME),
-                target: None,
-                creature_lookup: &|_| false,
-                others: &Vec::new,
-                pet_bar: 0,
-            },
-            ME,
-            benilla_protocol::messages::ObjectType::Player,
-            &fields,
-            &crate::field_watch::Notified::new(crate::field_watch::Sent::Fields(&[XP]), &edges),
-        );
-        app.world_mut()
-            .resource_mut::<crate::field_watch::NoticeLane>()
-            .write_batch(notices);
-        app.world_mut()
-            .run_system_once(super::super::feed_units)
-            .unwrap();
-        app.world_mut().run_system_once(fire_field_notices).unwrap();
-        assert_eq!(seen(&mut app), ["PLAYER_XP_UPDATE 30"]);
+        assert_eq!(ahead, [true; 3], "char, party, pet");
     }
 
     /// The active player's arrival runs its ghost state (`0x5dea50` → `0x5deb2a` → `0x5de9c0`)
@@ -1450,8 +1458,8 @@ mod tests {
             (0x10, &["PLAYER_ENTERING_WORLD"][..]),
         ] {
             let (mut app, _) = feed_world(&[(PLAYER_FLAGS, flags)], spy);
-            app.add_systems(Update, super::super::feed_units);
-            app.update();
+            app.add_systems(Update, super::super::seat_tokens);
+            arrive(&mut app);
             assert_eq!(seen(&mut app), heard, "flags {flags:#x}: the arrival");
             let mut reloaded = UiScript::new().unwrap();
             reloaded.run(spy).unwrap();
@@ -1460,7 +1468,7 @@ mod tests {
                 ..Default::default()
             });
             app.insert_non_send_resource(reloaded);
-            app.update();
+            reenter(&mut app);
             assert_eq!(
                 seen(&mut app),
                 ["PLAYER_ENTERING_WORLD"],
@@ -1500,8 +1508,8 @@ mod tests {
                 forms: spells.forms.clone(),
                 ..crate::ui_action::Spells::empty_for_tests()
             });
-            app.add_systems(Update, super::super::feed_units);
-            app.update();
+            app.add_systems(Update, super::super::seat_tokens);
+            arrive(&mut app);
             let heard = [
                 "PLAYER_ENTERING_WORLD".to_string(),
                 format!("UPDATE_BONUS_ACTIONBAR {offset}"),
@@ -1510,7 +1518,7 @@ mod tests {
             let reloaded = UiScript::new().unwrap();
             reloaded.run(spy).unwrap();
             app.insert_non_send_resource(reloaded);
-            app.update();
+            reenter(&mut app);
             assert_eq!(seen(&mut app), heard, "form {form}: the reload");
         }
     }
@@ -1572,9 +1580,8 @@ mod tests {
                     crate::ui_script::test_ui::load_ui(s, file);
                 }
             }
-            app.world_mut()
-                .run_system_once(super::super::feed_units)
-                .unwrap();
+            app.add_systems(Update, super::super::seat_tokens);
+            arrive(&mut app);
             let s = app.world().non_send_resource::<UiScript>();
             let shown = |frame: &str| {
                 s.eval::<bool>(&format!("return {frame}:IsShown() ~= nil"))
@@ -1630,8 +1637,8 @@ mod tests {
                     .resource_mut::<crate::ui_pet::PetAttackLatch>()
                     .0 = Some(PET);
             }
-            app.add_systems(Update, super::super::feed_units);
-            app.update();
+            app.add_systems(Update, super::super::seat_tokens);
+            arrive(&mut app);
             let mut heard = vec!["UPDATE_BONUS_ACTIONBAR nil nil"];
             if summoned {
                 heard.push("UNIT_PET player nil");
@@ -1676,22 +1683,30 @@ mod tests {
             f:SetScript("OnEvent", function()
                 table.insert(SEEN, event .. " " .. tostring(arg1) .. " nil")
             end)"#;
-        for changed in [true, false] {
-            let (mut app, _) = feed_world(&[], spy);
-            app.insert_resource(crate::ui_action::EnterUsable(changed));
-            app.add_systems(Update, super::super::feed_units);
-            app.update();
-            let mut heard = vec!["PLAYER_ENTERING_WORLD nil nil"];
-            if changed {
-                heard.push("ACTIONBAR_UPDATE_USABLE nil nil");
-            }
-            heard.extend(["UPDATE_BONUS_ACTIONBAR nil nil", "PET_BAR_UPDATE nil nil"]);
-            assert_eq!(seen(&mut app), heard, "changed {changed}");
-            assert!(
-                !app.world().resource::<crate::ui_action::EnterUsable>().0,
-                "the cascade takes it"
-            );
-        }
+        let (mut app, _) = feed_world(&[], spy);
+        app.add_systems(Update, super::super::seat_tokens);
+        arrive(&mut app);
+        assert_eq!(
+            seen(&mut app),
+            [
+                "PLAYER_ENTERING_WORLD nil nil",
+                "UPDATE_BONUS_ACTIONBAR nil nil",
+                "PET_BAR_UPDATE nil nil"
+            ],
+            "no pair changed"
+        );
+        let mut script = UiScript::new().unwrap();
+        script.run(spy).unwrap();
+        script.fire_world_enter_action_bar(0, true);
+        script.resolve();
+        assert_eq!(
+            script.eval::<Vec<String>>("return SEEN").unwrap(),
+            [
+                "ACTIONBAR_UPDATE_USABLE nil nil",
+                "UPDATE_BONUS_ACTIONBAR nil nil"
+            ],
+            "a changed pair signals ahead of the bonus bar"
+        );
     }
 
     /// The cascade's buff cache set-up (`0x490983` → `0x4e4100`): its rebuild's
@@ -1713,8 +1728,8 @@ mod tests {
             end)"#;
         let (mut app, _) = feed_world(&[(AURA, 1126), (AURAFLAGS, 0x9)], spy);
         app.init_resource::<crate::ui_aura::PlayerAuraCache>();
-        app.add_systems(Update, super::super::feed_units);
-        app.update();
+        app.add_systems(Update, super::super::seat_tokens);
+        arrive(&mut app);
         assert_eq!(
             seen(&mut app),
             [
@@ -1768,8 +1783,8 @@ mod tests {
             .resource_mut::<crate::ui_pet::PetBar>()
             .spells
             .pet_guid = PET;
-        app.add_systems(Update, super::super::feed_units);
-        app.update();
+        app.add_systems(Update, super::super::seat_tokens);
+        reenter(&mut app);
         assert_eq!(seen(&mut app), ["UNIT_PET nil nil"], "the reload's entry");
         // `SMSG_PET_SPELLS` brings the same pet back.
         app.world_mut()

@@ -209,8 +209,8 @@ impl QuestCells {
 }
 
 /// The quest-giver refreshes the quest log's expiry latch owes (`0x4df531`), counted apart from
-/// the window so the log's feed writes nothing the questgiver getters read; the markers fold it
-/// into their re-ask epoch.
+/// the window, inside the call or the handler that latched; the markers fold it into their re-ask
+/// epoch.
 #[derive(Resource, Default)]
 pub(crate) struct LatchRefreshes(pub(crate) u32);
 
@@ -410,7 +410,7 @@ pub(crate) fn questgiver_failed_key(reason: u32) -> &'static str {
 }
 
 mod lane;
-mod lines;
+pub(crate) mod lines;
 mod live;
 mod net;
 #[cfg(test)]
@@ -438,10 +438,10 @@ impl Plugin for UiQuestPlugin {
     }
 }
 
-/// The world-enter cascade's reset `0x500af0` (`0x49099c`), which a `/reload` runs; a login's and
-/// a worldport's run it from their packets.
-pub(crate) fn world_enter_cascade(world: &mut World) {
-    if let Some(mut giver) = world.get_resource_mut::<QuestGiver>() {
+/// The world-enter cascade's reset `0x500af0` (`0x49099c`) in its place
+/// ([`crate::ui_world_enter`]), which a login, a worldport and a `/reload` all run.
+pub(crate) fn world_enter_cascade(giver: Option<ResMut<QuestGiver>>) {
+    if let Some(mut giver) = giver {
         net::world_enter_reset(&mut giver);
     }
 }

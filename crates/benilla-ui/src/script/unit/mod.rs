@@ -377,8 +377,9 @@ impl super::UiScript {
             .unwrap_or_else(|| "Unknown Being".to_string())
     }
 
-    /// Push, or clear with `None`, a token's snapshot; the app's feed calls it each frame before
-    /// event dispatch, so a frame's `OnEvent` sees current values.
+    /// Push, or clear with `None`, the VM's copy of a token's unit, which the getters read with no
+    /// host free to ask ([`UnitStateQuery`]); a `/reload`'s seat and the mouseover's hover push
+    /// it, and the group's and the pet's feeds.
     pub fn set_unit(&mut self, token: &str, state: Option<UnitState>) {
         {
             let mut model = self.model_mut();
@@ -449,17 +450,18 @@ impl super::UiScript {
         self.model_mut().money = copper;
     }
 
-    /// Push `PLAYER_XP` and `PLAYER_NEXT_LEVEL_XP`, private fields that `UnitXP` and `UnitXPMax`
-    /// answer for `"player"` alone.
+    /// Set the VM's copy of `PLAYER_XP` and `PLAYER_NEXT_LEVEL_XP`, private fields that `UnitXP`
+    /// and `UnitXPMax` answer for `"player"` alone, which they read with no host lent
+    /// ([`super::SelfRead`]).
     pub fn set_player_xp(&mut self, xp: u32, next_level_xp: u32) {
         let mut model = self.model_mut();
         model.player_xp = xp;
         model.player_next_level_xp = next_level_xp;
     }
 
-    /// Push the rest state (`PLAYER_BYTES_2` byte 3), the rested pool
-    /// (`PLAYER_REST_STATE_EXPERIENCE`, raw) and `PLAYER_FLAGS_RESTING` together, so
-    /// `GetRestState`, `GetXPExhaustion` and `IsResting` never read a half update.
+    /// Set the VM's copy of the rest state (`PLAYER_BYTES_2` byte 3), the rested pool
+    /// (`PLAYER_REST_STATE_EXPERIENCE`, raw) and `PLAYER_FLAGS_RESTING`, which `GetRestState`,
+    /// `GetXPExhaustion` and `IsResting` read with no host lent ([`super::SelfRead`]).
     pub fn set_rest_state(&mut self, state: u8, pool: u32, resting: bool) {
         let mut model = self.model_mut();
         model.rest_state = state;
@@ -467,8 +469,8 @@ impl super::UiScript {
         model.resting = resting;
     }
 
-    /// Push `PLAYER_FLAGS` bits 12 (`PartialPlayTime`) and 13 (`NoPlayTime`) together, as
-    /// `PlayerFrame.lua:244` tests them in one if/elseif.
+    /// Set the VM's copy of `PLAYER_FLAGS` bits 12 (`PartialPlayTime`) and 13 (`NoPlayTime`),
+    /// which those getters read with no host lent ([`super::SelfRead`]).
     pub fn set_play_time(&mut self, partial: bool, none: bool) {
         let mut model = self.model_mut();
         model.partial_play_time = partial;
@@ -515,9 +517,9 @@ impl super::UiScript {
         self.model_ref().exhaustion.get(&state).cloned()
     }
 
-    /// Push the combo points (`PLAYER_FIELD_BYTES` byte 1) and their target
-    /// (`PLAYER_FIELD_COMBO_TARGET`) together, as `Player::SetComboPoints` writes them. Raw:
-    /// `GetComboPoints`' class and target gates are the binding's.
+    /// Set the VM's copy of the combo points (`PLAYER_FIELD_BYTES` byte 1) and their target
+    /// (`PLAYER_FIELD_COMBO_TARGET`), which `GetComboPoints` reads with no host lent
+    /// ([`super::SelfRead`]). Raw: its class and target gates are the binding's.
     pub fn set_combo_points(&mut self, points: u8, target: u64) {
         let mut model = self.model_mut();
         model.combo_points = points;
@@ -589,8 +591,8 @@ pub(crate) fn check_unit_token(token: &Option<String>) -> mlua::Result<()> {
 
 /// The state of the unit `token` names, as a getter reads it at the call: the guid the resolver
 /// names now ([`resolve::live_parsed`]: `0x515970` reads the objects inside the call), then that
-/// unit as the lent host reads it now ([`UnitStateQuery`]); a group token's, the pet's or the
-/// mouseover's own push while it names the same unit; `None` for nobody. A host that declines, or
+/// unit as the lent host reads it now ([`UnitStateQuery`]); a group token's or the pet's own push
+/// while it names the same unit; `None` for nobody. A host that declines, or
 /// none free to ask (a glue VM, or a call's apply under way), or a token that reads no object,
 /// reads the snapshots: the token's push while it names the same unit, else what the getters read
 /// for the guid ([`Model::unit_of_guid`]), else [`Model::snapshot_unit`].
@@ -617,10 +619,14 @@ fn view_as<'m>(lua: &Lua, model: &'m Model, token: &str, thin: bool) -> Option<C
     let Some(live) = resolve::live_parsed(lua, &model.unit_guids, base, hops) else {
         return snapshot.map(Cow::Borrowed);
     };
-    // `"player"`, `"target"`, `"npc"` and every chain read the unit live; the other tokens' pushes
-    // are their own families' feeds', which carry what the group rows and the pet bar add.
-    let reads_live =
-        hops > 0 || matches!(base, UnitBase::Player | UnitBase::Target | UnitBase::Npc);
+    // `"player"`, `"target"`, `"npc"`, `"mouseover"` and every chain read the unit live, as the
+    // getters read the object the resolver names (`0x515970`, then `0x468460`); the other tokens'
+    // pushes are their own families' feeds', which carry what the group rows and the pet bar add.
+    let reads_live = hops > 0
+        || matches!(
+            base,
+            UnitBase::Player | UnitBase::Target | UnitBase::Npc | UnitBase::Mouseover
+        );
     match (snapshot, live) {
         (Some(pushed), guid)
             if pushed.guid == guid.unwrap_or(0) && (guid.is_none() || !reads_live) =>

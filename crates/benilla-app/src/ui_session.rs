@@ -23,8 +23,8 @@ mod release;
 mod release_tests;
 
 pub(crate) use latch::{
-    dispatch, fire, latch_reads, queue, register, release, release_cell, release_latch,
-    with_script, InteractLatch, LatchApp, LatchSteps, LatchVocal, LatchedWindow, NpcWindow,
+    dispatch, fire, queue, register, release, release_cell, release_latch, with_script,
+    InteractLatch, LatchApp, LatchSteps, LatchVocal, LatchedWindow, NpcWindow,
 };
 pub(crate) use release::{form_bars_interaction, on_field_edge};
 
@@ -141,7 +141,7 @@ pub(crate) fn feed_interact_npc(
     let guid = latch.and_then(|l| l.guid());
     // Field 0 is the entity the booth bakes and the facing chain steers by; field 1 is the guid
     // `crate::ui_unit` names the token by, which holds even when the entity is not streamed.
-    // Written only on a change: the unit feed's dirty gate reads `is_changed()` on it.
+    // Written only on a change: a reader's dirty gate reads `is_changed()` on it.
     let next = InteractNpc(
         guid.and_then(|g| index.and_then(|i| i.0.get(&g).copied())),
         guid,

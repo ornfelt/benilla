@@ -30,9 +30,9 @@ mod engine;
 pub(crate) mod live;
 mod windows;
 mod world_click;
-pub(crate) use world_click::submit_waiting_clicks;
 #[cfg(test)]
 pub(crate) use world_click::{error_lines, record_error_lines, release_click, take_error_lines};
+pub(crate) use world_click::{submit_waiting_clicks, InputHost};
 
 /// `DoEmote` (`0x5ef560`) in the reference's order: a posture emote's stand change to a state but 0
 /// runs its local apply's leave (`0x5f0790`), the loot close (`0x48f200` at `0x5f07d5`) then the
@@ -131,7 +131,7 @@ disjoint::disjoint_set! {
         worn: crate::ui_unit::WornDisplaySteps<'static, 'static>,
         gm_ticket: crate::ui_gm_ticket::GmTicketSteps<'static>,
         inspect: crate::ui_inspect::InspectSteps<'static, 'static>,
-        item_text: crate::ui_item_text::ItemTextSteps<'static>,
+        item_text: crate::ui_item_text::ItemTextSteps<'static, 'static>,
         aura: crate::ui_aura::AuraSteps<'static, 'static>,
         minimap: crate::minimap::MinimapSteps<'static>,
         pet_unlearn: crate::ui_dialog_verbs::PetUnlearnSteps<'static, 'static>,
@@ -276,6 +276,16 @@ impl ScriptCallHost<'_, '_> {
         if let Some(signals) = signals {
             script.hosted(self, |script| signals.fire(script));
         }
+    }
+
+    /// The world-enter cascade's usable cache refresh (`0x490979` → `0x4e4f90` → `0x4e5c00`),
+    /// in its place ([`crate::ui_action::ActionStates::enter_world_refresh`]): whether a pair
+    /// changed. A harness without the action feed's inputs refreshes nothing.
+    pub(crate) fn engine_enter_world_refresh(&mut self, script: &mut UiScript) -> bool {
+        self.appliers
+            .action_states()
+            .as_mut()
+            .is_some_and(|states| states.enter_world_refresh(script))
     }
 
     /// A recount's slot write outside any call (`0x4e58e0`): the slot's usable pair stored and
@@ -709,10 +719,10 @@ impl CallHost for ScriptCallHost<'_, '_> {
                     }
                     // `SetCursorItem`'s signals (`0x494bb6`, `0x494c54`) run their listeners
                     // before `AutoEquipCursorItem` goes on (`0x5e18d5`), and its send.
-                    crate::ui_action::UseOutcome::Equip => {
+                    crate::ui_action::UseOutcome::Equip { picked } => {
                         self.at_point(script, &mut at.mark);
                         self.listened(&mut at);
-                        crate::ui_action::finish_equip(&mut self.appliers.action(), script);
+                        crate::ui_action::finish_equip(&mut self.appliers.action(), script, picked);
                     }
                     crate::ui_action::UseOutcome::Done => {}
                 }
@@ -879,7 +889,7 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::Unserved(send) => appliers.gm_ticket().unserved(send),
             ScriptCall::Inspect(call) => tail = appliers.inspect().apply(script, call),
             ScriptCall::ItemText(ItemTextCall::Turn(delta)) => {
-                appliers.item_text().turn(script, delta);
+                self.turn_item_text(script, &mut at.mark, delta);
             }
             ScriptCall::ItemText(ItemTextCall::Close) => self.close_item_text(script, &mut at.mark),
             ScriptCall::Aura(AuraCall::Cancel(spell_id)) => {
@@ -899,7 +909,13 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::RecordAsk(benilla_ui::script::RecordAsk::AuctionName { guid, list }) => {
                 appliers.auction().wait_for_name(guid, list);
             }
-            ScriptCall::RecordAsk(ask) => appliers.asks().apply(script, ask),
+            ScriptCall::RecordAsk(benilla_ui::script::RecordAsk::MasterLootName(guid)) => {
+                appliers.loot().wait_for_name(guid);
+            }
+            ScriptCall::RecordAsk(benilla_ui::script::RecordAsk::ItemTextCreator(guid)) => {
+                appliers.item_text().wait_for_creator(guid);
+            }
+            ScriptCall::RecordAsk(ask) => appliers.asks().apply(ask),
             ScriptCall::WorldClick(step) => self.world_click(script, &mut at, step),
         }
         self.settle_selection(script, &mut at, owed);
@@ -1138,6 +1154,16 @@ impl<P: SystemParam + 'static> VmWith<'_, '_, P> {
             if let Some(host) = self.set.p1().as_mut() {
                 host.engine_usable_refresh(script);
             }
+        }
+    }
+
+    /// The world-enter cascade's cache refresh with the host
+    /// ([`ScriptCallHost::engine_enter_world_refresh`]): whether a pair changed; with no VM or no
+    /// host, none did.
+    pub(crate) fn engine_enter_world_refresh(&mut self) -> bool {
+        match (self.script.as_deref_mut(), self.set.p1().as_mut()) {
+            (Some(script), Some(host)) => host.engine_enter_world_refresh(script),
+            _ => false,
         }
     }
 
@@ -1441,9 +1467,6 @@ mod tests {
         world.insert_non_send_resource(script);
         let mut f = Frame { app, rx };
         if selected {
-            // The world entry first, as a session has it (`0x490927` clears a target there): the
-            // target comes after.
-            settle(&mut f);
             f.rx.try_iter().for_each(drop);
             *f.app.world_mut().resource_mut::<Selection>() = Selection {
                 target: Some(old),
@@ -2770,24 +2793,12 @@ mod tests {
             }],
         });
         f.app.world_mut().insert_non_send_resource(script);
-        // This VM's world entry first, as a session has it (`0x490927` clears a target there):
-        // the selection comes after.
-        let selected = std::mem::take(&mut *f.app.world_mut().resource_mut::<Selection>());
-        settle(f);
-        *f.app.world_mut().resource_mut::<Selection>() = selected;
-    }
-
-    /// The unit feed, which signals the selection's change; the calls its handlers make apply
-    /// inside them.
-    fn settle(f: &mut Frame) {
-        crate::ui_unit::run_feed_units_once(f.app.world_mut());
     }
 
     /// `SetSelection` signals `PLAYER_TARGET_CHANGED` inside `ExecuteBinding` (`0x4b7b02`-
     /// `0x4b7b11`), so an insecure addon's handler that casts passes after a TAB press: the call
     /// signals it in place, under the key's input events, as the stock `TARGETNEARESTENEMY`
-    /// binding moves the target, and the addon's handler casts at the new one. A change no call
-    /// made (the server's) hears it from the unit feed with none up, and its cast is refused.
+    /// binding moves the target, and the addon's handler casts at the new one.
     #[test]
     fn a_tab_targets_and_the_addons_target_handler_casts() {
         benilla_formats::wow_data_or_skip!();
@@ -2795,8 +2806,6 @@ mod tests {
         with_factions(&mut f, FRIEND, &[]);
         spawn_mob(&mut f, &[(TEMPLATE, FOE)]);
         with_stock_ui_and_a_casting_hook(&mut f);
-        // The feed's first pass seats the selection it finds, with its world-enter events.
-        settle(&mut f);
         f.rx.try_iter().for_each(drop);
 
         let pressed = with_hosted_vm(f.app.world_mut(), |s| {
@@ -2804,21 +2813,11 @@ mod tests {
         })
         .expect("the binding runs");
         assert!(pressed);
-        settle(&mut f);
         assert_eq!(selected(&f), Some(MOB), "TAB picked the enemy");
         assert_eq!(
             casts(&f),
             vec![(HEAL, Some(MOB))],
             "the handler's cast passed"
-        );
-
-        // The same edge with no call behind it: the server moves the target.
-        f.app.world_mut().resource_mut::<Selection>().guid = Some(NEW);
-        settle(&mut f);
-        assert_eq!(
-            casts(&f),
-            vec![],
-            "no input event up for the handler: refused"
         );
     }
 
@@ -3764,7 +3763,6 @@ mod tests {
         with_factions(&mut f, FRIEND, &[]);
         spawn_mob(&mut f, &[(TEMPLATE, FOE)]);
         with_stock_ui(&mut f, false);
-        settle(&mut f);
         with_the_cursor_up(&mut f);
         f.rx.try_iter().for_each(drop);
 
@@ -3774,7 +3772,6 @@ mod tests {
             })
             .expect("the binding runs");
             assert!(pressed);
-            settle(f);
             f.rx.try_iter().collect::<Vec<_>>()
         };
         let sent = tab(&mut f);
@@ -3954,10 +3951,12 @@ mod tests {
             catalog: benilla_formats::SpellCatalog::from_displays([(spell_id, display)].into()),
             ..crate::ui_action::Spells::empty_for_tests()
         });
-        world
-            .resource_mut::<crate::ui_action::PlayerActions>()
-            .spells
-            .insert(spell_id);
+        world.resource_scope(|world, mut actions: Mut<crate::ui_action::PlayerActions>| {
+            actions.spells.insert(spell_id);
+            // The learn's form leg (`0x4b25b0`): a stance-bar spell joins the stored list.
+            let catalog = &world.resource::<crate::ui_action::Spells>().catalog;
+            crate::ui_shapeshift::form_learned(&mut actions.forms, spell_id, None, catalog);
+        });
     }
 
     /// `party1` (`NEW`) a friendly player-controlled player, alive or dead.
@@ -4165,7 +4164,7 @@ mod tests {
         let feed = |f: &mut Frame| {
             let world = f.app.world_mut();
             world
-                .run_system_once(crate::spell::targeting::feed_targeting_to_vm)
+                .run_system_once(crate::spell::targeting::feed_targeting_to_input)
                 .unwrap();
             world
                 .run_system_once(crate::ui_cast::signal_reports)
