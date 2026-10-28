@@ -8,7 +8,7 @@ commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `ups
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
 gfx-dll-backend merged through: `2dc7d8a9` /wave <name> targets the named player; two DoEmote gates follow 1.12.1 (#769) - 509 remaining
 trimmed-bevy merged through: `2dc7d8a9` /wave <name> targets the named player; two DoEmote gates follow 1.12.1 (#769) - 509 remaining
-`main` when last fetched: `16aa08ff` Merge branch 'samwhosung:main' into main (2026-10-28)
+`main` when last fetched: `e160110e` Merge branch 'samwhosung:main' into main (2026-10-28)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
@@ -127,7 +127,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 97 | `4f36c843` | 2026-10-02 | upstream | Emote voices play only for you and your party, as in 1.12.1 (#766) | as-is 85970710 | as-is 635995f6 | as-is | no gfx side (emote voice gate for self and party in sound::emote and kit, a creatures.rs field; CPU-side); feature-off diff unchanged by the merge; check with and without gfx and trimmed-bevy check clean; benilla-app sound, creature_anim, spell and entities tests (701) and benilla-formats creatures tests green on both; frame test unchanged; Windows only |
 | 98 | `fbea2d9f` | 2026-10-02 | upstream | Emote routing follows 1.12.1's upper-body and mount tables (#767) | as-is d9490c99 | as-is f2ef34e3 | as-is | no gfx side (emote routing through the upper-body and mount tables in creature_anim driver and select; CPU-side, the chosen sequence plays through the existing skinning path); feature-off diff unchanged by the merge; check with and without gfx and trimmed-bevy check clean; benilla-app creature_anim tests (195) green on both; frame test unchanged; Windows only |
 | 99 | `2dc7d8a9` | 2026-10-02 | upstream | /wave <name> targets the named player; two DoEmote gates follow 1.12.1 (#769) | as-is f564416e | as-is a59ce0b6 | as-is | no gfx side (/wave <name> targets by name in ui_chat input and target::by_name, DoEmote gates in benilla-ui chat_misc, an emotes.rs field; CPU-side); feature-off diff unchanged by the merge; check with and without gfx and trimmed-bevy check clean; benilla-app target and ui_chat tests (410), benilla-ui chat_misc and benilla-formats emotes tests green on both; frame test unchanged; Windows only |
-| 100 | `56d8011a` | 2026-10-02 | upstream | NPCs pause their work loop while you talk to them, as in 1.12.1 (#772) | pending | pending | - |  |
+| 100 | `56d8011a` | 2026-10-02 | upstream | NPCs pause their work loop while you talk to them, as in 1.12.1 (#772) | as-is | as-is 7854e614 | as-is | no gfx side (creature_anim's base pick passes over an `EmoteFlags` 0x2000 state for the interact NPC, re-picks on the session's open and close, a set state outranks the idle fallbacks; `EMOTE_FLAG_INTERACTION` and `state_anim` in benilla-formats emotes; CPU-side, the chosen sequence plays through the existing skinning path); feature-off diff unchanged by the merge; check with and without gfx and trimmed-bevy check clean; tests not run: the dev-fast test build (benilla-app and benilla-formats lib) was stopped by Claude Code for low system memory; schedule unchanged (a new resource parameter only, no system or ordering); Windows only |
 | 101 | `4fd0c643` | 2026-10-02 | upstream | One-shot emotes: LiftOff/Land in combat, no restarts, local play (#773) | pending | pending | - |  |
 | 102 | `c627483a` | 2026-10-02 | upstream | Return numeric flags from spell-targeting predicates (#764) | pending | pending | - |  |
 | 103 | `6c25640a` | 2026-10-02 | upstream | Light bands with out-of-order keys interpolate as a cycle, as in 1.12.1 (#768) | pending | pending | - |  |
@@ -636,6 +636,23 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 606 | `62399b7a` | 2026-10-28 | upstream | Auction getters read the house live; its events fire at their packet (#2754) | pending | pending | - |  |
 | 607 | `07ba2b0e` | 2026-10-28 | upstream | Mail send item, stationery list and texture read as 1.12.1 reads them (#2757) | pending | pending | - |  |
 | 608 | `16aa08ff` | 2026-10-28 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
+| 609 | `91dbe066` | 2026-10-28 | upstream | A world click's arm picks inside its call, from a key or a handler too (#2758) | pending | pending | - |  |
+| 610 | `53bc8245` | 2026-10-28 | upstream | Every item action sends ahead of its cursor clear's and lock's signals (#2759) | pending | pending | - |  |
+| 611 | `831310c1` | 2026-10-28 | upstream | The auction sell slot asks for a missing record, redrawing when it lands (#2760) | pending | pending | - |  |
+| 612 | `a483e755` | 2026-10-28 | upstream | Unghosting clears the area spirit healer ahead of PLAYER_UNGHOST (#2761) | pending | pending | - |  |
+| 613 | `12ec14d6` | 2026-10-28 | upstream | World entry fires as one item at the create, in the cascade's order (#2762) | pending | pending | - |  |
+| 614 | `32b2682c` | 2026-10-28 | upstream | UPDATE_LFG_TYPES fires on level, quest slot and world-enter changes (#2764) | pending | pending | - |  |
+| 615 | `b4d0987a` | 2026-10-28 | upstream | The loot window reads live and signals at its packets (#2765) | pending | pending | - |  |
+| 616 | `289b0ec5` | 2026-10-28 | upstream | Tooltips, spell targeting and the mouseover read live at the call (#2767) | pending | pending | - |  |
+| 617 | `3242ef72` | 2026-10-28 | upstream | Quest text, quest lines and shares fire at their packets (#2768) | pending | pending | - |  |
+| 618 | `cb949ba1` | 2026-10-28 | upstream | Player scalars and the unit tokens read live; the unit feed goes (#2771) | pending | pending | - |  |
+| 619 | `6e361552` | 2026-10-28 | upstream | The spell-read recording goes; nothing reads it since #2767 (#2772) | pending | pending | - |  |
+| 620 | `6b50b9dd` | 2026-10-28 | upstream | A worldport's teardown runs at the next frame's start, as one unit (#2773) | pending | pending | - |  |
+| 621 | `e0329532` | 2026-10-28 | upstream | Played time, pings, broadcasts, the clock and channels fire at packets (#2774) | pending | pending | - |  |
+| 622 | `68176302` | 2026-10-28 | upstream | A worldport frees the cooldowns and cancels open loot rolls (#2775) | pending | pending | - |  |
+| 623 | `fb5d9818` | 2026-10-28 | upstream | The Windows player build reserves an 8 MB main-thread stack (#2777) | pending | pending | - |  |
+| 624 | `e23368a7` | 2026-10-28 | upstream | The item-text reader reads live and signals at its packets (#2778) | pending | pending | - |  |
+| 625 | `e160110e` | 2026-10-28 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) | skipped (merge, changes nothing) | as-is | --remerge-diff and --cc empty |
 
 ## Special handling
 
