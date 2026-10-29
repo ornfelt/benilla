@@ -1097,43 +1097,43 @@ schedule SpawnScene
   bevy_scene::scene_spawner::scene_spawner -> bevy_scene::scene_spawner::scene_spawner_system
 
 schedule Startup
-  0 benilla_app::portrait::setup_booths
-  1 benilla_app::minimap::composite::setup_composite
+  0 benilla_app::target::ring::setup_ring
+  1 benilla_app::cvars::load_config
+    in CvarLoad
   2 benilla_app::cinematic::spawn_letterbox
-  3 benilla_app::video::log_display_session
-  4 benilla_app::screen_fade::spawn_cover
-  5 benilla_app::video::check_window_pinned
-  6 benilla_app::target::reticle::setup_reticle
+  3 benilla_app::screen_fade::spawn_cover
+  4 benilla_app::minimap::composite::setup_composite
+  5 benilla_app::cvars::publish_filter_policy
+    in CvarLoad
+  6 benilla_app::player::camera_view::load_saved_views
   7 benilla_app::blob_shadow::setup_shadow_assets
-  8 benilla_app::world_backdrop::setup_backdrop
-  9 benilla_app::weapon_trail::init_trail_white
-  10 benilla_world::gfx::effect::init
-  11 benilla_app::ui_pass::init_white_texture
-  12 benilla_app::cvars::load_config
-    in CvarLoad
-  13 benilla_app::cvars::publish_filter_policy
-    in CvarLoad
-  14 benilla_app::player::camera_view::load_saved_views
-  15 benilla_app::ui_models::setup_tiles
+  8 benilla_app::ui_models::setup_tiles
+  9 benilla_app::ui_pass::init_white_texture
+  10 benilla_app::weapon_trail::init_trail_white
+  11 benilla_world::gfx::effect::init
+  12 benilla_app::world_backdrop::setup_backdrop
+  13 benilla_app::portrait::setup_booths
+  14 benilla_app::video::log_display_session
+  15 benilla_app::video::check_window_pinned
   16 benilla_app::ui_pass::spawn_ui_camera
-  17 benilla_world::assets::open_world_assets
+  17 benilla_app::target::reticle::setup_reticle
+  18 benilla_gfx::bevy_ui::init_streams
+  19 benilla_world::assets::open_world_assets
     in Open
-  18 bevy_ecs::apply_deferred
-  19 benilla_app::ui_chat::broadcast::load_server_messages
-  20 benilla_app::ui_chat::feed::load_emote_texts
-  21 benilla_app::ui_chat::channels::load_chat_channels
-  22 benilla_app::ui_quest_log::load_quest_tag_names
-  23 benilla_app::ui_quest_log::load_quest_header_names
-  24 benilla_app::ui_tradeskill::load_spell_focus
-  25 benilla_app::ui_items::load_item_dbcs
-  26 benilla_app::chat_bubble::load_bubble_art
-  27 benilla_app::chr_classes::load_chr_classes
-  28 benilla_app::ui_talent::load_talents
-  29 benilla_app::ui_spellbook::load_skill_lines
-  30 benilla_app::ui_action::load_spell_mechanics
-  31 benilla_app::ui_action::load_spells
-  32 benilla_app::ui_gm_ticket::load_gm_ticket_dbc
-  33 benilla_app::text_filter::load_text_filter_lists
+  20 bevy_ecs::apply_deferred
+  21 benilla_app::ui_chat::broadcast::load_server_messages
+  22 benilla_app::ui_chat::feed::load_emote_texts
+  23 benilla_app::ui_chat::channels::load_chat_channels
+  24 benilla_app::ui_quest_log::load_quest_tag_names
+  25 benilla_app::ui_quest_log::load_quest_header_names
+  26 benilla_app::ui_tradeskill::load_spell_focus
+  27 benilla_app::ui_items::load_item_dbcs
+  28 benilla_app::chr_classes::load_chr_classes
+  29 benilla_app::ui_talent::load_talents
+  30 benilla_app::ui_spellbook::load_skill_lines
+  31 benilla_app::ui_action::load_spell_mechanics
+  32 benilla_app::ui_action::load_spells
+  33 benilla_app::ui_gm_ticket::load_gm_ticket_dbc
   34 benilla_app::game_tip::load_game_tips
   35 benilla_app::ui_script::lifecycle::setup_script
   36 benilla_app::area_trigger::load_area_triggers
@@ -1148,47 +1148,46 @@ schedule Startup
   45 benilla_app::sound::sheathe::load_sheathe_sounds
   46 benilla_app::sound::reverb::load_providers
   47 benilla_app::sound::vocal::load_vocal_ui_sounds
-  48 benilla_app::sound::ui::load_item_sounds
-  49 benilla_app::sound::greeting::load_npc_greetings
-  50 benilla_app::sound::emote::load_emote_sounds
-  51 benilla_app::sound::death_thud::load_death_thuds
-  52 benilla_app::sound::footsteps::load_footsteps
-  53 benilla_app::sound::combat::load_weapon_swings
-  54 benilla_app::sound::combat::load_weapon_impacts
-  55 benilla_app::sound::creature::load_creature_voices
-  56 benilla_app::sound::gameobject::load_go_sounds
-  57 benilla_app::sound::zone::load_area_sounds
-  58 benilla_app::sound::liquid_loop::load_water_sounds
-  59 benilla_app::sound::kit::load_sound_kits
-  60 benilla_app::sound::load_materials
-  61 benilla_app::realm_select::load::load_realm_types
-  62 benilla_app::realm_select::category::load_categories
-  63 benilla_app::glue_strings::load_glue_strings
-  64 benilla_app::cursor::other::setup
-  65 benilla_app::cinematic::load_catalog
-  66 benilla_app::footprints::load_ink
-  67 benilla_app::camera_shake::load_shakes
-  68 benilla_app::creature_anim::env_damage::load_env_damage_table
-  69 benilla_app::creature_anim::blood::load_blood_tables
-  70 benilla_app::creature_anim::spell_visual::load_spell_visuals
-  71 benilla_app::creature_anim::sheath::load_anim_data
-  72 benilla_app::entities::setup_entities
-  73 benilla_world::water_fx::setup_water_fx
-  74 benilla_world::liquid::surface::setup_liquid
-  75 benilla_world::wdl::setup_wdl
-  76 benilla_world::clutter::setup_clutter
-  77 benilla_world::wmo_portal::interior::load_wmo_areas
-  78 benilla_world::sun::setup::setup_sun
-  79 benilla_world::clouds::layer::setup_cloud_layer
-  80 benilla_world::sky::setup_sky
-  81 benilla_world::lighting::resolve::setup_lighting
-  82 benilla_world::world_map::load_world_map
+  48 benilla_app::sound::greeting::load_npc_greetings
+  49 benilla_app::sound::emote::load_emote_sounds
+  50 benilla_app::sound::death_thud::load_death_thuds
+  51 benilla_app::sound::footsteps::load_footsteps
+  52 benilla_app::sound::combat::load_weapon_swings
+  53 benilla_app::sound::combat::load_weapon_impacts
+  54 benilla_app::sound::creature::load_creature_voices
+  55 benilla_app::sound::gameobject::load_go_sounds
+  56 benilla_app::sound::zone::load_area_sounds
+  57 benilla_app::sound::liquid_loop::load_water_sounds
+  58 benilla_app::sound::kit::load_sound_kits
+  59 benilla_app::sound::load_materials
+  60 benilla_app::realm_select::load::load_realm_types
+  61 benilla_app::realm_select::category::load_categories
+  62 benilla_app::glue_strings::load_glue_strings
+  63 benilla_app::cursor::other::setup
+  64 benilla_app::cinematic::load_catalog
+  65 benilla_app::footprints::load_ink
+  66 benilla_app::camera_shake::load_shakes
+  67 benilla_app::creature_anim::env_damage::load_env_damage_table
+  68 benilla_app::creature_anim::blood::load_blood_tables
+  69 benilla_app::creature_anim::spell_visual::load_spell_visuals
+  70 benilla_app::creature_anim::sheath::load_anim_data
+  71 benilla_app::entities::setup_entities
+  72 benilla_world::water_fx::setup_water_fx
+  73 benilla_world::liquid::surface::setup_liquid
+  74 benilla_world::wdl::setup_wdl
+  75 benilla_world::clutter::setup_clutter
+  76 benilla_world::wmo_portal::interior::load_wmo_areas
+  77 benilla_world::sun::setup::setup_sun
+  78 benilla_world::clouds::layer::setup_cloud_layer
+  79 benilla_world::sky::setup_sky
+  80 benilla_world::lighting::resolve::setup_lighting
+  81 benilla_world::world_map::load_world_map
     in WorldMapLoad
-  83 benilla_app::player::setup::setup_player
-  84 benilla_gfx::bevy_ui::init_streams
-  85 benilla_world::art_scope::configure_art_scope
-  86 benilla_app::target::ring::setup_ring
-  87 benilla_gfx::gizmos::init
+  82 benilla_app::player::setup::setup_player
+  83 benilla_app::sound::ui::load_item_sounds
+  84 benilla_world::art_scope::configure_art_scope
+  85 benilla_app::text_filter::load_text_filter_lists
+  86 benilla_gfx::gizmos::init
   set CvarLoad
   set Open
   set WorldMapLoad
@@ -1198,7 +1197,6 @@ schedule Startup
   Open -> benilla_app::area_poi::load_area_poi
   Open -> benilla_app::area_trigger::load_area_triggers
   Open -> benilla_app::camera_shake::load_shakes
-  Open -> benilla_app::chat_bubble::load_bubble_art
   Open -> benilla_app::chr_classes::load_chr_classes
   Open -> benilla_app::cinematic::load_catalog
   Open -> benilla_app::creature_anim::blood::load_blood_tables
@@ -1300,183 +1298,183 @@ schedule SubstepSchedule
   WarmStart -> SolveConstraints
 
 schedule Update
-  0 benilla_app::portrait::light::reap_dead_variants
-  1 benilla_app::poi_marker::expire_marker
-  2 benilla_app::poi_marker::clear_on_world_entry
-  3 benilla_app::ui_text::engine::gpu::init
-  4 benilla_app::world_backdrop::track_render_size
-  5 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_taxi::TaxiState>
-  6 benilla_app::ui_chat::language::feed_language_skills
-  7 benilla_app::name_persist::load_name_cache
-  8 benilla_app::sound::zone::report_stream_voices
-  9 benilla_app::ui_pass::clear_ui_overlays
-  10 benilla_app::sound::kit::evict_kit_cache
-  11 benilla_app::ui_chat::combat::watch::death_lines
-  12 benilla_app::sound::kit::apply_kit_debug
-  13 benilla_app::sound::probe::marker
-  14 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_gossip::GossipState>
-  15 benilla_app::sound::probe::tick
-  16 benilla_app::sound::poll_mix_health
-  17 benilla_app::sound::apply_focus_gate
-  18 benilla_app::sound::toggle_mute
-  19 benilla_app::sound::apply_master_volume
-  20 benilla_app::ui_chat::combat::watch::pet_loyalty_lines
-  21 benilla_app::char_create::debug_enter
-  22 benilla_app::ui_dialog_verbs::meeting_stone_leave_world
-  23 benilla_app::portrait::bump_model_revision
-  24 benilla_app::ui_duel::tick_countdown
-  25 benilla_app::ui_script::lifecycle::arm_leaving_world_on_self_create
-  26 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_binder::BinderState>
-  27 benilla_app::char_select::debug_logout_smoke
-  28 benilla_app::ui_taxi::routing::load_taxi_catalogs
-  29 benilla_app::char_select::debug_glue_roundtrip
-  30 benilla_app::char_select::publish_world_live
-  31 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_quest::QuestGiver>
-  32 benilla_app::glue::seat_outline_copies
-  33 benilla_app::glue::backdrop::fit_backdrop_borders
-  34 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_trainer::TrainerOpen>
+  0 benilla_app::portrait::test_bake::dump_booth_target
+  1 benilla_app::sound::glue::play_glue_sounds
+  2 benilla_app::ui_items::feed::resolve_item_locks
+  3 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_taxi::TaxiState>
+  4 benilla_app::ui_chat::language::feed_language_skills
+  5 benilla_app::sound::zone::report_stream_voices
+  6 benilla_app::sound::kit::evict_kit_cache
+  7 benilla_app::ui_chat::combat::watch::death_lines
+  8 benilla_app::sound::kit::apply_kit_debug
+  9 benilla_app::sound::probe::marker
+  10 benilla_app::ui_chat::language::load_language_words
+  11 benilla_app::sound::probe::tick
+  12 benilla_app::sound::poll_mix_health
+  13 benilla_app::sound::apply_focus_gate
+  14 benilla_app::sound::toggle_mute
+  15 benilla_app::sound::apply_master_volume
+  16 benilla_app::sound::money::play_coin_on_coinage_change
+  17 benilla_app::ui_chat::combat::watch::pet_loyalty_lines
+  18 benilla_app::portrait::bump_model_revision
+  19 benilla_app::sound::glue::hand_off_glue_music
+  20 benilla_app::ui_script::lifecycle::arm_leaving_world_on_self_create
+  21 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_tabard::TabardOpen>
+  22 benilla_app::char_create::debug_enter
+  23 benilla_app::ui_tabard::reset_on_world_enter
+  24 benilla_app::portrait::booth::face_booth_billboards
+  25 benilla_app::tutorial::watch_windows
+  26 benilla_app::portrait::log_booth_pose
+  27 benilla_app::poi_marker::clear_on_world_entry
+  28 benilla_app::char_select::debug_logout_smoke
+  29 benilla_app::ui_summon::end_session_summon
+  30 benilla_app::char_select::debug_glue_roundtrip
+  31 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_merchant::MerchantOpen>
+  32 benilla_app::char_select::publish_world_live
+  33 benilla_app::glue::seat_outline_copies
+  34 benilla_app::glue::backdrop::fit_backdrop_borders
   35 benilla_app::death::end_session_death_feed
-  36 benilla_app::portrait::booth::face_booth_billboards
-  37 benilla_app::death::drive_death_look
+  36 benilla_app::death::drive_death_look
+  37 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_mail::MailOpen>
   38 benilla_app::net::population_pulse
     in Net
-  39 benilla_app::sound::money::play_coin_on_coinage_change
-  40 benilla_app::net::apply::apply_net_updates
+  39 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_binder::BinderState>
+  40 benilla_app::ui_gamma::stamp_lane_gamma
+  41 benilla_app::portrait::feed_gx_aspect
+  42 benilla_app::net::apply::apply_net_updates
     in Net
-  41 benilla_app::query_cache::release_on_enter<benilla_app::ui_quest_log::QuestLog>
+  43 benilla_app::query_cache::release_on_enter<benilla_app::ui_quest_log::QuestLog>
     in Net
-  42 benilla_app::query_cache::release_on_enter<benilla_app::ui_mail::MailOpen>
+  44 benilla_app::query_cache::release_on_enter<benilla_app::ui_mail::MailOpen>
     in Net
-  43 benilla_app::query_cache::release_on_enter<benilla_app::ui_guild::GuildState>
+  45 benilla_app::net::apply::tag_self_player
     in Net
-  44 benilla_app::net::apply::tag_self_player
+  46 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_trainer::TrainerOpen>
+  47 benilla_app::net::publish_world_time
     in Net
-  45 benilla_app::net::publish_world_time
+  48 benilla_app::query_cache::release_on_enter<benilla_app::items::Items>
     in Net
-  46 benilla_app::query_cache::release_on_enter<benilla_app::items::Items>
+  49 benilla_app::query_cache::release_on_enter<benilla_app::go_templates::GameObjectTemplates>
     in Net
-  47 benilla_app::ui_tabard::reset_on_world_enter
-  48 benilla_app::query_cache::release_on_enter<benilla_app::go_templates::GameObjectTemplates>
-    in Net
-  49 benilla_app::ui_models::reap_tile_variants
   50 benilla_app::query_cache::release_on_enter<benilla_app::names::NameCache>
     in Net
-  51 benilla_app::ui_instance::clear_witness_on_logout
-  52 benilla_app::ui_instance::track_instance_state
-  53 benilla_app::portrait::test_bake::dump_booth_target
-  54 benilla_app::ui_items::feed::resolve_item_locks
-  55 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_talent_wipe::TalentWipeState>
-  56 benilla_app::ui_chat::language::load_language_words
-  57 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_stable::StableOpen>
-  58 benilla_app::player::setup::gate_world_camera
-  59 benilla_app::player::camera_saved::load_camera_pose
+  51 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_auction::AuctionOpen>
+  52 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_petition::GuildRegistrarState>
+  53 benilla_app::ui_duel::tick_countdown
+  54 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_stable::StableOpen>
+  55 benilla_app::player::setup::gate_world_camera
+  56 benilla_app::world_backdrop::track_render_size
+  57 benilla_app::world_backdrop::retarget_world_camera
+  58 benilla_app::player::camera_saved::load_camera_pose
     in InWorldGated
-  60 benilla_app::sound::glue::report_stream_voices
-  61 benilla_app::tutorial::on_world_enter
-  62 benilla_app::tutorial::run_world_enter_cascade
-  63 benilla_app::query_cache::release_on_enter<benilla_app::ui_item_text::PageTexts>
+  59 benilla_app::query_cache::release_on_enter<benilla_app::ui_guild::GuildState>
     in Net
-  64 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_mail::MailOpen>
-  65 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_tabard::TabardOpen>
-  66 benilla_app::ui_summon::end_session_summon
-  67 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_merchant::MerchantOpen>
-  68 benilla_app::tutorial::watch_self
-  69 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_dialog_verbs::PetUnlearnState>
-  70 benilla_app::ui_chat::idle::stamp_input
-  71 benilla_app::ui_chat::combat::watch::aura_lines
-  72 benilla_app::ui_session::feed_interact_npc
+  60 benilla_app::query_cache::release_on_enter<benilla_app::ui_petition::PetitionState>
     in Net
-  73 benilla_app::entities::scope_entity_art
-  74 benilla_app::entities::evict_display_caches
-  75 benilla_app::nameplates::evict_name_meshes
-  76 benilla_app::pipe_warm::run_warm_pass
-  77 benilla_app::sound::glue::play_glue_sounds
-  78 benilla_app::quest_markers::query::query_statuses
-  79 benilla_world::terrain_stream::rescatter_clutter
-  80 benilla_world::terrain_stream::scope_placement_art
-  81 benilla_app::portrait::glue_booth::drive_create_test
-  82 benilla_app::sound::glue::hand_off_glue_music
-  83 benilla_world::terrain_stream::merge::log_blob_vis
+  61 benilla_app::query_cache::release_on_enter<benilla_app::ui_item_text::PageTexts>
+    in Net
+  62 benilla_app::ui_taxi::routing::load_taxi_catalogs
+  63 benilla_app::ui_models::reap_tile_variants
+  64 benilla_app::ui_chat::combat::watch::aura_lines
+  65 benilla_app::entities::scope_entity_art
+  66 benilla_app::entities::evict_display_caches
+  67 benilla_app::ui_pass::clear_ui_overlays
+  68 benilla_app::pipe_warm::run_warm_pass
+  69 benilla_app::quest_markers::query::query_statuses
+  70 benilla_app::nameplates::evict_name_meshes
+  71 benilla_app::poi_marker::expire_marker
+  72 benilla_world::terrain_stream::rescatter_clutter
+  73 benilla_world::terrain_stream::scope_placement_art
+  74 benilla_world::terrain_stream::merge::log_blob_vis
     if benilla_world::terrain_stream::merge::blob_vis_enabled, benilla_world::schedule::world_is_live
-  84 benilla_app::portrait::feed_gx_aspect
-  85 benilla_app::ui_battlefield_positions::reset_on_world_enter
-  86 benilla_app::ui_gamma::stamp_lane_gamma
-  87 benilla_world::ffx_glow::ensure_ffx_glow
-  88 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_petition::GuildRegistrarState>
-  89 benilla_world::liquid::drift::setup_drift
-  90 benilla_world::wdl::stream_wdl
+  75 benilla_app::ui_session::feed_interact_npc
+    in Net
+  76 benilla_app::portrait::glue_booth::drive_create_test
+  77 benilla_app::ui_dialog_verbs::meeting_stone_leave_world
+  78 benilla_world::ffx_glow::ensure_ffx_glow
+  79 benilla_app::name_persist::load_name_cache
+  80 benilla_app::name_persist::save_name_cache
+  81 benilla_world::liquid::drift::setup_drift
+  82 benilla_app::ui_text::engine::gpu::init
+  83 benilla_world::wdl::stream_wdl
     if benilla_world::schedule::world_is_live
-  91 benilla_world::clutter::remesh_on_cutout_change
-  92 benilla_app::tutorial::watch_windows
-  93 benilla_world::doodad_anim::mat_anim::sample_mat_anim
-  94 benilla_app::portrait::booth::push_booth_mat_alpha
-  95 benilla_world::doodad_anim::lazy::reap_parked_rigs
-  96 benilla_world::view::stamp_near_clip
-  97 benilla_app::name_persist::save_name_cache
-  98 benilla_app::ui_tradeskill::open_trade_skill
-  99 benilla_world::weather::precip::setup_precip
-  100 benilla_world::weather::weather_tick
-    in WeatherTick
-  101 benilla_app::query_cache::release_on_enter<benilla_app::ui_petition::PetitionState>
-    in Net
-  102 benilla_app::ui_chat::language::feed_default_language
-  103 benilla_app::portrait::log_booth_pose
-  104 benilla_world::world_map::announce_map_change
-  105 benilla_world::assets::scope_world_art
-  106 benilla_world::assets::evict_world_art
-  107 benilla_world::art_scope::track_art_scope
-  108 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_auction::AuctionOpen>
-  109 benilla_world::model_render::evict_model_materials
-  110 benilla_world::model_render::scope_model_materials
-  111 benilla_app::sound::glue::start_glue_music
+  84 benilla_world::clutter::remesh_on_cutout_change
+  85 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_quest::QuestGiver>
+  86 benilla_world::doodad_anim::mat_anim::sample_mat_anim
+  87 benilla_app::portrait::booth::push_booth_mat_alpha
+  88 benilla_world::doodad_anim::lazy::reap_parked_rigs
+  89 benilla_app::sound::glue::report_stream_voices
+  90 benilla_world::view::stamp_near_clip
+  91 benilla_app::tutorial::on_world_enter
+  92 benilla_app::tutorial::run_world_enter_cascade
+  93 benilla_app::tutorial::watch_self
+  94 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_talent_wipe::TalentWipeState>
+  95 benilla_app::sound::glue::start_glue_music
     if bevy_state::condition::in_state<benilla_app::char_select::ClientState>::{{closure}} || bevy_state::condition::in_state<benilla_app::char_select::ClientState>::{{closure}}
-  112 benilla_app::sound::glue::watch_glue_music
-  113 benilla_world::model_fade::arm_appear_fade
-  114 benilla_world::rig_palette::census_rig_palettes
-  115 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_bank::BankOpen>
-  116 benilla_world::static_gx::render::mark_world_camera
-  117 avian3d::collision::collider::backend::init_collider_constructor_hierarchies
-  118 benilla_app::world_backdrop::retarget_world_camera
-  119 bevy_ecs::apply_deferred@119
-  120 benilla_app::world_backdrop::claim_backdrop
-  121 benilla_world::model_fade::apply_despawn_fade
-  122 benilla_world::clutter::stream_chunk_clutter
-  123 benilla_app::quest_markers::sync_markers
-  124 benilla_app::net::apply::enter_world_on_self_create
+  96 benilla_app::sound::glue::watch_glue_music
+  97 benilla_app::ui_tradeskill::open_trade_skill
+  98 benilla_world::weather::precip::setup_precip
+  99 benilla_world::weather::weather_tick
+    in WeatherTick
+  100 benilla_app::ui_trade::answer_trade_request
+  101 benilla_app::ui_chat::language::feed_default_language
+  102 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_dialog_verbs::PetUnlearnState>
+  103 benilla_world::world_map::announce_map_change
+  104 benilla_world::assets::scope_world_art
+  105 benilla_world::assets::evict_world_art
+  106 benilla_world::art_scope::track_art_scope
+  107 benilla_world::model_render::evict_model_materials
+  108 benilla_world::model_render::scope_model_materials
+  109 benilla_app::ui_battlefield_positions::reset_on_world_enter
+  110 benilla_world::model_fade::arm_appear_fade
+  111 bevy_ecs::apply_deferred@111
+  112 benilla_world::model_fade::apply_despawn_fade
+  113 benilla_world::clutter::stream_chunk_clutter
+  114 benilla_app::quest_markers::sync_markers
+  115 benilla_app::world_backdrop::claim_backdrop
+  116 benilla_app::net::apply::enter_world_on_self_create
     in Net
-  125 benilla_app::net::motion::spline::sample_splines
+  117 benilla_app::net::motion::spline::sample_splines
     in Net
-  126 benilla_app::net::send_query_time
+  118 benilla_app::net::send_query_time
     in Net
-  127 benilla_app::ui_mail::send_query_next_mail_time_on_enter
-  128 benilla_app::portrait::test_bake::sync_test_portraits
-  129 bevy_ecs::apply_deferred@129
-  130 benilla_world::model_fade::apply_render_fade
-  131 benilla_world::clutter::evict_clutter_geometry
-  132 benilla_world::clutter::scope_clutter_geometry
-  133 benilla_app::quest_markers::build_markers
-  134 benilla_app::portrait::sync_portraits
-  135 benilla_app::net::motion::spline::mark_swimming_creatures
+  119 benilla_app::ui_mail::send_query_next_mail_time_on_enter
+  120 benilla_app::portrait::test_bake::sync_test_portraits
+  121 bevy_ecs::apply_deferred@121
+  122 benilla_app::portrait::sync_portraits
+  123 benilla_world::model_fade::apply_render_fade
+  124 benilla_world::clutter::evict_clutter_geometry
+  125 benilla_world::clutter::scope_clutter_geometry
+  126 benilla_app::quest_markers::build_markers
+  127 benilla_app::net::motion::spline::mark_swimming_creatures
     in Net
-  136 bevy_ecs::apply_deferred@136
-  137 benilla_world::model_fade::retire_unit_appear_fade
-  138 benilla_app::quest_markers::pose_markers
-  139 benilla_app::quest_markers::bake_seat_scale
-  140 benilla_app::portrait::sync_paperdoll
-  141 benilla_app::net::motion::spline::ground_clamp_creatures
+  128 bevy_ecs::apply_deferred@128
+  129 benilla_app::portrait::sync_paperdoll
+  130 benilla_world::model_fade::retire_unit_appear_fade
+  131 benilla_app::quest_markers::pose_markers
+  132 benilla_app::quest_markers::bake_seat_scale
+  133 benilla_app::net::motion::spline::ground_clamp_creatures
     in Net
-  142 bevy_ecs::apply_deferred@142
-  143 benilla_app::portrait::sync_inspect_booth
-  144 benilla_app::net::motion::remote::drain_pending_moves
+  134 bevy_ecs::apply_deferred@134
+  135 benilla_app::portrait::sync_inspect_booth
+  136 benilla_app::net::motion::remote::drain_pending_moves
     in Net
-  145 bevy_ecs::apply_deferred@145
-  146 benilla_app::portrait::sync_petdoll_booth
-  147 benilla_app::net::motion::remote::extrapolate_remote_units
+  137 bevy_ecs::apply_deferred@137
+  138 benilla_app::portrait::sync_petdoll_booth
+  139 benilla_app::net::motion::remote::extrapolate_remote_units
     in Net
-  148 bevy_ecs::apply_deferred@148
-  149 benilla_app::portrait::sync_stable_standin
-  150 benilla_app::net::motion::facing::drive_display_facing
+  140 bevy_ecs::apply_deferred@140
+  141 benilla_app::portrait::sync_stable_standin
+  142 benilla_app::net::motion::facing::drive_display_facing
     in Net
+  143 benilla_world::rig_palette::census_rig_palettes
+  144 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_bank::BankOpen>
+  145 benilla_app::ui_session::close_npc_session_out_of_range<benilla_app::ui_gossip::GossipState>
+  146 benilla_world::static_gx::render::mark_world_camera
+  147 avian3d::collision::collider::backend::init_collider_constructor_hierarchies
+  148 avian3d::collision::collider::backend::init_collider_constructors
+  149 benilla_app::ui_instance::clear_witness_on_logout
+  150 benilla_app::ui_instance::track_instance_state
   151 bevy_ecs::apply_deferred@151
   152 benilla_app::portrait::sync_stable_booth
   153 benilla_app::ui_macro::load_macros
@@ -1502,433 +1500,433 @@ schedule Update
     in UiFeed
   163 benilla_app::ui_party::feed::feed_party
     in UiFeed
-  164 benilla_app::ui_battlefield::reset_on_world_enter
+  164 benilla_app::ui_duel::feed_duel
     in UiFeed
-  165 benilla_app::ui_battlefield::feed_battlefield
+  165 benilla_app::ui_binder::feed_binder
     in UiFeed
-  166 benilla_app::ui_battlefield_score::feed_battlefield_score
+  166 benilla_app::ui_battlefield::reset_on_world_enter
     in UiFeed
-  167 benilla_app::ui_dialog_verbs::feed_dialog_verbs
+  167 benilla_app::ui_dialog_verbs::meeting_stone_enter_world
+    in UiFeed
+  168 benilla_app::ui_dialog_verbs::feed_meeting_stone
+    in UiFeed
+  169 benilla_app::ui_battlefield::feed_battlefield
+    in UiFeed
+  170 benilla_app::ui_battlefield_score::feed_battlefield_score
+    in UiFeed
+  171 benilla_app::ui_dialog_verbs::feed_dialog_verbs
     in UiFeed
     if benilla_app::ui_script::lifecycle::ingame_ui_up
-  168 benilla_app::ui_battlefield_positions::feed_battlefield_positions
+  172 benilla_app::ui_battlefield_positions::feed_battlefield_positions
     in UiFeed
-  169 benilla_app::tutorial::feed_tutorials
+  173 benilla_app::ui_gm_ticket::feed_gm_ticket
     in UiFeed
-    if benilla_app::ui_script::lifecycle::ingame_ui_up
-  170 benilla_app::ui_summon::feed_summon
+  174 benilla_app::ui_follow::feed_follow
     in UiFeed
-  171 benilla_app::ui_gm_ticket::feed_gm_ticket
+  175 benilla_app::ui_instance::feed_instance
     in UiFeed
-  172 benilla_app::ui_follow::feed_follow
+  176 benilla_app::ui_logout::feed_logout
     in UiFeed
-  173 benilla_app::ui_instance::feed_instance
+  177 benilla_app::ui_social::feed::feed_social
     in UiFeed
-  174 benilla_app::ui_logout::feed_logout
-    in UiFeed
-  175 benilla_app::ui_social::feed::feed_social
-    in UiFeed
-  176 benilla_app::ui_guild::feed::feed_guild
+  178 benilla_app::ui_guild::feed::feed_guild
     in AnonymousSet(8), GuildFeed, UiFeed
-  177 benilla_app::ui_petition::feed::feed_petition
+  179 benilla_app::ui_petition::feed::feed_petition
     in UiFeed
-  178 benilla_app::ui_char::watch_skill_ups
+  180 benilla_app::ui_char::watch_skill_ups
     in UiFeed
-  179 benilla_app::ui_char::feed_skills
+  181 benilla_app::ui_char::feed_skills
     in UiFeed
-  180 benilla_app::ui_reputation::feed_reputation
+  182 benilla_app::ui_reputation::feed_reputation
     in UiFeed
-  181 benilla_app::ui_inspect::feed_inspect
+  183 benilla_app::ui_inspect::feed_inspect
     in UiFeed
-  182 benilla_app::ui_honor::feed_honor
+  184 benilla_app::ui_honor::feed_honor
     in UiFeed
-  183 benilla_app::ui_dressup::feed_dressup
+  185 benilla_app::ui_dressup::feed_dressup
     in UiFeed
-  184 benilla_app::spell::targeting::corpse::publish_corpse_pick
+  186 benilla_app::spell::targeting::publish_picks_self
     in UiFeed
-  185 benilla_app::spell::targeting::pick::publish_unit_pick
+  187 benilla_app::spell::targeting::corpse::publish_corpse_pick
     in UiFeed
-  186 benilla_app::spell::group_relation::publish_group_roster
+  188 benilla_app::spell::targeting::pick::publish_unit_pick
     in UiFeed
-  187 benilla_app::ui_macro::load_icon_catalog
+  189 benilla_app::spell::group_relation::publish_group_roster
     in UiFeed
-  188 benilla_app::ui_macro::rebind_macro_spells
+  190 benilla_app::ui_macro::load_icon_catalog
     in UiFeed
-  189 benilla_app::ui_talent_wipe::feed_talent_wipe
+  191 benilla_app::ui_macro::rebind_macro_spells
     in UiFeed
-  190 benilla_app::ui_net::feed_net_stats
+  192 benilla_app::ui_talent_wipe::feed_talent_wipe
     in UiFeed
-  191 benilla_app::ui_merchant::feed_repair_costs
+  193 benilla_app::ui_net::feed_net_stats
     in UiFeed
-  192 benilla_app::ui_char::feed_char
+  194 benilla_app::ui_gossip::feed_gossip
     in UiFeed
-  193 benilla_app::ui_bank::feed_bank
+  195 benilla_app::ui_merchant::feed_repair_costs
     in UiFeed
-  194 benilla_app::ui_item_text::feed_item_text
+  196 benilla_app::ui_bank::feed_bank
     in UiFeed
-  195 benilla_app::ui_stable::feed_stable
+  197 benilla_app::ui_item_text::feed_item_text
     in UiFeed
-  196 benilla_app::ui_tabard::feed_tabard
+  198 benilla_app::ui_stable::feed_stable
     in UiFeed
-  197 benilla_app::ui_taxi::feed_on_taxi
+  199 benilla_app::ui_taxi::feed_on_taxi
     in UiFeed
-  198 benilla_app::ui_loot::feed_loot
+  200 benilla_app::ui_loot::feed_loot
     in UiFeed
-  199 benilla_app::ui_loot_roll::feed_loot_rolls
+  201 benilla_app::ui_loot_roll::feed_loot_rolls
     in UiFeed
-  200 benilla_app::ui_quest_log::feed_server_clock
+  202 benilla_app::ui_quest::feed_quest
     in UiFeed
-  201 benilla_app::ui_quest_share::feed_quest_share
+  203 benilla_app::ui_quest_log::feed_server_clock
     in UiFeed
-  202 benilla_app::ui_chat::broadcast::feed_broadcasts
+  204 benilla_app::ui_quest_share::feed_quest_share
     in UiFeed
-  203 benilla_app::ui_chat::channels::seed_channels
+  205 benilla_app::ui_chat::broadcast::feed_broadcasts
     in UiFeed
-  204 benilla_app::ui_chat::feed::played_time_bridge
+  206 benilla_app::ui_chat::channels::seed_channels
     in UiFeed
-  205 benilla_app::screenshot::report_captures
+  207 benilla_app::ui_chat::feed::played_time_bridge
     in UiFeed
-  206 benilla_app::spell::mods::track_class_family
-  207 benilla_app::swing_refusal::apply_swing_refusals
-  208 benilla_app::transport::arm_transports
-  209 benilla_app::char_create::screen::rescale_screen
+  208 benilla_app::screenshot::report_captures
+    in UiFeed
+  209 benilla_app::spell::mods::track_class_family
+  210 benilla_app::swing_refusal::apply_swing_refusals
+  211 benilla_app::transport::arm_transports
+  212 benilla_app::char_create::screen::rescale_screen
     in AnonymousSet(6)
-  210 benilla_app::realm_select::apply_realm_policy
-  211 benilla_app::realm_select::screen::drive_screen
-  212 bevy_ecs::apply_deferred@212
-  213 benilla_app::portrait::glue_booth::sync_glue_scene
-  214 benilla_app::swing_refusal::show_swing_refusal
-  215 benilla_app::ui_unit::feed_default_language
+  213 benilla_app::realm_select::apply_realm_policy
+  214 benilla_app::realm_select::screen::drive_screen
+  215 benilla_app::login::drive_policy
+  216 benilla_app::login::to_select_on_roster
+  217 benilla_app::login::drive_quit
+  218 benilla_app::char_select::apply_roster_policy
+  219 benilla_app::char_select::enter_on_connected
+  220 benilla_app::char_select::back_on_logout
+  221 benilla_app::char_select::back_on_login_refused
+  222 benilla_app::char_select::back_on_disconnect
+  223 benilla_app::char_select::persist_last_character
+  224 benilla_app::entities::collision_height::stamp_collision_heights
+  225 benilla_app::entities::skin_composite::land_skin_composites
+  226 benilla_app::entities::stamp_arrivals
+  227 benilla_app::entities::publish_world_units
+  228 benilla_world::terrain_stream::release_world
+    if benilla_world::schedule::world_left
+  229 benilla_world::wdl::release_wdl_ring
+    if benilla_world::schedule::world_left
+  230 benilla_app::death::feed_death
+    in UiFeed
+  231 benilla_app::ui_summon::feed_summon
+    in UiFeed
+  232 benilla_app::tutorial::feed_tutorials
+    in UiFeed
+    if benilla_app::ui_script::lifecycle::ingame_ui_up
+  233 benilla_app::ui_tabard::feed_tabard
+    in UiFeed
+  234 benilla_app::ui_taxi::feed_taxi
+    in UiFeed
+  235 benilla_app::ui_char::feed_char
+    in UiFeed
+  236 bevy_ecs::apply_deferred@236
+  237 benilla_app::portrait::glue_booth::sync_glue_scene
+  238 benilla_app::swing_refusal::show_swing_refusal
+  239 benilla_app::ui_unit::feed_default_language
     in UnitFeed
-  216 benilla_app::ui_unit::feed_known_languages
+  240 benilla_app::ui_unit::feed_known_languages
     in UnitFeed
-  217 benilla_app::ui_tooltip::drive_mouseover_tooltip
+  241 benilla_app::ui_tooltip::drive_mouseover_tooltip
     in UnitFeed
-  218 benilla_app::ui_action::ranks::normalize_action_ranks
+  242 benilla_app::ui_action::ranks::normalize_action_ranks
     in UnitFeed
-  219 benilla_app::ui_action::feed::feed_actions
+  243 benilla_app::ui_action::feed::feed_actions
     in UnitFeed
-  220 benilla_app::ui_action::track_learned_abilities
+  244 benilla_app::ui_action::track_learned_abilities
     in UnitFeed
-  221 benilla_app::spell::inflight::local_self_cancel
+  245 benilla_app::spell::inflight::local_self_cancel
     in LocalCancel, UnitFeed
-  222 benilla_app::ui_spellbook::feed_spellbook
+  246 benilla_app::ui_spellbook::feed_spellbook
     in UnitFeed
-  223 benilla_app::ui_talent::feed_talents
+  247 benilla_app::ui_talent::feed_talents
     in UnitFeed
-  224 benilla_app::ui_shapeshift::feed_shapeshift_bar
+  248 benilla_app::ui_shapeshift::feed_shapeshift_bar
     in UnitFeed
-  225 benilla_app::ui_aura::feed_auras
+  249 benilla_app::ui_aura::feed_auras
     in AuraEvents, UnitFeed
-  226 benilla_app::ui_pet::drain::pet_stop_on_old_target_clear
+  250 benilla_app::ui_pet::drain::pet_stop_on_old_target_clear
     in UnitFeed
-  227 benilla_app::spell::targeting::feed_targeting_to_vm
+  251 benilla_app::spell::targeting::feed_targeting_to_vm
     in UnitFeed
-  228 benilla_app::ui_pet::menu::feed_pet_menu
+  252 benilla_app::ui_pet::menu::feed_pet_menu
     in UnitFeed
-  229 benilla_app::ui_pet_book::feed_pet_book
+  253 benilla_app::ui_pet_book::feed_pet_book
     in UnitFeed
-  230 benilla_app::ui_pet_stats::feed_pet_stats
+  254 benilla_app::ui_pet_stats::feed_pet_stats
     in PetSnapshot, UnitFeed
-  231 benilla_app::ui_pet::unit::feed_pet_unit
+  255 benilla_app::ui_pet::unit::feed_pet_unit
     in UnitFeed
-  232 benilla_app::ui_pet::bar::feed_pet_bar
+  256 benilla_app::ui_pet::bar::feed_pet_bar
     in UnitFeed
-  233 benilla_app::ui_pet_doll::feed_pet_doll
+  257 benilla_app::ui_pet_doll::feed_pet_doll
     in UnitFeed
-  234 benilla_app::ui_mirror::feed_mirror_timers
+  258 benilla_app::ui_mirror::feed_mirror_timers
     in UnitFeed
-  235 benilla_app::ui_items::feed::feed_containers
+  259 benilla_app::ui_items::feed::feed_item_stats
     in UnitFeed
-  236 benilla_app::ui_action::state::feed_action_state
+  260 benilla_app::ui_items::feed::feed_item_sets
+    in UnitFeed
+  261 benilla_app::ui_items::feed::feed_random_properties
+    in UnitFeed
+  262 benilla_app::ui_items::feed::feed_player_req
+    in UnitFeed
+  263 benilla_app::ui_tradeskill::feed_trade_skill
+    in UnitFeed
+  264 benilla_app::ui_craft::feed_craft
+    in UnitFeed
+  265 benilla_app::ui_quest_log::feed_quest_log
+    in UnitFeed
+  266 benilla_app::ui_quest::lines::feed_quest_lines
+    in UnitFeed
+  267 benilla_app::ui_unit::fire_leaving_world_on_worldport
+    in UnitFeed
+  268 benilla_app::ui_unit::feed_units
+    in UnitFeed
+  269 benilla_app::ui_unit::feed_unit_reach
+    in UnitFeed
+  270 benilla_app::ui_unit::held::feed_chain_units
+    in UnitFeed
+  271 benilla_app::ui_unit::feed_player_control
+    in UnitFeed
+  272 benilla_app::ui_unit::feed_farsight_focus
+    in UnitFeed
+  273 benilla_app::ui_unit::melee_unit_combat
+    in UnitFeed
+  274 benilla_app::ui_unit::fire_unit_combat
+    in UnitFeed
+  275 benilla_app::ui_unit::fire_combat_text
+    in UnitFeed
+  276 benilla_app::transport::reseek_ridden_transport_at_worldport
+  277 benilla_app::transport::tick_transports
+  278 benilla_app::transport::watch_ridden_transport_map
+  279 avian3d::collider_tree::update::update_moved_collider_aabbs<avian3d::collision::collider::parry::Collider>
+  280 benilla_app::transport::compose_riders
+  281 benilla_app::transport::ground_deck_riders
+  282 benilla_app::char_create::create_input
+    in AnonymousSet(6)
+  283 benilla_app::char_create::debug_auto_create
+    in AnonymousSet(6)
+  284 benilla_app::char_create::debug_pick
+    in AnonymousSet(6)
+  285 benilla_app::char_create::debug_shot
+    in AnonymousSet(6)
+  286 benilla_app::realm_select::smoke::debug_realm_smoke
+  287 benilla_app::realm_select::input::clicks
+    in AnonymousSet(4)
+  288 benilla_app::realm_select::input::keys
+    in AnonymousSet(4)
+  289 benilla_app::realm_select::tick_refresh
+    in AnonymousSet(5)
+  290 benilla_app::realm_select::screen::refresh_list
+    in AnonymousSet(5)
+  291 benilla_app::ui_items::feed::feed_containers
+    in UnitFeed
+  292 benilla_app::ui_action::state::feed_action_state
     in CooldownEvents, UnitFeed
-  237 benilla_app::ui_pet::bar::fire_pet_cooldown_events
+  293 benilla_app::ui_pet::bar::fire_pet_cooldown_events
     in UnitFeed
-  238 benilla_app::ui_items::feed::feed_item_stats
+  294 bevy_pbr::atmosphere::environment::prepare_atmosphere_probe_components
+  295 benilla_app::portrait::light::reap_dead_variants
+  296 bevy_sprite_render::tilemap_chunk::update_tilemap_chunk_indices
+  297 bevy_core_pipeline::oit::check_msaa
+  298 benilla_app::ui_chat::idle::stamp_input
+  299 bevy_ecs::apply_deferred@299
+  300 benilla_app::portrait::glue_booth::sync_glue_booth
+  301 benilla_app::ui_cast::feed_cast_bar
     in UnitFeed
-  239 benilla_app::ui_items::feed::feed_item_sets
-    in UnitFeed
-  240 benilla_app::ui_items::feed::feed_random_properties
-    in UnitFeed
-  241 benilla_app::ui_items::feed::feed_player_req
-    in UnitFeed
-  242 benilla_app::ui_tradeskill::feed_trade_skill
-    in UnitFeed
-  243 benilla_app::ui_craft::feed_craft
-    in UnitFeed
-  244 benilla_app::ui_quest_log::feed_quest_log
-    in UnitFeed
-  245 benilla_app::ui_quest::lines::feed_quest_lines
-    in UnitFeed
-  246 benilla_app::ui_unit::fire_leaving_world_on_worldport
-    in UnitFeed
-  247 benilla_app::ui_unit::feed_units
-    in UnitFeed
-  248 benilla_app::ui_unit::feed_unit_reach
-    in UnitFeed
-  249 benilla_app::ui_unit::held::feed_chain_units
-    in UnitFeed
-  250 benilla_app::ui_unit::feed_player_control
-    in UnitFeed
-  251 benilla_app::ui_unit::feed_farsight_focus
-    in UnitFeed
-  252 benilla_app::ui_unit::melee_unit_combat
-    in UnitFeed
-  253 benilla_app::ui_unit::fire_unit_combat
-    in UnitFeed
-  254 benilla_app::ui_unit::fire_combat_text
-    in UnitFeed
-  255 benilla_app::transport::reseek_ridden_transport_at_worldport
-  256 benilla_app::transport::tick_transports
-  257 benilla_app::transport::watch_ridden_transport_map
-  258 avian3d::collider_tree::update::update_moved_collider_aabbs<avian3d::collision::collider::parry::Collider>
-  259 benilla_app::transport::compose_riders
-  260 benilla_app::transport::ground_deck_riders
-  261 benilla_app::char_create::create_input
-    in AnonymousSet(6)
-  262 benilla_app::char_create::debug_auto_create
-    in AnonymousSet(6)
-  263 benilla_app::char_create::debug_pick
-    in AnonymousSet(6)
-  264 benilla_app::char_create::debug_shot
-    in AnonymousSet(6)
-  265 benilla_app::realm_select::smoke::debug_realm_smoke
-  266 benilla_app::realm_select::input::clicks
-    in AnonymousSet(4)
-  267 benilla_app::realm_select::input::keys
-    in AnonymousSet(4)
-  268 benilla_app::realm_select::tick_refresh
-    in AnonymousSet(5)
-  269 benilla_app::realm_select::screen::refresh_list
-    in AnonymousSet(5)
-  270 benilla_app::login::drive_policy
-  271 benilla_app::login::to_select_on_roster
-  272 benilla_app::login::drive_quit
-  273 benilla_app::char_select::apply_roster_policy
-  274 benilla_app::char_select::enter_on_connected
-  275 benilla_app::char_select::back_on_logout
-  276 benilla_app::char_select::back_on_login_refused
-  277 benilla_app::char_select::back_on_disconnect
-  278 benilla_app::char_select::persist_last_character
-  279 benilla_app::entities::collision_height::stamp_collision_heights
-  280 benilla_app::entities::skin_composite::land_skin_composites
-  281 benilla_app::entities::stamp_arrivals
-  282 benilla_app::entities::publish_world_units
-  283 benilla_world::terrain_stream::release_world
-    if benilla_world::schedule::world_left
-  284 benilla_world::wdl::release_wdl_ring
-    if benilla_world::schedule::world_left
-  285 benilla_app::death::feed_death
-    in UiFeed
-  286 benilla_app::ui_quest::feed_quest
-    in UiFeed
-  287 benilla_app::ui_binder::feed_binder
-    in UiFeed
-  288 benilla_app::ui_duel::feed_duel
-    in UiFeed
-  289 benilla_app::ui_dialog_verbs::meeting_stone_enter_world
-    in UiFeed
-  290 benilla_app::ui_dialog_verbs::feed_meeting_stone
-    in UiFeed
-  291 benilla_app::ui_gossip::feed_gossip
-    in UiFeed
-  292 benilla_app::ui_taxi::feed_taxi
-    in UiFeed
-  293 avian3d::collision::collider::backend::init_collider_constructors
-  294 benilla_app::ui_trade::answer_trade_request
-  295 bevy_pbr::atmosphere::environment::prepare_atmosphere_probe_components
-  296 benilla_app::spell::targeting::publish_picks_self
-    in UiFeed
-  297 bevy_ecs::apply_deferred@297
-  298 benilla_app::portrait::glue_booth::sync_glue_booth
-  299 benilla_app::ui_cast::feed_cast_bar
-    in UnitFeed
-  300 benilla_app::ui_trade::trim_offer_to_purse
-  301 benilla_app::ui_script::demo_unit_feed
+  302 benilla_app::ui_trade::trim_offer_to_purse
+  303 benilla_app::ui_script::demo_unit_feed
     in UiFeed
     if benilla_app::ui_script::capture_ui_active
-  302 benilla_app::minimap::blips::drive_blip_tooltip
+  304 benilla_app::minimap::blips::drive_blip_tooltip
     in UiFeed
-  303 benilla_app::ui_merchant::feed_merchant
-    in UiFeed
-  304 benilla_app::ui_auction::feed_auction
+  305 benilla_app::ui_auction::feed_auction
     in UiFeed
     if benilla_app::ui_script::lifecycle::ingame_ui_up
-  305 benilla_app::ui_mail::feed_mail
-    in UiFeed
   306 benilla_app::ui_trade::feed_trade
     in UiFeed
-  307 benilla_app::char_create::rotate_model
-    in AnonymousSet(6)
-  308 benilla_app::char_create::refresh::refresh_dynamic
-    in AnonymousSet(6)
-  309 benilla_app::char_create::refresh_name_box
-    in AnonymousSet(6)
-  310 benilla_app::char_create::refresh::refresh_hover
-    in AnonymousSet(6)
-  311 benilla_app::char_create::refresh::scroll_info
-    in AnonymousSet(6)
-  312 benilla_app::char_create::refresh::scroll_drive
-    in AnonymousSet(6)
-  313 benilla_app::char_create::refresh::scroll_visuals
-    in AnonymousSet(6)
-  314 benilla_app::char_create::create_result
-    in AnonymousSet(6)
-  315 benilla_app::ui_trainer::feed_trainer
+  307 benilla_app::ui_trainer::feed_trainer
     in TrainerFeed, UiFeed
-  316 benilla_app::ui_tooltip::spell_feed::feed_spell_tooltips
+  308 benilla_app::ui_tooltip::spell_feed::feed_spell_tooltips
     in UiFeed
     if benilla_app::ui_script::lifecycle::ingame_ui_up
-  317 benilla_app::ui_chat::feed::feed_chat
+  309 benilla_app::char_create::rotate_model
+    in AnonymousSet(6)
+  310 benilla_app::char_create::refresh::refresh_dynamic
+    in AnonymousSet(6)
+  311 benilla_app::char_create::refresh_name_box
+    in AnonymousSet(6)
+  312 benilla_app::char_create::refresh::refresh_hover
+    in AnonymousSet(6)
+  313 benilla_app::char_create::refresh::scroll_info
+    in AnonymousSet(6)
+  314 benilla_app::char_create::refresh::scroll_drive
+    in AnonymousSet(6)
+  315 benilla_app::char_create::refresh::scroll_visuals
+    in AnonymousSet(6)
+  316 benilla_app::char_create::create_result
+    in AnonymousSet(6)
+  317 benilla_app::ui_mail::feed_mail
+    in UiFeed
+  318 benilla_app::ui_merchant::feed_merchant
+    in UiFeed
+  319 benilla_app::ui_chat::feed::feed_chat
     in UiFeed
     if benilla_app::ui_script::lifecycle::ingame_ui_up
-  318 benilla_app::ui_script::extract::tick_script
+  320 benilla_app::ui_script::extract::tick_script
     in UiInput
-  319 benilla_app::ui_script::input::feed_ui_input
+  321 benilla_app::ui_script::input::feed_ui_input
     in InWorldGated, UiInput
-  320 benilla_app::bindings::sync_dispatch
+  322 benilla_app::bindings::sync_dispatch
     in BindingSet, InWorldGated, UiInput
-  321 benilla_app::bindings::latch_and_dispatch
+  323 benilla_app::bindings::latch_and_dispatch
     in BindingSet, InWorldGated, UiInput
-  322 benilla_app::ui_chat::settings::watch_chat_looks
+  324 benilla_app::ui_chat::settings::watch_chat_looks
     in InWorldGated
-  323 benilla_app::ui_chat::away::reconcile_afk_mirror
+  325 benilla_app::ui_chat::away::reconcile_afk_mirror
     in InWorldGated
-  324 benilla_app::ui_chat::away::movement_clears_afk
+  326 benilla_app::ui_chat::away::movement_clears_afk
     in InWorldGated
-  325 benilla_app::ui_chat::idle::idle_handler
+  327 benilla_app::ui_chat::idle::idle_handler
     in InWorldGated
-  326 benilla_app::ui_chat::input::drain_chat_input
+  328 benilla_app::ui_chat::input::drain_chat_input
     in ChatDrain, InWorldGated
-  327 benilla_app::ui_quest_share::drain_quest_share
-  328 benilla_app::ui_quest_log::drain_quest_log_collapses
-  329 benilla_app::ui_quest_log::drain_quest_log_pushes
-  330 benilla_app::ui_quest_log::drain_quest_log_abandons
-  331 benilla_app::ui_quest::drain_quest
-  332 benilla_app::ui_loot_roll::drain_loot_rolls
-  333 benilla_app::ui_loot::drain_loot
-  334 benilla_app::ui_craft::drain_craft
-  335 benilla_app::ui_tradeskill::drain_trade_skill
-  336 benilla_app::ui_taxi::drain_taxi
-  337 benilla_app::ui_trainer::drain_trainer
-  338 benilla_app::ui_tabard::drain_tabard
-  339 benilla_app::ui_stable::feed_stable_booth
+  329 benilla_app::ui_quest_share::drain_quest_share
+  330 benilla_app::ui_quest_log::drain_quest_log_collapses
+  331 benilla_app::ui_quest_log::drain_quest_log_pushes
+  332 benilla_app::ui_quest_log::drain_quest_log_abandons
+  333 benilla_app::ui_quest::drain_quest
+  334 benilla_app::ui_loot_roll::drain_loot_rolls
+  335 benilla_app::ui_loot::drain_loot
+  336 benilla_app::ui_craft::drain_craft
+  337 benilla_app::ui_tradeskill::drain_trade_skill
+  338 benilla_app::ui_taxi::drain_taxi
+  339 benilla_app::ui_trainer::drain_trainer
+  340 benilla_app::ui_tabard::drain_tabard
+  341 benilla_app::ui_stable::feed_stable_booth
     if <benilla_app::ui_stable::UiStablePlugin as bevy_app::plugin::Plugin>::build::{{closure}}
-  340 benilla_app::ui_stable::drain_stable
-  341 benilla_app::ui_item_text::drain_item_text
-  342 benilla_app::ui_trade::drain_trade
-  343 benilla_app::ui_mail::drain_mail
-  344 benilla_app::ui_bank::drain_bank
-  345 benilla_app::ui_auction::drain_auction
-  346 benilla_app::ui_merchant::drain_merchant
-  347 benilla_app::ui_gossip::drain_gossip
-  348 benilla_app::ui_items::drain::drain_bind_on_use_confirms
-  349 benilla_app::ui_items::drain::drain_bind_confirm_answers
-  350 benilla_app::ui_items::drain::drain_bag_autostores
-  351 benilla_app::ui_items::drain::drain_container_autoequips
-  352 benilla_app::ui_items::drain::drain_container_destroys
-  353 benilla_app::ui_items::drain::drain_container_moves
-  354 benilla_app::vplates::apply_plate_verbs
+  342 benilla_app::ui_stable::drain_stable
+  343 benilla_app::ui_item_text::drain_item_text
+  344 benilla_app::ui_trade::drain_trade
+  345 benilla_app::ui_mail::drain_mail
+  346 benilla_app::ui_bank::drain_bank
+  347 benilla_app::ui_auction::drain_auction
+  348 benilla_app::ui_merchant::drain_merchant
+  349 benilla_app::ui_gossip::drain_gossip
+  350 benilla_app::ui_items::drain::drain_bind_on_use_confirms
+  351 benilla_app::ui_items::drain::drain_bind_confirm_answers
+  352 benilla_app::ui_items::drain::drain_bag_autostores
+  353 benilla_app::ui_items::drain::drain_container_autoequips
+  354 benilla_app::ui_items::drain::drain_container_destroys
+  355 benilla_app::ui_items::drain::drain_container_moves
+  356 benilla_app::ui_items::drain::drain_container_repairs
+  357 benilla_app::vplates::apply_plate_verbs
     in VPlateSet
-  355 benilla_app::ui_pet::menu::drain_pet_menu
-  356 benilla_app::ui_talent_wipe::drain_talent_wipe
-  357 benilla_app::ui_talent::drain_talent_learns
-  358 benilla_app::ui_macro::save_dirty_macros
-  359 benilla_app::ui_aura::drain_aura_cancels
-  360 benilla_app::spell::targeting::item::commit_item_cast_on_pick
-  361 benilla_app::ui_action::drain::drain_go_openers
-  362 benilla_app::ui_action::drain::drain_action_sets
-  363 benilla_app::ui_honor::feed_pvp_name_strings
-  364 benilla_app::ui_reputation::drain_reputation_sends
-  365 benilla_app::ui_char::drain_skill_abandons
-  366 benilla_app::ui_petition::feed::drain_petition
-  367 benilla_app::ui_guild::feed::drain_guild
+  358 benilla_app::ui_pet::menu::drain_pet_menu
+  359 benilla_app::ui_talent_wipe::drain_talent_wipe
+  360 benilla_app::ui_talent::drain_talent_learns
+  361 benilla_app::ui_macro::save_dirty_macros
+  362 benilla_app::ui_aura::drain_aura_cancels
+  363 benilla_app::spell::targeting::item::commit_item_cast_on_pick
+  364 benilla_app::ui_action::drain::drain_go_openers
+  365 benilla_app::ui_action::drain::drain_action_sets
+  366 benilla_app::ui_honor::feed_pvp_name_strings
+  367 benilla_app::ui_reputation::drain_reputation_sends
+  368 benilla_app::ui_char::drain_skill_abandons
+  369 benilla_app::ui_petition::feed::drain_petition
+  370 benilla_app::ui_guild::feed::drain_guild
     in AnonymousSet(8)
-  368 benilla_app::ui_social::feed::drain_social
-  369 benilla_app::ui_logout::exit_on_logout_complete
-  370 benilla_app::ui_logout::drain_logout
-  371 benilla_app::ui_instance::drain_instance
-  372 benilla_app::ui_follow::drain_follow
-  373 benilla_app::ui_gm_ticket::drain_gm_ticket
-  374 benilla_app::ui_summon::drain_summon
-  375 benilla_app::tutorial::drain_tutorials
-  376 benilla_app::ui_battlefield_positions::drain_battlefield_positions
-  377 benilla_app::ui_battlefield::drain_battlefield
-  378 benilla_app::ui_battlefield_score::drain_battlefield_score
-  379 benilla_app::ui_dialog_verbs::drain_queue_verbs
-  380 benilla_app::ui_dialog_verbs::drain_latch_verbs
-  381 benilla_app::ui_binder::drain_binder
-  382 benilla_app::ui_duel::drain_duel
-  383 benilla_app::ui_party::feed::drain_party
-  384 benilla_app::ui_unit::drain_action_bar_toggles
-  385 benilla_app::ui_unit::drain_worn_display_toggles
-  386 benilla_app::ui_unit::drain_pvp_toggles
-  387 benilla_app::bindings::drain_binding_requests
-  388 benilla_app::cvars::sync_cvars
-  389 benilla_app::ui_layout::watch_layout
+  371 benilla_app::ui_social::feed::drain_social
+  372 benilla_app::ui_logout::exit_on_logout_complete
+  373 benilla_app::ui_logout::drain_logout
+  374 benilla_app::ui_instance::drain_instance
+  375 benilla_app::ui_follow::drain_follow
+  376 benilla_app::ui_gm_ticket::drain_gm_ticket
+  377 benilla_app::ui_summon::drain_summon
+  378 benilla_app::tutorial::drain_tutorials
+  379 benilla_app::ui_battlefield_positions::drain_battlefield_positions
+  380 benilla_app::ui_battlefield::drain_battlefield
+  381 benilla_app::ui_battlefield_score::drain_battlefield_score
+  382 benilla_app::ui_dialog_verbs::drain_queue_verbs
+  383 benilla_app::ui_dialog_verbs::drain_latch_verbs
+  384 benilla_app::ui_binder::drain_binder
+  385 benilla_app::ui_duel::drain_duel
+  386 benilla_app::ui_party::feed::drain_party
+  387 benilla_app::ui_unit::drain_action_bar_toggles
+  388 benilla_app::ui_unit::drain_worn_display_toggles
+  389 benilla_app::ui_unit::drain_pvp_toggles
+  390 benilla_app::bindings::drain_binding_requests
+  391 benilla_app::cvars::sync_cvars
+  392 benilla_app::ui_layout::watch_layout
     in InWorldGated
-  390 benilla_app::ui_layout::save_layout
+  393 benilla_app::ui_layout::save_layout
     in InWorldGated
-  391 benilla_app::ui_script::arbitrate_pointer_over_ui
-  392 benilla_app::player::camera::latch_world_mouse
+  394 benilla_app::ui_script::arbitrate_pointer_over_ui
+  395 benilla_app::player::camera::latch_world_mouse
     in InWorldGated, Input
-  393 benilla_app::player::camera::send_world_right_press
+  396 benilla_app::player::camera::send_world_right_press
     in InWorldGated, Input
     if !bevy_ecs::schedule::condition::common_conditions::resource_exists<benilla_app::run_mode::CaptureMode>
-  394 benilla_app::player::follow::steer_follow
+  397 benilla_app::player::follow::steer_follow
     in InWorldGated, Input
-  395 benilla_app::player::approach::steer_approach
+  398 benilla_app::player::approach::steer_approach
     in InWorldGated, Input
-  396 benilla_app::cinematic::send_opening_cinematic
+  399 benilla_app::cinematic::send_opening_cinematic
     in Input
-  397 benilla_app::go_anim::publish_ghost_door_exclusions
+  400 benilla_app::go_anim::publish_ghost_door_exclusions
     in Input
-  398 benilla_app::ui_world_map::dev_map_jump
-  399 benilla_app::ui_world_map::feed_world_map
-  400 benilla_app::world_state_ui::feed_world_state_ui
-  401 benilla_app::ui_chat::logging::sync_chat_logging
+  401 benilla_app::ui_world_map::dev_map_jump
+  402 benilla_app::ui_world_map::feed_world_map
+  403 benilla_app::world_state_ui::feed_world_state_ui
+  404 benilla_app::ui_chat::logging::sync_chat_logging
     in InWorldGated
-  402 benilla_app::ui_models::sync_tiles
-  403 benilla_app::minimap::feed_minimap_mask
-  404 benilla_app::sound::message::play_message_sounds
-  405 benilla_app::sound::ui::play_auto_equip_sounds
-  406 benilla_app::sound::ui::play_loot_pickup_sounds
-  407 benilla_app::sound::ui::play_item_gesture_sounds
-  408 benilla_app::sound::ui::drain_ui_sounds
-  409 benilla_app::player::embody::maintain_embodiment
+  405 benilla_app::ui_models::sync_tiles
+  406 benilla_app::minimap::feed_minimap_mask
+  407 benilla_app::sound::message::play_message_sounds
+  408 benilla_app::sound::ui::play_auto_equip_sounds
+  409 benilla_app::sound::ui::play_loot_pickup_sounds
+  410 benilla_app::sound::ui::play_item_gesture_sounds
+  411 benilla_app::sound::ui::drain_ui_sounds
+  412 benilla_app::player::embody::maintain_embodiment
     in Input
-  410 benilla_app::player::wire_in::release_on_session_end
+  413 benilla_app::player::wire_in::release_on_session_end
     in Input
-  411 benilla_app::player::server_ride::drive_self_ride
+  414 benilla_app::player::server_ride::drive_self_ride
     in InWorldGated, Input
     if !bevy_ecs::schedule::condition::common_conditions::resource_exists<benilla_app::run_mode::CaptureMode>
-  412 benilla_app::player::land::land_here
+  415 benilla_app::player::land::land_here
     in InWorldGated, Input
-  413 benilla_app::ui_chat::settings::save_chat_looks
+  416 benilla_app::ui_chat::settings::save_chat_looks
     in InWorldGated
-  414 benilla_app::player::scoped_view::apply_scoped_view
+  417 benilla_app::player::scoped_view::apply_scoped_view
     in InWorldGated, Input
-  415 benilla_app::player::view_subject::publish_view_subject
+  418 benilla_app::player::view_subject::publish_view_subject
     in InWorldGated, Input
-  416 benilla_app::login::screen::materialize_screen
+  419 benilla_app::login::screen::materialize_screen
     in AnonymousSet(3)
-  417 benilla_app::char_select::screen::materialize_screen
+  420 benilla_app::char_select::screen::materialize_screen
     in AnonymousSet(2)
-  418 benilla_app::death::drain_death
-  419 benilla_app::cursor::drive_displayed_cursor
-  420 benilla_app::cursor::other::drive
-  421 benilla_app::player::camera_view::drain_view_requests
+  421 benilla_app::death::drain_death
+  422 benilla_app::cursor::drive_displayed_cursor
+  423 benilla_app::cursor::other::drive
+  424 benilla_app::player::camera_view::drain_view_requests
     if !bevy_ecs::schedule::condition::common_conditions::resource_exists<benilla_app::run_mode::CaptureMode>
-  422 bevy_ecs::apply_deferred@422
-  423 benilla_app::ui_models::dump_atlas
-  424 benilla_app::ui_chat::input::drain_addon_chat_sends
+  425 bevy_ecs::apply_deferred@425
+  426 benilla_app::ui_models::dump_atlas
+  427 benilla_app::ui_chat::input::drain_addon_chat_sends
     in InWorldGated
-  425 benilla_app::ui_chat::input::drain_addon_message_sends
+  428 benilla_app::ui_chat::input::drain_addon_message_sends
     in InWorldGated
-  426 benilla_app::video::drain_restart_gx
-  427 benilla_app::portrait::glue_booth::sync_glue_ffx
-  428 benilla_app::portrait::glue_booth::pillarbox_glue_scene
-  429 benilla_app::portrait::glue_booth::sync_glue_pet
+  429 benilla_app::video::drain_restart_gx
   430 benilla_app::player::mirror_mover_collision_height
     in Input
   431 benilla_app::player::controller::control
@@ -1944,91 +1942,91 @@ schedule Update
     in AnonymousSet(2)
   436 benilla_app::char_select::dialog::drive_delete_dialog
     in AnonymousSet(2)
-  437 bevy_ecs::apply_deferred@437
-  438 benilla_app::transport::stamp_ride_frames
-  439 benilla_app::video::apply_window_mode
-  440 benilla_app::video::apply_present_mode
-  441 benilla_app::camera_shake::apply_camera_shake
+  437 benilla_app::screenshot::ask_for_captures
+  438 bevy_render::view::window::screenshot::trigger_screenshots
+  439 benilla_app::portrait::glue_booth::sync_glue_ffx
+  440 benilla_app::portrait::glue_booth::pillarbox_glue_scene
+  441 benilla_app::portrait::glue_booth::sync_glue_pet
+  442 bevy_ecs::apply_deferred@442
+  443 benilla_app::portrait::dressup::sync_dressup_booth
+  444 benilla_app::transport::stamp_ride_frames
+  445 benilla_app::video::apply_window_mode
+  446 benilla_app::video::apply_present_mode
+  447 benilla_app::camera_shake::apply_camera_shake
     in Input
     if !bevy_ecs::schedule::condition::common_conditions::resource_exists<benilla_app::run_mode::CaptureMode>
-  442 benilla_app::cinematic::take_trigger
+  448 benilla_app::cinematic::take_trigger
     in Input
-  443 benilla_app::cinematic::start_pending
+  449 benilla_app::cinematic::start_pending
     in Input
-  444 benilla_app::cinematic::drive
+  450 benilla_app::cinematic::drive
     in Input
-  445 benilla_app::cinematic::feed_ui
+  451 benilla_app::cinematic::feed_ui
     in Input
     if benilla_app::ui_script::lifecycle::ingame_ui_up
-  446 benilla_app::cinematic::drive_letterbox
+  452 benilla_app::cinematic::drive_letterbox
     in Input
-  447 benilla_app::target::latch_press_pick
+  453 benilla_app::target::latch_press_pick
     in TargetUpdate
-  448 benilla_app::player::world_focus::publish_view_focus
-  449 benilla_app::player::world_focus::publish_viewer
-  450 benilla_app::blob_shadow::sync_shadows
-  451 benilla_app::area_trigger::check_area_triggers
+  454 benilla_app::target::hover::update_pick_occlusion
+    in TargetUpdate
+  455 benilla_app::target::hover::update_hover
+    in TargetUpdate
+  456 benilla_app::player::world_focus::publish_view_focus
+  457 benilla_app::player::world_focus::publish_viewer
+  458 benilla_app::blob_shadow::sync_shadows
+  459 benilla_app::area_trigger::check_area_triggers
     in InWorldGated, Stream
-  452 benilla_app::sound::vocal::build_vocal_table
+  460 benilla_app::sound::vocal::build_vocal_table
     in Stream
-  453 benilla_app::sound::update_audio_listener
+  461 benilla_app::sound::update_audio_listener
     in Stream
-  454 benilla_app::sound::feed_music_suppression
+  462 benilla_app::sound::feed_music_suppression
     in Stream
-  455 benilla_world::model_forms::furnish_model_forms
+  463 benilla_world::model_forms::furnish_model_forms
     in Stream
-  456 benilla_world::view::publish_camera_pose
+  464 benilla_world::view::publish_camera_pose
     in CameraPoseSet
-  457 benilla_world::wmo_portal::interior::track_current_interior
+  465 benilla_world::wmo_portal::interior::track_current_interior
     in WmoPvsSet
-  458 benilla_world::wmo_portal::compute_wmo_pvs
+  466 benilla_world::wmo_portal::compute_wmo_pvs
     in WmoPvsSet
-  459 benilla_world::wmo_portal::interior::track_unit_interiors
+  467 benilla_world::wmo_portal::interior::track_unit_interiors
     in WmoPvsSet
-  460 benilla_world::wmo_portal::interior::track_area_interior
+  468 benilla_world::wmo_portal::interior::track_area_interior
     in WmoPvsSet
-  461 benilla_world::terrain_stream::collider::finish_colliders
+  469 benilla_world::terrain_stream::collider::finish_colliders
     in AnonymousSet(0), Stream
-  462 benilla_world::terrain_stream::stream_terrain
+  470 benilla_world::terrain_stream::stream_terrain
     in AnonymousSet(0), Stream
-  463 benilla_app::login::tick_login_caret
+  471 benilla_app::target::hover::update_hovered_object
+    in TargetUpdate
+  472 benilla_app::target::cursor_mode::classify_cursor
+    in TargetUpdate
+  473 benilla_app::spell::targeting::cancel_targeting_on_right_press
+    in TargetUpdate
+  474 benilla_app::ui_merchant::end_repair_mode_on_right_press
+    in TargetUpdate
+  475 benilla_app::spell::targeting::cursor::drive_targeting_cursor
+    in TargetUpdate
+  476 benilla_app::target::reticle::update_reticle
+    in TargetUpdate
+  477 benilla_app::target::click::world_right_click_payload
+    in TargetUpdate
+  478 benilla_app::target::click::select_on_plate_click
+    in TargetUpdate
+  479 benilla_app::login::tick_login_caret
     in AnonymousSet(3)
-  464 benilla_app::login::screen::refresh_boxes
+  480 benilla_app::login::screen::refresh_boxes
     in AnonymousSet(3)
-  465 benilla_app::login::screen::refresh_checkbox
+  481 benilla_app::login::screen::refresh_checkbox
     in AnonymousSet(3)
-  466 benilla_app::glue::dialog::drive_glue_dialog@466
+  482 benilla_app::glue::dialog::drive_glue_dialog@482
     in AnonymousSet(3)
-  467 benilla_app::char_select::delete_result
+  483 benilla_app::char_select::delete_result
     in AnonymousSet(2)
-  468 benilla_app::glue::dialog::drive_glue_dialog@468
+  484 benilla_app::glue::dialog::drive_glue_dialog@484
     in AnonymousSet(2)
-  469 benilla_app::screenshot::ask_for_captures
-  470 bevy_sprite_render::tilemap_chunk::update_tilemap_chunk_indices
-  471 benilla_app::ui_items::drain::drain_container_repairs
-  472 bevy_core_pipeline::oit::check_msaa
-  473 benilla_app::target::hover::update_pick_occlusion
-    in TargetUpdate
-  474 benilla_app::target::hover::update_hover
-    in TargetUpdate
-  475 benilla_app::target::hover::update_hovered_object
-    in TargetUpdate
-  476 benilla_app::target::cursor_mode::classify_cursor
-    in TargetUpdate
-  477 benilla_app::spell::targeting::cancel_targeting_on_right_press
-    in TargetUpdate
-  478 benilla_app::ui_merchant::end_repair_mode_on_right_press
-    in TargetUpdate
-  479 benilla_app::spell::targeting::cursor::drive_targeting_cursor
-    in TargetUpdate
-  480 benilla_app::target::reticle::update_reticle
-    in TargetUpdate
-  481 benilla_app::target::click::world_right_click_payload
-    in TargetUpdate
-  482 benilla_app::target::click::select_on_plate_click
-    in TargetUpdate
-  483 bevy_render::view::window::screenshot::trigger_screenshots
-  484 benilla_app::portrait::dressup::sync_dressup_booth
   485 bevy_ecs::apply_deferred@485
   486 benilla_app::portrait::booth::drive_booth_turn
   487 benilla_app::portrait::gate_booth_cameras
@@ -2044,11 +2042,11 @@ schedule Update
   495 benilla_app::target::click::select_on_click
     in TargetUpdate
   496 benilla_app::area::feed_zone_events
-  497 benilla_world::terrain_stream::furnish::furnish_tile_cells
+  497 benilla_world::weather::precip::gate_weather_indoors
+  498 benilla_world::weather::precip::simulate_precip
+  499 benilla_world::liquid::drift::simulate_drift
+  500 benilla_world::terrain_stream::furnish::furnish_tile_cells
     in AnonymousSet(0), Stream
-  498 benilla_world::weather::precip::gate_weather_indoors
-  499 benilla_world::weather::precip::simulate_precip
-  500 benilla_world::liquid::drift::simulate_drift
   501 benilla_app::login::answer_dialog
     in AnonymousSet(3)
   502 benilla_app::char_select::debug_select_addons
@@ -2189,123 +2187,123 @@ schedule Update
     if benilla_app::ui_script::lifecycle::ingame_ui_up
   582 benilla_app::vplates::drive_vplates
     in VPlateSet
-  583 benilla_app::ui_dialog_verbs::drain_meeting_stone_joins
-  584 benilla_app::ui_script::extract::paint_script
+  583 benilla_app::chat_bubble::drive_bubbles
+    in BubbleSet
+  584 benilla_app::nameplates::drive_nameplates
+  585 benilla_app::ui_chat::bubbles::feed_bubbles
+  586 benilla_app::ui_dialog_verbs::drain_meeting_stone_joins
+  587 benilla_app::ui_script::extract::paint_script
     in UiPaint
-  585 benilla_app::go_anim::close_go_lid
+  588 benilla_app::go_anim::close_go_lid
     in Present
-  586 benilla_app::go_anim::drive_go_anim
+  589 benilla_app::go_anim::drive_go_anim
     in Present
-  587 benilla_app::go_anim::drive_go_collision
+  590 benilla_app::go_anim::drive_go_collision
     in Present
-  588 benilla_app::ui_loot::resolve_loot_kneel
-  589 benilla_app::creature_anim::spell_visual::route_cast_visuals
-  590 benilla_app::pipe_warm::warm_ui_quad_lane
+  591 benilla_app::pipe_warm::warm_ui_quad_lane
     in UiQuadAppend
-  591 benilla_app::minimap::probe_minimap_widget
+  592 benilla_app::minimap::probe_minimap_widget
     in UiQuadAppend
-  592 benilla_app::minimap::emit_minimap
+  593 benilla_app::minimap::emit_minimap
     in UiQuadAppend
-  593 benilla_app::ui_models::compose_tiles
+  594 benilla_app::ui_models::compose_tiles
     in UiQuadAppend
-  594 benilla_app::combat_text::melee_impact_text
+  595 benilla_app::combat_text::melee_impact_text
     in UiQuadAppend
-  595 benilla_app::combat_text::missile_miss_text
+  596 benilla_app::combat_text::missile_miss_text
     in UiQuadAppend
-  596 benilla_app::combat_text::float_combat_text
+  597 benilla_app::combat_text::float_combat_text
     in UiQuadAppend
-  597 benilla_app::chat_bubble::drive_bubbles
-    in BubbleSet, UiQuadAppend
-  598 benilla_app::ui_pass::rebuild_ui_mesh
-  599 benilla_app::minimap::composite::drive_composite
-  600 benilla_app::nameplates::drive_nameplates
-  601 bevy_ecs::apply_deferred@601
-  602 benilla_app::raid_marks::drive_raid_marks
-  603 benilla_app::go_anim::release_despawn_pin
+  598 benilla_app::minimap::composite::drive_composite
+  599 benilla_app::ui_pass::rebuild_ui_mesh
+  600 benilla_app::ui_loot::resolve_loot_kneel
+  601 benilla_app::creature_anim::spell_visual::route_cast_visuals
+  602 bevy_ecs::apply_deferred@602
+  603 benilla_app::raid_marks::drive_raid_marks
+  604 benilla_app::go_anim::release_despawn_pin
     in Present
-  604 benilla_app::creature_anim::spell_visual::arm_loot_fx
-  605 benilla_app::creature_anim::spell_visual::arm_level_up_fx
-  606 benilla_app::creature_anim::spell_visual::arm_mount_poof_fx
-  607 benilla_app::creature_anim::spell_visual::arm_aura_state_fx
-  608 benilla_app::creature_anim::spell_visual::arm_morph_latch
-  609 benilla_app::creature_anim::spell_visual::replay_morph_kit
-  610 benilla_app::creature_anim::blood::blood_spurts
-  611 benilla_app::creature_anim::env_damage::hard_landing_dust
-  612 benilla_app::creature_anim::emote_anim::emote_to_anim
-  613 benilla_app::creature_anim::gesture::drive_gestures
-  614 benilla_app::creature_anim::flourish_to_anim
-  615 benilla_app::creature_anim::driver::drive_animations
-  616 benilla_app::sound::kit::pump_channels
+  605 benilla_app::creature_anim::spell_visual::arm_loot_fx
+  606 benilla_app::creature_anim::spell_visual::arm_level_up_fx
+  607 benilla_app::creature_anim::spell_visual::arm_mount_poof_fx
+  608 benilla_app::creature_anim::spell_visual::arm_aura_state_fx
+  609 benilla_app::creature_anim::spell_visual::arm_morph_latch
+  610 benilla_app::creature_anim::spell_visual::replay_morph_kit
+  611 benilla_app::creature_anim::blood::blood_spurts
+  612 benilla_app::creature_anim::env_damage::hard_landing_dust
+  613 benilla_app::creature_anim::emote_anim::emote_to_anim
+  614 benilla_app::creature_anim::gesture::drive_gestures
+  615 benilla_app::creature_anim::flourish_to_anim
+  616 benilla_app::creature_anim::driver::drive_animations
+  617 benilla_app::sound::kit::pump_channels
     in Present
-  617 benilla_app::sound::spell::route_spell_kit_sounds
+  618 benilla_app::sound::spell::route_spell_kit_sounds
     in Present
-  618 benilla_app::sound::missile::route_missile_sounds
+  619 benilla_app::sound::missile::route_missile_sounds
     in Present
-  619 benilla_app::sound::creature::death_vocals
+  620 benilla_app::sound::creature::death_vocals
     in Present
-  620 benilla_app::sound::creature::creature_anim_vocals
+  621 benilla_app::sound::creature::creature_anim_vocals
     in Present
-  621 benilla_app::sound::creature::ai_reaction_vocals
+  622 benilla_app::sound::creature::ai_reaction_vocals
     in Present
-  622 benilla_app::sound::creature::pet_talk_vocals
+  623 benilla_app::sound::creature::pet_talk_vocals
     in Present
-  623 benilla_app::sound::creature::pet_dismiss_sounds
+  624 benilla_app::sound::creature::pet_dismiss_sounds
     in Present
-  624 benilla_app::sound::creature::fall_landing_vocals
+  625 benilla_app::sound::creature::fall_landing_vocals
     in Present
-  625 benilla_app::sound::creature::creature_body_loops
+  626 benilla_app::sound::creature::creature_body_loops
     in Present
-  626 benilla_app::sound::combat::combat_sounds
+  627 benilla_app::sound::combat::combat_sounds
     in Present
-  627 benilla_app::sound::footsteps::footstep_sounds
+  628 benilla_app::sound::footsteps::footstep_sounds
     in Present
-  628 benilla_app::sound::death_thud::death_thud_sounds
+  629 benilla_app::sound::death_thud::death_thud_sounds
     in Present
-  629 benilla_app::sound::mount::dismount_sounds
+  630 benilla_app::sound::mount::dismount_sounds
     in Present
-  630 benilla_app::sound::water::water_splashes
+  631 benilla_app::sound::water::water_splashes
     in Present
-  631 benilla_app::sound::weather::track_weather_kit
+  632 benilla_app::sound::weather::track_weather_kit
     in Present
-  632 benilla_app::sound::emote::emote_sounds
+  633 benilla_app::sound::emote::emote_sounds
     in Present
-  633 benilla_app::sound::greeting::play_select_greetings
+  634 benilla_app::sound::greeting::play_select_greetings
     in Present
-  634 benilla_app::sound::greeting::play_window_greetings
+  635 benilla_app::sound::greeting::play_window_greetings
     in Present
-  635 benilla_app::sound::greeting::stop_on_despawn
+  636 benilla_app::sound::greeting::stop_on_despawn
     in Present
-  636 benilla_app::sound::reverb::zone_reverb
+  637 benilla_app::sound::reverb::zone_reverb
     in Present
     if benilla_app::sound::world_audio_live
-  637 benilla_app::sound::interior::resolve_interior
+  638 benilla_app::sound::interior::resolve_interior
     in Present
     if benilla_app::sound::world_audio_live
-  638 benilla_app::sound::sheathe::sheathe_sounds
+  639 benilla_app::sound::sheathe::sheathe_sounds
     in Present
-  639 benilla_app::loading_screen::drive_loading_screen
+  640 benilla_app::loading_screen::drive_loading_screen
     in Present
-  640 benilla_app::sound::zone::lua_music
+  641 benilla_app::sound::zone::lua_music
     in Present
-  641 benilla_app::sound::zone::server_sounds
+  642 benilla_app::sound::zone::server_sounds
     in AnonymousSet(7), Present
-  642 benilla_app::sound::zone::zone_audio
+  643 benilla_app::sound::zone::zone_audio
     in AnonymousSet(7), Present
-  643 bevy_ecs::apply_deferred@643
-  644 benilla_app::go_anim::fire_go_anim_events
+  644 bevy_ecs::apply_deferred@644
+  645 benilla_app::go_anim::fire_go_anim_events
     in Present
-  645 benilla_app::game_tip::drive_game_tip
-  646 benilla_app::char_select::screen::hide_under_world_cover
+  646 benilla_app::game_tip::drive_game_tip
+  647 benilla_app::char_select::screen::hide_under_world_cover
     if bevy_state::condition::in_state<benilla_app::char_select::ClientState>::{{closure}}
-  647 benilla_app::weapon_trail::fire_weapon_trails
-  648 benilla_app::creature_anim::driver::grip::drive_hand_grip
-  649 benilla_app::creature_anim::events::fire_anim_events
-  650 benilla_app::creature_anim::impact::route_swing_impacts
-  651 benilla_app::creature_anim::drive_nock_latch
-  652 bevy_ecs::apply_deferred@652
-  653 benilla_app::ranged_flex::flex_ranged_props
-  654 benilla_app::ranged_flex::reset_ranged_props_on_unnock
-  655 benilla_app::creature_anim::breath::fire_breath
+  648 benilla_app::weapon_trail::fire_weapon_trails
+  649 benilla_app::creature_anim::driver::grip::drive_hand_grip
+  650 benilla_app::creature_anim::events::fire_anim_events
+  651 benilla_app::creature_anim::impact::route_swing_impacts
+  652 benilla_app::creature_anim::drive_nock_latch
+  653 bevy_ecs::apply_deferred@653
+  654 benilla_app::ranged_flex::flex_ranged_props
+  655 benilla_app::ranged_flex::reset_ranged_props_on_unnock
   656 benilla_world::model_render::visibility::apply_model_visibility
     in ModelVisSet
   657 benilla_world::model_render::visibility::trace_model_visibility
@@ -2314,107 +2312,108 @@ schedule Update
   660 benilla_world::doodad_anim::mat_anim::matanim_probe
   661 benilla_app::entities::apply_unit_mat_alpha
   662 benilla_app::aura_visual::refresh_base_alpha
-  663 benilla_app::entities::chain_beam::spawn_chain_beams
+  663 benilla_app::creature_anim::breath::fire_breath
+  664 benilla_app::entities::chain_beam::spawn_chain_beams
     in EntityVisualsSet
-  664 benilla_app::entities::equipment::resolve::resolve_corpse_equipment
+  665 benilla_app::entities::equipment::resolve::resolve_corpse_equipment
     in EntityVisualsSet
-  665 benilla_app::entities::equipment::resolve::resolve_equipment
+  666 benilla_app::entities::equipment::resolve::resolve_equipment
     in EntityVisualsSet
-  666 bevy_ecs::apply_deferred@666
-  667 benilla_app::aura_visual::drain_aura_procs
-  668 benilla_app::entities::spell_fx::resolve_spell_fx
+  667 bevy_ecs::apply_deferred@667
+  668 benilla_app::aura_visual::drain_aura_procs
+  669 benilla_app::entities::spell_fx::resolve_spell_fx
     in EntityVisualsSet
-  669 bevy_ecs::apply_deferred@669
-  670 benilla_app::aura_visual::apply_aura_alpha
-  671 benilla_app::aura_visual::apply_aura_tint
-  672 benilla_app::aura_visual::apply_aura_anim_rate
-  673 benilla_app::entities::missile::move_missiles
+  670 bevy_ecs::apply_deferred@670
+  671 benilla_app::aura_visual::apply_aura_alpha
+  672 benilla_app::aura_visual::apply_aura_tint
+  673 benilla_app::aura_visual::apply_aura_anim_rate
+  674 benilla_app::entities::missile::move_missiles
     in EntityVisualsSet
-  674 bevy_ecs::apply_deferred@674
-  675 benilla_app::player::camera::apply_self_model_fade
+  675 bevy_ecs::apply_deferred@675
+  676 benilla_app::player::camera::apply_self_model_fade
     if !bevy_ecs::schedule::condition::common_conditions::resource_exists<benilla_app::run_mode::CaptureMode>
-  676 benilla_app::entities::missile::spawn_missiles
+  677 benilla_app::entities::missile::spawn_missiles
     in EntityVisualsSet
-  677 bevy_ecs::apply_deferred@677
-  678 benilla_app::entities::dest_fx::tick_shard_emitters
+  678 bevy_ecs::apply_deferred@678
+  679 benilla_app::entities::dest_fx::tick_shard_emitters
     in EntityVisualsSet
-  679 benilla_app::entities::dest_fx::spawn_ground_bursts
+  680 benilla_app::entities::dest_fx::spawn_ground_bursts
     in EntityVisualsSet
-  680 benilla_app::entities::dest_fx::arm_ground_effects
+  681 benilla_app::entities::dest_fx::arm_ground_effects
     in EntityVisualsSet
-  681 bevy_ecs::apply_deferred@681
-  682 benilla_app::entities::update_display_models
+  682 bevy_ecs::apply_deferred@682
+  683 benilla_app::entities::update_display_models
     in DisplayBuildSet, EntityVisualsSet
-  683 benilla_app::entities::attach::preview::build_glue_preview
+  684 benilla_app::entities::attach::preview::build_glue_preview
     in EntityVisualsSet
-  684 benilla_app::entities::attach::preview::build_glue_pet
+  685 benilla_app::entities::attach::preview::build_glue_pet
     in EntityVisualsSet
-  685 benilla_app::entities::attach::preview::build_dressup_preview
+  686 benilla_app::entities::attach::preview::build_dressup_preview
     in EntityVisualsSet
-  686 benilla_app::entities::attach::attach_entity_visuals
+  687 benilla_app::entities::attach::attach_entity_visuals
     in EntityVisualsSet
-  687 bevy_ecs::apply_deferred@687
-  688 benilla_app::entities::wmo_props::resolve_wmo_gameobject_props
+  688 bevy_ecs::apply_deferred@688
+  689 benilla_app::entities::wmo_props::resolve_wmo_gameobject_props
     in EntityVisualsSet
-  689 bevy_ecs::apply_deferred@689
-  690 benilla_app::entities::wmo_props::spawn_wmo_gameobject_props
+  690 bevy_ecs::apply_deferred@690
+  691 benilla_app::entities::wmo_props::spawn_wmo_gameobject_props
     in EntityVisualsSet
-  691 bevy_ecs::apply_deferred@691
-  692 benilla_app::entities::equipment::spawn::attach_held_items
+  692 bevy_ecs::apply_deferred@692
+  693 benilla_app::entities::equipment::spawn::attach_held_items
     in EntityVisualsSet
-  693 bevy_ecs::apply_deferred@693
-  694 benilla_app::entities::spell_fx::attach_spell_fx
+  694 bevy_ecs::apply_deferred@694
+  695 benilla_app::entities::spell_fx::attach_spell_fx
     in EntityVisualsSet
-  695 benilla_app::entities::item_glow::attach_item_glows
+  696 benilla_app::entities::item_glow::attach_item_glows
     in EntityVisualsSet
-  696 bevy_ecs::apply_deferred@696
-  697 benilla_app::entities::spell_fx::tend_world_plants
+  697 bevy_ecs::apply_deferred@697
+  698 benilla_app::entities::spell_fx::tend_world_plants
     in EntityVisualsSet
-  698 benilla_app::entities::dest_fx::attach_ground_fx_models
+  699 benilla_app::entities::dest_fx::attach_ground_fx_models
     in EntityVisualsSet
-  699 benilla_app::entities::missile::attach_missile_models
+  700 benilla_app::entities::missile::attach_missile_models
     in EntityVisualsSet
-  700 bevy_ecs::apply_deferred@700
-  701 benilla_app::entities::spell_fx::tick_fx_tint
+  701 bevy_ecs::apply_deferred@701
+  702 benilla_app::entities::spell_fx::tick_fx_tint
     in EntityVisualsSet
-  702 benilla_app::entities::spell_fx::fire_fx_anim_events
+  703 benilla_app::entities::spell_fx::fire_fx_anim_events
     in EntityVisualsSet
-  703 benilla_app::entities::spell_fx::lifecycle::advance_fx_anim
+  704 benilla_app::entities::spell_fx::lifecycle::advance_fx_anim
     in EntityVisualsSet
-  704 bevy_ecs::apply_deferred@704
-  705 benilla_app::entities::corpse::pose_corpses
+  705 bevy_ecs::apply_deferred@705
+  706 benilla_app::entities::corpse::pose_corpses
     in EntityVisualsSet
-  706 benilla_app::entities::attach::redress::redress_player_looks
+  707 benilla_app::entities::attach::redress::redress_player_looks
     in EntityVisualsSet
-  707 bevy_ecs::apply_deferred@707
-  708 benilla_app::entities::mount::reseat_mounts
+  708 bevy_ecs::apply_deferred@708
+  709 benilla_app::entities::mount::reseat_mounts
     in EntityVisualsSet
-  709 bevy_ecs::apply_deferred@709
-  710 benilla_app::entities::live_display::refresh_live_display
+  710 bevy_ecs::apply_deferred@710
+  711 benilla_app::entities::live_display::refresh_live_display
     in EntityVisualsSet
-  711 bevy_ecs::apply_deferred@711
-  712 benilla_app::entities::live_display::tick_scale_ease
+  712 bevy_ecs::apply_deferred@712
+  713 benilla_app::entities::live_display::tick_scale_ease
     in EntityVisualsSet
-  713 bevy_ecs::apply_deferred@713
-  714 benilla_app::entities::live_display::heal_rig_starved
+  714 bevy_ecs::apply_deferred@714
+  715 benilla_app::entities::live_display::heal_rig_starved
     in EntityVisualsSet
-  715 benilla_app::glue::glue_button_visuals
+  716 benilla_app::glue::glue_button_visuals
     in GlueVisuals
-  716 benilla_app::glue::glue_hilights
+  717 benilla_app::glue::glue_hilights
     in GlueVisuals
-  717 benilla_app::glue::sync_outlines
+  718 benilla_app::glue::sync_outlines
     in GlueVisuals
-  718 benilla_app::glue::art_swaps
+  719 benilla_app::glue::art_swaps
     in GlueVisuals
-  719 benilla_world::sky::update_sky_colors
+  720 benilla_world::sky::update_sky_colors
     in LightingConsumeSet
-  720 bevy_app::terminal_ctrl_c_handler::TerminalCtrlCHandlerPlugin::exit_on_flag
-  721 benilla_app::ui_chat::channels::end_session_channels_on_disconnect
-  722 benilla_app::ui_chat::channels::auto_join_zone_channels
+  721 bevy_app::terminal_ctrl_c_handler::TerminalCtrlCHandlerPlugin::exit_on_flag
+  722 benilla_app::ui_chat::channels::end_session_channels_on_disconnect
+  723 benilla_app::ui_chat::channels::auto_join_zone_channels
     in InWorldGated
-  723 benilla_app::ui_chat::recruitment::guild_recruitment_cascade
+  724 benilla_app::ui_chat::recruitment::guild_recruitment_cascade
     in InWorldGated
-  724 bevy_window::system::close_when_requested
+  725 bevy_window::system::close_when_requested
   set AnonymousSet(0)
     if benilla_world::schedule::world_is_live
   set AnonymousSet(1)
@@ -2663,8 +2662,8 @@ schedule Update
   Net -> benilla_app::entities::update_display_models
   Net -> benilla_app::entities::wmo_props::resolve_wmo_gameobject_props
   Net -> benilla_app::entities::wmo_props::spawn_wmo_gameobject_props
-  Net -> benilla_app::glue::dialog::drive_glue_dialog@466
-  Net -> benilla_app::glue::dialog::drive_glue_dialog@468
+  Net -> benilla_app::glue::dialog::drive_glue_dialog@482
+  Net -> benilla_app::glue::dialog::drive_glue_dialog@484
   Net -> benilla_app::glue::dialog::refresh_dialog_box
   Net -> benilla_app::login::answer_dialog
   Net -> benilla_app::login::drive_policy
@@ -2755,8 +2754,8 @@ schedule Update
   UiInput -> benilla_app::cursor::other::drive
   UiInput -> benilla_app::cvars::sync_cvars
   UiInput -> benilla_app::death::drain_death
-  UiInput -> benilla_app::glue::dialog::drive_glue_dialog@466
-  UiInput -> benilla_app::glue::dialog::drive_glue_dialog@468
+  UiInput -> benilla_app::glue::dialog::drive_glue_dialog@482
+  UiInput -> benilla_app::glue::dialog::drive_glue_dialog@484
   UiInput -> benilla_app::glue::dialog::refresh_dialog_box
   UiInput -> benilla_app::login::answer_dialog
   UiInput -> benilla_app::login::login_input
@@ -2871,6 +2870,7 @@ schedule Update
   VPlateSet -> benilla_app::chat_bubble::drive_bubbles
   VPlateSet -> benilla_app::nameplates::drive_nameplates
   VPlateSet -> benilla_app::raid_marks::drive_raid_marks
+  VPlateSet -> benilla_app::ui_chat::bubbles::feed_bubbles
   VPlateSet -> benilla_app::ui_script::extract::paint_script
   WeatherTick -> benilla_world::lighting::resolve::apply_sky_backdrop
   WeatherTick -> benilla_world::lighting::resolve::update_time_lighting
@@ -2934,7 +2934,7 @@ schedule Update
   benilla_app::char_select::debug_select_walk -> GlueVisuals
   benilla_app::char_select::debug_select_walk -> benilla_app::char_select::addons::drive_addons_panel
   benilla_app::char_select::delete_result -> GlueVisuals
-  benilla_app::char_select::delete_result -> benilla_app::glue::dialog::drive_glue_dialog@468
+  benilla_app::char_select::delete_result -> benilla_app::glue::dialog::drive_glue_dialog@484
   benilla_app::char_select::dialog::drive_delete_dialog -> GlueVisuals
   benilla_app::char_select::dialog::drive_delete_dialog -> benilla_app::char_select::delete_result
   benilla_app::char_select::enter_on_connected -> benilla_app::char_select::back_on_logout
@@ -2952,6 +2952,8 @@ schedule Update
   benilla_app::char_select::refresh::refresh_list -> benilla_app::char_select::refresh::refresh_banner_and_buttons
   benilla_app::char_select::screen::materialize_screen -> GlueVisuals
   benilla_app::char_select::screen::materialize_screen -> benilla_app::char_select::input::select_input
+  benilla_app::chat_bubble::drive_bubbles -> UiPaint
+  benilla_app::chat_bubble::drive_bubbles -> benilla_app::ui_chat::bubbles::feed_bubbles
   benilla_app::cinematic::start_pending -> benilla_app::cinematic::drive
   benilla_app::cinematic::take_trigger -> benilla_app::cinematic::start_pending
   benilla_app::combat_text::melee_impact_text -> benilla_app::combat_text::missile_miss_text
@@ -3036,12 +3038,12 @@ schedule Update
   benilla_app::entities::update_display_models -> benilla_app::entities::attach::preview::build_glue_preview
   benilla_app::entities::wmo_props::resolve_wmo_gameobject_props -> benilla_app::entities::wmo_props::spawn_wmo_gameobject_props
   benilla_app::entities::wmo_props::spawn_wmo_gameobject_props -> benilla_app::entities::equipment::spawn::attach_held_items
-  benilla_app::glue::dialog::drive_glue_dialog@466 -> GlueVisuals
-  benilla_app::glue::dialog::drive_glue_dialog@466 -> benilla_app::login::answer_dialog
-  benilla_app::glue::dialog::drive_glue_dialog@466 -> benilla_app::login::screen::debug_login_shot
-  benilla_app::glue::dialog::drive_glue_dialog@466 -> benilla_app::login::smoke::debug_login_smoke
-  benilla_app::glue::dialog::drive_glue_dialog@468 -> GlueVisuals
-  benilla_app::glue::dialog::drive_glue_dialog@468 -> benilla_app::char_select::debug_select_addons
+  benilla_app::glue::dialog::drive_glue_dialog@482 -> GlueVisuals
+  benilla_app::glue::dialog::drive_glue_dialog@482 -> benilla_app::login::answer_dialog
+  benilla_app::glue::dialog::drive_glue_dialog@482 -> benilla_app::login::screen::debug_login_shot
+  benilla_app::glue::dialog::drive_glue_dialog@482 -> benilla_app::login::smoke::debug_login_smoke
+  benilla_app::glue::dialog::drive_glue_dialog@484 -> GlueVisuals
+  benilla_app::glue::dialog::drive_glue_dialog@484 -> benilla_app::char_select::debug_select_addons
   benilla_app::glue::dialog::refresh_dialog_box -> GlueVisuals
   benilla_app::glue::dialog::refresh_dialog_box -> benilla_app::login::screen::debug_login_shot
   benilla_app::glue::dialog::refresh_dialog_box -> benilla_app::login::smoke::debug_login_smoke
@@ -3066,7 +3068,7 @@ schedule Update
   benilla_app::login::answer_dialog -> benilla_app::login::screen::refresh_realmlist
   benilla_app::login::answer_dialog -> benilla_app::login::smoke::debug_login_smoke
   benilla_app::login::drive_policy -> benilla_app::login::to_select_on_roster
-  benilla_app::login::drive_quit -> benilla_app::glue::dialog::drive_glue_dialog@466
+  benilla_app::login::drive_quit -> benilla_app::glue::dialog::drive_glue_dialog@482
   benilla_app::login::drive_quit -> benilla_app::glue::dialog::refresh_dialog_box
   benilla_app::login::drive_quit -> benilla_app::login::answer_dialog
   benilla_app::login::drive_quit -> benilla_app::login::login_input
@@ -3088,7 +3090,7 @@ schedule Update
   benilla_app::login::screen::refresh_boxes -> benilla_app::login::screen::refresh_checkbox
   benilla_app::login::screen::refresh_boxes -> benilla_app::login::smoke::debug_login_smoke
   benilla_app::login::screen::refresh_checkbox -> GlueVisuals
-  benilla_app::login::screen::refresh_checkbox -> benilla_app::glue::dialog::drive_glue_dialog@466
+  benilla_app::login::screen::refresh_checkbox -> benilla_app::glue::dialog::drive_glue_dialog@482
   benilla_app::login::screen::refresh_checkbox -> benilla_app::login::screen::debug_login_shot
   benilla_app::login::screen::refresh_checkbox -> benilla_app::login::smoke::debug_login_smoke
   benilla_app::login::screen::refresh_realmlist -> GlueVisuals
@@ -3230,6 +3232,7 @@ schedule Update
   benilla_app::ui_chat::away::reconcile_afk_mirror -> benilla_app::ui_chat::away::movement_clears_afk
   benilla_app::ui_chat::away::reconcile_afk_mirror -> type(benilla_app::ui_chat::channels::end_session_channels_on_disconnect)
   benilla_app::ui_chat::broadcast::feed_broadcasts -> type(benilla_app::ui_chat::feed::feed_chat)
+  benilla_app::ui_chat::bubbles::feed_bubbles -> UiPaint
   benilla_app::ui_chat::channels::auto_join_zone_channels -> benilla_app::ui_chat::recruitment::guild_recruitment_cascade
   benilla_app::ui_chat::channels::end_session_channels_on_disconnect -> benilla_app::ui_chat::channels::auto_join_zone_channels
   benilla_app::ui_chat::channels::seed_channels -> type(benilla_app::ui_chat::feed::feed_chat)
