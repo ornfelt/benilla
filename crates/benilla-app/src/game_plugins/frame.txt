@@ -240,9 +240,10 @@ schedule OnEnter(CharSelect)
   1 benilla_app::char_select::screen::enter_select
 
 schedule OnEnter(InWorld)
-  0 benilla_app::swing_refusal::on_world_enter
-  1 benilla_app::spell::mods::clear_on_world_enter
-  2 benilla_app::ui_script::lifecycle::arm_entry_ui_load
+  0 benilla_app::spell::mods::clear_on_world_enter
+  1 benilla_app::ui_script::lifecycle::arm_entry_ui_load
+  2 benilla_app::swing_refusal::on_world_enter
+  3 benilla_app::area::latch_realm_pvp
 
 schedule OnEnter(Login)
   0 benilla_app::login::enter_login
@@ -1095,57 +1096,57 @@ schedule SpawnScene
   bevy_scene::scene_spawner::scene_spawner -> bevy_scene::scene_spawner::scene_spawner_system
 
 schedule Startup
-  0 benilla_app::target::reticle::setup_reticle
+  0 benilla_app::portrait::setup_booths
   1 benilla_app::minimap::composite::setup_composite
-  2 benilla_app::portrait::setup_booths
-  3 benilla_app::cinematic::spawn_letterbox
+  2 benilla_app::cinematic::spawn_letterbox
+  3 benilla_app::video::log_display_session
   4 benilla_app::screen_fade::spawn_cover
-  5 benilla_app::ui_models::setup_tiles
-  6 benilla_app::blob_shadow::setup_shadow_assets
-  7 benilla_app::world_backdrop::setup_backdrop
-  8 benilla_app::video::log_display_session
+  5 benilla_app::video::check_window_pinned
+  6 benilla_app::target::reticle::setup_reticle
+  7 benilla_app::blob_shadow::setup_shadow_assets
+  8 benilla_app::world_backdrop::setup_backdrop
   9 benilla_app::weapon_trail::init_trail_white
   10 benilla_world::gfx::effect::init
-  11 benilla_gfx::bevy_ui::init_streams
+  11 benilla_app::ui_pass::init_white_texture
   12 benilla_app::cvars::load_config
     in CvarLoad
   13 benilla_app::cvars::publish_filter_policy
     in CvarLoad
   14 benilla_app::player::camera_view::load_saved_views
-  15 benilla_app::video::check_window_pinned
-  16 benilla_app::target::ring::setup_ring
-  17 benilla_app::ui_pass::init_white_texture
-  18 benilla_app::ui_pass::spawn_ui_camera
-  19 benilla_world::assets::open_world_assets
+  15 benilla_app::ui_models::setup_tiles
+  16 benilla_app::ui_pass::spawn_ui_camera
+  17 benilla_world::assets::open_world_assets
     in Open
-  20 bevy_ecs::apply_deferred
-  21 benilla_app::ui_chat::broadcast::load_server_messages
-  22 benilla_app::ui_chat::feed::load_emote_texts
-  23 benilla_app::ui_chat::channels::load_chat_channels
-  24 benilla_app::ui_quest_log::load_quest_tag_names
-  25 benilla_app::ui_quest_log::load_quest_header_names
-  26 benilla_app::ui_tradeskill::load_spell_focus
-  27 benilla_app::ui_items::load_item_dbcs
-  28 benilla_app::chat_bubble::load_bubble_art
-  29 benilla_app::chr_classes::load_chr_classes
-  30 benilla_app::ui_talent::load_talents
-  31 benilla_app::ui_spellbook::load_skill_lines
-  32 benilla_app::ui_action::load_spell_mechanics
-  33 benilla_app::ui_action::load_spells
-  34 benilla_app::text_filter::load_text_filter_lists
-  35 benilla_app::game_tip::load_game_tips
-  36 benilla_app::ui_script::lifecycle::setup_script
-  37 benilla_app::area_trigger::load_area_triggers
-  38 benilla_app::world_state_ui::load_world_state_ui
-  39 benilla_app::area_poi::load_area_poi
-  40 benilla_app::area::load_area_table
-  41 benilla_app::minimap::setup_minimap
-  42 benilla_app::loading_screen::setup_loading_screen
-  43 benilla_app::transport::setup_taxi_nodes
-  44 benilla_app::target::scan::load_creature_types
-  45 benilla_app::target::ring::load_factions
-  46 benilla_app::sound::sheathe::load_sheathe_sounds
-  47 benilla_app::sound::reverb::load_providers
+  18 bevy_ecs::apply_deferred
+  19 benilla_app::ui_chat::broadcast::load_server_messages
+  20 benilla_app::ui_chat::feed::load_emote_texts
+  21 benilla_app::ui_chat::channels::load_chat_channels
+  22 benilla_app::ui_quest_log::load_quest_tag_names
+  23 benilla_app::ui_quest_log::load_quest_header_names
+  24 benilla_app::ui_tradeskill::load_spell_focus
+  25 benilla_app::ui_items::load_item_dbcs
+  26 benilla_app::chat_bubble::load_bubble_art
+  27 benilla_app::chr_classes::load_chr_classes
+  28 benilla_app::ui_talent::load_talents
+  29 benilla_app::ui_spellbook::load_skill_lines
+  30 benilla_app::ui_action::load_spell_mechanics
+  31 benilla_app::ui_action::load_spells
+  32 benilla_app::ui_gm_ticket::load_gm_ticket_dbc
+  33 benilla_app::text_filter::load_text_filter_lists
+  34 benilla_app::game_tip::load_game_tips
+  35 benilla_app::ui_script::lifecycle::setup_script
+  36 benilla_app::area_trigger::load_area_triggers
+  37 benilla_app::world_state_ui::load_world_state_ui
+  38 benilla_app::area_poi::load_area_poi
+  39 benilla_app::area::load_area_table
+  40 benilla_app::minimap::setup_minimap
+  41 benilla_app::loading_screen::setup_loading_screen
+  42 benilla_app::transport::setup_taxi_nodes
+  43 benilla_app::target::scan::load_creature_types
+  44 benilla_app::target::ring::load_factions
+  45 benilla_app::sound::sheathe::load_sheathe_sounds
+  46 benilla_app::sound::reverb::load_providers
+  47 benilla_app::sound::vocal::load_vocal_ui_sounds
   48 benilla_app::sound::ui::load_item_sounds
   49 benilla_app::sound::greeting::load_npc_greetings
   50 benilla_app::sound::emote::load_emote_sounds
@@ -1159,33 +1160,34 @@ schedule Startup
   58 benilla_app::sound::liquid_loop::load_water_sounds
   59 benilla_app::sound::kit::load_sound_kits
   60 benilla_app::sound::load_materials
-  61 benilla_app::realm_select::category::load_categories
-  62 benilla_app::glue_strings::load_glue_strings
-  63 benilla_app::cursor::other::setup
-  64 benilla_app::cinematic::load_catalog
-  65 benilla_app::footprints::load_ink
-  66 benilla_app::camera_shake::load_shakes
-  67 benilla_app::creature_anim::env_damage::load_env_damage_table
-  68 benilla_app::creature_anim::blood::load_blood_tables
-  69 benilla_app::creature_anim::spell_visual::load_spell_visuals
-  70 benilla_app::creature_anim::sheath::load_anim_data
-  71 benilla_app::entities::setup_entities
-  72 benilla_world::water_fx::setup_water_fx
-  73 benilla_world::liquid::surface::setup_liquid
-  74 benilla_world::wdl::setup_wdl
-  75 benilla_world::clutter::setup_clutter
-  76 benilla_world::wmo_portal::interior::load_wmo_areas
-  77 benilla_world::sun::setup::setup_sun
-  78 benilla_world::clouds::layer::setup_cloud_layer
-  79 benilla_world::sky::setup_sky
-  80 benilla_world::lighting::resolve::setup_lighting
-  81 benilla_world::world_map::load_world_map
+  61 benilla_app::realm_select::load::load_realm_types
+  62 benilla_app::realm_select::category::load_categories
+  63 benilla_app::glue_strings::load_glue_strings
+  64 benilla_app::cursor::other::setup
+  65 benilla_app::cinematic::load_catalog
+  66 benilla_app::footprints::load_ink
+  67 benilla_app::camera_shake::load_shakes
+  68 benilla_app::creature_anim::env_damage::load_env_damage_table
+  69 benilla_app::creature_anim::blood::load_blood_tables
+  70 benilla_app::creature_anim::spell_visual::load_spell_visuals
+  71 benilla_app::creature_anim::sheath::load_anim_data
+  72 benilla_app::entities::setup_entities
+  73 benilla_world::water_fx::setup_water_fx
+  74 benilla_world::liquid::surface::setup_liquid
+  75 benilla_world::wdl::setup_wdl
+  76 benilla_world::clutter::setup_clutter
+  77 benilla_world::wmo_portal::interior::load_wmo_areas
+  78 benilla_world::sun::setup::setup_sun
+  79 benilla_world::clouds::layer::setup_cloud_layer
+  80 benilla_world::sky::setup_sky
+  81 benilla_world::lighting::resolve::setup_lighting
+  82 benilla_world::world_map::load_world_map
     in WorldMapLoad
-  82 benilla_app::player::setup::setup_player
-  83 benilla_app::sound::vocal::load_vocal_ui_sounds
-  84 benilla_world::art_scope::configure_art_scope
-  85 benilla_app::ui_gm_ticket::load_gm_ticket_dbc
-  86 benilla_gfx::gizmos::init
+  83 benilla_app::player::setup::setup_player
+  84 benilla_gfx::bevy_ui::init_streams
+  85 benilla_world::art_scope::configure_art_scope
+  86 benilla_app::target::ring::setup_ring
+  87 benilla_gfx::gizmos::init
   set CvarLoad
   set Open
   set WorldMapLoad
@@ -1211,6 +1213,7 @@ schedule Startup
   Open -> benilla_app::minimap::setup_minimap
   Open -> benilla_app::player::setup::setup_player
   Open -> benilla_app::realm_select::category::load_categories
+  Open -> benilla_app::realm_select::load::load_realm_types
   Open -> benilla_app::sound::combat::load_weapon_impacts
   Open -> benilla_app::sound::combat::load_weapon_swings
   Open -> benilla_app::sound::creature::load_creature_voices
