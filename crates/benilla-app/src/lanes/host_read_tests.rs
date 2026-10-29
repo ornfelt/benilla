@@ -10,10 +10,12 @@
 //!   reference too makes outside every packet is
 //!   [`super::guard_tests::BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE`]'s, which stays.
 //! - [`BETWEEN_THE_DISPATCH_AND_THE_DRAIN`]: the systems after the dispatch and ahead of the drain
-//!   that write what the host's live reads read, or push a view the drain waits for, where the
-//!   reference writes inside a packet. A listener fired inside the dispatch would read each as the
-//!   frame before left it. The writers the reference too runs after the packets, and those no
-//!   listener can see, are [`AFTER_THE_PACKETS_IN_THE_REFERENCE`]'s, which stays.
+//!   that write what a call or a handler reads inside a packet (the host's live reads, the rest of
+//!   the call host's state, and what the handlers read without writing), or push a view the drain
+//!   waits for, where the reference writes inside a packet. A listener fired inside the dispatch
+//!   would read each as the frame before left it. The writers the reference too runs after the
+//!   packets, and those no listener can see, are [`AFTER_THE_PACKETS_IN_THE_REFERENCE`]'s, which
+//!   stays.
 //! - [`super::guard_tests::NOT_YET_ON_A_LANE`]: what fires off a handler's queue or edge from a
 //!   feed, ahead of every lane. Once the lanes fire inside the dispatch, each such event moves
 //!   from ahead of every packet event of its frame to behind them all.
@@ -26,6 +28,8 @@
 //! [`super::guard_tests::LANE_READS_FRAME_FINAL`] empties at the flip itself, which makes the
 //! world a lane firing reads its packet's, and every entry of
 //! [`super::guard_tests::HOST_HELD_UNREAD`] is read first, as quiet or as a row of its own.
+//! [`super::guard_tests::QUEUED_FOR_THE_TICK`] holds the calls that queue an event for the VM's
+//! next tick, which fires behind every packet's events before the flip and after it.
 
 use std::any::TypeId;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -39,12 +43,15 @@ use crate::game_plugins::schedule_tests::{census, type_names_available, SyncPoin
 
 /// The most rows [`super::guard_tests::READS_FRAME_FINAL`] may hold, and the most inputs across
 /// them: each only falls, so lower it when a row or an input goes.
-const FRAME_FINAL_FEEDS: usize = 20;
-const FRAME_FINAL_INPUTS: usize = 119;
+const FRAME_FINAL_FEEDS: usize = 14;
+const FRAME_FINAL_INPUTS: usize = 92;
 
 /// The systems that may run after the dispatch (`apply_net_updates`) and run ahead of the drain
-/// (`fire_in_order`), by a suffix of the system's name, with what each writes of the host's live
-/// reads ([`crate::script_calls::live::LiveReads`]), by its name in the crate, and why: the
+/// (`fire_in_order`), by a suffix of the system's name, with what each writes of the state a
+/// listener's call or a handler reads inside a packet, by its name in the crate, and why: the
+/// host's live reads ([`crate::script_calls::live::LiveReads`]), the rest of the call host's
+/// state, which its verbs read, and what the handlers read without writing
+/// ([`super::guard_tests::READ_ONLY_TO_HANDLERS`]), the queues apart. These are the
 /// obstacles to the flip, each a write the reference makes inside a packet, or a view pushed in
 /// its place. A listener fired inside the dispatch would read each of these as the frame before
 /// left it. The writers the reference also runs after the packets are
@@ -54,46 +61,58 @@ const FRAME_FINAL_INPUTS: usize = 119;
 /// access does not show; `exclusive` a system whose access Bevy does not report.
 #[rustfmt::skip]
 const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
+    ("::player::camera_saved::load_camera_pose", &["player::camera::CameraControl",
+        "player::camera::FlyCam", "player::state::Player"],
+        "restores the rig's distances and the camera's pitch from the per-character file once the \
+         roster names the character, which `SaveView` reads inside its call (`0x50fa30`); the \
+         reference reads the file as the world frame constructs its camera at the interface load \
+         (`0x481b4e` → `0x50c0e0`, `LoadSettings 0x50c5a0` at `0x50c3ea`), before any listener"),
     ("::net::motion::remote::extrapolate_remote_units", &["Commands net::motion::spline::Spline",
         "Transform", "net::motion::remote::RemoteMotion"],
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
-    ("::spell::group_relation::publish_group_roster", &["spell::group_relation::GroupRoster"],
-        "copies the group's roster, which the relation reads take, once the packets are in"),
     ("::transport::compose_riders", &["Transform", "net::motion::remote::RemoteMotion"],
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
-    ("::ui_action::feed::feed_actions", &["ui_action::PlayerActions"],
-        "clears the bar's re-resolve flag; the known spells the book and the talents read are \
-         the learn handlers' alone"),
-    ("::ui_action::state::feed_action_state", &["spell::cooldowns::Cooldowns",
-        "ui_action::state::ActionStateMemory"],
-        "keeps the frame's `GetTime` clock the cooldown reads map each start through, and \
-         writes the list as it walks the slots"),
-    ("::ui_action::unlearn::clear_unlearned_slots", &["ui_action::PlayerActions"],
-        "drains the unlearned spells the bar clears; the known spells are the handlers' alone"),
-    ("::ui_char::feed_char", &["UiScript"], "a field event's listeners read its push"),
+    ("::ui_action::state::feed_action_state", &["ui_action::state::ActionStateMemory"],
+        "stores the slots' usable pairs the frame's writes owe and the reactive list the frame's \
+         learns grew, which the usable refreshes inside the packets read, where the reference \
+         stores each at its write (`0x4e590a`, `0x4b27c7`)"),
+    ("::ui_cast::feed_cast_reports", &["ui_action::cast_lines::CastFailRedisplays"],
+        "holds the refusals that wait on their item's record, which it tests to queue the cast \
+         lane's retry behind the frame's packets, where the reference shows each in the record's \
+         callback (`ShowItemCastFailure` `0x6e29b0`), inside `ItemCacheReceive` `0x55bdb0` in the \
+         answer's handler"),
+    ("::ui_char::feed_char", &["UiScript", "ui_char::AmmoRecordHits"],
+        "a field event's listeners read its push, and it takes the ammo getters' record hits, a \
+         `UNIT_INVENTORY_CHANGED` each behind it, where the reference's hit registers no callback \
+         and the call reads the record itself (`0x4c83bc`, `0x4c89cf`)"),
+    ("::ui_chat::language::feed_language_skills", &["ui_chat::language::ChatLanguages"],
+        "recomputes the language skills off the book and the skill lines, which a page's show \
+         reads inside its packet (`0x4e3856`), where the reference reads the skill live at the \
+         show (`0x4e3837`)"),
+    ("::ui_craft::feed_craft", &["ui_craft::CraftItemWaits"],
+        "spends the craft getters' record waits as their records land and rebuilds the list, \
+         where the reference runs each callback (`OnCraftItemRecord` `0x4f7710`) in \
+         `ItemCacheReceive` `0x55bdb0`, inside the answer's handler (`0x555140`, `0x555160`)"),
+    ("::ui_follow::feed_follow", &["ui_follow::FollowFeed"],
+        "fires the engine's follow transitions off the followee memo the host's `FollowUnit` \
+         tells too, where the reference signals inside the move's start and end (`0x611130`, \
+         `0x60fb60`)"),
     ("::ui_item_text::apply_reads", &["ui_item_text::ItemTextOpen"],
         "a click's or a bag use's read, queued in its input or its call, which the reference \
          opens inside them (`0x5f58c0`, `0x4e32e0`), ahead of the packets (`0x420d23`)"),
-    ("::ui_instance::track_instance_state", &["ui_instance::InstanceState"],
-        "latches the dungeon just left once the map the transfer lands on is known, which the \
-         reference latches inside the map load and the packet (`0x464ff0`, `0x49e6ac`)"),
-    ("::ui_macro::rebind_macro_spells", &["ui_action::PlayerActions"],
-        "drains the superseded ranks the bar's macros take; the known spells are the handlers' \
-         alone"),
-    ("::ui_party::feed::feed_party", &["UiScript"], "a field event's listeners read its push"),
-    ("::ui_pet::unit::feed_pet_unit", &["UiScript"], "a field event's listeners read its push"),
-    ("::ui_session::close_npc_session_out_of_range<benilla_app::ui_binder::BinderState>",
-        &["ui_binder::BinderState"],
-        "closes the bind question once the player leaves service range, which \
-         `CheckBinderDist` reports; the reference tests the range at the call (`0x5dff50`)"),
-    ("::ui_session::close_npc_session_out_of_range<benilla_app::ui_dialog_verbs::PetUnlearnState>",
-        &["ui_dialog_verbs::PetUnlearnState"],
-        "closes the unlearn question once the player leaves service range, which \
-         `CheckPetUntrainerDist` reports; the reference tests the range at the call (`0x5dfd30`)"),
-    ("::ui_session::close_npc_session_out_of_range<benilla_app::ui_talent_wipe::TalentWipeState>",
-        &["ui_talent_wipe::TalentWipeState"],
-        "closes the respec question once the player leaves service range, which \
-         `CheckTalentMasterDist` reports; the reference tests the range at the call (`0x5df980`)"),
+    ("::ui_macro::load_macros", &["ui_action::ActionSlots"],
+        "the macro reader (`LoadMacroFiles` `0x4f0600`), run as its sections settle, moves a \
+         character's buttons off benilla's older numbering through the bar verbs, a move with no \
+         reference fact; the reference runs the reader inside the account-data settle \
+         (`0x5afaca`, `0x5afd19`)"),
+    ("::ui_session::feed_interact_npc", &["ui_session::InteractNpc"],
+        "copies the interaction latch into the `npc` unit the token lookups read, where the \
+         reference's `npc` is the latch itself (`0x515c00`), set inside the handlers through \
+         `SetInteractionTarget` `0x4930d0`"),
+    ("::ui_tradeskill::feed_trade_skill", &["ui_tradeskill::TradeSkillItemWaits"],
+        "spends the profession getters' record waits as their records land and rebuilds the \
+         list, where the reference runs each callback (`OnTradeSkillItemRecord` `0x4fdc30`) in \
+         `ItemCacheReceive` `0x55bdb0`, inside the answer's handler (`0x555140`, `0x555160`)"),
 ];
 
 /// The systems between the dispatch and the drain that write what the host's live reads read,
@@ -123,9 +142,6 @@ const AFTER_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
         "Transform"],
         "moves the units along their splines; unit movement is \
          frame time, which the reference runs after the packets (`0x420d63` after `0x420d55`)"),
-    ("::player::camera_saved::load_camera_pose", &["player::state::Player"],
-        "benilla's own reason, no reference fact: it restores the camera pitch from benilla's own \
-         per-character file once the roster names the character, and no getter reads the pitch"),
     ("::transport::ground_deck_riders", &["Transform", "net::motion::remote::RemoteMotion"],
         "settles the riders on their decks; unit movement is \
          frame time, which the reference runs after the packets (`0x420d63` after `0x420d55`)"),
@@ -140,12 +156,20 @@ const AFTER_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
         &["ui_pet::PetBar"],
         "drops the pet's cooldown log, run only while no in-game interface \
          is up, so no listener exists; it goes with the log"),
+    ("::ui_chat::language::load_language_words", &["ui_chat::language::ChatLanguages"],
+        "loads `LanguageWords.dbc` once, the first frame the install is open, ahead of every \
+         world packet, as the reference loads it at startup (`StaticDBLoadAll` `0x53f8b0` → \
+         `0x548990`, from `ClientDBInitialize` `0x53f4f0`): no listener reads the pools before \
+         it"),
     ("::ui_mail::step_pending_mail", &["ui_mail::pending::MailPending"],
         "steps the pending-mail time in the world frame's update (its slot `0x38`, `0x4818d0` → \
          `0x4ade60`), which the frame pass runs after the packets (`0x420d6a` after `0x420d55`)"),
     ("::ui_loot::drop_loot_steps", &["ui_loot::LootState"],
         "drops the loot lane's window signals, its pushes kept, run only while no in-game \
          interface is up, so no listener exists"),
+    ("::ui_loot_roll::lane::drop_roll_events", &["ui_loot_roll::LootRolls"],
+        "drops the rolls' lane, run only while no in-game interface is up, so no listener \
+         exists"),
     ("::ui_mail::lane::drop_mail_events", &["ui_mail::pending::MailPending"],
         "drops the mail lane, a parked close's tail with its query kept, run only while no \
          in-game interface is up, so no listener exists"),
@@ -158,8 +182,8 @@ const AFTER_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
 ];
 
 /// The systems [`BETWEEN_THE_DISPATCH_AND_THE_DRAIN`] and [`AFTER_THE_PACKETS_IN_THE_REFERENCE`]
-/// hold to, with what each writes of the host's live reads, by suffix; see the first's doc for the
-/// kinds.
+/// hold to, with what each writes of the state a call or a handler reads, by suffix; see the
+/// first's doc for that state and the kinds.
 fn writers_between(app: &mut App) -> Option<BTreeMap<String, BTreeSet<String>>> {
     let world = app.world_mut();
     use bevy::ecs::system::System;
@@ -174,6 +198,47 @@ fn writers_between(app: &mut App) -> Option<BTreeMap<String, BTreeSet<String>>> 
         .to_vec();
     let mut read_resources = HashSet::new();
     let mut read_components = HashSet::new();
+    // What a listener inside the dispatch reads past the live families: every resource and
+    // component a call's verbs touch through the host, and what the handlers read without writing
+    // ([`super::guard_tests::READ_ONLY_TO_HANDLERS`]), each a read made inside a packet in the
+    // reference. The queues are not state: the lanes, the message buffers and what a handler fills
+    // through a shared reference.
+    crate::net::handlers::measure(world);
+    let queues: HashSet<ComponentId> = super::guard_tests::lane_types()
+        .into_iter()
+        .filter_map(|t| world.components().get_resource_id(t))
+        .collect();
+    let is_state = |world: &World, id: ComponentId| {
+        let n = super::guard_tests::name(world, id);
+        !queues.contains(&id)
+            && !super::guard_tests::is_messages(world, id)
+            && !super::guard_tests::ends_with_any(&n, super::guard_tests::FILLED_THROUGH_A_READ)
+    };
+    let handlers = world.resource::<crate::net::handlers::NetHandlers>();
+    let mut handler_reads = HashSet::new();
+    for (_, access) in handlers.accesses() {
+        let access = access.combined_access();
+        handler_reads.extend(
+            access
+                .resource_reads()
+                .filter(|id| !access.has_resource_write(*id)),
+        );
+    }
+    read_resources.extend(handler_reads.into_iter().filter(|id| is_state(world, *id)));
+    for fa in &host {
+        read_resources.extend(
+            fa.access()
+                .resource_reads_and_writes()
+                .filter(|id| is_state(world, *id)),
+        );
+        if let Ok(kinds) = fa.access().try_iter_component_access() {
+            read_components.extend(kinds.map(|k| match k {
+                ComponentAccessKind::Archetypal(id)
+                | ComponentAccessKind::Shared(id)
+                | ComponentAccessKind::Exclusive(id) => id,
+            }));
+        }
+    }
     for fa in &live {
         read_resources.extend(fa.access().resource_reads_and_writes());
         if let Ok(kinds) = fa.access().try_iter_component_access() {
@@ -312,9 +377,9 @@ fn rows_between(
         .chain(AFTER_THE_PACKETS_IN_THE_REFERENCE)
 }
 
-/// Every system between the dispatch and the drain that writes what the host's live reads read
-/// has its row, in one of the two lists, as it stands, and a row whose system no longer does is
-/// stale.
+/// Every system between the dispatch and the drain that writes what a call or a handler reads has
+/// its row, in one of the two lists, as it stands, and a row whose system no longer does is stale:
+/// a feed that rewrites once a frame what a listener's call reads inside its packet cannot hide.
 #[test]
 fn every_writer_between_the_dispatch_and_the_drain_is_listed() {
     let mut app = crate::game_plugins::schedule_tests::headless_client();
@@ -359,7 +424,7 @@ fn every_writer_between_the_dispatch_and_the_drain_is_listed() {
         .collect();
     assert!(
         wrong.is_empty(),
-        "these run between the dispatch and the drain and write what the host's live reads read: \
+        "these run between the dispatch and the drain and write what a call or a handler reads: \
          move the write into its handler, or give each its row as it stands: in \
          AFTER_THE_PACKETS_IN_THE_REFERENCE when the reference too writes it after the packets, \
          else in BETWEEN_THE_DISPATCH_AND_THE_DRAIN:\n  {}",
@@ -419,7 +484,7 @@ fn flip_readiness() {
     ];
     let context = [
         (
-            "HOST_HELD_UNREAD (to read; a quiet entry stays)",
+            "HOST_HELD_UNREAD (read, each quiet; stays)",
             g::HOST_HELD_UNREAD.len(),
             String::new(),
         ),
@@ -436,6 +501,11 @@ fn flip_readiness() {
         (
             "BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE (stays)",
             g::BUILT_OUTSIDE_THE_PACKETS_IN_THE_REFERENCE.len(),
+            String::new(),
+        ),
+        (
+            "QUEUED_FOR_THE_TICK (behind every packet, flip or not)",
+            g::QUEUED_FOR_THE_TICK.len(),
             String::new(),
         ),
     ];

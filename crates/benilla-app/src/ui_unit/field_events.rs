@@ -14,11 +14,9 @@ use benilla_ui::strings::Arg;
 use crate::field_watch::{FieldNotice, NoticeLane};
 use crate::lanes::Until;
 
-/// The feeds that push what a field event's handlers read: the group's and the pet's tokens, the
-/// player's combat stats and
-/// inventory, the inspected unit's slots, the honor block and the watched faction. The lanes'
-/// drain runs after all of them, as the update handler writes every block of its packet before its
-/// notify pass (`0x46520e`, `0x465222`, then `0x46522d`).
+/// The feeds that push what a field event's handlers read: the player's inventory and ammo. The
+/// lanes' drain runs after all of them, as the update handler writes every block of its packet
+/// before its notify pass (`0x46520e`, `0x465222`, then `0x46522d`).
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct FieldEventPushes;
 
@@ -47,6 +45,8 @@ pub(crate) struct NoticeFiring<'w, 's> {
     marks: Option<ResMut<'w, crate::portrait::PortraitMarks>>,
     // The happiness watch's tables, which its run reads the bucket through.
     pet_stats: Option<Res<'w, crate::ui_pet_stats::PetStatTables>>,
+    // The explored watch's setter rebuilds the landmark list the bits gate.
+    landmarks: crate::ui_world_map::LandmarkReads<'w, 's>,
 }
 
 impl NoticeFiring<'_, '_> {
@@ -96,6 +96,20 @@ impl NoticeFiring<'_, '_> {
             drunk(script, &mut self.sink, guid, old, new);
             return false;
         }
+        if notice == FieldNotice::ExploredZones {
+            // The bytes as the watcher's packet left them, as the shapeshift offset reads the
+            // form byte.
+            let explored = self
+                .player
+                .iter()
+                .next()
+                .and_then(|e| self.views.get(e).ok())
+                .map(|store| crate::ui_world_map::explored_of(&store.0));
+            if let Some(explored) = explored {
+                self.landmarks.explored_zones_changed(script, explored);
+            }
+            return false;
+        }
         if notice == FieldNotice::SkillLines {
             script.rebuild_skills();
             return false;
@@ -119,6 +133,10 @@ impl NoticeFiring<'_, '_> {
         }
         if notice == FieldNotice::Professions {
             script.rebuild_trade_skill(&mut |t| self.reband(t));
+            return false;
+        }
+        if notice == FieldNotice::PetMacros {
+            crate::ui_macro::derive_pet_followers(script);
             return false;
         }
         if notice == FieldNotice::Shapeshift {
@@ -295,6 +313,23 @@ fn fire_lane(vm: &mut NoticeVm, lane: &mut NoticeLane, firing: &mut NoticeFiring
     while let Some((stamp, notice)) = lane.pop(until) {
         if notice == FieldNotice::UsableRefresh {
             let ((), moved) = crate::lanes::firing(stamp, || vm.engine_usable_refresh());
+            if moved {
+                break;
+            }
+            continue;
+        }
+        if let FieldNotice::ActionSlotChanged { action } = notice {
+            let ((), moved) = crate::lanes::firing(stamp, || {
+                vm.engine_slot_written();
+                vm.run(|script| {
+                    if let Some(script) = script {
+                        script.fire_event(
+                            "ACTIONBAR_SLOT_CHANGED",
+                            vec![ScriptValue::Int(i64::from(action))],
+                        );
+                    }
+                })
+            });
             if moved {
                 break;
             }
@@ -546,12 +581,14 @@ pub(crate) fn fire(
                 script.fire_event("PLAYER_CONTROL_LOST", vec![]);
             }
         }
-        // Caught by [`fire_lane`] before it reaches here: the refresh runs on the host's action
-        // states ([`crate::script_calls::ScriptCallHost::engine_usable_refresh`]).
-        FieldNotice::UsableRefresh => {}
+        // Caught by [`fire_lane`] before it reaches here: the refresh and the slot write's pair
+        // run on the host's action states
+        // ([`crate::script_calls::ScriptCallHost::engine_usable_refresh`]).
+        FieldNotice::UsableRefresh | FieldNotice::ActionSlotChanged { .. } => {}
         // Fired by [`NoticeFiring::fire`], which holds the slots, the banks, the names, the form
         // table, the spell catalog, the aura cache, the skill lines and the pet's stat tables.
         FieldNotice::QuestLog
+        | FieldNotice::ExploredZones
         | FieldNotice::Tutorial { .. }
         | FieldNotice::MirrorTimer(_)
         | FieldNotice::Drunk { .. }
@@ -563,6 +600,7 @@ pub(crate) fn fire(
         | FieldNotice::SkillValue { .. }
         | FieldNotice::Professions
         | FieldNotice::PortraitMark { .. }
+        | FieldNotice::PetMacros
         | FieldNotice::PetGuidSet { .. } => {}
         // Put on the trainer lane by the packet's handler ([`crate::ui_trainer::TrainerPasses`]).
         FieldNotice::TrainerPass => {}
@@ -585,6 +623,15 @@ pub(crate) fn fire(
             vec![ScriptValue::Int(i64::from(free_repop))],
         ),
         FieldNotice::MinimapPing(ping) => ping.fire(script),
+        FieldNotice::Revived => {
+            script.unlock_all_items();
+            script.fire_event("PLAYER_ALIVE", vec![]);
+        }
+        FieldNotice::Line { key } => {
+            if let Some(line) = crate::ui_action::keyed_line(script, key) {
+                crate::ui_action::show_now(script, sink, "ui_unit", line);
+            }
+        }
         FieldNotice::PvpPreference { on } => {
             let (toast, verbose) = super::pvp_announcement(on);
             // The verbose sentence is no catalog row, so it goes `unkeyed` to chat:
@@ -742,6 +789,9 @@ fn global_event(id: u16) -> Option<&'static str> {
         id::PET_BAR_UPDATE => "PET_BAR_UPDATE",
         id::AREA_SPIRIT_HEALER_IN_RANGE => "AREA_SPIRIT_HEALER_IN_RANGE",
         id::AREA_SPIRIT_HEALER_OUT_OF_RANGE => "AREA_SPIRIT_HEALER_OUT_OF_RANGE",
+        id::PLAYER_CAMPING => "PLAYER_CAMPING",
+        id::PLAYER_QUITING => "PLAYER_QUITING",
+        id::LOGOUT_CANCEL => "LOGOUT_CANCEL",
         id::INSPECT_HONOR_UPDATE => "INSPECT_HONOR_UPDATE",
         id::PLAYERBANKBAGSLOTS_CHANGED => "PLAYERBANKBAGSLOTS_CHANGED",
         id::PLAYER_FARSIGHT_FOCUS_CHANGED => "PLAYER_FARSIGHT_FOCUS_CHANGED",
@@ -1431,13 +1481,8 @@ mod tests {
                 crate::ui_party::feed_party,
                 crate::lanes::fire_in_order,
             ),
-            crate::test_support::runs_before(
-                &mut headless,
-                crate::ui_pet::feed_pet_unit,
-                crate::lanes::fire_in_order,
-            ),
         ];
-        assert_eq!(ahead, [true; 3], "char, party, pet");
+        assert_eq!(ahead, [true; 2], "char, party");
     }
 
     /// The active player's arrival runs its ghost state (`0x5dea50` → `0x5deb2a` → `0x5de9c0`)

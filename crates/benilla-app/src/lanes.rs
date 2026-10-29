@@ -120,9 +120,34 @@ pub(crate) fn firing_now() -> Option<Stamp> {
     FIRING.get()
 }
 
+/// Whether the item firing on this thread was pushed between `from` and `to`, or nests under one
+/// that was: it is part of what ran between the two marks.
+pub(crate) fn firing_between(from: Mark, to: Mark) -> bool {
+    FIRING
+        .get()
+        .is_some_and(|s| s.path().iter().any(|n| (from.0..to.0).contains(n)))
+}
+
 thread_local! {
     /// A close core is running held behind a lane: what a core it re-enters signals is its.
     static BEHIND: Cell<bool> = const { Cell::new(false) };
+    /// The net dispatch is running the frame's packet handlers on this thread ([`at_packets`]).
+    static AT_PACKETS: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Run `f` as the dispatch of the frame's packets, each handler whole in wire order: a close core
+/// a handler runs with no item firing takes its place on its lane there ([`waits_behind`]), so its
+/// signals fire after every earlier packet's and ahead of every later one's, as the reference's
+/// fire inside the handler that closes (`0x537ae5`, `0x703e50`).
+pub(crate) fn at_packets<R>(f: impl FnOnce() -> R) -> R {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            AT_PACKETS.set(self.0);
+        }
+    }
+    let _reset = Reset(AT_PACKETS.replace(true));
+    f()
 }
 
 /// Where [`behind`] ran its core.
@@ -136,11 +161,11 @@ pub(crate) enum Behind {
     Nested,
 }
 
-/// Run a close `core` behind a lane whose head is `head`: at once unless the lane holds an item
-/// stamped before the item firing now (any item, with none firing), else with the world's VM held,
-/// what it signalled parked under a key `park` queues on the lane, so a close never fires ahead of
-/// the open it closes. A core it re-enters, as a release re-enters its close (`0x493310`), runs
-/// inside the hold.
+/// Run a close `core` behind a lane whose head is `head`: at once unless it waits
+/// ([`waits_behind`]), else with the world's VM held, what it signalled parked under a key `park`
+/// queues on the lane, so a close never fires ahead of the open it closes, nor ahead of an earlier
+/// packet's signals when a handler runs it. A core it re-enters, as a release re-enters its close
+/// (`0x493310`), runs inside the hold.
 pub(crate) fn behind(
     world: &mut World,
     head: Option<Stamp>,
@@ -167,11 +192,16 @@ pub(crate) fn behind(
     Behind::Parked
 }
 
-/// Whether a close run now must wait behind a lane whose head is `head`: the lane holds an item
-/// stamped before the item firing now (any item, with none firing), and no other core's hold
-/// already takes what it signals ([`behind`]).
+/// Whether a close run now must wait behind a lane whose head is `head`, as no other core's hold
+/// already takes what it signals ([`behind`]): with an item firing, the lane holds one stamped
+/// before it; with none, a packet handler runs it ([`at_packets`]), whose place is the lane's
+/// next stamp, or the lane holds any item.
 pub(crate) fn waits_behind(head: Option<Stamp>) -> bool {
-    !BEHIND.get() && head.is_some_and(|head| firing_now().is_none_or(|now| head < now))
+    !BEHIND.get()
+        && match firing_now() {
+            Some(now) => head.is_some_and(|head| head < now),
+            None => AT_PACKETS.get() || head.is_some(),
+        }
 }
 
 /// Run `f` as the firing of the item stamped `at`, so what it pushes nests under the item; with
@@ -501,13 +531,19 @@ mod cast_live_tests;
 #[cfg(test)]
 mod chat_clock_live_tests;
 #[cfg(test)]
+mod close_parked_tests;
+#[cfg(test)]
 mod cooldown_live_tests;
+#[cfg(test)]
+mod death_live_tests;
 #[cfg(test)]
 mod dialog_live_tests;
 #[cfg(test)]
 mod duration_live_tests;
 #[cfg(test)]
 mod gossip_live_tests;
+#[cfg(test)]
+mod group_live_tests;
 #[cfg(test)]
 mod group_view_tests;
 #[cfg(test)]
@@ -519,13 +555,19 @@ mod host_read_tests;
 #[cfg(test)]
 mod inspect_live_tests;
 #[cfg(test)]
+mod instance_live_tests;
+#[cfg(test)]
 mod item_live_tests;
 #[cfg(test)]
 mod item_tests;
 #[cfg(test)]
 mod item_text_live_tests;
 #[cfg(test)]
+mod logout_live_tests;
+#[cfg(test)]
 mod loot_live_tests;
+#[cfg(test)]
+mod loot_roll_live_tests;
 #[cfg(test)]
 mod mail_live_tests;
 #[cfg(test)]
@@ -539,9 +581,13 @@ mod pet_live_tests;
 #[cfg(test)]
 mod petition_live_tests;
 #[cfg(test)]
+mod profession_live_tests;
+#[cfg(test)]
 mod quest_log_live_tests;
 #[cfg(test)]
 mod quiet_tests;
+#[cfg(test)]
+mod record_callback_tests;
 #[cfg(test)]
 mod reputation_live_tests;
 #[cfg(test)]
@@ -550,6 +596,8 @@ mod requirement_live_tests;
 mod selection_live_tests;
 #[cfg(test)]
 mod social_live_tests;
+#[cfg(test)]
+mod spell_slot_live_tests;
 #[cfg(test)]
 mod stable_live_tests;
 #[cfg(test)]
@@ -573,11 +621,18 @@ mod trade_live_tests;
 #[cfg(test)]
 mod trainer_live_tests;
 #[cfg(test)]
+mod tutorial_live_tests;
+#[cfg(test)]
+mod ui_error_live_tests;
+#[cfg(test)]
 mod unit_feed_live_tests;
 #[cfg(test)]
 mod unit_live_tests;
 #[cfg(test)]
 mod unit_view_tests;
+
+#[cfg(test)]
+mod world_map_update_tests;
 
 #[cfg(test)]
 mod unit_tests {

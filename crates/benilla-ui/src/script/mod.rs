@@ -233,8 +233,8 @@ pub(crate) mod xml_layout;
 mod zone_text;
 
 pub use action::{
-    macro_slot_id, macro_slot_word, ActionBarCall, ActionSlot, ActionState, ActionUse, CastView,
-    OpenProfessions, Profession, WearsItem,
+    macro_slot_id, macro_slot_word, ActionBarCall, ActionSlot, ActionState, ActionStateNow,
+    ActionUsableNow, ActionUse, CastView, OpenProfessions, Profession, WearsItem,
 };
 pub use addon::{addon_load_context, AddOnInfo, AddonLoad, AddonReply, AddonSecurity};
 pub use addon_enable::{AddonStateFiles, EnableHash, EnableStore};
@@ -319,7 +319,7 @@ pub use cvars::{
     CVAR_WORLD_DETAIL, IN_WORLD_READ_ONLY_CVARS, LUA_CVAR_LIMIT, VIDEO_DEFAULT_CVARS,
     WORLD_DETAIL_STOPS,
 };
-pub use death::{DeathAction, DeathUiState};
+pub use death::{DeathAction, DeathQuery, DeathUiState, ResSicknessLevelQuery};
 pub use dialog_live::{
     meeting_stone_text, AreaSpiritHealerSecsQuery, BinderPendingQuery, CanResetInstancesQuery,
     InstanceBootSecsQuery, InstanceTypeQuery, MeetingStoneQuery, MeetingStoneStatus,
@@ -358,8 +358,8 @@ pub use petition::{
 };
 pub use protected::InputEvents;
 pub use roster_read::{
-    GroupCells, GroupCellsQuery, GroupRow, MemberOrPetQuery, MemberQuery, Membership, RaidRowQuery,
-    RosterName, RosterNames, RosterNamesQuery, RowQuery,
+    GroupCells, GroupCellsQuery, GroupRow, GroupRows, GroupRowsQuery, MemberOrPetQuery,
+    MemberQuery, Membership, RaidRowQuery, RosterName, RosterNames, RosterNamesQuery, RowQuery,
 };
 pub use stat_read::{CombatRead, NoPlayer, SelfRead, UnitCombatStats};
 pub use tabard::{
@@ -386,9 +386,9 @@ pub use loot::{
     LootCall, LootRow, LootSlotQuery, LootState, LootWindow, LootWindowQuery, MasterLootCandidate,
     MasterLootCandidateQuery, LOOT_PORTRAIT_UNIT,
 };
-pub use loot_roll::{LootRollCall, LootRollEntry, LootRollsState};
+pub use loot_roll::{LootRollCall, LootRollEntry, LootRollQuery, LootRollsState};
 pub use macros::{
-    macro_lines, MacroBinding, MacroDerives, MacroState, MacroView, CHARACTER_ID_BASE, MAX_MACROS,
+    macro_lines, MacroBinding, MacroState, MacroView, CHARACTER_ID_BASE, MAX_MACROS,
     MAX_MACRO_BODY, MAX_MACRO_NAME,
 };
 pub use mail::{
@@ -489,7 +489,7 @@ pub use trainer::{
     TrainerServiceCategory, TrainerServiceLive, TrainerServiceQuery, TrainerSkillReq, TrainerState,
     TrainerTooltip, TRAINER_GROUP_KNOWN,
 };
-pub use tutorial::TutorialCall;
+pub use tutorial::{TutorialCall, TutorialsEnabledQuery};
 pub(crate) use types::{monochrome_flag, FontMask, MeasuredText, RegionData};
 pub use types::{
     BlendMode, EditAction, EditBoxAdvanceRequest, EditBoxTextUi, EditOutcome, EditUnit,

@@ -102,7 +102,6 @@ use camera_zoom::{apply_zoom_scroll, CAM_DIST_DEFAULT};
 // `follow` owns the motion.
 pub(crate) use follow::{FollowRequest, FollowState};
 // Click to Move: `crate::target`'s dispatchers start it and run the verb it owes on arrival.
-#[cfg(test)]
 pub(crate) use approach::on_cvar as approach_on_cvar;
 pub(crate) use approach::{
     can_auto_interact, cancel_move_action_on_ui_shutdown, Approach, ApproachVerb, AutoMove,
@@ -110,6 +109,7 @@ pub(crate) use approach::{
 };
 /// `SetStandState` run inside a script call.
 pub(crate) use posture::{stand_up_for_attack, stand_up_refused, StandSetter};
+pub(crate) use press::CommandSteps;
 use state::{
     MoveSpeed, PlayerRide, AIR_NUDGE_SPEED, FALL_FAR_DROP, FALL_FAR_TIME, FOOT_CONE_HEIGHT,
     GROUND_COS, GROUND_PROBE, JUMP_SPEED, LAND_PROBE, RUN_BACK_RATIO, SKIN_WIDTH,
@@ -326,14 +326,13 @@ impl Plugin for PlayerPlugin {
                     .after(WorldFocusSet)
                     .in_set(crate::vm_pass::VmPass::Member),
             );
-        app.add_observer(camera::on_cvar);
-        app.add_observer(camera_dynamics::on_cvar);
         app.init_resource::<camera::LookConfig>();
         app.init_resource::<camera_zoom::ZoomLimit>();
         app.init_resource::<camera::FollowConfig>();
         app.init_resource::<OwnControlLost>();
         app.init_resource::<MoverLock>();
         app.init_resource::<StandPending>();
+        app.init_resource::<press::CallAutorun>();
         app.init_resource::<camera_dynamics::CameraOptions>();
         // Far sight resolves `PLAYER_FARSIGHT` to a pose before `control` seats the camera: a
         // separate system, as `control` holds our `Transform` mutably and cannot read another's.

@@ -43,7 +43,6 @@ fn app() -> App {
     actions.spells.extend([REVENGE, REVENGE_2, FIREBALL]);
     app.insert_resource(actions)
         .init_resource::<crate::ui_action::ActionSlots>()
-        .insert_resource(crate::ui_macro::MacroBoundSpells::default())
         .insert_resource(Spells {
             catalog: benilla_formats::SpellCatalog::from_displays(
                 [
@@ -329,7 +328,7 @@ fn the_bars_usable_event_comes_before_the_reactive_word() {
                 kind: benilla_protocol::messages::ACTION_KIND_SPELL,
             },
         );
-        slots.dirty = true;
+        slots.touch();
     }
     app.world_mut()
         .non_send_resource_mut::<UiScript>()

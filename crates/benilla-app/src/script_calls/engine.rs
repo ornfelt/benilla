@@ -60,7 +60,6 @@ pub(crate) struct RecordAsks<'w, 's> {
     summon: Option<Res<'w, crate::ui_summon::SummonState>>,
     battlefield: Option<ResMut<'w, crate::ui_battlefield_positions::BattlefieldPositions>>,
     ammo_hits: Option<ResMut<'w, crate::ui_char::AmmoRecordHits>>,
-    cooldowns: Option<ResMut<'w, crate::spell::Cooldowns>>,
     quest: Option<ResMut<'w, crate::ui_quest::QuestGiver>>,
     /// The quest cache the rebuild's lookups ask, and the leaderboard's creature waits.
     quest_log: Option<ResMut<'w, crate::ui_quest_log::QuestLog>>,
@@ -153,10 +152,8 @@ impl RecordAsks<'_, '_> {
                 }
             }
             RecordAsk::CooldownItem { entry, owner } => {
-                if let (Some(items), Some(cooldowns)) =
-                    (self.items.as_deref(), self.cooldowns.as_deref_mut())
-                {
-                    cooldowns.ask_item_record(items, &self.net, entry, owner);
+                if let Some(items) = self.items.as_deref() {
+                    crate::spell::Cooldowns::query_record(items, &self.net, entry, owner, true);
                 }
             }
             RecordAsk::Item {
@@ -188,9 +185,25 @@ impl RecordAsks<'_, '_> {
                             );
                         }
                     }
-                    // The VM keeps the callback: the cache only asks.
+                    // The VM counts the landing; the callback, one per entry as the VM keeps its
+                    // waits, signals at its place in the entry's list.
                     ItemCallback::QuestLog => {
-                        let _ = items.template(entry, owner, Ask::Event(&self.net));
+                        if items
+                            .template(entry, owner, Ask::Event(&self.net))
+                            .is_none()
+                        {
+                            items.wait_once(entry, crate::items::RecordCallback::QuestLog);
+                        }
+                    }
+                    // The VM keeps each tooltip's wait; the callback, one per entry, rebuilds them
+                    // at its place in the entry's list.
+                    ItemCallback::Tooltip => {
+                        if items
+                            .template(entry, owner, Ask::Event(&self.net))
+                            .is_none()
+                        {
+                            items.wait_once(entry, crate::items::RecordCallback::Tooltip);
+                        }
                     }
                     // A miss registers the callback and counts the window's wait (`0x4faf1a`,
                     // `0x4faf23`).

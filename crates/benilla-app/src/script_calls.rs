@@ -79,7 +79,7 @@ disjoint::disjoint_set! {
         latch: crate::ui_session::LatchSteps<'static>,
         /// The bank and the profession windows.
         bank: crate::ui_bank::BankSteps<'static, 'static>,
-        trade_skill: crate::ui_tradeskill::TradeSkillSteps<'static>,
+        trade_skill: crate::ui_tradeskill::TradeSkillSteps<'static, 'static>,
         craft: crate::ui_craft::CraftSteps<'static>,
         /// The dialogs and queues: the battlegrounds, death, the duel, the group loot roll, the
         /// innkeeper, the summon, the meeting stone, the lockouts and the PvP flag.
@@ -87,7 +87,7 @@ disjoint::disjoint_set! {
         death: crate::death::DeathSteps<'static, 'static>,
         duel: crate::ui_duel::DuelSteps<'static>,
         loot_roll: crate::ui_loot_roll::LootRollSteps<'static>,
-        binder: crate::ui_binder::BinderSteps<'static>,
+        binder: crate::ui_binder::BinderSteps<'static, 'static>,
         summon: crate::ui_summon::SummonSteps<'static>,
         meeting_stone: crate::ui_dialog_verbs::MeetingStoneSteps<'static>,
         instance: crate::ui_instance::InstanceSteps<'static>,
@@ -141,11 +141,22 @@ disjoint::disjoint_set! {
         follow_feed: Option<ResMut<'static, crate::ui_follow::FollowFeed>>,
         /// The console's commands, against what they read and write, and the getters' lookups.
         console: crate::console::ConsoleSteps<'static, 'static>,
+        /// The CVar registry and every row's change callback, run inside the write.
+        cvars: crate::cvars::CvarSteps<'static>,
+        /// The camera's five views, which the view verbs seat and save.
+        views: crate::player::camera_view::ViewSteps<'static, 'static>,
+        /// The display restart's commit of the latched rows.
+        gx_restart: crate::video::GxRestartSteps<'static>,
+        /// The dressing room the `DressUpModel` verbs edit.
+        dressup: crate::ui_dressup::DressUpSteps<'static>,
         asks: engine::RecordAsks<'static, 'static>,
         /// What the getters read as they run ([`live::LiveReads`]).
         live: live::LiveReads<'static, 'static>,
         /// The world click's arm, its pick and its legs.
         click: crate::target::ClickLegs<'static, 'static>,
+        /// The binding functions' input state, and `DropItemOnUnit`'s legs.
+        commands: crate::player::CommandSteps<'static, 'static>,
+        drop_item: crate::ui_action::drop_item::DropItemLeg<'static, 'static>,
     }
 }
 
@@ -558,6 +569,10 @@ impl ScriptCallHost<'_, '_> {
     /// the cell cleared (`0x4f502b`) and `GUILD_REGISTRAR_CLOSED` (`0x4f503a`), its signal once
     /// per run of the core, as the call's tail.
     fn close_registrar(&mut self) -> Option<CallTail> {
+        // A parked close's re-entry finds its cell clear ([`crate::ui_session::parked_close`]).
+        if crate::ui_session::parked_close(crate::ui_session::NpcWindow::Registrar) {
+            return None;
+        }
         let npc = self.appliers.petition().registrar_npc()?;
         let reenters = self.appliers.latch().release(npc);
         self.appliers.petition().clear_registrar();
@@ -574,6 +589,10 @@ impl ScriptCallHost<'_, '_> {
     /// the latch, then the cell cleared (`0x4f58df`) and `CLOSE_TABARD_FRAME` (`0x4f58f8`), once
     /// per run of the core, as the call's tail, after the preview's undo (`0x4f58ce`).
     fn close_tabard(&mut self) -> Option<CallTail> {
+        // A parked close's re-entry finds its cell clear ([`crate::ui_session::parked_close`]).
+        if crate::ui_session::parked_close(crate::ui_session::NpcWindow::Tabard) {
+            return None;
+        }
         let vendor = self.appliers.tabard().vendor()?;
         let reenters = self.appliers.latch().release(vendor);
         self.appliers.tabard().clear_vendor();
@@ -841,7 +860,7 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::Stable(StableCall::Close) => self.close_stable(script, &mut at.mark),
             ScriptCall::Stable(call) => appliers.stable().apply(call),
             ScriptCall::Session(request) => appliers.session().apply(request),
-            ScriptCall::Tutorial(call) => appliers.tutorial().apply(script, call),
+            ScriptCall::Tutorial(call) => appliers.tutorial().apply(call),
             ScriptCall::Bank(BankCall::Close) => self.close_bank(script, &mut at.mark),
             ScriptCall::Bank(BankCall::Purchase) => appliers.bank().purchase(script),
             ScriptCall::TradeSkill(TradeSkillCall::Do { spell_id, count }) => {
@@ -866,6 +885,9 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::Duel(request) => appliers.duel().answer(&request),
             ScriptCall::LootRoll(LootRollCall::Vote { roll_id, roll_type }) => {
                 appliers.loot_roll().vote(roll_id, roll_type);
+            }
+            ScriptCall::LootRoll(LootRollCall::Close { roll_id }) => {
+                appliers.loot_roll().close(roll_id);
             }
             ScriptCall::Binder(BinderCall::Confirm) => appliers.binder().confirm(),
             ScriptCall::Summon(SummonCall::Confirm) => appliers.summon().confirm(),
@@ -906,6 +928,13 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::Nameplates(write) => appliers.plates().apply(write),
             ScriptCall::Follow(request) => self.follow(script, &mut at.mark, request),
             ScriptCall::Console(line) => appliers.console().run(&engine::VmCvars(script), &line),
+            ScriptCall::CvarWritten => appliers.cvars().sync(Some(script)),
+            ScriptCall::CameraView(request) => {
+                let writes = appliers.views().apply(request);
+                appliers.cvars().write(script, &writes);
+            }
+            ScriptCall::RestartGx => appliers.gx_restart().restart(script, 1),
+            ScriptCall::DressUp(intent) => appliers.dressup().apply(script, intent),
             ScriptCall::RecordAsk(benilla_ui::script::RecordAsk::AuctionName { guid, list }) => {
                 appliers.auction().wait_for_name(guid, list);
             }
@@ -917,6 +946,19 @@ impl CallHost for ScriptCallHost<'_, '_> {
             }
             ScriptCall::RecordAsk(ask) => appliers.asks().apply(ask),
             ScriptCall::WorldClick(step) => self.world_click(script, &mut at, step),
+            // `SetCommands` (`0x515090`): the bit, then the cast cancel (`0x51512a` → `0x6e4940`,
+            // `0x515193` → `0x6e9b70`), whose stop the call's reports signal as it returns.
+            ScriptCall::Input(input) => {
+                if let Some(mover_is_player) = appliers.commands().call(input) {
+                    appliers.self_cancel().cancel_for_move(mover_is_player);
+                }
+            }
+            ScriptCall::DropItemOnUnit(token) => appliers.drop_item().drop_on(script, &token),
+        }
+        // A profession opener the call cast toggles its window inside the cast (`0x6e4c22`,
+        // `0x6e4c34`), whose signals' listeners run before the call goes on.
+        if self.appliers.trade_skill().toggle_opens(script) {
+            self.at_point(script, &mut at.mark);
         }
         self.settle_selection(script, &mut at, owed);
         // A deselect the call's own steps raised, a dead unit's loot close's (`0x48f369`), signals
@@ -1256,6 +1298,14 @@ pub(crate) fn defer_vm(world: &World) -> Option<(benilla_ui::script::Deferring, 
     world
         .get_non_send_resource::<UiScript>()
         .map(|vm| (vm.defer(), vm.waiting_mark()))
+}
+
+/// [`defer_vm`] split: its calls apply at once through the lent host, its signals and writes park
+/// ([`UiScript::defer_split`]).
+pub(crate) fn defer_vm_split(world: &World) -> Option<(benilla_ui::script::Deferring, usize)> {
+    world
+        .get_non_send_resource::<UiScript>()
+        .map(|vm| (vm.defer_split(), vm.waiting_mark()))
 }
 
 /// Park what the world's VM has held since `mark` ([`UiScript::park_since`]); the VM's session
@@ -2190,6 +2240,37 @@ mod tests {
         );
     }
 
+    /// A probe's `/target <name>` runs the stock handler's `TargetByName` (`ChatFrame.lua:748-751`,
+    /// `0x489d60`), which selects inside its call, so the next line the drain takes reads the new
+    /// target. Main wrote the ask for a reader later in the frame, and the next line read the old.
+    #[test]
+    fn a_chat_target_line_selects_before_the_next_line() {
+        let mut f = frame(true);
+        spawn_mob(&mut f, &[]);
+        let world = f.app.world_mut();
+        let mut names = world.resource_mut::<crate::names::NameCache>();
+        names.insert_player(OLD, "Old Mob".into(), None);
+        names.insert_player(MOB, "Red Affinity".into(), None);
+        as_creature(world, MOB);
+        probe_line_world(world);
+        world.insert_resource(crate::ui_chat::commands::SlashCommands::build(
+            |name| match name {
+                "SLASH_TARGET1" => Some("/target".to_string()),
+                "SLASH_SCRIPT1" => Some("/script".to_string()),
+                _ => None,
+            },
+            |_| None,
+        ));
+        {
+            let mut script = world.non_send_resource_mut::<UiScript>();
+            script.push_chat_input("/target Red Affinity".into());
+            script.push_chat_input("/script NAMED = UnitName(\"target\")".into());
+        }
+        crate::ui_chat::drain_chat_input_once(world);
+        assert_eq!(eval::<String>(&mut f, "return NAMED"), "Red Affinity");
+        assert_eq!(selected(&f), Some(MOB));
+    }
+
     /// `TargetByName` (`0x489d60`) on a miss leaves the target alone and shows message `0x127`
     /// (`ERR_UNIT_NOT_FOUND`) for a name given (`0x489dbd`, tested on the raw string's first byte,
     /// so blanks count) or `0xb8` (`ERR_GENERIC_NO_TARGET`) for an empty one (`0x489dcf`), inside
@@ -2849,12 +2930,12 @@ mod tests {
                 vec!["ERR_NO_ATTACK_TARGET"],
                 "pressed: {pressed}"
             );
-            let inputs = f
+            let held = f
                 .app
-                .world_mut()
-                .non_send_resource_mut::<UiScript>()
-                .take_binding_input();
-            assert_eq!(!inputs.is_empty(), moved, "pressed: {pressed}");
+                .world()
+                .resource::<crate::bindings::BindingsState>()
+                .pressed(crate::bindings::Input::MoveForward);
+            assert_eq!(held, moved, "pressed: {pressed}");
         }
     }
 
@@ -3504,16 +3585,75 @@ mod tests {
         assert!(script.cursor_item().is_none());
     }
 
-    /// A taxi passenger has no control but passes the gate (`0x494ba6`-`0x494ba9`).
+    /// `PickupContainerItem`'s control gate reads our taxi flag off the object as the call runs
+    /// (`0x4f9b87`-`0x4f9ba3`, the pair `0x494b97`-`0x494ba6` tests): without control, the store's
+    /// bit, written after every push, admits the pickup, and once cleared the next call is refused,
+    /// whatever the VM's copy says.
+    #[test]
+    fn the_pickup_gate_reads_the_taxi_flag_off_our_object_at_the_call() {
+        let mut f = frame(false);
+        with_bar_helm(&mut f, 0);
+        f.app
+            .world_mut()
+            .non_send_resource_mut::<UiScript>()
+            .set_player_control(false);
+        let me = f.app.world().resource::<GuidIndex>().0[&ME];
+        let flags = |f: &mut Frame, flags: u32| {
+            f.app
+                .world_mut()
+                .get_mut::<ObjectStore>(me)
+                .expect("our store")
+                .0
+                .merge(benilla_protocol::ObjectFields::from_pairs(&[(46, flags)]));
+        };
+        flags(&mut f, 0x8 | crate::player::UNIT_FLAG_TAXI_FLIGHT);
+        run(&mut f, "PickupContainerItem(0, 1)");
+        assert!(
+            f.app
+                .world()
+                .non_send_resource::<UiScript>()
+                .cursor_item()
+                .is_some(),
+            "on a taxi: picked up"
+        );
+        run(&mut f, "ClearCursor()");
+        flags(&mut f, 0x8);
+        f.app
+            .world_mut()
+            .non_send_resource_mut::<UiScript>()
+            .set_on_taxi(true);
+        run(&mut f, "PickupContainerItem(0, 1)");
+        assert!(
+            f.app
+                .world()
+                .non_send_resource::<UiScript>()
+                .cursor_item()
+                .is_none(),
+            "landed: refused, the VM's copy unread"
+        );
+    }
+
+    /// A taxi passenger has no control but passes the gate, which reads the flag off our object at
+    /// the call (`0x494b97`-`0x494ba9`): the store's bit, set after every push, passes it, and the
+    /// VM's copy says nothing while the host is lent.
     #[test]
     fn a_bar_equip_on_a_taxi_passes_the_control_gate() {
         let mut f = frame(false);
         with_bar_helm(&mut f, 0);
-        {
-            let mut script = f.app.world_mut().non_send_resource_mut::<UiScript>();
-            script.set_player_control(false);
-            script.set_on_taxi(true);
-        }
+        f.app
+            .world_mut()
+            .non_send_resource_mut::<UiScript>()
+            .set_player_control(false);
+        let me = f.app.world().resource::<GuidIndex>().0[&ME];
+        f.app
+            .world_mut()
+            .get_mut::<ObjectStore>(me)
+            .expect("our store")
+            .0
+            .merge(benilla_protocol::ObjectFields::from_pairs(&[(
+                46,
+                0x8 | crate::player::UNIT_FLAG_TAXI_FLIGHT,
+            )]));
         run(&mut f, "UseAction(1, 0)");
         let sent: Vec<_> = f.rx.try_iter().collect();
         assert!(
@@ -4621,14 +4761,14 @@ mod tests {
         );
         let (writers, unhosted) = vm_writers_and_the_unhosted(&mut app);
         // The census reads the client's systems: a hundred writers at least in either build, and
-        // where the build carries type names, a feed, a death feed and a frame poll among them.
+        // where the build carries type names, a feed and two frame polls among them.
         assert!(
             writers.len() >= 100,
             "the census reads the client's VM writers: {} read",
             writers.len()
         );
         if writers.iter().any(|w| w.contains("benilla_app::")) {
-            for name in ["feed_logout", "feed_death", "poll_area_spirit_healer"] {
+            for name in ["feed_framerate", "poll_corpse", "poll_area_spirit_healer"] {
                 assert!(
                     writers.iter().any(|w| w.contains(name)),
                     "the census reads the client's VM writers, `{name}` among them"
