@@ -39,6 +39,7 @@ default = [
     "std",
     "bevy_ecs/default",
 ]
+dynamic_linking = []
 std = [
     "bevy_ecs/std",
     "bevy_app/std",

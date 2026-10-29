@@ -593,6 +593,7 @@ dependencies = [
 name = "bevy"
 version = "0.18.1"
 dependencies = [
+ "bevy_dylib",
  "bevy_internal",
  "tracing",
 ]
@@ -759,6 +760,13 @@ dependencies = [
  "const-fnv1a-hash",
  "log",
  "sysinfo",
+]
+
+[[package]]
+name = "bevy_dylib"
+version = "0.18.1"
+dependencies = [
+ "bevy_internal",
 ]
 
 [[package]]

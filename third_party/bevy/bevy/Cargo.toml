@@ -149,6 +149,10 @@ common_api = [
 ]
 debug = ["bevy_internal/debug"]
 default_font = ["bevy_internal/default_font"]
+dynamic_linking = [
+    "dep:bevy_dylib",
+    "bevy_internal/dynamic_linking",
+]
 gamepad = ["bevy_internal/gamepad"]
 gltf_animation = ["bevy_internal/gltf_animation"]
 hdr = ["bevy_internal/hdr"]
@@ -198,6 +202,11 @@ default-features = false
 
 [dependencies.tracing]
 version = "0.1"
+optional = true
+default-features = false
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies.bevy_dylib]
+version = "0.18.0"
 optional = true
 default-features = false
 

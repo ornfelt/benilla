@@ -69,6 +69,7 @@ bevy_color = { path = "third_party/bevy/bevy_color" }
 bevy_core_pipeline = { path = "third_party/bevy/bevy_core_pipeline" }
 bevy_derive = { path = "third_party/bevy/bevy_derive" }
 bevy_diagnostic = { path = "third_party/bevy/bevy_diagnostic" }
+bevy_dylib = { path = "third_party/bevy/bevy_dylib" }
 bevy_ecs = { path = "third_party/bevy/bevy_ecs" }
 bevy_ecs_macros = { path = "third_party/bevy/bevy_ecs_macros" }
 bevy_encase_derive = { path = "third_party/bevy/bevy_encase_derive" }

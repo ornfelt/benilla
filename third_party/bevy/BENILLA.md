@@ -874,7 +874,9 @@ the same repository's.
   `reflect(Serialize, Deserialize)` data, `FrameCount`'s hand-written serde impls with its test,
   the features and the `serde`/`serde_test` dependencies they enabled go, and so does
   `bevy_diagnostic`'s off `dynamic_linking` (one `not(..)` in the `sysinfo` gate). No crate's
-  resolved features change.
+  resolved features change. `dynamic_linking` is back, as stock has it (the feature and both
+  `not(..)`s), since benilla-app's `bevy_dynamic_linking` names `bevy/dynamic_linking` (upstream
+  `45da0a08`, #853).
 - **`bevy_tasks`, to the multi-threaded pool and the API anything calls.** The build enables
   `multi_threaded`, `async_executor` and `futures-lite`, never `async-io`, so the single-threaded
   pool (`single_threaded_task_pool.rs`), the `no_std` executor (`edge_executor.rs`), the
@@ -1328,7 +1330,9 @@ the same repository's.
   (`bevy_audio`, `bevy_dev_tools`, `bevy_feathers`, `bevy_ui_widgets`, `bevy_solari`,
   `bevy_remote`, `bevy_camera_controller`; `bevy_winit` stays a crate for bevy_egui and
   benilla-gfx, not a `bevy` feature, and is itself trimmed above), and so did every crate only they pulled (gltf, gilrs, cpal,
-  rodio and their platform crates).
+  rodio and their platform crates). `dynamic_linking` is back in both, as stock has it, with the
+  `bevy_dylib` crate it enables (copied as above), since benilla-app's `bevy_dynamic_linking`
+  names `bevy/dynamic_linking` (upstream `45da0a08`, #853); no build turns it on by default.
 
 - **Tests of removed capability, found at A5** (the vendored suites ran whole for the first time,
   with their dev-dependencies made normal for the run): `bevy_app`'s `runs_spawn_local_tasks`

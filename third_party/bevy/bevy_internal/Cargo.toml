@@ -146,6 +146,7 @@ debug = [
     "bevy_ecs/debug",
 ]
 default_font = ["bevy_text?/default_font"]
+dynamic_linking = ["bevy_diagnostic/dynamic_linking"]
 gamepad = []
 gltf_animation = ["bevy_animation"]
 hdr = []

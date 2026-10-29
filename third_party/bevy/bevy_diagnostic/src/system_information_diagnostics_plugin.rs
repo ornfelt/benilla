@@ -20,6 +20,7 @@ pub struct SystemInfo {
 // NOTE: sysinfo fails to compile when using bevy dynamic or on iOS and does nothing on Wasm
 #[cfg(all(
     any(target_os = "linux", target_os = "windows", target_os = "macos"),
+    not(feature = "dynamic_linking"),
     feature = "std",
 ))]
 mod internal {
@@ -65,6 +66,7 @@ mod internal {
 
 #[cfg(not(all(
     any(target_os = "linux", target_os = "windows", target_os = "macos"),
+    not(feature = "dynamic_linking"),
     feature = "std",
 )))]
 mod internal {
