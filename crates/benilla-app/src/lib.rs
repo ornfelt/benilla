@@ -19,6 +19,7 @@
 #[global_allocator]
 static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
+mod account_data;
 pub mod addon_harness;
 mod area;
 mod area_poi;
@@ -32,11 +33,10 @@ mod bowstring;
 mod camera_shake;
 #[cfg(feature = "dev")]
 mod capture;
-mod char_create;
-mod char_select;
 mod chat_bubble;
 mod chr_classes;
 mod cinematic;
+mod client_state;
 mod combat_log;
 mod combat_text;
 mod console;
@@ -51,42 +51,51 @@ mod debug_panel;
 /// The dev/player seam: the instrument groups and the boundary rule. Always compiled; what it holds
 /// is not.
 mod dev;
+#[cfg(feature = "dev")]
+mod devtools;
 mod doodad_events;
 mod entities;
+mod field_callbacks;
+mod field_watch;
 mod fishing_line;
 mod footprints;
 mod game_plugins;
-mod glue;
-mod glue_strings;
+mod glue_session;
 mod go_anim;
 mod go_templates;
 #[cfg(feature = "dev")]
 mod hover_log;
+mod item_lane;
+mod item_names;
+mod item_watch;
 mod items;
+mod lanes;
 mod loading_screen;
 mod local_state;
-mod login;
 mod minimap;
 mod nameplates;
 mod names;
 mod net;
+mod no_install;
 mod npc_text;
-mod pending_item_ops;
 /// Ships in part (the FPS journal and the clocks it reads); the rest is `dev`.
 mod perf;
 mod pipe_warm;
 mod player;
+mod player_commands;
 mod poi_marker;
 mod portrait;
 #[cfg(feature = "dev")]
 mod preflight;
 #[cfg(feature = "dev")]
 mod probe_shield;
+/// Quake 3 movement, a client-side hack for a local server with its movement anticheat off.
+#[cfg(feature = "q3_movement")]
+mod q3move;
 mod query_cache;
 mod quest_markers;
 mod raid_marks;
 mod ranged_flex;
-mod realm_select;
 mod realmlist;
 mod run_mode;
 mod screen_fade;
@@ -95,7 +104,6 @@ mod script_calls;
 mod shaders;
 
 mod game_tip;
-mod name_persist;
 mod opaque2d;
 /// Where "the client is going down" is observed, in `Last`; every system that persists state on the
 /// way out registers through it.
@@ -111,7 +119,6 @@ mod target;
 #[cfg(test)]
 pub(crate) mod test_support;
 mod text_filter;
-mod text_reshape;
 mod textinput;
 mod transport;
 mod tutorial;
@@ -122,6 +129,7 @@ mod ui_bank;
 mod ui_battlefield;
 mod ui_battlefield_positions;
 mod ui_battlefield_score;
+mod ui_billing;
 mod ui_bind_confirm;
 mod ui_binder;
 mod ui_cast;
@@ -131,7 +139,6 @@ mod ui_craft;
 mod ui_dialog_verbs;
 mod ui_dressup;
 mod ui_duel;
-mod ui_follow;
 mod ui_gamma;
 mod ui_gm_ticket;
 mod ui_gossip;
@@ -147,15 +154,16 @@ mod ui_loot;
 mod ui_loot_roll;
 mod ui_macro;
 mod ui_mail;
+mod ui_memory;
 mod ui_merchant;
 mod ui_mirror;
 mod ui_models;
 mod ui_net;
+mod ui_panes;
 mod ui_party;
 mod ui_pass;
 mod ui_pet;
 mod ui_pet_book;
-mod ui_pet_doll;
 mod ui_pet_stats;
 mod ui_petition;
 mod ui_quest;
@@ -180,11 +188,15 @@ mod ui_trade;
 mod ui_tradeskill;
 mod ui_trainer;
 mod ui_unit;
+mod ui_world_enter;
 mod ui_world_map;
 mod video;
+mod vm_pass;
 mod vplates;
+mod wdb;
 mod weapon_trail;
 mod world_backdrop;
+mod world_console;
 mod world_state;
 mod world_state_ui;
 
@@ -227,8 +239,19 @@ pub fn config_dir() -> Option<std::path::PathBuf> {
 /// What a crate on top of benilla adds to the built app ([`run_with`]).
 type Extension<'a> = Box<dyn FnOnce(&mut App) + 'a>;
 
+/// The main thread joins a single-threaded apartment before any window, as winit's `OleInitialize`
+/// for drag and drop needs; a hook that joined it to the MTA first would make window creation panic.
+#[cfg(windows)]
+fn main_apartment() {
+    use windows_sys::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+    // SAFETY: no pointers; never balanced, so the apartment lasts the process; cpal's thread has its own.
+    let _ = unsafe { CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32) };
+}
+
 /// The one body behind [`run`] and [`run_with`], not generic, so a launcher compiles none of it.
 fn launch(build: BuildId, extend: Option<Extension<'_>>) -> AppExit {
+    #[cfg(windows)]
+    main_apartment();
     // `WOW_HOVER_LOG_REPORT=<csv>` and `WOW_CAPTURE=list` print and exit before any setup.
     if let Ok(path) = std::env::var("WOW_HOVER_LOG_REPORT") {
         dev::report_recorded_hover_log(&path);
@@ -253,12 +276,32 @@ fn launch(build: BuildId, extend: Option<Extension<'_>>) -> AppExit {
     // A dev build's install, state folder and probe identity resolve from the launcher's folder,
     // so a crate on top of benilla keeps them in its own and not in cargo's checkout of benilla.
     benilla_formats::set_project_folder(build.project_dir);
+    if run_mode::unattended() && std::env::var_os("BENILLA_HOME").is_none() {
+        // Before the logger exists; whoever reads what the run wrote needs the folder.
+        if let Some(home) = local_state::home() {
+            println!(
+                "state: an unattended run keeps its own state in {} (BENILLA_HOME pins one)",
+                home.display()
+            );
+        }
+    }
 
     // From here a panic leaves `benilla-config/Diagnostics/crash-<unix>.txt`; armed before the
     // `App` exists, so a panic while plugins build is reported too.
     crash::install(build);
+    // The zone is read once per process; reading it now spares the first `date` the wait.
+    benilla_ui::civil::warm();
+
+    // Fonts, art and the stock interface all come from the install, so without one the client
+    // ends here, before any window or plugin exists (`no_install`).
+    let data_dir = match no_install::resolve() {
+        Ok(data_dir) => data_dir,
+        Err(err) => return no_install::fail(&err, run_mode::unattended()),
+    };
 
     let mut app = App::new();
+    // A command on an entity a same-frame despawn removed logs instead of aborting the session.
+    app.set_error_handler(crash::command_error_handler);
     // The panel footer and the build banner read the stamp back.
     app.insert_resource(build);
     // Static-scene transform tracking pinned on: the default threshold re-decides every frame with
@@ -308,18 +351,13 @@ fn launch(build: BuildId, extend: Option<Extension<'_>>) -> AppExit {
     }
 
     // The `mpq://` source must be registered before `AssetPlugin` (in `DefaultPlugins`) builds. The
-    // install is found by `benilla_formats::wow_data`, as everywhere; without one the source is
-    // absent and terrain loads fail gracefully.
-    match benilla_formats::wow_data() {
-        Some(data_dir) => {
-            if let Err(e) = benilla_assets::register_mpq_source(&mut app, &data_dir) {
-                eprintln!("benilla-assets: mpq:// source unavailable ({e:#})");
-            }
-        }
-        None => eprintln!(
-            "benilla: no WoW install found — looked in {:?}",
-            benilla_formats::candidates()
-        ),
+    // install is found by `benilla_formats::wow_data`, as everywhere, and is required above; one
+    // whose archives will not open ends the boot the same way (`no_install`).
+    if let Err(e) = benilla_assets::register_mpq_source(&mut app, &data_dir) {
+        return no_install::fail(
+            &no_install::NoInstall::unreadable(&data_dir, &e),
+            run_mode::unattended(),
+        );
     }
 
     // No `game://` source: the five UI shaders are compiled in by `crate::shaders`
@@ -400,6 +438,8 @@ fn launch(build: BuildId, extend: Option<Extension<'_>>) -> AppExit {
     // macOS `Cmd+Q` goes straight to `terminate:`, which never runs another frame, so the session
     // was never written; re-pointed at the window close, which [`shutdown`] sees.
     .add_plugins(benilla_world::mac_quit::MacQuitPlugin)
+    // Alt+F4 on Windows and Linux, where a tiling window manager binds nothing to it.
+    .add_plugins(shutdown::AltF4Plugin)
     // The engine as one group; `world_plugins.rs` has its load-bearing ordering edges and what it
     // leaves out (`pipe_warm`).
     .add_plugins(benilla_world::world_plugins::WorldPlugins)

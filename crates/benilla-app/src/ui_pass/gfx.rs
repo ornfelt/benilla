@@ -1,8 +1,8 @@
 //! The player-UI lane on the gfx renderer (`benilla-gfx`, the `gfx` feature): [`UiQuadMaterial`]
 //! draws through a port of `ui_quad.wgsl` (`ui_quad.{vs,fs}.gfxs`), and the lane camera carries
-//! [`GfxUiLane`], its display gamma and the world view its backdrop claims. Bevy UI (the glue and
-//! loading screens) draws on the lane through ports of `ui_node_gamma.wgsl` and
-//! `ui_slice_gamma.wgsl` ([`GfxBevyUiPlugin`]), and [`AddUiMaterial`] through `ui_add.wgsl`.
+//! [`GfxUiLane`], its display gamma and the world view its backdrop claims. Bevy UI (the loading
+//! screens) draws on the lane through ports of `ui_node_gamma.wgsl` and `ui_slice_gamma.wgsl`
+//! ([`GfxBevyUiPlugin`]).
 
 use bevy::prelude::*;
 
@@ -10,12 +10,12 @@ use benilla_gfx::meshes::VertexInput;
 use benilla_gfx::pipelines::Blend;
 use benilla_gfx::{
     GfxAlpha, GfxBevyUiPlugin, GfxDrawState, GfxMaterial2dPlugin, GfxMaterialDesc, GfxProgram,
-    GfxRender, GfxRenderSystems, GfxTextureSlot, GfxUiLane, GfxUiMaterialPlugin,
+    GfxRender, GfxRenderSystems, GfxTextureSlot, GfxUiLane,
 };
+use benilla_ui::script::BlendMode;
 use benilla_world::ffx_glow::FfxBackdrop;
 
 use super::UiQuadMaterial;
-use crate::glue::add_material::AddUiMaterial;
 use crate::ui_gamma::UiGammaLane;
 
 /// `ui_quad.{vs,fs}.gfxs`: POSITION, UV 0 and COLOR at the Mesh2d locations; a mesh without UVs
@@ -39,18 +39,19 @@ fn flag(on: u32) -> f32 {
     }
 }
 
-/// A quad material as the program draws it: rows `modes` (additive, circular, desaturate,
-/// premultiplied), `test` (the alpha reference, gamma_texel), `mask_rect`, `uv_clamp`; the one
-/// premultiplied blend state of [`UiQuadMaterial::specialize`], no depth, no culling.
+/// A quad material as the program draws it: rows `modes` (the EGxBlend 0-4, circular, desaturate,
+/// premultiplied), `test` (the alpha reference, gamma_texel, mask_rgb), `mask_rect`, `uv_clamp`;
+/// the blend state of [`UiQuadMaterial::specialize`] (premultiplied, or `DestColor/Zero` for
+/// `MOD`), no depth, no culling.
 fn describe(m: &UiQuadMaterial) -> GfxMaterialDesc {
     let mut params = [[0.0; 4]; benilla_gfx::material::MAX_PARAMS];
     params[0] = [
-        flag(m.additive),
+        m.blend as f32,
         flag(m.circular),
         flag(m.desaturate),
         flag(m.premultiplied),
     ];
-    params[1] = [m.alpha_ref, flag(m.gamma_texel), 0.0, 0.0];
+    params[1] = [m.alpha_ref, flag(m.gamma_texel), flag(m.mask_rgb), 0.0];
     params[2] = m.mask_rect.to_array();
     params[3] = m.uv_clamp.to_array();
     // An unset texture binds bevy's fallback, opaque white.
@@ -70,44 +71,12 @@ fn describe(m: &UiQuadMaterial) -> GfxMaterialDesc {
         alpha: GfxAlpha::Premultiplied,
         cull: None,
         state: GfxDrawState {
-            blend: Some(Blend::Premultiplied),
+            blend: Some(if m.blend == BlendMode::Mod as u32 {
+                Blend::Modulate
+            } else {
+                Blend::Premultiplied
+            }),
             depth_test: false,
-            ..default()
-        },
-    }
-}
-
-/// `ui_add.{vs,fs}.gfxs`: the UI material vertex's position and UV.
-const UI_ADD: GfxProgram = GfxProgram {
-    name: "ui_add",
-    inputs: &[
-        VertexInput::new(Mesh::ATTRIBUTE_POSITION, [0.0; 4]),
-        VertexInput::new(Mesh::ATTRIBUTE_UV_0, [0.0; 4]),
-    ],
-    params: 1,
-    samplers: 1,
-};
-
-/// [`AddUiMaterial`] as the program draws it: row `rect`, the texture through its own sampler,
-/// and the `SrcAlpha, One` blend with the destination's alpha kept ([`AddUiMaterial::specialize`]).
-fn describe_add(m: &AddUiMaterial) -> GfxMaterialDesc {
-    let mut params = [[0.0; 4]; benilla_gfx::material::MAX_PARAMS];
-    params[0] = m.rect.to_array();
-    GfxMaterialDesc {
-        program: UI_ADD,
-        textures: [
-            GfxTextureSlot::Image(m.texture.id()),
-            GfxTextureSlot::White,
-            GfxTextureSlot::White,
-            GfxTextureSlot::White,
-        ],
-        params,
-        alpha: GfxAlpha::Blend,
-        cull: None,
-        state: GfxDrawState {
-            blend: Some(Blend::AddAlpha),
-            depth_test: false,
-            depth_write: Some(false),
             ..default()
         },
     }
@@ -140,7 +109,6 @@ impl Plugin for GfxPlayerUi {
                 node: "ui_node_gamma",
                 slice: "ui_slice_gamma",
             },
-            GfxUiMaterialPlugin::<AddUiMaterial>::new(describe_add),
         ))
         .add_systems(GfxRender, sync_lane.in_set(GfxRenderSystems::Pack));
     }

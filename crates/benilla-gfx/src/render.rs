@@ -29,6 +29,11 @@ pub enum GfxRenderSystems {
     Present,
 }
 
+/// A frame the app withholds ([`crate::GfxPresentHold`]) draws nothing.
+fn not_held(hold: Option<Res<crate::GfxPresentHold>>) -> bool {
+    !hold.is_some_and(|h| h.held)
+}
+
 pub(crate) fn build(app: &mut App) {
     let mut schedule = Schedule::new(GfxRender);
     // Every system here holds the non-send context; one thread, in order.
@@ -50,6 +55,10 @@ pub(crate) fn build(app: &mut App) {
                 GfxRenderSystems::Present,
             )
                 .chain(),
+        )
+        .configure_sets(
+            GfxRender,
+            (GfxRenderSystems::Draw, GfxRenderSystems::Present).run_if(not_held),
         )
         .add_systems(
             GfxRender,

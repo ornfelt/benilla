@@ -2,7 +2,7 @@
 
 use crate::order::Strata;
 
-use super::{ChildWalk, FrameHandle, RegionHandle, WidgetArena, SCALE_EPS};
+use super::{ChildWalk, FrameHandle, KindState, RegionHandle, WidgetArena, SCALE_EPS};
 
 impl WidgetArena {
     // ── Visibility ───────────────────────────────────────────────────────────────────────────────
@@ -12,25 +12,57 @@ impl WidgetArena {
     /// yet (`0x76ae43`); otherwise it marks itself visible (`0x76ae7b`), before any child or
     /// handler runs, and relinks at its bucket's tail (`0x764780`). Whether it transitioned.
     pub fn show_step(&mut self, h: FrameHandle) -> bool {
-        match self.frame(h) {
-            Some(f) if f.shown && !f.effective_visible => {}
-            _ => return false,
-        }
-        if !self.parent_visible(h) {
+        if !self.show_gate(h) {
             return false;
         }
-        self.frame_mut(h).unwrap().effective_visible = true;
-        self.resequence_to_tail(h);
+        self.show_mark(h);
         true
+    }
+
+    /// [`Self::show_step`]'s gate (`0x76ae1d`, `0x76ae35`, `0x76ae43`): shown, on a visible or
+    /// absent parent, and not visible yet.
+    pub fn show_gate(&self, h: FrameHandle) -> bool {
+        matches!(self.frame(h), Some(f) if f.shown && !f.effective_visible)
+            && self.parent_visible(h)
+    }
+
+    /// [`Self::show_step`]'s mark (`0x76ae7b`, `0x764780`), which follows the gate whatever ran
+    /// between them. A character pane coming visible asks for a fresh copy of its subject first:
+    /// its show hook builds one while the frame is not yet visible (`0x505d03`, `0x505d3c`,
+    /// `0x505d56`), then chains to the base step (`0x505d44`).
+    pub fn show_mark(&mut self, h: FrameHandle) {
+        let Some(f) = self.frame_mut(h) else {
+            return;
+        };
+        if let KindState::Model(m) = &mut f.kind_state {
+            if let Some(c) = &mut m.character {
+                c.request_build();
+            }
+        }
+        f.effective_visible = true;
+        self.resequence_to_tail(h);
+        // The show registers each region in list order (`0x76ae8a`-`0x76aeac` → `0x77fcb0`), which
+        // takes only the shown ones. Every attached region is re-stamped here, hidden ones too: a
+        // hidden one is re-stamped again when it shows, so the drawn ones keep the same order.
+        let regions = self.frame(h).map(|f| f.regions.clone()).unwrap_or_default();
+        for rh in regions {
+            if self.region(rh).is_some_and(|r| !r.detached) {
+                self.restamp_region(rh);
+            }
+        }
     }
 
     /// The hide transition's own step (`0x76ad50` up to its child walk): nothing unless the frame
     /// is visible (`0x76ad5b`); otherwise it marks itself invisible (`0x76ad93`). The shown bit is
-    /// not consulted. Whether it transitioned.
+    /// not consulted. Whether it transitioned. A character pane releases what `+0x318` holds
+    /// ([`super::ModelState::release_on_hide`]) and keeps the subject it was built from.
     pub fn hide_step(&mut self, h: FrameHandle) -> bool {
         match self.frame_mut(h) {
             Some(f) if f.effective_visible => {
                 f.effective_visible = false;
+                if let KindState::Model(m) = &mut f.kind_state {
+                    m.release_on_hide();
+                }
                 true
             }
             _ => false,
@@ -200,46 +232,69 @@ impl WidgetArena {
 
     // ── Scale ────────────────────────────────────────────────────────────────────────────────────
 
-    /// Set `h`'s own scale and recompute `effective_scale = parent's * own` down the subtree
-    /// (`0x76ac90`), stopping at a frame whose value moves less than [`SCALE_EPS`].
-    pub fn set_scale(&mut self, h: FrameHandle, scale: f32) {
-        if let Some(f) = self.frame_mut(h) {
-            f.scale = scale;
-        } else {
-            return;
-        }
-        let parent_scale = self.parent_effective_scale(h);
-        self.propagate_scale(h, parent_scale);
+    /// `0x76ac10` past its own gate: store `h`'s own scale (`+0xb8`) and recompute its layout
+    /// scale ([`Self::apply_scale`]). Whether any frame's layout scale was stored.
+    pub fn set_scale(&mut self, h: FrameHandle, scale: f32, force: bool) -> bool {
+        let Some(f) = self.frame_mut(h) else {
+            return false;
+        };
+        f.scale = scale;
+        self.apply_scale(h, force)
     }
 
-    fn propagate_scale(&mut self, h: FrameHandle, parent_scale: f32) {
-        let (own, ignore, old_eff, children) = {
-            let f = self.frame(h).expect("live node in propagation");
-            (
-                f.scale,
-                f.ignore_parent_scale,
-                f.effective_scale,
-                f.children.clone(),
-            )
+    /// `0x76ac50`: store the parent scale (`+0xbc`) the child walk passes, unless it moved less
+    /// than [`SCALE_EPS`] and is not forced, and recompute the layout scale.
+    fn set_parent_scale(&mut self, h: FrameHandle, parent_scale: f32, force: bool) -> bool {
+        let Some(f) = self.frame_mut(h) else {
+            return false;
         };
-        let new_eff = if ignore { own } else { parent_scale * own };
-        if (f64::from(new_eff) - f64::from(old_eff)).abs() < SCALE_EPS {
-            return;
+        if !force && (f64::from(parent_scale) - f64::from(f.parent_scale)).abs() < SCALE_EPS {
+            return false;
         }
-        self.frame_mut(h).unwrap().effective_scale = new_eff;
+        f.parent_scale = parent_scale;
+        self.apply_scale(h, force)
+    }
+
+    /// `0x76ac90`: the layout scale `parent · own`, stopped by a move below [`SCALE_EPS`] unless
+    /// forced, then passed to each child as its parent scale (`0x76ad31`). An effective scale of 0
+    /// is refused before the store (`0x768360`, error 0x57 at `0x768366`), so the frame keeps its
+    /// layout scale and rect, but the walk goes on and the children are refused alike.
+    fn apply_scale(&mut self, h: FrameHandle, force: bool) -> bool {
+        let (eff, old, children) = {
+            let f = self.frame(h).expect("live node in propagation");
+            let eff = if f.ignore_parent_scale {
+                f.scale
+            } else {
+                f.parent_scale * f.scale
+            };
+            (eff, f.effective_scale, f.children.clone())
+        };
+        if !force && (f64::from(eff) - f64::from(old)).abs() < SCALE_EPS {
+            return false;
+        }
+        let stored = eff != 0.0;
+        if stored {
+            self.frame_mut(h).unwrap().effective_scale = eff;
+        }
+        let mut moved = stored;
         for c in children {
-            self.propagate_scale(c, new_eff);
+            moved |= self.set_parent_scale(c, eff, force);
         }
+        moved
     }
 
     // ── Alpha ────────────────────────────────────────────────────────────────────────────────────
 
-    /// `SetAlpha` (`0x76a690`): write the raw value to `h` and every descendant frame (`+0xc8`),
-    /// with no draw-time product, so a child's own later `SetAlpha` holds until an ancestor's next.
-    pub fn set_alpha(&mut self, h: FrameHandle, alpha: f32) {
+    /// The alpha walk (`0x76a690`, vtable slot 0x28): write the byte to `h` and every descendant
+    /// frame (`+0xc8`), with no draw-time product, so a child's own later `SetAlpha` holds until an
+    /// ancestor's next. A frame whose byte is already `alpha` ends the walk there, its subtree
+    /// untouched (`0x76a69a`), at every level.
+    pub fn set_alpha(&mut self, h: FrameHandle, alpha: u8) {
         let Some(f) = self.frame_mut(h) else { return };
+        if f.alpha == alpha {
+            return;
+        }
         f.alpha = alpha;
-        f.effective_alpha = alpha;
         let children = self.frame(h).expect("just wrote it").children.clone();
         for c in children {
             self.set_alpha(c, alpha);
@@ -310,8 +365,55 @@ impl WidgetArena {
         };
         self.set_frame_strata(h, pstrata);
         self.set_frame_level(h, plevel, false);
+        // The parent's layout scale, or 1.0 for none, unforced (`0x76ab7c`, `0x76abb9`).
         let ps = self.parent_effective_scale(h);
-        self.propagate_scale(h, ps);
+        self.set_parent_scale(h, ps, false);
+        // The subtree takes the new parent's scroll membership, none for no parent; the scroll
+        // child mark stays (`0x76ab8c`–`0x76abcb`: `0x76a400(parent & 0x2000, -1)`).
+        let member = new_parent.is_some_and(|np| self.frame(np).is_some_and(|f| f.scroll_member));
+        self.set_scroll_flags(h, member, None);
+    }
+
+    /// `SetScrollChild` (`0x786ce0`) on the ScrollFrame `sf`: the old child's subtree leaves the
+    /// scroll draw and the new one's joins it, old first, so the same child again stays in
+    /// (`0x786cf4`, `0x786d0a`). Returns the old child; `None` changes nothing on a frame that is
+    /// not a ScrollFrame.
+    pub fn set_scroll_child(
+        &mut self,
+        sf: FrameHandle,
+        child: Option<FrameHandle>,
+    ) -> Option<Option<FrameHandle>> {
+        let KindState::Scroll(s) = &mut self.frame_mut(sf)?.kind_state else {
+            return None;
+        };
+        let old = std::mem::replace(&mut s.child, child);
+        if let Some(old) = old {
+            self.set_scroll_flags(old, false, Some(false));
+        }
+        if let Some(new) = child {
+            self.set_scroll_flags(new, true, Some(true));
+        }
+        Some(old)
+    }
+
+    /// `0x76a400`: set or clear the scroll membership (`0x2000`) on `h` and its whole subtree, and
+    /// when `root` is given, the scroll child mark (`0x4000`) on `h` alone. `SetScrollChild`
+    /// clears both on the old child and sets both on the new one (`0x786cf4`, `0x786d0a`).
+    pub fn set_scroll_flags(&mut self, h: FrameHandle, member: bool, root: Option<bool>) {
+        let Some(f) = self.frame_mut(h) else {
+            return;
+        };
+        f.scroll_member = member;
+        if let Some(root) = root {
+            f.scroll_root = root;
+        }
+        let mut stack = f.children.clone();
+        while let Some(c) = stack.pop() {
+            if let Some(cf) = self.frame_mut(c) {
+                cf.scroll_member = member;
+                stack.extend_from_slice(&cf.children);
+            }
+        }
     }
 
     /// `SetParent` whole, for a caller with no handler to fire: the frames that lost visibility,
@@ -384,30 +486,77 @@ impl WidgetArena {
 
     // ── Frame flags ──────────────────────────────────────────────────────────────────────────────
 
-    /// `EnableMouse`.
+    /// `EnableMouse` (`0x76af00(2)`, `0x76af50(2)`): a bit newly set on a visible frame enters
+    /// the mouse list now (`0x764aa0`), behind the equal levels there (`0x764b2d`).
     pub fn set_mouse_enabled(&mut self, h: FrameHandle, enabled: bool) {
+        let stamp = self.next_kb_stamp;
+        let mut joined = false;
         if let Some(f) = self.frame_mut(h) {
+            joined = enabled && !f.mouse_enabled && f.effective_visible;
             f.mouse_enabled = enabled;
+            if joined {
+                f.mouse_stamp = stamp;
+            }
         }
+        self.next_kb_stamp += u64::from(joined);
     }
 
-    /// `EnableKeyboard` (`0x776ec0`): the char and key bits the key walk filters on.
+    /// `EnableKeyboard` (`0x776ec0`): the char and key bits the key walks filter on, both.
     pub fn set_keyboard_enabled(&mut self, h: FrameHandle, enabled: bool) {
-        if let Some(f) = self.frame_mut(h) {
-            f.keyboard_enabled = enabled;
-        }
+        self.set_char_enabled(h, enabled);
+        self.set_key_enabled(h, enabled);
     }
 
-    /// `IsKeyboardEnabled` (`0x776f90`).
+    /// The input mask's char bit alone (`0x76af00(0)`, `0x76af50(0)`), which the XML walker sets
+    /// for `OnChar` (`0x769f6b`). A bit newly set on a linked frame inserts it into the bucket
+    /// now, so it walks after the frames already there.
+    pub fn set_char_enabled(&mut self, h: FrameHandle, enabled: bool) {
+        let stamp = self.next_kb_stamp;
+        let mut joined = false;
+        if let Some(f) = self.frame_mut(h) {
+            joined = enabled && !f.char_enabled && f.effective_visible;
+            f.char_enabled = enabled;
+            if joined {
+                f.char_stamp = stamp;
+            }
+        }
+        self.next_kb_stamp += u64::from(joined);
+    }
+
+    /// The mask's key bit alone (`0x76af00(1)`), which the XML walker sets for `OnKeyDown` and
+    /// `OnKeyUp` (`0x769fa4`).
+    pub fn set_key_enabled(&mut self, h: FrameHandle, enabled: bool) {
+        let stamp = self.next_kb_stamp;
+        let mut joined = false;
+        if let Some(f) = self.frame_mut(h) {
+            joined = enabled && !f.key_enabled && f.effective_visible;
+            f.key_enabled = enabled;
+            if joined {
+                f.key_stamp = stamp;
+            }
+        }
+        self.next_kb_stamp += u64::from(joined);
+    }
+
+    /// `IsKeyboardEnabled` (`0x776f90`): either bit.
     pub fn is_keyboard_enabled(&self, h: FrameHandle) -> bool {
-        self.frame(h).is_some_and(|f| f.keyboard_enabled)
+        self.frame(h)
+            .is_some_and(|f| f.char_enabled || f.key_enabled)
     }
 
-    /// `EnableMouseWheel`, the wheel's own bit, separate from the mouse's.
+    /// `EnableMouseWheel`, the wheel's own bit, separate from the mouse's. A bit newly set on a
+    /// visible frame enters the wheel list now (`0x76af00`), behind the equal levels there.
     pub fn set_mouse_wheel_enabled(&mut self, h: FrameHandle, enabled: bool) {
+        let stamp = self.next_kb_stamp;
+        let mut joined = false;
         if let Some(f) = self.frame_mut(h) {
+            joined = enabled && !f.mouse_wheel_enabled && f.effective_visible;
             f.mouse_wheel_enabled = enabled;
+            if joined {
+                f.wheel_stamp = stamp;
+            }
         }
+        self.next_kb_stamp += u64::from(joined);
     }
 
     pub fn is_mouse_wheel_enabled(&self, h: FrameHandle) -> bool {
@@ -431,15 +580,17 @@ impl WidgetArena {
     }
 
     /// `SetHitRectInsets`, `[left, right, top, bottom]`.
-    pub fn set_hit_rect_insets(&mut self, h: FrameHandle, insets: [f32; 4]) {
+    pub fn set_hit_rect_insets(&mut self, h: FrameHandle, insets: [crate::layout::Len; 4]) {
         if let Some(f) = self.frame_mut(h) {
             f.hit_rect_insets = insets;
         }
     }
 
     /// `GetHitRectInsets`, `[left, right, top, bottom]`.
-    pub fn hit_rect_insets(&self, h: FrameHandle) -> [f32; 4] {
-        self.frame(h).map(|f| f.hit_rect_insets).unwrap_or([0.0; 4])
+    pub fn hit_rect_insets(&self, h: FrameHandle) -> [crate::layout::Len; 4] {
+        self.frame(h)
+            .map(|f| f.hit_rect_insets)
+            .unwrap_or([crate::layout::Len::Script(0.0); 4])
     }
 
     // ── Small helpers ────────────────────────────────────────────────────────────────────────────

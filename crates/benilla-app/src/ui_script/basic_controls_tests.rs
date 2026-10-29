@@ -90,15 +90,14 @@ fn error_message_is_the_installed_handler_and_the_host_channel_stays_sighted() {
         "reported"
     );
     // An engine-caught error still lands in `errors()`; the dispatch adds the dialog on top.
-    s.run("BrokenProbe = CreateFrame('Frame') BrokenProbe:RegisterEvent('ERROR_PROBE') BrokenProbe:SetScript('OnEvent', function() error('fault') end)")
+    s.run("BrokenProbe = CreateFrame('Frame') BrokenProbe:RegisterEvent('PLAYER_ALIVE') BrokenProbe:SetScript('OnEvent', function() error('fault') end)")
         .unwrap();
-    s.fire_event("ERROR_PROBE", vec![]);
+    s.fire_event("PLAYER_ALIVE", vec![]);
     assert!(
         s.errors().iter().any(|e| e.contains("fault")),
         "engine-caught errors stay on the host channel: {:?}",
         s.errors()
     );
-    s.dispatch_script_errors_to_handler();
     assert!(
         s.eval::<bool>("return ScriptErrors:IsVisible()").unwrap(),
         "and the dispatch keeps the dialog up for the player"

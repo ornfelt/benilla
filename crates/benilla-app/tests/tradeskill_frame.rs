@@ -3,8 +3,8 @@
 //! the reagent slots and the list rows' selection and hover.
 
 use benilla_ui::script::{
-    CraftRecipe, CraftState, CraftTooltip, TradeSkillDifficulty, TradeSkillReagent,
-    TradeSkillRecipe, TradeSkillState, UiScript,
+    CraftDifficulty, CraftRecipe, CraftState, CraftTooltip, TradeSkillDifficulty,
+    TradeSkillReagent, TradeSkillRecipe, TradeSkillState, UiScript,
 };
 
 mod common;
@@ -60,7 +60,7 @@ fn recipe(
         icon: Some("Interface\\Icons\\INV_Misc_ArmorKit_04".into()),
         min_made: 1,
         max_made: 1,
-        cooldown_secs: None,
+        cooldown: None,
         product_item: spell_id + 10_000,
         product_inv_type,
         product_item_level: 0, // neutral: ordering falls through to the name
@@ -72,6 +72,8 @@ fn recipe(
             have: 5,
         }],
         tools: vec![("Anvil".into(), true)],
+        icon_pending: None,
+        tools_pending: Vec::new(),
     }
 }
 
@@ -88,14 +90,6 @@ fn state() -> TradeSkillState {
             recipe(2662, "Copper Chain Pants", (4, 3, "Mail"), 7),
             recipe(3320, "Rough Sharpening Stone", (7, 0, "Trade Goods"), 0),
         ],
-        repeat_count: 0,
-    }
-}
-
-/// What the app does after a list mutator: drain the touched flag and fire `TRADE_SKILL_UPDATE`.
-fn pump(script: &mut UiScript) {
-    if script.take_trade_skill_touched() {
-        script.fire_event("TRADE_SKILL_UPDATE", vec![]);
     }
 }
 
@@ -103,6 +97,8 @@ fn pump(script: &mut UiScript) {
 fn collapse_all_tab_and_filter_dropdowns_work_end_to_end() {
     benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    // `ToggleDropDownMenu` reads `useUiScale` (`UIDropDownMenu.lua:525`), which the client registers.
+    s.register_cvars([("useUiScale", "0"), ("uiScale", "1.0")]);
     load_ui(&s);
 
     s.set_trade_skill(Some(state()));
@@ -121,16 +117,15 @@ fn collapse_all_tab_and_filter_dropdowns_work_end_to_end() {
         "All"
     );
 
-    // The click never calls Update() itself: the repaint rides TRADE_SKILL_UPDATE (`pump`).
+    // The click never calls Update() itself: the repaint rides the TRADE_SKILL_UPDATE the verb
+    // signals before it returns (`0x4fd750`).
     s.run("TradeSkillCollapseAllButton:Click()").unwrap();
-    pump(&mut s);
     assert_eq!(
         s.eval::<i64>("return GetNumTradeSkills()").unwrap(),
         2,
         "collapse-all leaves only the two headers"
     );
     s.run("TradeSkillCollapseAllButton:Click()").unwrap();
-    pump(&mut s);
     assert_eq!(s.eval::<i64>("return GetNumTradeSkills()").unwrap(), 5);
 
     // The dropdowns default to the "All …" texts.
@@ -159,7 +154,6 @@ fn collapse_all_tab_and_filter_dropdowns_work_end_to_end() {
     s.run("ToggleDropDownMenu(1, nil, TradeSkillSubClassDropDown)")
         .unwrap();
     s.run("DropDownList1Button3:Click()").unwrap();
-    pump(&mut s);
     assert_eq!(
         s.eval::<i64>("return GetNumTradeSkills()").unwrap(),
         2,
@@ -183,7 +177,6 @@ fn collapse_all_tab_and_filter_dropdowns_work_end_to_end() {
     s.run("ToggleDropDownMenu(1, nil, TradeSkillSubClassDropDown)")
         .unwrap();
     s.run("DropDownList1Button1:Click()").unwrap();
-    pump(&mut s);
     assert_eq!(s.eval::<i64>("return GetNumTradeSkills()").unwrap(), 5);
 }
 
@@ -240,7 +233,7 @@ fn reagent_slots_carry_the_questitemtemplate_shape_in_both_windows() {
         };
 
         // QuestItemTemplate's <Size>.
-        assert_eq!(
+        benilla_ui::assert_near!(
             (
                 num(&format!("{w}1:GetWidth()")),
                 num(&format!("{w}1:GetHeight()"))
@@ -250,20 +243,20 @@ fn reagent_slots_carry_the_questitemtemplate_shape_in_both_windows() {
         );
 
         // Reagent2 anchors LEFT to Reagent1's RIGHT at zero offset, so the pitch is the row width,
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}2:GetLeft()")) - num(&format!("{w}1:GetLeft()")),
             147.0,
             "{w} column pitch"
         );
         // and row 2 drops one row height plus a 2px gutter.
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}3:GetTop()")) - num(&format!("{w}1:GetTop()")),
             -43.0,
             "{w} row step"
         );
 
         // `$parentIconTexture`: 39×39, flush in the row's TOPLEFT corner.
-        assert_eq!(
+        benilla_ui::assert_near!(
             (
                 num(&format!("{w}1IconTexture:GetWidth()")),
                 num(&format!("{w}1IconTexture:GetHeight()"))
@@ -271,12 +264,12 @@ fn reagent_slots_carry_the_questitemtemplate_shape_in_both_windows() {
             (39.0, 39.0),
             "{w}1 icon"
         );
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}1IconTexture:GetLeft()")),
             num(&format!("{w}1:GetLeft()")),
             "{w}1 icon flush left"
         );
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}1IconTexture:GetTop()")),
             num(&format!("{w}1:GetTop()")),
             "{w}1 icon flush top"
@@ -289,7 +282,7 @@ fn reagent_slots_carry_the_questitemtemplate_shape_in_both_windows() {
             "Interface\\QuestFrame\\UI-QuestItemNameFrame",
             "{w}1 name plate art"
         );
-        assert_eq!(
+        benilla_ui::assert_near!(
             (
                 num(&format!("{w}1NameFrame:GetWidth()")),
                 num(&format!("{w}1NameFrame:GetHeight()"))
@@ -297,14 +290,14 @@ fn reagent_slots_carry_the_questitemtemplate_shape_in_both_windows() {
             (128.0, 64.0),
             "{w}1 plate size"
         );
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}1NameFrame:GetLeft()")) - num(&format!("{w}1IconTexture:GetRight()")),
             -10.0,
             "{w}1 plate rides the icon's right edge"
         );
 
         // The name sits on the plate, 15 from its left, vertically centred.
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}1Name:GetLeft()")) - num(&format!("{w}1NameFrame:GetLeft()")),
             15.0,
             "{w}1 name inset"
@@ -321,12 +314,12 @@ fn reagent_slots_carry_the_questitemtemplate_shape_in_both_windows() {
         );
 
         // The count sits on the icon's bottom-right corner (-4, +1).
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}1Count:GetRight()")) - num(&format!("{w}1IconTexture:GetRight()")),
             -4.0,
             "{w}1 count x"
         );
-        assert_eq!(
+        benilla_ui::assert_near!(
             num(&format!("{w}1Count:GetBottom()")) - num(&format!("{w}1IconTexture:GetBottom()")),
             1.0,
             "{w}1 count y"
@@ -377,7 +370,6 @@ fn a_row_click_shows_the_selection_glow_and_a_row_hover_shows_nothing() {
 
     // A click on the other Mail recipe moves it.
     s.run("TradeSkillSkill3:Click()").unwrap();
-    pump(&mut s);
     assert_eq!(
         s.eval::<i64>("return GetTradeSkillSelectionIndex()")
             .unwrap(),
@@ -393,7 +385,6 @@ fn a_row_click_shows_the_selection_glow_and_a_row_hover_shows_nothing() {
 
     // With every group folded no recipe row is visible to carry it.
     s.run("TradeSkillCollapseAllButton:Click()").unwrap();
-    pump(&mut s);
     assert!(
         !s.eval::<bool>("return TradeSkillHighlightFrame:IsShown()")
             .unwrap(),
@@ -511,7 +502,6 @@ fn a_hovered_or_selected_recipe_row_paints_its_label_white() {
 
     // Click row 3: the white follows the selection, and row 2 falls back to its difficulty colour.
     s.run("TradeSkillSkill3:Click()").unwrap();
-    pump(&mut s);
     park_cursor_off_the_list(&mut s);
     assert_eq!(
         s.eval::<i64>("return GetTradeSkillSelectionIndex()")
@@ -539,7 +529,7 @@ fn a_hovered_or_selected_craft_row_paints_its_label_white() {
         spell_id,
         name: name.into(),
         sub_name: String::new(),
-        difficulty: TradeSkillDifficulty::Medium,
+        difficulty: CraftDifficulty::Medium,
         num_available: 1,
         icon: Some("Interface\\Icons\\Spell_Holy_Heal".into()),
         description: None,
@@ -548,9 +538,15 @@ fn a_hovered_or_selected_craft_row_paints_its_label_white() {
         tools: vec![],
         tooltip: CraftTooltip::Spell(spell_id),
         spell_level: 0,
+        group: 0,
+        skill_line: None,
+        training_point_cost: 0,
+        required_level: 0,
+        tools_pending: Vec::new(),
     };
     s.set_craft(Some(CraftState {
         name: "Enchanting".into(),
+        display_line: Some("Enchanting".into()),
         rank: 100,
         max_rank: 150,
         craft_type: 3,

@@ -24,8 +24,8 @@ const Q_TEXT: [f32; 4] = [0.92, 0.92, 0.92, 1.0];
 const Q_DIM_MARKUP: &str = "|cffb4b4b4";
 /// Paint order: the background under the glyphs, both above every packed WoW z_key, whose frame
 /// tuples never fill the top bits.
-const Z_PILL_BG: u64 = u64::MAX - 1;
-const Z_PILL: u64 = u64::MAX;
+const Z_PILL_BG: u128 = u128::MAX - 1;
+const Z_PILL: u128 = u128::MAX;
 /// The quad pill's font height (logical px) and box padding.
 const PILL_QUAD_PX: f32 = 12.0;
 const PILL_PAD: Vec2 = Vec2::new(9.0, 4.0);
@@ -152,6 +152,7 @@ pub(super) fn pill_quads(
     mut quads: ResMut<UiQuads>,
     mismatch: Option<Res<super::BlendMismatchShared>>,
     mut cache: Local<Option<PillCache>>,
+    widescreen: Option<Res<crate::video::Widescreen>>,
 ) {
     if !hud.visible {
         return;
@@ -200,7 +201,12 @@ pub(super) fn pill_quads(
                 path: None,
                 height: Some(PILL_QUAD_PX),
                 outline: Outline::None,
+                monochrome: false,
+                spacing: 0.0,
+                shadow_x: 0.0,
                 alpha_gradient: None,
+                non_space_wrap: false,
+                max_lines: 0,
             },
             // Our own dev overlay: measured off a degenerate rect, then shifted into the pill.
             crate::ui_text::TextSeat::Exact,
@@ -240,7 +246,18 @@ pub(super) fn pill_quads(
         });
     }
     let Some(c) = &*cache else { return };
-    quads.overlays.extend(c.quads.iter().cloned());
+    // Laid out in window px: undo the stretch the pass gives the interface's px
+    // ([`crate::ui_script::UiScreen`]), so the pill keeps its shape with `widescreen` 0.
+    let stretch = crate::ui_script::UiScreen::of_window(win, widescreen.as_deref()).stretch;
+    quads.overlays.extend(c.quads.iter().cloned().map(|mut q| {
+        q.rect = Rect::new(
+            q.rect.min.x / stretch,
+            q.rect.min.y,
+            q.rect.max.x / stretch,
+            q.rect.max.y,
+        );
+        q
+    }));
 }
 
 /// [`pill_quads`]' cache: the laid-out pill, valid for one snapshot tick, window width and seat.

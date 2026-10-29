@@ -57,7 +57,7 @@ pub use overlay::{GfxOverlayDraw, GfxOverlayFrame, GfxOverlays};
 pub use post::GfxFfxGlow;
 pub use probe::{GfxDepthProbe, GfxDepthReadback, GfxDepthRequest, GfxPhaseRecord, GfxViewPhases};
 pub use render::{GfxRender, GfxRenderSystems};
-pub use runner::GfxMsaaCounts;
+pub use runner::{GfxMsaaCounts, GfxPresentHold};
 pub use timer::GfxGpuMeter;
 pub use ui::GfxUiLane;
 pub use window::GfxRawKey;

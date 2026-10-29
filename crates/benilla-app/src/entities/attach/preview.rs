@@ -153,7 +153,9 @@ pub(in crate::entities) fn build_glue_preview(
     };
     let (race, sex) = look.body();
     let Some(display_id) = char_create.0.body_display(race, sex) else {
-        state.built = true; // a non-playable race: nothing to show, stop retrying
+        // No ChrRaces row, a sex past 1 or a zero display id: no body (`0x5ec480`), so nothing
+        // to show; stop retrying.
+        state.built = true;
         return;
     };
 
@@ -475,6 +477,7 @@ fn glue_ghost_arm(
                 bone: point.bone,
                 offset: point.offset,
                 emitters: dm.emitters.clone(),
+                rig: None,
             });
         }
     }
@@ -679,6 +682,7 @@ fn assemble(spec: &PreviewSpec, ctx: &mut PreviewCtx<'_, '_>) -> Option<Assemble
                     bone: point.bone,
                     offset: point.offset,
                     emitters: item.emitters.clone(),
+                    rig: item.emitter_rig(),
                 });
             }
             let Some(paths) = ctx.glows.as_deref().and_then(|g| g.effects(w.visual)) else {
@@ -734,6 +738,7 @@ fn assemble(spec: &PreviewSpec, ctx: &mut PreviewCtx<'_, '_>) -> Option<Assemble
                         bone: point.bone,
                         offset,
                         emitters: glow.emitters.clone(),
+                        rig: None,
                     });
                 }
             }
@@ -758,10 +763,12 @@ struct HeldWant {
     visual: i32,
 }
 
-/// A preview's helm, shoulder pair and held weapons. The select build forces SheatheType 0
-/// (`0x472c8c`), so weapons go to the hands (main hand right, off hand left, a shield to its
-/// point) and the ranged slot is skipped (`0x472bfe`): [`placement`]'s melee-drawn arm. A held
-/// off-hand frill takes the same hand law; `0x47a0c0` is traced for weapons and shields only.
+/// A preview's helm, shoulder pair and held weapons. The select build attaches slots 15 and 16
+/// with the sheathed byte 0 (`0x472c8a`), which holds each in its hand (`0x47a15d`: main hand
+/// right, off hand left, a shield to its point); the sheathe type it passes, 0 (`0x472c8c`), names
+/// no sheath point (`0x47a070` gives −1). The ranged slot is skipped (`0x472bfe`): [`placement`]'s
+/// melee-drawn arm. A held off-hand frill takes the same hand law; `0x47a0c0` is traced for
+/// weapons and shields only.
 /// `ranged_in_hand` asks the ranged slot ranged-drawn instead, the dressing room's hand install.
 fn held_wants(
     equipment: &[CharEnumItem; 19],

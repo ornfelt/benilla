@@ -17,6 +17,8 @@ tracy = ["benilla-app/tracy"]
 trace_chrome = ["benilla-app/trace_chrome"]
 # Forwards to benilla-app's `bevy_dynamic_linking`, which enables bevy/dynamic_linking.
 bevy_dynamic_linking = ["benilla-app/bevy_dynamic_linking"]
+# Forwards to benilla-app's `q3_movement`, Quake 3 movement for a local server (off by default).
+q3_movement = ["benilla-app/q3_movement"]
 # The gfx DLL backend (`benilla-gfx`, `GFX.md`).
 gfx = ["benilla-app/gfx"]
 

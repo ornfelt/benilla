@@ -14,6 +14,7 @@ out 3 vec4 color
 out 4 vec3 point_lit
 out 5 float merged_fade
 out 6 int merged_slot
+out 7 vec2 env_uv
 
 constant 0 view_block
 {
@@ -39,6 +40,7 @@ constant 1 draw_block
 	vec4 tint
 	vec4 sidn
 	vec4 anim_slots
+	vec4 stage1
 }
 
 // The vertex stage of `benilla-assets/src/shaders/wow_model.wgsl` (the M2, WMO and clutter pass),
@@ -194,6 +196,14 @@ vec4 device_clip(vec4 clip)
 	return clip;
 }
 
+// The generated environment coordinate of `Model2.bls`: in view space R = normalize(P - 2(P.N)N),
+// uv = R.xy 0.5 + 0.5, per vertex.
+vec2 wow_env_uv(vec3 p_view, vec3 n_view)
+{
+	vec3 refl = normalize(p_view - 2.0 * dot(p_view, n_view) * n_view);
+	return refl.xy * 0.5 + vec2(0.5, 0.5);
+}
+
 vs_output gfx_main(vs_input gfx_input)
 {
 	vs_output gfx_output;
@@ -271,14 +281,14 @@ vs_output gfx_main(vs_input gfx_input)
 	gfx_output.gfx_position = device_clip(clip);
 
 	gfx_output.uv = gfx_input.uv;
-	// Env-mapped batches (bit 12) generate their texcoord per vertex in view space as `Model2.bls`
-	// does: R = normalize(P - 2(P.N)N), uv = R.xy 0.5 + 0.5.
+	// Env-mapped batches (bit 12) generate their texcoord per vertex (`wow_env_uv`).
 	if ((markers & 4096u) != 0u)
-	{
-		vec3 n_view = normalize(mul(vec4(world_normal, 0.0), view_from_world).xyz);
-		vec3 refl = normalize(p_view - 2.0 * dot(p_view, n_view) * n_view);
-		gfx_output.uv = refl.xy * 0.5 + vec2(0.5, 0.5);
-	}
+		gfx_output.uv = wow_env_uv(p_view, normalize(mul(vec4(world_normal, 0.0), view_from_world).xyz));
+	// Stage 1 takes the same generated coordinate in its own interpolant: a two-texture unit's
+	// second lookup is the environment one in every stock model.
+	gfx_output.env_uv = vec2(0.0, 0.0);
+	if (stage1.x > 0.5)
+		gfx_output.env_uv = wow_env_uv(p_view, normalize(mul(vec4(world_normal, 0.0), view_from_world).xyz));
 	gfx_output.color = gfx_input.color;
 
 	// Point lights: none on WMO surfaces or interior M2 props, else the <=3 nearest the instance

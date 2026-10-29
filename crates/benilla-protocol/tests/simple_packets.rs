@@ -28,20 +28,15 @@ fn simple_server_bodies_parse() {
         _ => panic!("new world"),
     }
     // SMSG_LOGIN_SETTIMESPEED: packed date (LSB up: minute:6, hour:5, weekday:3, day:6, month:4,
-    // year:5) then f32 timescale. The day serial counts 31-day months: year·372 + month·31 + day.
+    // year:5) then f32 timescale.
     let datetime: u32 = (26 << 24) | (6 << 20) | (17 << 14) | (14 << 6) | 30;
     let mut ts = datetime.to_le_bytes().to_vec();
     ts.extend_from_slice(&0.0166_6667f32.to_le_bytes());
     match messages::parse_server(messages::opcode::SMSG_LOGIN_SETTIMESPEED, &ts).unwrap() {
-        ServerPacket::TimeSpeed {
-            hours,
-            minutes,
-            day_serial,
-            timescale,
-        } => {
-            assert_eq!((hours, minutes), (14, 30));
-            assert_eq!(day_serial, 26 * 372 + 6 * 31 + 17);
-            assert_eq!(timescale, 0.0166_6667);
+        ServerPacket::TimeSpeed { time, speed } => {
+            assert_eq!((time.hour, time.minute), (14, 30));
+            assert_eq!((time.year, time.month, time.day), (26, 6, 17));
+            assert_eq!(speed, 0.0166_6667);
         }
         _ => panic!("settimespeed"),
     }
@@ -96,6 +91,50 @@ fn cinematic_and_char_delete_parse_and_decode() {
     // 0x39 = CHAR_DELETE_SUCCESS.
     let p = messages::parse_server(messages::opcode::SMSG_CHAR_DELETE, &[0x39]).unwrap();
     assert!(matches!(p, ServerPacket::CharDelete { result: 0x39 }));
+    assert!(decode(p).is_empty());
+}
+
+/// `SMSG_CHAR_RENAME` as `0x46b440` reads it: the result byte, and the guid and the name only while
+/// bytes remain, the name a C string capped at 0x30 (`0x4191b0`). It decodes to no event: the IO
+/// thread's rename consumes it.
+#[test]
+fn char_rename_reply_parses_with_and_without_its_tail() {
+    let parse = |body: &[u8]| match messages::parse_server_with_tail(
+        messages::opcode::SMSG_CHAR_RENAME,
+        body,
+    )
+    .unwrap()
+    {
+        (ServerPacket::CharRename { result, renamed }, tail) => (result, renamed, tail),
+        _ => panic!("SMSG_CHAR_RENAME"),
+    };
+    // A success: vmangos sends the guid and the name behind the result (`Character.cpp:61-69`).
+    assert_eq!(
+        parse(&hx("0011000000000000004e6577626965004141")),
+        (0, Some((0x11, "Newbie".to_string())), 2),
+        "the name ends at its NUL; the bytes behind it are left"
+    );
+    // A failure is the byte alone.
+    assert_eq!(parse(&[0x2f]), (0x2f, None, 0));
+    assert_eq!(parse(&[0x31]), (0x31, None, 0));
+    // A guid short of eight bytes overflows the store: guid 0, name empty.
+    assert_eq!(parse(&hx("00112233")), (0, Some((0, String::new())), 0));
+    // A name with no NUL within 0x30 bytes, or none at all, reads empty.
+    let mut long = hx("001100000000000000");
+    long.extend([b'a'; 0x30]);
+    long.push(0);
+    assert_eq!(parse(&long), (0, Some((0x11, String::new())), 1));
+    assert_eq!(
+        parse(&hx("0011000000000000004e6577")),
+        (0, Some((0x11, String::new())), 0)
+    );
+    // 0x2f bytes and the NUL fit the cap.
+    let mut fits = hx("001100000000000000");
+    fits.extend([b'a'; 0x2f]);
+    fits.push(0);
+    assert_eq!(parse(&fits), (0, Some((0x11, "a".repeat(0x2f))), 0));
+    assert!(messages::parse_server(messages::opcode::SMSG_CHAR_RENAME, &[]).is_err());
+    let p = messages::parse_server(messages::opcode::SMSG_CHAR_RENAME, &[0]).unwrap();
     assert!(decode(p).is_empty());
 }
 
@@ -376,6 +415,21 @@ fn durability_damage_death_is_an_empty_body_cue() {
     ));
 }
 
+/// `SMSG_PLAYER_SKINNED` (0x2BC): one byte, which the handler reads (`0x5e7d4a`) and hands on as
+/// its truth (`0x5e7d54` `setne`) to `PLAYER_SKINNED` (`0x48f400`). vmangos sends `freeRepop` 0
+/// (`Packets/Misc.h:816`).
+#[test]
+fn player_skinned_decodes_its_byte_as_a_truth() {
+    for (body, free_repop) in [(hx("00"), false), (hx("01"), true), (hx("80"), true)] {
+        let pkt = messages::parse_server(0x2BC, &body).unwrap();
+        let events: Vec<String> = decode(pkt).iter().map(|e| format!("{e:?}")).collect();
+        assert_eq!(
+            events,
+            [format!("PlayerSkinned {{ free_repop: {free_repop} }}")]
+        );
+    }
+}
+
 /// u32 mapId, then u32 transportEntry + u32 oldMapId when the player rides a transport through
 /// (vmangos `Misc.cpp:493-501`).
 #[test]
@@ -393,7 +447,8 @@ fn transfer_pending_both_shapes_and_abort_parse_and_decode() {
         decode(plain).as_slice(),
         [SessionEvent::TransferPending {
             map_id: 1,
-            transport_entry: None
+            transport_entry: None,
+            from_map: None,
         }]
     ));
     // Riding: 176310 is the Menethil boat, arriving in EK (0) from Kalimdor (1).
@@ -412,7 +467,8 @@ fn transfer_pending_both_shapes_and_abort_parse_and_decode() {
         decode(riding).as_slice(),
         [SessionEvent::TransferPending {
             map_id: 0,
-            transport_entry: Some(176310)
+            transport_entry: Some(176310),
+            from_map: Some(1),
         }]
     ));
     let abort = messages::parse_server(messages::opcode::SMSG_TRANSFER_ABORTED, &[2]).unwrap();
@@ -543,4 +599,46 @@ fn pet_feedback_family_parses_and_decodes() {
             position: [-8949.95, -132.493, 83.5312],
         }]
     ));
+}
+
+/// `CMSG_READ_ITEM` is the container byte and the slot (`0x5ec500` writes opcode 0xad and the two
+/// bytes); `SMSG_READ_ITEM_OK` is the item's guid, `SMSG_READ_ITEM_FAILED` the guid and a reason
+/// byte that vmangos leaves out (`ItemHandler.cpp:445-452`), read as 0 (`0x5ec664`), with the
+/// translation time in milliseconds after a reason of 1 (`0x5ec6a5`), the opcode's 0xaf when the
+/// packet ends before it.
+#[test]
+fn read_item_bodies_encode_parse_and_decode() {
+    assert_eq!(messages::read_item(255, 25), [255, 25]);
+    assert_eq!(messages::opcode::CMSG_READ_ITEM, 0xAD);
+    let ok = messages::parse_server(messages::opcode::SMSG_READ_ITEM_OK, &hx("0700000000000040"))
+        .unwrap();
+    assert!(matches!(
+        decode(ok).as_slice(),
+        [SessionEvent::ReadItemOk {
+            guid: 0x4000_0000_0000_0007
+        }]
+    ));
+    let failed = |body: &str| {
+        let packet =
+            messages::parse_server(messages::opcode::SMSG_READ_ITEM_FAILED, &hx(body)).unwrap();
+        decode(packet)
+            .into_iter()
+            .map(|e| format!("{e:?}"))
+            .collect::<Vec<_>>()
+    };
+    let guid = "0700000000000040";
+    let event = |reason: u8, ms: i32| {
+        format!(
+            "ReadItemFailed {{ guid: 4611686018427387911, reason: {reason}, milliseconds: {ms} }}"
+        )
+    };
+    assert_eq!(failed(guid), [event(0, 0)], "vmangos writes no reason");
+    assert_eq!(failed(&format!("{guid}00")), [event(0, 0)]);
+    assert_eq!(failed(&format!("{guid}01e8030000")), [event(1, 1000)]);
+    assert_eq!(
+        failed(&format!("{guid}01")),
+        [event(1, 0xAF)],
+        "the opcode stays in the slot"
+    );
+    assert_eq!(failed(&format!("{guid}02")), [event(2, 0)]);
 }

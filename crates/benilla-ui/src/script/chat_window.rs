@@ -20,6 +20,7 @@
 
 use mlua::{Lua, MultiValue, Value};
 
+use super::binding_abi;
 use super::channel::ZoneChannelRow;
 use super::Model;
 
@@ -205,28 +206,6 @@ impl ChatWindowLook {
     }
 }
 
-/// The leading decimal integer after optional whitespace and a sign, 0 when there is none. The
-/// reference's `SStrToInt` (`0x64ac60`) takes neither the whitespace nor a `+`.
-pub(super) fn leading_int(s: &str) -> i64 {
-    let s = s.trim_start();
-    let (neg, digits) = match s.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, s.strip_prefix('+').unwrap_or(s)),
-    };
-    let n: i64 = digits
-        .chars()
-        .take_while(|c| c.is_ascii_digit())
-        .fold(0i64, |acc, c| {
-            acc.saturating_mul(10)
-                .saturating_add(i64::from(c as u8 - b'0'))
-        });
-    if neg {
-        -n
-    } else {
-        n
-    }
-}
-
 /// The byte `__ftol(x · 255.0)` stores, clamped (the module's deviation); non-finite stores 0.
 fn to_byte(x: f64) -> u8 {
     if !x.is_finite() {
@@ -335,7 +314,13 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // GetChatWindowInfo(id) → name, fontSize, r, g, b, a, shown, locked, docked.
     lua.globals().set(
         "GetChatWindowInfo",
-        lua.create_function(|lua, id: i64| {
+        lua.create_function(|lua, id: Value| {
+            // `is-number` else `Usage: GetChatWindowInfo(index)` (`0x844d74`, `0x4a0bb7`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: GetChatWindowInfo(index)",
+            )?);
             let i = window_index(id)?;
             let look = lua
                 .app_data_ref::<Model>()
@@ -371,7 +356,17 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // (FloatingChatFrame.lua:699) tints the textures itself.
     lua.globals().set(
         "SetChatWindowColor",
-        lua.create_function(|lua, (id, r, g, b): (i64, f64, f64, f64)| {
+        lua.create_function(|lua, (id, r, g, b): (Value, Value, Value, Value)| {
+            // `is-number` on args 1, 2, 3 and 4 else `Usage: SetChatWindowColor(index, r, g, b)`
+            // (`0x844efc`, `0x4a15b9`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: SetChatWindowColor(index, r, g, b)",
+            )?);
+            let r = binding_abi::float_arg(lua, r, "Usage: SetChatWindowColor(index, r, g, b)")?;
+            let g = binding_abi::float_arg(lua, g, "Usage: SetChatWindowColor(index, r, g, b)")?;
+            let b = binding_abi::float_arg(lua, b, "Usage: SetChatWindowColor(index, r, g, b)")?;
             let i = window_index(id)?;
             let mut model = lua.app_data_mut::<Model>().expect("model app_data");
             let look = &mut model.chat_window_looks[i];
@@ -392,7 +387,16 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // SetChatWindowAlpha(id, alpha) (`0x4a15d0`), called on every opacity-slider step.
     lua.globals().set(
         "SetChatWindowAlpha",
-        lua.create_function(|lua, (id, alpha): (i64, f64)| {
+        lua.create_function(|lua, (id, alpha): (Value, Value)| {
+            // `is-number` on args 1 and 2 else `Usage: SetChatWindowAlpha(index, alpha)`
+            // (`0x844f28`, `0x4a1633`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: SetChatWindowAlpha(index, alpha)",
+            )?);
+            let alpha =
+                binding_abi::float_arg(lua, alpha, "Usage: SetChatWindowAlpha(index, alpha)")?;
             let i = window_index(id)?;
             let mut model = lua.app_data_mut::<Model>().expect("model app_data");
             let look = &mut model.chat_window_looks[i];
@@ -407,11 +411,19 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
 
     // SetChatWindowLocked(id, isLocked) (`0x4a1650`): the record's `+0x8c` (`0x4a16a2`), 1 at
     // boot (`0x4984e4`). A `bool` holds it, as the cache writer stores it through `setne`
-    // (`0x499e8b`). The argument is Lua truthiness, where the reference coerces through `0x6f1c10`
-    // (default 0): `0` and "off" unlock there and lock here. FrameXML passes only 1 and nil.
+    // (`0x499e8b`). The argument goes through `GetBoolOrDefault` (`0x4a1697`, default 0), so `0`
+    // and "off" unlock and "yes" locks. FrameXML passes only 1 and nil.
     lua.globals().set(
         "SetChatWindowLocked",
-        lua.create_function(|lua, (id, locked): (i64, bool)| {
+        lua.create_function(|lua, (id, locked): (Value, Option<Value>)| {
+            // `is-number` else `Usage: SetChatWindowLocked(index, locked)` (`0x844f50`,
+            // `0x4a1662`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: SetChatWindowLocked(index, locked)",
+            )?);
+            let locked = crate::script::binding_abi::bool_or_default(locked.as_ref(), false);
             let i = window_index(id)?;
             let mut model = lua.app_data_mut::<Model>().expect("model app_data");
             let look = &mut model.chat_window_looks[i];
@@ -427,9 +439,19 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // outside 1..=255 clears it here; the reference stores a number truncated, a non-number as 0.
     lua.globals().set(
         "SetChatWindowDocked",
-        lua.create_function(|lua, (id, position): (i64, Option<i64>)| {
+        lua.create_function(|lua, (id, position): (Value, Value)| {
+            // `is-number` else `Usage: SetChatWindowDocked(index, docked)` (`0x844f7c`,
+            // `0x4a16c2`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: SetChatWindowDocked(index, docked)",
+            )?);
             let i = window_index(id)?;
-            let position = position
+            // `is-number` on the position, else 0 (`0x4a16f8`), never raising.
+            let position = lua
+                .coerce_number(position)?
+                .map(binding_abi::ftol)
                 .filter(|p| *p > 0)
                 .and_then(|p| u8::try_from(p).ok());
             let mut model = lua.app_data_mut::<Model>().expect("model app_data");
@@ -444,7 +466,15 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // SetChatWindowSize(id, fontSize) (`0x4a1470`) only stores; FrameXML sets the font itself.
     lua.globals().set(
         "SetChatWindowSize",
-        lua.create_function(|lua, (id, size): (i64, f64)| {
+        lua.create_function(|lua, (id, size): (Value, Value)| {
+            // `is-number` on args 1 and 2 else `Usage: SetChatWindowSize(index, size)` (`0x844ed4`,
+            // `0x4a14d1`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: SetChatWindowSize(index, size)",
+            )?);
+            let size = binding_abi::float_arg(lua, size, "Usage: SetChatWindowSize(index, size)")?;
             let i = window_index(id)?;
             let mut model = lua.app_data_mut::<Model>().expect("model app_data");
             let look = &mut model.chat_window_looks[i];
@@ -484,24 +514,33 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         Ok(out)
     }
 
-    // Group names, case-folded; an unknown name is skipped (`0x4a0ea9`).
-    fn names_of(args: MultiValue) -> Vec<&'static str> {
-        args.iter()
-            .filter_map(|v| match v {
-                Value::String(s) => s.to_str().ok().and_then(|s| message_group_index(s.trim())),
-                _ => None,
-            })
-            .map(|i| MESSAGE_GROUPS[i].0)
-            .collect()
+    // The group named by argument 2, compared as given with `SStrCmpI` and no trim (`0x4a0ee7`,
+    // `0x4a0fa7`); an unknown name changes nothing. `is-number` on argument 1 and
+    // `is-number-or-string` on 2 gate both, else the binding's `Usage:`; the binding reads that
+    // one name, never a third argument.
+    fn group_of(
+        lua: &Lua,
+        (id, name): (Value, Value),
+        line: &'static str,
+    ) -> mlua::Result<(i64, Option<&'static str>)> {
+        let id = i64::from(binding_abi::number_arg(lua, id, line)?);
+        let name = binding_abi::string_arg(lua, name, line)?;
+        Ok((id, message_group_index(&name).map(|i| MESSAGE_GROUPS[i].0)))
     }
 
-    // SetChatWindowName(id, name): `SStrCopy(record+0, name, 0x20)`, 31 bytes and the NUL. The
-    // reference stores "" for a name neither string nor number (`0x4a1436`); here a missing or nil
-    // name stores "", and a boolean or table raises.
+    // SetChatWindowName(id, name): `SStrCopy(record+0, name, 0x20)` (`0x4a1462`), 31 bytes and the
+    // NUL. The name is read only when `is-number-or-string` passes (`0x4a143b`); anything else,
+    // missing, nil, a boolean or a table, stores "" (`0x4a1436`) and never raises.
     lua.globals().set(
         "SetChatWindowName",
-        lua.create_function(|lua, (id, name): (i64, Option<String>)| {
-            let mut name = name.unwrap_or_default();
+        lua.create_function(|lua, (id, name): (Value, Value)| {
+            // `is-number` else `Usage: SetChatWindowName(index, "name")` (`0x844eac`, `0x4a1402`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                r#"Usage: SetChatWindowName(index, "name")"#,
+            )?);
+            let mut name = binding_abi::optional_string(lua, &name).unwrap_or_default();
             if name.len() > 31 {
                 let mut cut = 31;
                 while !name.is_char_boundary(cut) {
@@ -513,44 +552,32 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         })?,
     )?;
 
-    // SetChatWindowShown(id [, shown]): `+0x94` through the flag coercion `0x6f1c10`, default 1.
-    // No argument stores 1; nil, false, 0, "0", "off" and "disabled" store 0. The reference also
-    // stores 0 for a string opening F or N ("false", "no"), which stores 1 here.
+    // SetChatWindowShown(id [, shown]): `+0x94` (`0x4a1782`) through `GetBoolOrDefault`
+    // (`0x4a1777`) with default 1: no argument stores 1; nil, false, `0`, "0", "off", "disabled"
+    // and anything opening F or N ("false", "no") store 0.
     lua.globals().set(
         "SetChatWindowShown",
-        lua.create_function(|lua, (id, rest): (i64, MultiValue)| {
-            let shown = match rest.front() {
-                None => true,
-                Some(Value::Nil) | Some(Value::Boolean(false)) => false,
-                Some(Value::Boolean(true)) => true,
-                Some(Value::Integer(n)) => *n != 0,
-                Some(Value::Number(n)) => n.is_finite() && n.trunc() != 0.0,
-                Some(Value::String(s)) => {
-                    let s = s
-                        .to_str()
-                        .map(|s| s.trim().to_ascii_lowercase())
-                        .unwrap_or_default();
-                    if s.starts_with(|c: char| c.is_ascii_digit() || c == '-') {
-                        leading_int(&s) != 0
-                    } else {
-                        !(s == "off" || s == "disabled")
-                    }
-                }
-                Some(_) => true,
-            };
+        lua.create_function(|lua, (id, rest): (Value, MultiValue)| {
+            // `is-number` else `Usage: SetChatWindowShown(index, shown)` (`0x844fa8`, `0x4a1742`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: SetChatWindowShown(index, shown)",
+            )?);
+            let shown = crate::script::binding_abi::bool_or_default(rest.front(), true);
             with_look(lua, id, |look| look.shown = shown)
         })?,
     )?;
 
     lua.globals().set(
         "AddChatWindowMessages",
-        lua.create_function(|lua, (id, names): (i64, MultiValue)| {
-            let names = names_of(names);
+        lua.create_function(|lua, args: (Value, Value)| {
+            // `Usage: AddChatWindowMessages(index, "messageGroup")` (`0x844ddc`, `0x4a0f1c`).
+            let line = r#"Usage: AddChatWindowMessages(index, "messageGroup")"#;
+            let (id, name) = group_of(lua, args, line)?;
             with_look(lua, id, |look| {
-                for name in names {
-                    if !look.messages.iter().any(|m| m == name) {
-                        look.messages.push(name.to_string());
-                    }
+                if let Some(name) = name.filter(|n| !look.messages.iter().any(|m| m == n)) {
+                    look.messages.push(name.to_string());
                 }
                 look.normalize_messages();
             })
@@ -559,10 +586,12 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
 
     lua.globals().set(
         "RemoveChatWindowMessages",
-        lua.create_function(|lua, (id, names): (i64, MultiValue)| {
-            let names = names_of(names);
+        lua.create_function(|lua, args: (Value, Value)| {
+            // `Usage: RemoveChatWindowMessages(index, "messageGroup")` (`0x844e10`, `0x4a0fdc`).
+            let line = r#"Usage: RemoveChatWindowMessages(index, "messageGroup")"#;
+            let (id, name) = group_of(lua, args, line)?;
             with_look(lua, id, |look| {
-                look.messages.retain(|m| !names.contains(&m.as_str()));
+                look.messages.retain(|m| Some(m.as_str()) != name);
             })
         })?,
     )?;
@@ -570,7 +599,13 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // GetChatWindowMessages(id): the enabled group names as varargs, in table order.
     lua.globals().set(
         "GetChatWindowMessages",
-        lua.create_function(|lua, id: i64| {
+        lua.create_function(|lua, id: Value| {
+            // `is-number` else `Usage: GetChatWindowMessages(index)` (`0x844d94`, `0x4a0d35`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: GetChatWindowMessages(index)",
+            )?);
             let i = window_index(id)?;
             let model = lua.app_data_ref::<Model>().expect("model app_data");
             let mut out = Vec::new();
@@ -587,10 +622,21 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // zone text yet answers and stores nothing. A name already there only answers the id.
     lua.globals().set(
         "AddChatWindowChannel",
-        lua.create_function(|lua, (id, name): (i64, Option<String>)| {
-            let Some(name) = name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) else {
-                return Ok(MultiValue::new());
-            };
+        lua.create_function(|lua, (id, name): (Value, Value)| {
+            // `is-number` on arg 1, `is-number-or-string` on arg 2 else
+            // `Usage: AddChatWindowChannel(index, "channel")` (`0x844e48`, `0x4a123a`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                r#"Usage: AddChatWindowChannel(index, "channel")"#,
+            )?);
+            let name = binding_abi::string_arg(
+                lua,
+                name,
+                r#"Usage: AddChatWindowChannel(index, "channel")"#,
+            )?;
+            // `SStrCmpI` on the name as given (`0x4a10b2`): no trim, and "" or a padded name
+            // matches no row and is stored verbatim, answering 0 (`0x4a10f4`-`0x4a1100`).
             let matched = {
                 let model = lua.app_data_ref::<Model>().expect("model app_data");
                 model
@@ -619,29 +665,39 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         })?,
     )?;
 
-    // RemoveChatWindowChannel(id, name | n) (`0x4a1260`): a numeric key names the joined channel
-    // in slot n, and an empty slot removes nothing; the key then resolves to its DBC Shortcut as
-    // above, and the entry of that name is freed.
+    // RemoveChatWindowChannel(id, name | n) (`0x4a1260`): a numeric key names the confirmed
+    // channel in slot n, and any other number removes nothing; the key then resolves to its DBC
+    // Shortcut as above, and the entry of that name is freed.
     lua.globals().set(
         "RemoveChatWindowChannel",
-        lua.create_function(|lua, (id, key): (i64, Option<String>)| {
-            let Some(key) = key else {
-                return Ok(());
-            };
+        lua.create_function(|lua, (id, key): (Value, Value)| {
+            // `is-number` on arg 1, `is-number-or-string` on arg 2 else
+            // `Usage: RemoveChatWindowChannel(index, "channel")` (`0x844e78`, `0x4a13cc`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                r#"Usage: RemoveChatWindowChannel(index, "channel")"#,
+            )?);
+            let key = binding_abi::string_arg(
+                lua,
+                key,
+                r#"Usage: RemoveChatWindowChannel(index, "channel")"#,
+            )?;
+            let joined = super::channel::joined(lua);
             let key = {
                 let model = lua.app_data_ref::<Model>().expect("model app_data");
-                let n = leading_int(&key);
-                let key = if n > 0 {
-                    match usize::try_from(n)
-                        .ok()
-                        .and_then(|n| model.joined_channels.get(n - 1))
-                        .and_then(|c| c.clone())
-                    {
-                        Some(name) => name,
+                let n = crate::script::binding_abi::s_str_to_int(&key);
+                // `0x49e880` (`0x4a12bf`): a non-zero `SStrToInt` names a confirmed slot, and
+                // `0x49be50` answers NULL below slot 1 or for a slot not in state 0, so `"-1"` or
+                // a pending slot's number removes nothing (`0x4a12c9`); a zero keeps the string
+                // raw, untrimmed, for the case-insensitive compares (`0x4a1315`, `0x4a1359`).
+                let key = if n != 0 {
+                    match super::channel::confirmed_channel(&joined, i64::from(n)) {
+                        Some(c) => c.name.clone(),
                         None => return Ok(()),
                     }
                 } else {
-                    key.trim().to_string()
+                    key
                 };
                 match model
                     .zone_channel_catalog
@@ -662,7 +718,13 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // GetChatWindowChannels(id): `name, zoneId` pairs in slot order.
     lua.globals().set(
         "GetChatWindowChannels",
-        lua.create_function(|lua, id: i64| {
+        lua.create_function(|lua, id: Value| {
+            // `is-number` else `Usage: GetChatWindowChannels(index)` (`0x844db8`, `0x4a0dd5`).
+            let id = i64::from(binding_abi::number_arg(
+                lua,
+                id,
+                "Usage: GetChatWindowChannels(index)",
+            )?);
             let i = window_index(id)?;
             let model = lua.app_data_ref::<Model>().expect("model app_data");
             let mut out = Vec::new();
@@ -917,6 +979,41 @@ mod record_tests {
     use super::{ChatWindowLook, MESSAGE_GROUPS};
     use crate::script::{UiScript, ZoneChannelRow};
 
+    /// `MESSAGE_GROUPS` is `reference/chat_groups.tsv`, row for row: index, name, `defaultOn` and
+    /// `addedVersion`.
+    #[test]
+    fn the_message_groups_are_the_reference_table() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../reference/chat_groups.tsv"
+        );
+        let text = std::fs::read_to_string(path).expect("reference/chat_groups.tsv");
+        let rows: Vec<Vec<&str>> = text
+            .lines()
+            .skip(1)
+            .map(|l| l.split('\t').collect())
+            .collect();
+        assert_eq!(rows.len(), MESSAGE_GROUPS.len(), "row count");
+        for (i, (row, (name, on, added))) in rows.iter().zip(MESSAGE_GROUPS).enumerate() {
+            let got = (
+                i.to_string(),
+                name,
+                if on { "1" } else { "0" }.to_string(),
+                added.to_string(),
+            );
+            assert_eq!(
+                (
+                    row[0].to_string(),
+                    row[1],
+                    row[2].to_string(),
+                    row[3].to_string()
+                ),
+                got,
+                "group {i}"
+            );
+        }
+    }
+
     /// The boot init (`0x4982c0`); 34 of groups 11 to 68 are `defaultOn`.
     #[test]
     fn the_stock_records_are_the_boot_init() {
@@ -974,17 +1071,37 @@ mod record_tests {
             (false, true, false)
         );
         assert_eq!(looks[3].name.len(), 31, "31 bytes and the NUL");
+        // A name that is not a string or a number stores "" and raises nothing (`0x4a1436`); a
+        // number is its text.
+        for arg in ["true", "{}", "nil", "print"] {
+            s.run(&format!(
+                "SetChatWindowName(3, 'Loot') SetChatWindowName(3, {arg})"
+            ))
+            .unwrap();
+            assert_eq!(s.chat_window_looks()[2].name, "", "{arg}");
+        }
+        s.run("SetChatWindowName(3, 12)").unwrap();
+        assert_eq!(s.chat_window_looks()[2].name, "12");
     }
 
     #[test]
     fn message_types_are_flags_answered_in_table_order() {
         let mut s = UiScript::new().unwrap();
+        // One group per call, argument 2: a third argument is never read (`0x4a0ec4`). The name
+        // is compared untrimmed (`0x4a0ee7`), so a padded one names no group.
         s.run(
-            "AddChatWindowMessages(3, 'yell', 'SAY', 'BOGUS', 'SAY', 'money') \
-             RemoveChatWindowMessages(1, 'Say', 'LOOT', 'NOPE') \
-             AddChatWindowMessages(3)",
+            "AddChatWindowMessages(3, 'yell', 'SAY') AddChatWindowMessages(3, 'BOGUS') \
+             AddChatWindowMessages(3, 'SAY') AddChatWindowMessages(3, 'SAY') \
+             AddChatWindowMessages(3, 'money') RemoveChatWindowMessages(1, 'Say', 'LOOT') \
+             AddChatWindowMessages(3, ' LOOT') AddChatWindowMessages(3, 'LOOT ')",
         )
         .unwrap();
+        assert!(s.chat_window_looks()[0]
+            .messages
+            .iter()
+            .any(|m| m == "LOOT"));
+        s.run("RemoveChatWindowMessages(1, 'LOOT') RemoveChatWindowMessages(1, 'NOPE')")
+            .unwrap();
         assert_eq!(
             s.eval::<Vec<String>>("return {GetChatWindowMessages(3)}")
                 .unwrap(),
@@ -1016,12 +1133,14 @@ mod record_tests {
                 shortcut: "General".into(),
                 resolved: Some("General - Elwynn Forest".into()),
                 listed: true,
+                guild_recruitment: false,
             },
             ZoneChannelRow {
                 id: 2,
                 shortcut: "Trade".into(),
                 resolved: None,
                 listed: false,
+                guild_recruitment: false,
             },
         ]);
         s.run(
@@ -1029,37 +1148,94 @@ mod record_tests {
              B = {AddChatWindowChannel(1, 'MyChan')} \
              C = {AddChatWindowChannel(1, 'mychan')} \
              D = {AddChatWindowChannel(1, 'Trade')} \
-             E = {AddChatWindowChannel(1, '')}",
+             E = {AddChatWindowChannel(1, '')} \
+             F = {AddChatWindowChannel(1, ' general')}",
         )
         .unwrap();
+        // "" and a padded shortcut match no row (`SStrCmpI` untrimmed, `0x4a10b2`): each is
+        // stored verbatim and answers 0 (`0x4a10f4`).
         assert_eq!(
-            s.eval::<(i64, i64, i64)>("return A[1], B[1], C[1]")
+            s.eval::<(i64, i64, i64, i64, i64)>("return A[1], B[1], C[1], E[1], F[1]")
                 .unwrap(),
-            (1, 0, 0)
+            (1, 0, 0, 0, 0)
         );
-        assert!(s
-            .eval::<bool>("return table.getn(D) == 0 and table.getn(E) == 0")
-            .unwrap());
+        assert!(s.eval::<bool>("return table.getn(D) == 0").unwrap());
         assert_eq!(
             s.eval::<Vec<mlua::Value>>("return {GetChatWindowChannels(1)}")
                 .unwrap()
                 .len(),
-            4,
-            "name, id, name, id — the duplicate was not stored twice"
+            8,
+            "name, id pairs — the duplicate was not stored twice"
         );
         assert_eq!(
             s.chat_window_looks()[0].channels,
-            vec![("General".to_string(), 1), ("MyChan".to_string(), 0)],
+            vec![
+                ("General".to_string(), 1),
+                ("MyChan".to_string(), 0),
+                (String::new(), 0),
+                (" general".to_string(), 0)
+            ],
             "the DBC's spelling for the shortcut, the typed one for the custom channel"
         );
-        s.run("RemoveChatWindowChannel(1, 'MYCHAN') RemoveChatWindowChannel(1, '3')")
-            .unwrap();
+        s.run(
+            "RemoveChatWindowChannel(1, 'MYCHAN') RemoveChatWindowChannel(1, '3') \
+             RemoveChatWindowChannel(1, '') RemoveChatWindowChannel(1, ' GENERAL')",
+        )
+        .unwrap();
         assert_eq!(
             s.chat_window_looks()[0].channels,
             vec![("General".to_string(), 1)],
             "a number names a joined slot; with none joined it removes nothing"
         );
         assert_eq!(s.take_chat_window_changes(), vec![0]);
+    }
+
+    /// A channel key is `SStrToInt` (`0x64ac60`, through `0x49e880`): an optional `-` and digits,
+    /// with no whitespace skip and no `+`, so only a plain number names a joined slot.
+    #[test]
+    fn a_channel_key_is_a_slot_only_as_sstrtoint_reads_it() {
+        let mut s = UiScript::new().unwrap();
+        s.set_joined_channels(vec![Some("MyChan".into())]);
+        s.run("AddChatWindowChannel(1, 'MyChan')").unwrap();
+        for key in ["+1", " 1", "x1"] {
+            s.run(&format!("RemoveChatWindowChannel(1, {key:?})"))
+                .unwrap();
+            assert_eq!(
+                s.chat_window_looks()[0].channels,
+                vec![("MyChan".to_string(), 0)],
+                "{key:?} is a name, not slot 1"
+            );
+        }
+        // A negative number is a slot too (non-zero, `0x49e889`) and no slot is below 1.
+        s.run("AddChatWindowChannel(1, '-1')").unwrap();
+        s.run("RemoveChatWindowChannel(1, '-1')").unwrap();
+        assert_eq!(
+            s.chat_window_looks()[0].channels,
+            vec![("MyChan".to_string(), 0), ("-1".to_string(), 0)],
+            "'-1' removes nothing"
+        );
+        // A name is raw: the blanks around it are part of it.
+        s.set_chat_window_looks([(
+            4,
+            ChatWindowLook {
+                channels: vec![(" pad ".into(), 0)],
+                ..Default::default()
+            },
+        )]);
+        s.run("RemoveChatWindowChannel(5, 'pad')").unwrap();
+        assert_eq!(
+            s.chat_window_looks()[4].channels.len(),
+            1,
+            "'pad' is not ' pad '"
+        );
+        s.run("RemoveChatWindowChannel(5, ' pad ')").unwrap();
+        assert!(s.chat_window_looks()[4].channels.is_empty());
+        s.run("RemoveChatWindowChannel(1, '1abc')").unwrap();
+        assert_eq!(
+            s.chat_window_looks()[0].channels,
+            vec![("-1".to_string(), 0)],
+            "'1abc' reads 1 and frees the channel joined in slot 1"
+        );
     }
 
     #[test]

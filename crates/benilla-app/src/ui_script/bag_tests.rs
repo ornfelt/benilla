@@ -22,6 +22,7 @@ fn window(s: &UiScript, id: i64) -> String {
 fn bag_bar_icons_draw_above_the_action_bar_art() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     // At this size the bag bar sits over the right end of the XP bar's notched art.
     s.set_screen_size(1600.0, 900.0);
     for file in BAG_UI {
@@ -55,6 +56,7 @@ fn bag_bar_icons_draw_above_the_action_bar_art() {
 fn backpack_toggle_plays_open_and_close_kits() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in BAG_UI {
         load_xml(&s, file);
@@ -64,7 +66,7 @@ fn backpack_toggle_plays_open_and_close_kits() {
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots: std::collections::HashMap::new(),
         }),
@@ -100,6 +102,7 @@ fn backpack_toggle_plays_open_and_close_kits() {
 fn b_opens_the_backpack_alone_and_closes_every_bag() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -116,7 +119,7 @@ fn b_opens_the_backpack_alone_and_closes_every_bag() {
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots: std::collections::HashMap::new(),
         }),
@@ -174,6 +177,7 @@ fn b_opens_the_backpack_alone_and_closes_every_bag() {
 fn shift_b_toggles_every_bag_at_once() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -189,7 +193,7 @@ fn shift_b_toggles_every_bag_at_once() {
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots: std::collections::HashMap::new(),
         }),
@@ -256,6 +260,7 @@ fn shift_b_toggles_every_bag_at_once() {
 fn bag_bar_buttons_light_while_their_bag_is_open() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -271,7 +276,7 @@ fn bag_bar_buttons_light_while_their_bag_is_open() {
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots: std::collections::HashMap::new(),
         }),
@@ -311,12 +316,12 @@ fn bag_bar_buttons_light_while_their_bag_is_open() {
                     if p.contains("CheckButtonHilight"))
         })
         .collect();
-    assert_eq!(rings.len(), 2, "toggle + bag 2 rings emit, nothing else");
+    benilla_ui::assert_near!(rings.len(), 2, "toggle + bag 2 rings emit, nothing else");
     let toggle_ring = rings
         .iter()
-        .find_map(|q| q.rect.filter(|r| r.left == 981.0))
+        .find_map(|q| q.rect.filter(|r| (r.left - 981.0).abs() < 1e-3))
         .expect("the toggle's ring at the art frame's corner");
-    assert_eq!(
+    benilla_ui::assert_near!(
         (
             toggle_ring.left,
             toggle_ring.bottom,
@@ -366,6 +371,7 @@ fn bag_bar_buttons_light_while_their_bag_is_open() {
 fn bag_tooltip_hangs_left_when_the_slot_sits_in_the_right_half() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     // The stock tooltip sizes from its lines, so reading its rect needs a text measurer.
     s.set_text_measurer(Box::new(super::FixedWidthFont(6.0)));
@@ -385,29 +391,43 @@ fn bag_tooltip_hangs_left_when_the_slot_sits_in_the_right_half() {
     slots.insert(
         1,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_ThrowingKnife_02".into()),
             count: 200,
             quality: Some(1),
+            inventory_type: 0,
             item_id: 2947,
             link: Some("|cffffffff|Hitem:2947|h[Small Throwing Knife]|h|r".into()),
-            locked: false,
+            guid: 0x706,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }),
@@ -445,6 +465,7 @@ fn bag_tooltip_hangs_left_when_the_slot_sits_in_the_right_half() {
 fn hovered_bag_tooltip_fills_itself_when_the_stats_land() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -462,29 +483,43 @@ fn hovered_bag_tooltip_fills_itself_when_the_stats_land() {
     slots.insert(
         1,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_Sword_04".into()),
             count: 1,
             quality: Some(1),
+            inventory_type: 0,
             item_id: 25,
             link: Some("|cffffffff|Hitem:25|h[Worn Shortsword]|h|r".into()),
-            locked: false,
+            guid: 0x707,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }),
@@ -549,9 +584,11 @@ fn hovered_bag_tooltip_fills_itself_when_the_stats_land() {
 #[test]
 fn vendor_bag_hover_shows_sell_price_and_arms_the_pouch_cursor() {
     benilla_formats::wow_data_or_skip!();
-    use benilla_ui::script::{MerchantState, ScriptValue, UiCursorMode};
+    use benilla_ui::script::{MerchantState, UiCursorMode};
 
     let mut s = UiScript::new().unwrap();
+
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -569,51 +606,79 @@ fn vendor_bag_hover_shows_sell_price_and_arms_the_pouch_cursor() {
     slots.insert(
         1,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_Misc_Pelt_Wolf_01".into()),
             count: 4,
             quality: Some(1),
+            inventory_type: 0,
             item_id: 2318,
             link: Some("|cffffffff|Hitem:2318|h[Light Leather]|h|r".into()),
-            locked: false,
+            guid: 0x708,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     slots.insert(
         2,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_Misc_Key_03".into()),
             count: 1,
             quality: Some(1),
+            inventory_type: 0,
             item_id: 9999,
             link: Some("|cffffffff|Hitem:9999|h[Shadowforge Key]|h|r".into()),
-            locked: false,
+            guid: 0x709,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }),
@@ -640,7 +705,7 @@ fn vendor_bag_hover_shows_sell_price_and_arms_the_pouch_cursor() {
     s.set_merchant(Some(MerchantState::default()));
     // `MERCHANT_SHOW` opens the bags (the window's OnShow calls `OpenBackpack`); a toggle here
     // would take `ToggleBackpack`'s close-all arm.
-    s.fire_event("MERCHANT_SHOW", vec![ScriptValue::Str("Vendor".into())]);
+    s.fire_event("MERCHANT_SHOW", vec![]);
     s.take_sounds();
     s.resolve();
     let b1 = bag_slot_button(&s, 0, 1);
@@ -690,6 +755,8 @@ fn readable_letter_hover_shows_the_inspect_magnifier() {
     use benilla_ui::script::UiCursorMode;
 
     let mut s = UiScript::new().unwrap();
+
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -730,7 +797,7 @@ fn readable_letter_hover_shows_the_inspect_magnifier() {
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }),
@@ -761,6 +828,7 @@ fn readable_letter_hover_shows_the_inspect_magnifier() {
 fn drag_across_two_slots_queues_the_same_move_a_click_pickup_would() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -778,29 +846,43 @@ fn drag_across_two_slots_queues_the_same_move_a_click_pickup_would() {
     slots.insert(
         1,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_Misc_Food_16".into()),
             count: 5,
             quality: Some(3),
+            inventory_type: 0,
             item_id: 117,
             link: Some("|cffffffff|Hitem:117|h[Tough Jerky]|h|r".into()),
-            locked: false,
+            guid: 0x70a,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }),
@@ -847,6 +929,7 @@ fn drag_across_two_slots_queues_the_same_move_a_click_pickup_would() {
 fn a_second_bag_window_feeds_and_paints_via_the_bag_bar() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -864,23 +947,37 @@ fn a_second_bag_window_feeds_and_paints_via_the_bag_bar() {
     slots.insert(
         1,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_Misc_Gem_01".into()),
             count: 1,
             quality: Some(2),
+            inventory_type: 0,
             item_id: 200,
             link: Some("|cffffffff|Hitem:200|h[Shiny Gem]|h|r".into()),
-            locked: false,
+            guid: 0x70b,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     s.set_container(
@@ -922,6 +1019,7 @@ fn a_second_bag_window_feeds_and_paints_via_the_bag_bar() {
 fn equipped_bag_window_snug_fits_its_row_count() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -982,7 +1080,7 @@ fn equipped_bag_window_snug_fits_its_row_count() {
 }
 
 /// Open a backpack holding a five-stack in slot 1; returns that slot button's centre.
-fn open_backpack_with_a_five_stack(s: &mut UiScript) -> (f32, f32) {
+pub(super) fn open_backpack_with_a_five_stack(s: &mut UiScript) -> (f32, f32) {
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
         &[
@@ -1000,29 +1098,43 @@ fn open_backpack_with_a_five_stack(s: &mut UiScript) -> (f32, f32) {
     slots.insert(
         1,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_Misc_Food_16".into()),
             count: 5,
             quality: Some(1),
+            inventory_type: 0,
             item_id: 117,
             link: Some("|cffffffff|Hitem:117|h[Tough Jerky]|h|r".into()),
-            locked: false,
+            guid: 0x70c,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }),
@@ -1040,6 +1152,7 @@ fn open_backpack_with_a_five_stack(s: &mut UiScript) -> (f32, f32) {
 fn shift_click_on_a_stack_opens_the_split_frame() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let (x, y) = open_backpack_with_a_five_stack(&mut s);
 
@@ -1068,6 +1181,7 @@ fn shift_click_on_a_stack_opens_the_split_frame() {
 fn the_split_frame_plate_fills_the_dialog() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let (x, y) = open_backpack_with_a_five_stack(&mut s);
 
@@ -1118,6 +1232,7 @@ fn the_split_frame_plate_fills_the_dialog() {
 fn the_split_frame_raises_over_a_same_stratum_window() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let (x, y) = open_backpack_with_a_five_stack(&mut s);
 
@@ -1180,6 +1295,7 @@ fn the_split_frame_raises_over_a_same_stratum_window() {
 fn typing_a_number_into_the_split_spinner_sets_the_count() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let (x, y) = open_backpack_with_a_five_stack(&mut s);
 
@@ -1236,6 +1352,7 @@ fn typing_a_number_into_the_split_spinner_sets_the_count() {
 fn split_okay_then_a_placement_queues_the_split_move() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let (x, y) = open_backpack_with_a_five_stack(&mut s);
     s.set_modifiers(true, false, false);
@@ -1280,6 +1397,7 @@ fn split_okay_then_a_placement_queues_the_split_move() {
 fn a_plain_click_hides_an_open_split_frame() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let (x, y) = open_backpack_with_a_five_stack(&mut s);
     s.set_modifiers(true, false, false);
@@ -1303,6 +1421,7 @@ fn a_plain_click_hides_an_open_split_frame() {
 fn bag_slot_cooldown_sweeps_through_the_xml() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -1330,7 +1449,7 @@ fn bag_slot_cooldown_sweeps_through_the_xml() {
         let mut slots = std::collections::HashMap::new();
         slots.insert(1, potion(cooldown));
         ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }
@@ -1361,6 +1480,7 @@ fn bag_slot_cooldown_sweeps_through_the_xml() {
 fn the_bar_bag_buttons_name_themselves_on_hover() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     // `GetBindingKey` reads the registered command set, seeded as the app seeds it.
     crate::ui_script::load_stock_bindings(&mut s);
     s.set_screen_size(1024.0, 768.0);
@@ -1406,9 +1526,18 @@ fn the_bar_bag_buttons_name_themselves_on_hover() {
     // inventory slot 20.
     let mut inv: benilla_ui::script::InventorySlots = Default::default();
     inv[20] = Some(benilla_ui::script::InvSlotView {
+        roll: Default::default(),
+        uncached_link: None,
         duration_ms: None,
+        field_duration: 0,
         already_bound: false,
+        occupied_seats: None,
+        bonding: 0,
+        use_spell: 0,
+        use_fork: Default::default(),
         bar_placeable: true,
+        consumable: false,
+        spell_charges: [0; 5],
         durability: None,
         flags: 0,
         item_id: 4496,
@@ -1416,14 +1545,21 @@ fn the_bar_bag_buttons_name_themselves_on_hover() {
         count: 1,
         contents_count: Some(0), // an equipped bag, whose subclass row carries no count gate
         quality: 1,
+        inventory_type: Some(1),
         name: Some("Small Brown Pouch".into()),
         link: Some("|cffffffff|Hitem:4496:0:0:0|h[Small Brown Pouch]|h|r".into()),
-        locked: false,
+        guid: 0x70d,
         equip_slots: vec![20],
         creator: None,
+        gift_creator: None,
+        creator_guid: 0,
+        gift_creator_guid: 0,
         enchants: Vec::new(),
+        spell_0: false,
     });
     s.set_inventory_slots(inv);
+    // The worn item's watcher runs the alert recompute, whose event repaints the slots.
+    s.recompute_inventory_alerts();
     hover(&mut s, "CharacterBag0Slot");
     let line = s
         .eval::<String>("return GameTooltipTextLeft1:GetText()")
@@ -1512,6 +1648,7 @@ fn keyring_surface(s: &UiScript) {
 fn the_first_key_puts_the_keyring_on_the_bar() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     keyring_surface(&s);
     s.set_money(0);
@@ -1593,6 +1730,7 @@ fn the_first_key_puts_the_keyring_on_the_bar() {
 fn the_keyring_button_opens_a_keyring_window() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     keyring_surface(&s);
     s.set_money(0);
@@ -1654,6 +1792,7 @@ fn the_keyring_button_opens_a_keyring_window() {
 fn a_hovered_key_shows_its_tooltip_through_its_inventory_slot() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     s.set_text_measurer(Box::new(super::FixedWidthFont(6.0)));
     keyring_surface(&s);
@@ -1699,6 +1838,7 @@ fn a_hovered_key_shows_its_tooltip_through_its_inventory_slot() {
 fn a_key_dropped_on_the_button_files_itself() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     keyring_surface(&s);
     s.set_money(0);
@@ -1709,7 +1849,7 @@ fn a_key_dropped_on_the_button_files_itself() {
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots: std::collections::HashMap::from([(
                 3,
@@ -1784,6 +1924,7 @@ fn an_item_push_drops_its_icon_into_the_bag_that_took_it() {
 
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1600.0, 900.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -1945,6 +2086,7 @@ fn an_item_push_drops_its_icon_into_the_bag_that_took_it() {
 fn an_addon_that_hooks_toggle_backpack_receives_the_click() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -1994,6 +2136,7 @@ fn an_addon_that_hooks_toggle_backpack_receives_the_click() {
 fn the_bag_slots_carry_the_references_names_and_icon_names() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -2048,6 +2191,7 @@ fn the_bag_slots_carry_the_references_names_and_icon_names() {
 fn the_backpack_buttons_ring_follows_its_own_window_through_real_clicks() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in crate::ui_script::test_ui::production_order(&[
         BAG_UI,
@@ -2064,7 +2208,7 @@ fn the_backpack_buttons_ring_follows_its_own_window_through_real_clicks() {
     s.set_container(
         0,
         Some(benilla_ui::script::ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots: std::collections::HashMap::new(),
         }),

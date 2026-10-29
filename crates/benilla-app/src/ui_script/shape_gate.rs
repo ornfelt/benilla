@@ -1,16 +1,45 @@
-//! The return-shape gate: `reference/1.12-shapes.tsv`, a harvest of every binding the 1.12 client
+//! The return-shape gate: `reference/bindings.tsv`, a harvest of every binding the 1.12 client
 //! registers, against what this client answers.
 //!
 //! A 1.12 predicate answers `1` or `nil`, never a boolean (`IsPetAttackActive` aside), so kinds
-//! are gated with arity. The table says per row what to trust: `arity_conf = exact`, kinds only
-//! where `kinds_conf = agree`, never `argc_conf`. Only query verbs are probed, a call that raises
-//! is skipped, and a name registered from several tables (`GetBuildInfo` is 5 in the glue table
-//! `0x8373b8`, 3 in-game at `0x83de68`) is read at its non-glue row. The boolean gate alone reads every `global` row, whatever its
-//! `arity_conf`, and adds each row whose kinds are `(nil) | (number)` to the query verbs.
+//! are gated with arity. The table says per row what to trust: `arity_conf = exact` or `set` (a
+//! call is right when its count is a member, so `GetContainerItemInfo`'s `0|5` is measured),
+//! kinds only where `kinds_conf = agree`, never `argc_conf`. Every global is probed except those
+//! that end the session, each on every rung of [`ARG_LADDER`] (an indexed getter raises with none
+//! and answers its miss tuple for `0`, `99` or `-1`); a rung that raises is skipped. A name
+//! registered from several tables (`GetBuildInfo` is 5 in the glue table `0x8373b8`, 3 in-game at
+//! `0x83de68`) is read at its non-glue row. The boolean gate also adds each row whose kinds are
+//! `(nil) | (number)` to the query verbs.
 
 /// Globals known to answer the wrong arity: a name, the reference's arity and the reason. The
 /// list may only shrink.
-const NOT_YET_ASSERTED: &[(&str, usize, &str)] = &[];
+const NOT_YET_ASSERTED: &[(&str, usize, &str)] = &[
+    (
+        "ClearCursor",
+        1,
+        "Deviation: the handler ends `mov eax,1` with nothing pushed (0x4895bc), handing back the \
+         stack top; copying a stack-top leak would copy a bug",
+    ),
+    (
+        "TaxiNodeSetCurrent",
+        1,
+        "Deviation: the same stack-top return (0x4dcd7c)",
+    ),
+];
+
+/// The query verbs the negative-index rule reads: a verb that acts on its index (`PickupAction`)
+/// raises on a negative in this client, and the reference's verbs fall out of range quietly too,
+/// but those are a separate sweep.
+const QUERY_PREFIXES: &[&str] = &["Get", "Is", "Has", "Can", "Unit", "Num"];
+
+/// Getters whose negative index raises in the reference too, each with the bytes that say so: a
+/// slot reader with a whitelist raises outside it, so `-1` raises where `99` answers. Verified
+/// entries only.
+const NEGATIVE_RAISES: &[(&str, &str)] = &[(
+    "IsInventoryItemLocked",
+    "its slot reader raises \"Invalid inventory slot\" outside {0, 1-23, 40-69, 82-113} (0x4c8520, \
+     0x4c8e7c): 99 is the keyring's slot 98 and answers, -1 raises",
+)];
 
 /// The kind gate's list, same rules: a name, the wrong kinds it answers and the reason. An entry
 /// whose binding comes into agreement fails the gate.
@@ -29,7 +58,9 @@ const GLUE_TABLE: &str = "0x8373b8";
 struct Row {
     name: String,
     table_va: String,
-    arity: usize,
+    /// The return counts the reference can push: one for an `exact` row, the set for a `set` row
+    /// (`0|5`: a miss and a hit that differ). A call is right when its count is a member.
+    arities: Vec<usize>,
     /// The `kinds` column verbatim, `|`-separated alternatives; empty unless trustworthy.
     kinds: String,
 }
@@ -38,20 +69,21 @@ fn rows() -> Vec<Row> {
     rows_of_kind("global")
 }
 
-/// The `arity_conf = exact` rows of one `table_kind`: `global` is the registrar surface,
+/// The `arity_conf = exact` or `set` rows of one `table_kind`: `global` is the registrar surface,
 /// `baselib` the 36-entry Lua base array looped into `_G` at `0x811e28`.
 fn rows_of_kind(kind: &str) -> Vec<Row> {
-    let tsv = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../reference/1.12-shapes.tsv"
-    );
-    let text = std::fs::read_to_string(tsv).expect("reference/1.12-shapes.tsv");
+    let tsv = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/bindings.tsv");
+    let text = std::fs::read_to_string(tsv).expect("reference/bindings.tsv");
     text.lines()
         .filter(|l| !l.starts_with('#') && !l.starts_with("name\t"))
         .filter_map(|l| {
             let f: Vec<&str> = l.split('\t').collect();
-            // name fn pair_va table_va table_kind argc argc_conf arity arity_conf kinds …
-            if f.len() < 9 || f[4] != kind || f[8] != "exact" {
+            // name fn pair table table_kind argc argc_conf arity arity_conf kinds …
+            if f.len() < 9 || f[4] != kind || !(f[8] == "exact" || f[8] == "set") {
+                return None;
+            }
+            let arities: Vec<usize> = f[7].split('|').filter_map(|n| n.parse().ok()).collect();
+            if arities.is_empty() || (f[8] == "exact" && arities.len() != 1) {
                 return None;
             }
             // A `delegated-push` row's callee pushes on its behalf, unseen by the push trace, so
@@ -60,7 +92,7 @@ fn rows_of_kind(kind: &str) -> Vec<Row> {
             Some(Row {
                 name: f[0].to_string(),
                 table_va: f[3].to_string(),
-                arity: f[7].parse().ok()?,
+                arities,
                 // Kinds are advisory unless `kinds_conf` is `agree`, so such a row carries none.
                 kinds: if f.len() > 10 && f[10] == "agree" && !delegated {
                     f[9].to_string()
@@ -88,6 +120,8 @@ fn every_query_binding_answers_the_reference_s_return_arity() {
     }
 
     let mut s = benilla_ui::script::UiScript::new().expect("VM");
+    // No engine behind it: a verb's call is kept, so the verb returns as it would with a host.
+    s.keep_calls();
     // A seated player: the `Unit*` bindings raise on a nil token and answer a real one.
     s.set_unit(
         "player",
@@ -103,10 +137,7 @@ fn every_query_binding_answers_the_reference_s_return_arity() {
 
     for (name, rs) in &by_name {
         // Query verbs only: the gate calls what it measures.
-        if !["Get", "Is", "Has", "Can", "Unit", "Num"]
-            .iter()
-            .any(|p| name.starts_with(p))
-        {
+        if NOT_PROBED.contains(name) {
             continue;
         }
         let candidates: Vec<&&Row> = if rs.len() == 1 {
@@ -118,47 +149,70 @@ fn every_query_binding_answers_the_reference_s_return_arity() {
         let Some(first) = candidates.first() else {
             continue;
         };
-        if candidates.iter().any(|r| r.arity != first.arity) {
+        if candidates.iter().any(|r| r.arities != first.arities) {
             continue;
         }
-        let want = first.arity;
+        let want = &first.arities;
 
-        // Counted with 5.0's `arg.n` inside the `pcall`: `select` is not a 1.12 global
-        // (`lua50::install` removes it).
-        let call = if name.starts_with("Unit") {
-            format!(r#"{name}("player")"#)
-        } else {
-            format!("{name}()")
-        };
-        let probe = format!(
-            "if type({name}) ~= 'function' then return -1 end \
-             local ok, n = pcall(function() return (function(...) return arg.n end)({call}) end) \
-             if not ok then return -1 end return n"
-        );
-        let got: i64 = match s.eval(&probe) {
-            Ok(n) => n,
-            Err(_) => continue,
-        };
-        if got < 0 {
-            continue;
-        }
-        checked += 1;
-        if got as usize != want {
-            if let Some((_, known, _)) = NOT_YET_ASSERTED.iter().find(|(n, ..)| n == name) {
-                assert_eq!(
-                    *known, want,
-                    "{name} is on the not-yet-asserted list at a stale arity — the table now says \
-                     {want}"
-                );
+        // Every rung of the argument ladder that returns is measured: an indexed getter raises
+        // with none and answers its miss tuple for `0` or `99`, a hit leg is not seeded here. A
+        // binding that raises on every rung is skipped. Counted with 5.0's `arg.n` inside the
+        // `pcall`: `select` is not a 1.12 global (`lua50::install` removes it).
+        let mut measured = false;
+        // Which rungs returned: an index that falls out of range answers the miss tuple whatever
+        // its sign, so a getter that answers a positive rung and raises its negative twin reads
+        // its index in a type that refuses a negative (#1016).
+        let mut answered: Vec<&str> = Vec::new();
+        for args in ARG_LADDER {
+            let probe = format!(
+                "if type({name}) ~= 'function' then return -1 end \
+                 local ok, n = pcall(function() return (function(...) return arg.n end)({name}({args})) end) \
+                 if not ok then return -1 end return n"
+            );
+            let got: i64 = match s.eval(&probe) {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+            if got < 0 {
                 continue;
             }
-            mismatches.push(format!("{name}: answers {got}, reference states {want}"));
+            answered.push(args);
+            measured = true;
+            if !want.contains(&(got as usize)) {
+                if let Some((_, known, _)) = NOT_YET_ASSERTED.iter().find(|(n, ..)| n == name) {
+                    assert!(
+                        want.contains(known),
+                        "{name} is on the not-yet-asserted list at a stale arity — the table now \
+                         says {want:?}"
+                    );
+                    continue;
+                }
+                mismatches.push(format!(
+                    "{name}({args}): answers {got}, reference states {want:?}"
+                ));
+                break;
+            }
+        }
+        if measured {
+            checked += 1;
+        }
+        // Only the first argument: a second-argument index (`GetContainerItemInfo(bag, slot)`) or
+        // a spell slot (`GetSpellName`, which raises "Invalid spell slot" for one out of range)
+        // has its own law per binding.
+        if QUERY_PREFIXES.iter().any(|p| name.starts_with(p))
+            && answered.contains(&"99")
+            && !answered.contains(&"-1")
+            && !NEGATIVE_RAISES.iter().any(|(n, _)| n == name)
+        {
+            mismatches.push(format!(
+                "{name}(-1) raises while {name}(99) answers: a negative index must fall out of range"
+            ));
         }
     }
 
     // A floor, not a target: raise it when coverage rises, never lower it to fit a change.
     assert!(
-        checked >= 240,
+        checked >= 900,
         "the gate measured only {checked} bindings — it has stopped covering anything"
     );
     // The list may only shrink: an entry that now answers the reference's arity must come off.
@@ -167,12 +221,20 @@ fn every_query_binding_answers_the_reference_s_return_arity() {
         .map(|(n, ..)| *n)
         .filter(|n| {
             by_name.get(n).is_some_and(|rs| {
-                let want = rs[0].arity;
-                s.eval::<i64>(&format!(
-                    "local ok, n = pcall(function() return (function(...) return arg.n end)({n}()) end) \
-                     if not ok then return -1 end return n"
-                ))
-                .is_ok_and(|got| got >= 0 && got as usize == want)
+                let want = &rs[0].arities;
+                // Answers the reference's arity on every rung that returns, and on one at least.
+                let seen: Vec<i64> = ARG_LADDER
+                    .iter()
+                    .filter_map(|args| {
+                        s.eval::<i64>(&format!(
+                            "local ok, n = pcall(function() return (function(...) return arg.n end)({n}({args})) end) \
+                             if not ok then return -1 end return n"
+                        ))
+                        .ok()
+                        .filter(|got| *got >= 0)
+                    })
+                    .collect();
+                !seen.is_empty() && seen.iter().all(|got| want.contains(&(*got as usize)))
             })
         })
         .collect();
@@ -264,14 +326,17 @@ fn the_base_library_answers_the_reference_s_return_arity_and_kinds() {
             continue;
         }
         checked += 1;
-        if got as usize != r.arity {
+        if !r.arities.contains(&(got as usize)) {
             if let Some((_, known, _)) = BASELIB_NOT_YET_ASSERTED.iter().find(|(n, ..)| n == name) {
-                assert_eq!(*known, r.arity, "{name} is listed at a stale arity");
+                assert!(
+                    r.arities.contains(known),
+                    "{name} is listed at a stale arity"
+                );
                 continue;
             }
             mismatches.push(format!(
-                "{name}: answers {got}, reference states {}",
-                r.arity
+                "{name}: answers {got}, reference states {:?}",
+                r.arities
             ));
             continue;
         }
@@ -282,7 +347,7 @@ fn the_base_library_answers_the_reference_s_return_arity_and_kinds() {
         let Ok(kinds) = s.eval::<String>(&format!(
             "local t = {{ {name}({args}) }} local out = '' \
              for i = 1, {} do out = out .. (i > 1 and ',' or '') .. type(t[i]) end return out",
-            r.arity
+            r.arities[0]
         )) else {
             continue;
         };
@@ -370,11 +435,8 @@ const REGION_PROBES: &[(&str, &str)] = &[
 /// own registrar table's class.
 #[test]
 fn every_widget_method_answers_the_reference_s_return_arity() {
-    let tsv = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../reference/1.12-shapes.tsv"
-    );
-    let text = std::fs::read_to_string(tsv).expect("reference/1.12-shapes.tsv");
+    let tsv = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/bindings.tsv");
+    let text = std::fs::read_to_string(tsv).expect("reference/bindings.tsv");
 
     let s = benilla_ui::script::UiScript::new().expect("VM");
     let mut made: std::collections::HashMap<&str, String> = std::collections::HashMap::new();
@@ -456,6 +518,62 @@ fn every_widget_method_answers_the_reference_s_return_arity() {
     );
 }
 
+/// The eight `GameTooltip` setters that answer the builder's return value (`0x5325bb`, `0x532eb4`
+/// and kin): one value, `1` or nil, never a boolean and never nothing. `Set*` is outside the
+/// query-verb prefixes the widget gates probe, so they are named here and called with arguments
+/// that reach their empty and miss legs on a bare VM.
+#[test]
+fn the_tooltip_flag_setters_answer_one_value_that_is_a_number_or_nil() {
+    const SETTERS: &[&str] = &[
+        "SetAction",
+        "SetSpell",
+        "SetShapeshift",
+        "SetPetAction",
+        "SetInboxItem",
+        "SetAuctionItem",
+        "SetAuctionSellItem",
+        "SetSendMailItem",
+    ];
+    const TIP_TABLE: &str = "0x854198";
+    let tsv = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/bindings.tsv");
+    let text = std::fs::read_to_string(tsv).expect("reference/bindings.tsv");
+    let s = benilla_ui::script::UiScript::new().expect("VM");
+    s.run(KIND_HELPER).expect("kind helper");
+    s.run("PGTipSetter = CreateFrame('GameTooltip', 'PGTipSetter', UIParent)")
+        .unwrap();
+    // `Set*(slot)`, `SetSpell(slot, bookType)`, `SetAuctionItem(type, index)`, and the bare ones.
+    const ARGS: &[&str] = &["", "1", "1, 'spell'", "'list', 1", "0", "99", "-1"];
+    for name in SETTERS {
+        let row = text
+            .lines()
+            .map(|l| l.split('\t').collect::<Vec<_>>())
+            .find(|f| f.len() > 9 && f[4] == "widget" && f[3] == TIP_TABLE && f[0] == *name)
+            .unwrap_or_else(|| panic!("{name} has no GameTooltip row"));
+        assert_eq!(
+            (row[7], row[8], row[9]),
+            ("1", "exact", "(nil) | (number)"),
+            "{name}: the table row changed under the gate"
+        );
+        let mut measured = 0;
+        for args in ARGS {
+            let probe = format!(
+                "local ok, s = pcall(function() return PGKinds(PGTipSetter:{name}({args})) end) \
+                 if not ok then return '?' end return s"
+            );
+            let got = s.eval::<String>(&probe).unwrap();
+            if got == "?" {
+                continue;
+            }
+            measured += 1;
+            assert!(
+                got == "nil" || got == "number",
+                "{name}({args}) answers ({got}), the reference pushes one nil or number"
+            );
+        }
+        assert!(measured > 0, "{name} raised on every rung");
+    }
+}
+
 /// Splits a `kinds` cell into alternatives of per-slot kinds: `(nil) | (number)` is two of one
 /// slot, and `()` yields none, so the kind gates skip a verb that answers nothing.
 fn kind_alternatives(cell: &str) -> Vec<Vec<String>> {
@@ -516,10 +634,7 @@ fn every_query_binding_answers_the_reference_s_return_kinds() {
     let mut checked = 0usize;
     let mut mismatches: Vec<String> = Vec::new();
     for (name, rs) in &by_name {
-        if !["Get", "Is", "Has", "Can", "Unit", "Num"]
-            .iter()
-            .any(|p| name.starts_with(p))
-        {
+        if NOT_PROBED.contains(name) {
             continue;
         }
         let candidates: Vec<&&Row> = if rs.len() == 1 {
@@ -538,59 +653,69 @@ fn every_query_binding_answers_the_reference_s_return_kinds() {
             continue;
         }
 
-        let call = if name.starts_with("Unit") {
-            format!(r#"{name}("player")"#)
-        } else {
-            format!("{name}()")
-        };
-        let probe = format!(
-            "if type({name}) ~= 'function' then return '?' end \
-             local ok, s = pcall(function() return PGKinds({call}) end) \
-             if not ok then return '?' end return s"
-        );
-        let Ok(got) = s.eval::<String>(&probe) else {
-            continue;
-        };
-        if got == "?" {
-            continue;
-        }
-        let got: Vec<&str> = got.split(',').filter(|k| !k.is_empty()).collect();
-        // An arity fault is the arity gate's to report.
-        if !want.iter().any(|alt| alt.len() == got.len()) {
-            continue;
-        }
-        checked += 1;
-        let agrees = want.iter().any(|alt| {
-            alt.len() == got.len()
-                && alt
-                    .iter()
-                    .zip(&got)
-                    .all(|(w, g)| slot_accepts(w.as_str(), g))
-        });
-        let observed = got.join(",");
-        if !agrees {
-            if let Some((_, known, _)) = KINDS_NOT_YET_ASSERTED.iter().find(|(n, ..)| n == name) {
-                assert_eq!(
-                    *known, observed,
-                    "{name}'s not-yet-asserted row is stale: it now answers ({observed})"
-                );
+        // Every rung of the argument ladder that returns is compared, so an indexed getter's miss
+        // leg is measured with the rest (see the arity gate).
+        let mut measured = false;
+        let mut disagreed = false;
+        for args in ARG_LADDER {
+            let probe = format!(
+                "if type({name}) ~= 'function' then return '?' end \
+                 local ok, s = pcall(function() return PGKinds({name}({args})) end) \
+                 if not ok then return '?' end return s"
+            );
+            let Ok(got) = s.eval::<String>(&probe) else {
+                continue;
+            };
+            if got == "?" {
                 continue;
             }
-            mismatches.push(format!(
-                "{name}: answers ({observed}), reference states {}",
-                first.kinds
-            ));
-        } else {
-            assert!(
-                !KINDS_NOT_YET_ASSERTED.iter().any(|(n, ..)| n == name),
-                "{name} now agrees with the reference and must come off KINDS_NOT_YET_ASSERTED"
-            );
+            let got: Vec<&str> = got.split(',').filter(|k| !k.is_empty()).collect();
+            // An arity fault is the arity gate's to report.
+            if !want.iter().any(|alt| alt.len() == got.len()) {
+                continue;
+            }
+            measured = true;
+            let agrees = want.iter().any(|alt| {
+                alt.len() == got.len()
+                    && alt
+                        .iter()
+                        .zip(&got)
+                        .all(|(w, g)| slot_accepts(w.as_str(), g))
+            });
+            let observed = got.join(",");
+            if !agrees {
+                disagreed = true;
+                if let Some((_, known, _)) = KINDS_NOT_YET_ASSERTED.iter().find(|(n, ..)| n == name)
+                {
+                    assert_eq!(
+                        *known, observed,
+                        "{name}'s not-yet-asserted row is stale: it now answers ({observed})"
+                    );
+                    continue;
+                }
+                mismatches.push(format!(
+                    "{name}({args}): answers ({observed}), reference states {}",
+                    first.kinds
+                ));
+                break;
+            }
+        }
+        if measured {
+            checked += 1;
+            // A listed entry on which no rung disagrees has come into agreement; a rung that
+            // disagrees and was listed `continue`s without pushing, which is not agreement.
+            if !disagreed {
+                assert!(
+                    !KINDS_NOT_YET_ASSERTED.iter().any(|(n, ..)| n == name),
+                    "{name} now agrees with the reference and must come off KINDS_NOT_YET_ASSERTED"
+                );
+            }
         }
     }
 
     // A floor, not a target.
     assert!(
-        checked >= 150,
+        checked >= 460,
         "the kind gate measured only {checked} bindings — it has stopped covering anything"
     );
     assert!(
@@ -604,11 +729,8 @@ fn every_query_binding_answers_the_reference_s_return_kinds() {
 /// The widget kind gate, on an instance of each method's own registrar class.
 #[test]
 fn every_widget_method_answers_the_reference_s_return_kinds() {
-    let tsv = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../reference/1.12-shapes.tsv"
-    );
-    let text = std::fs::read_to_string(tsv).expect("reference/1.12-shapes.tsv");
+    let tsv = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/bindings.tsv");
+    let text = std::fs::read_to_string(tsv).expect("reference/bindings.tsv");
 
     let s = benilla_ui::script::UiScript::new().expect("VM");
     s.run(KIND_HELPER).expect("kind helper");
@@ -714,6 +836,11 @@ fn every_widget_method_answers_the_reference_s_return_kinds() {
 const ARG_LADDER: &[&str] = &[
     "",
     "\"player\"",
+    "0",
+    "99",
+    // A negative index truncates, decrements and compares unsigned, so it falls out of range
+    // (`0x4f6ed8`) where a getter that reads it as `usize` would raise.
+    "-1",
     "1",
     "2",
     "3",
@@ -724,31 +851,20 @@ const ARG_LADDER: &[&str] = &[
     "\"player\", \"player\"",
 ];
 
-/// The kinds a predicate row carries in the table: the `(nil) | (number)` of a flag, which the
-/// gate probes whatever the binding's name or arity confidence.
-const FLAG_KINDS: &str = "(nil) | (number)";
-
 /// The global bindings the boolean gate probes: every `global` row of the table, whatever its
-/// `arity_conf`, that is named like a query (`Get`, `Is`, `Has`, `Can`, `Unit`, `Num`) or whose
-/// kinds are [`FLAG_KINDS`], whatever its name (`LootSlotIsItem`, `Resurrect*`, `Check*Dist`).
+/// name or `arity_conf`. 1.12 has no boolean-returning global but `IsPetAttackActive`, so a
+/// `Pickup*` or `Place*` verb that hands back whether it moved something fails here as readily as
+/// a predicate that answers `true` (`LootSlotIsItem`, `Resurrect*`, `Check*Dist`).
 fn predicate_names() -> Vec<String> {
-    let tsv = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../reference/1.12-shapes.tsv"
-    );
-    let text = std::fs::read_to_string(tsv).expect("reference/1.12-shapes.tsv");
+    let tsv = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/bindings.tsv");
+    let text = std::fs::read_to_string(tsv).expect("reference/bindings.tsv");
     let mut names: Vec<String> = text
         .lines()
         .filter(|l| !l.starts_with('#') && !l.starts_with("name\t"))
         .filter_map(|l| {
             let f: Vec<&str> = l.split('\t').collect();
-            if f.len() < 10 || f[4] != "global" {
-                return None;
-            }
-            let query = ["Get", "Is", "Has", "Can", "Unit", "Num"]
-                .iter()
-                .any(|p| f[0].starts_with(p));
-            (query || f[9] == FLAG_KINDS).then(|| f[0].to_string())
+            (f.len() >= 10 && f[4] == "global" && !NOT_PROBED.contains(&f[0]))
+                .then(|| f[0].to_string())
         })
         .collect();
     names.sort_unstable();
@@ -756,10 +872,20 @@ fn predicate_names() -> Vec<String> {
     names
 }
 
+/// Globals the boolean gate leaves alone: they end the session or the VM, not answer a value.
+const NOT_PROBED: &[&str] = &[
+    "Quit",
+    "ForceQuit",
+    "Logout",
+    "CancelLogout",
+    "ReloadUI",
+    "RestartGx",
+];
+
 /// The state the predicates that answer only against state read from: a seated player, two
 /// talents (an ordinary one met and learnable, an exceptional one neither), two loot rolls (a
-/// resolved bind-on-pickup one and one still in flight), a respec question in range. Each carries
-/// both legs of its flags.
+/// resolved bind-on-pickup one and one still in flight), a respec question in range, a quest log
+/// with one finished line. Each carries both legs of its flags.
 fn seed_boolean_probe_state(s: &mut benilla_ui::script::UiScript) {
     use benilla_ui::script::{
         LootRollEntry, LootRollsState, TalentPrereqView, TalentTabView, TalentUiState, TalentView,
@@ -778,6 +904,7 @@ fn seed_boolean_probe_state(s: &mut benilla_ui::script::UiScript) {
             name: "Probe".into(),
             background: "Interface\\TalentFrame\\Probe-".into(),
             points_spent: 0,
+            texture: None,
         }],
         talents: vec![vec![
             TalentView {
@@ -830,6 +957,12 @@ fn seed_boolean_probe_state(s: &mut benilla_ui::script::UiScript) {
         ],
     });
     s.set_talent_master_pending(true);
+    // Row 2 under its header, so the ladder's `1, 2` reads the finished line.
+    let mut probe = crate::ui_quest_log::fixture::quest(1, "Probe", 1);
+    probe.record.objectives[0] = crate::ui_quest_log::fixture::kill(1, 1);
+    probe.record.objectives[0].text = "Probes".into();
+    probe.slot.counters[0] = 1;
+    crate::ui_quest_log::fixture::seat(s, &[probe]);
 }
 
 /// 1.12 has no boolean query: of the table's trustworthy rows only `IsPetAttackActive` and Lua's
@@ -895,11 +1028,8 @@ fn no_query_binding_answers_a_lua_boolean() {
 /// raising without one, such as `HasScript("OnClick")` and `IsObjectType("Frame")`.
 #[test]
 fn no_widget_method_answers_a_lua_boolean() {
-    let tsv = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../reference/1.12-shapes.tsv"
-    );
-    let text = std::fs::read_to_string(tsv).expect("reference/1.12-shapes.tsv");
+    let tsv = concat!(env!("CARGO_MANIFEST_DIR"), "/../../reference/bindings.tsv");
+    let text = std::fs::read_to_string(tsv).expect("reference/bindings.tsv");
 
     let s = benilla_ui::script::UiScript::new().expect("VM");
     s.run(KIND_HELPER).expect("kind helper");
@@ -920,8 +1050,17 @@ fn no_widget_method_answers_a_lua_boolean() {
         }
     }
 
-    // A widget predicate takes a script or object-type name more often than a number.
-    const WIDGET_ARGS: &[&str] = &["", "\"OnClick\"", "\"Frame\"", "1", "1, 1"];
+    // A widget predicate takes a script or object-type name more often than a number, and
+    // `IsOwned` a frame; `PGFrame` is the probe frame made above.
+    const WIDGET_ARGS: &[&str] = &[
+        "",
+        "\"OnClick\"",
+        "\"Frame\"",
+        "1",
+        "1, 1",
+        "PGFrame",
+        "1, 5",
+    ];
 
     let mut checked = 0usize;
     let mut booleans: Vec<String> = Vec::new();
@@ -934,13 +1073,8 @@ fn no_widget_method_answers_a_lua_boolean() {
             continue;
         }
         let (name, table) = (f[0], f[3]);
-        if !["Get", "Is", "Has", "Can", "Num"]
-            .iter()
-            .any(|p| name.starts_with(p))
-        {
-            continue;
-        }
-        // No widget method answers a boolean in the reference, so none is exempt here.
+        // No widget method answers a boolean in the reference, so none is exempt here, whatever
+        // its name: `AtBottom`, `SetAlphaGradient` and `IsOwned` push 1 or nil.
         let Some(obj) = made.get(table) else { continue };
         for args in WIDGET_ARGS {
             let probe = format!(
@@ -957,8 +1091,8 @@ fn no_widget_method_answers_a_lua_boolean() {
             checked += 1;
             if got.split(',').any(|k| k == "boolean") {
                 booleans.push(format!("{obj}:{name}({args}) answers ({got})"));
+                break;
             }
-            break;
         }
     }
 

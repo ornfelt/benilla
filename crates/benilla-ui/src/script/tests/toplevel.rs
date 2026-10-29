@@ -16,6 +16,21 @@ fn painted(s: &mut UiScript) -> Vec<String> {
         .collect()
 }
 
+/// The drawn font strings' texts, in draw order.
+fn written(s: &mut UiScript) -> Vec<String> {
+    s.resolve();
+    let mut texts: Vec<(u128, String)> = s
+        .extract()
+        .iter()
+        .filter_map(|q| match &q.content {
+            QuadContent::Text { text: Some(t), .. } => Some((q.z, t.clone())),
+            _ => None,
+        })
+        .collect();
+    texts.sort_by_key(|&(z, _)| z);
+    texts.into_iter().map(|(_, t)| t).collect()
+}
+
 fn level(s: &mut UiScript, frame: &str) -> i64 {
     s.eval::<i64>(&format!("return {frame}:GetFrameLevel()"))
         .unwrap()
@@ -525,6 +540,52 @@ fn starting_a_move_raises_the_dragged_window() {
     assert!(s.errors().is_empty(), "{:?}", s.errors());
 }
 
+/// A held move raises its window unchecked on every rect change (`0x764a20` → `0x764a4c`), which
+/// acts only on the stored overlap bit (`0x7651ac`); the draw pass recomputes that bit for the
+/// toplevel frames of a stratum whose levels went dirty (`0x7657d0` → `0x765a90`). So a window
+/// dragged over another rises at the first rect change after a draw pass has seen the overlap.
+#[test]
+fn a_dragged_window_rises_once_a_draw_pass_finds_it_overlapped() {
+    let mut s = board_and_dialog();
+    s.run(
+        r#"
+        Dialog:ClearAllPoints()
+        Dialog:SetPoint("BOTTOMLEFT", 450, 100)  -- clear of Board, which spans 100 to 400
+        Dialog:SetToplevel(true)
+        Dialog:SetMovable(true)
+        Dialog:Show()
+        "#,
+    )
+    .unwrap();
+    s.resolve();
+    assert_eq!(
+        level(&mut s, "Dialog"),
+        0,
+        "nothing overlaps it at the show"
+    );
+    s.mouse_move(600.0, 250.0);
+    s.run("Dialog:StartMoving()").unwrap();
+    assert_eq!(level(&mut s, "Dialog"), 0, "nor at the grab");
+
+    s.mouse_move(450.0, 250.0); // Dialog now spans 300 to 600, over Board
+    s.resolve();
+    assert!(
+        level(&mut s, "Dialog") < level(&mut s, "Board"),
+        "the bit is still the grab's"
+    );
+    s.tick(0.0); // the draw pass finds the overlap
+    assert!(level(&mut s, "Dialog") < level(&mut s, "Board"));
+    s.mouse_move(440.0, 250.0);
+    s.resolve();
+    assert!(
+        level(&mut s, "Dialog") > level(&mut s, "Board"),
+        "the next rect change lifts it"
+    );
+    assert_eq!(painted(&mut s), ["Board.blp", "Dialog.blp"]);
+    s.run("Dialog:StopMovingOrSizing()").unwrap();
+    assert!(s.errors().is_empty(), "{:?}", s.errors());
+}
+
 // ── The mouse-down trigger ──
 
 /// The centre of `name`'s resolved rect, in the coordinate space [`UiScript::mouse_button`] takes.
@@ -776,6 +837,8 @@ fn a_raise_with_a_hidden_child_keeps_the_windows_own_siblings_level() {
 /// The raise's compaction relinks each moved visible frame through `0x76a4f0` (`0x764fb6`), in
 /// creation order (`0x764f80`), so two frames sharing a shifted level swap when the first-created
 /// was linked last: the later link draws on top, and the hit sweep probes the earlier link first.
+/// Their font strings show it: a layer's textures draw sorted by texture (`0x7731a0`), its font
+/// strings in link order.
 #[test]
 fn a_compaction_relinks_a_shared_level_in_creation_order() {
     let mut s = script();
@@ -787,7 +850,8 @@ fn a_compaction_relinks_a_shared_level_in_creation_order() {
             f:SetPoint("BOTTOMLEFT", x, y)
             f:SetWidth(size); f:SetHeight(size)
             f:EnableMouse(true)
-            f:CreateTexture(nil, "ARTWORK"):SetTexture(name .. ".blp")
+            local t = f:CreateFontString(nil, "ARTWORK"); t:SetFont("Fonts\\FRIZQT__.TTF", 12)
+            t:SetAllPoints(f); t:SetText(name)
             return f
         end
         Square("First", 100, 100, 200):SetFrameLevel(3)
@@ -802,8 +866,8 @@ fn a_compaction_relinks_a_shared_level_in_creation_order() {
     // Inside First and Second, outside Top.
     let (x, y) = (200.0, 200.0);
     assert_eq!(
-        painted(&mut s),
-        vec!["Second.blp", "First.blp"],
+        written(&mut s),
+        vec!["Second", "First"],
         "before: the later link, First, draws on top"
     );
     assert_eq!(s.hit_test_name(x, y).as_deref(), Some("Second"));
@@ -815,8 +879,8 @@ fn a_compaction_relinks_a_shared_level_in_creation_order() {
         "the compaction shifted their level"
     );
     assert_eq!(
-        painted(&mut s),
-        vec!["First.blp", "Second.blp", "Top.blp"],
+        written(&mut s),
+        vec!["First", "Second", "Top"],
         "after: relinked in creation order, Second draws on top"
     );
     assert_eq!(

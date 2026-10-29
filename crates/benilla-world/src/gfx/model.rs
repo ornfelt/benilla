@@ -30,26 +30,27 @@ pub const WOW_MODEL: GfxProgram = GfxProgram {
         // A `u32` slot, read as the `int` both shader languages have.
         VertexInput::new(ATTRIBUTE_WOW_MERGED_SLOT, [0.0; 4]).read_as(GfxFormat::R32Sint),
     ],
-    params: 10,
-    samplers: 2,
+    params: 11,
+    samplers: 3,
 };
 
 /// One model material: the base's rows 0-2, row 3 `x` = `WOW_WATER_CLIP` (the blend pass, as
-/// `specialize` keys it on `BLEND_ALPHA`), rows 4-9 the extension's uniforms in field order; the
-/// texture, then the light buffer's data texture.
+/// `specialize` keys it on `BLEND_ALPHA`), rows 4-10 the extension's uniforms in field order; the
+/// texture, the light buffer's data texture, then stage 1's texture (white when none).
 pub fn describe(m: &WowModelMaterial) -> GfxMaterialDesc {
     let (rows, texture, alpha, mut state) = standard_rows(&m.base);
     let e = &m.extension;
     let mut params = [[0.0; 4]; MAX_PARAMS];
     params[..3].copy_from_slice(&rows);
     params[3][0] = if alpha == GfxAlpha::Blend { 1.0 } else { 0.0 };
-    for (row, v) in params[4..10].iter_mut().zip([
+    for (row, v) in params[4..11].iter_mut().zip([
         e.clutter_fade,
         e.model_flags,
         e.sun_scale,
         e.tint,
         e.sidn,
         e.anim_slots,
+        e.stage1,
     ]) {
         *row = v.to_array();
     }
@@ -91,7 +92,9 @@ pub fn describe(m: &WowModelMaterial) -> GfxMaterialDesc {
         textures: [
             texture,
             GfxTextureSlot::Data(e.light_buf.id()),
-            GfxTextureSlot::White,
+            e.stage1_texture
+                .as_ref()
+                .map_or(GfxTextureSlot::White, |h| GfxTextureSlot::Image(h.id())),
             GfxTextureSlot::White,
         ],
         params,

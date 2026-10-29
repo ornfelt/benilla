@@ -2,6 +2,9 @@
 //! frame polls the window, runs the app, draws through [`GfxRender`] and presents, until the app
 //! exits. The window is deleted before the runner returns.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use bevy::app::PluginsState;
 use bevy::prelude::*;
 use bevy::window::{PrimaryWindow, WindowCloseRequested};
@@ -21,6 +24,15 @@ pub(crate) struct DefaultSampler(pub bevy::image::ImageSamplerDescriptor);
 /// on the wgpu path. Inserted once the device opens, before the first update (`PreStartup`).
 #[derive(Resource, Debug, Clone)]
 pub struct GfxMsaaCounts(pub Vec<u32>);
+
+/// A frame the app withholds from the window, as the wgpu path's render world does for benilla's
+/// `PresentHold`: while `held`, [`GfxRender`] draws nothing and the runner presents nothing, so the
+/// window keeps the last frame it presented. `presents` counts the frames presented.
+#[derive(Resource, Clone, Default)]
+pub struct GfxPresentHold {
+    pub held: bool,
+    pub presents: Arc<AtomicU64>,
+}
 
 pub fn run(mut app: App) -> AppExit {
     // The device opens before the plugins finish, as wgpu's does in `RenderPlugin::build`:
@@ -88,7 +100,15 @@ pub fn run(mut app: App) -> AppExit {
         if let Some(exit) = app.should_exit() {
             break exit;
         }
+        // A held frame still applies its asset and data changes; it draws and presents nothing.
         app.world_mut().run_schedule(GfxRender);
+        let hold = app.world().get_resource::<GfxPresentHold>();
+        if hold.is_some_and(|h| h.held) {
+            continue;
+        }
+        if let Some(hold) = hold {
+            hold.presents.fetch_add(1, Ordering::Relaxed);
+        }
         app.world().non_send_resource::<GfxContext>().present();
         presented += 1;
     };

@@ -9,7 +9,8 @@
 //!   20 yd (3-D). Self is not excluded. A new line replaces the old bubble, never queues.
 //! - Lifetime and fade (`0x4b0c30`): a 250 ms fade in, the line's [`duration_ms`], a 250 ms fade
 //!   out, then the frame goes back to the pool. Out of range, or with the speaker not drawn in the
-//!   last render ([`speaker_drawn`]), it fades out and hides, and fades back in on return.
+//!   last render ([`crate::entities::SceneDrawn`]), it fades out and hides, and fades back in on
+//!   return.
 //! - Anchor (`0x4b0c30`): unit z + height × model scale + 0.7, the text's BOTTOM on the projected
 //!   point (`0x4b157a`), growing upward. The height is the Stand sequence box's Z extent from the
 //!   model header (`0x711a20`), not the posed attachment the overhead name reads (`0x608640`),
@@ -40,7 +41,7 @@ use crate::vplates::{gx_px, plate_basis, text_px, VPlateSet, VPlates};
 use benilla_world::view::WorldCamera;
 
 /// The two bubble CVars (registrar `0x603280`), booting at the reference's defaults.
-#[derive(Resource)]
+#[derive(Resource, Clone, Copy)]
 pub(crate) struct BubbleConfig {
     /// `ChatBubbles`: say, yell and their monster variants.
     pub(crate) all: bool,
@@ -70,8 +71,9 @@ const TEXT_H: f32 = 0.01;
 const MARGIN: f32 = 0.01;
 /// The text wrap hard cap, gx (`[0x80679c]` = 0.2).
 const WRAP_W: f32 = 0.2;
-/// The border unit (edge size, insets, tail side): 16/1024 of the screen width.
-const BORDER_FRAC: f32 = 16.0 / 1024.0;
+/// The border unit (edge size, insets, tail side): 16 script units (`[0x8066d8]`), which the
+/// bubble stores by `S` for its insets, edge size and tile size (`0x4b09d2`-`0x4b0a2f`).
+const BORDER_UNITS: f32 = 16.0;
 
 /// The CVar gating this kind's bubble (`0x608b0d`); `None` for a kind that does not bubble.
 fn bubble_cvar(kind: ChatEventKind, cfg: &BubbleConfig) -> Option<bool> {
@@ -152,10 +154,12 @@ fn sanitize(text: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// The border unit in logical px: 16/1024 of the screen width, in the damped size basis.
+/// The border unit in logical px: `S(16)` in gx for the viewport's aspect, in the damped size
+/// basis. At 4:3 that is a 64th of the width; wider, `S` divides by `1024·A` and so stays 16 of the
+/// 768 units the height spans.
 fn border_px(viewport: Vec2, basis: f32) -> f32 {
-    let width_gx = viewport.x / viewport.length();
-    gx_px(width_gx * BORDER_FRAC, basis).max(1.0)
+    let units = benilla_ui::screencoord::LayoutUnits::from_aspect(viewport.x / viewport.y);
+    gx_px(units.store(BORDER_UNITS), basis).max(1.0)
 }
 
 /// This frame's bubble-spawn requests, pushed as the chat line routes.
@@ -304,29 +308,70 @@ struct Bubble {
     /// Stand-box height × model scale, latched at spawn as the reference does (`bubble+0x354`).
     lift: f32,
     fade: Fade,
+    /// The squared camera distance the bubble was last stacked by (`[bubble+0x350]`); `None` for
+    /// a new line, which the next pass stacks (the spawn flag, `[bubble+0x320] & 0x8`).
+    depth: Option<f32>,
 }
 
-/// Whether the speaker was drawn in the last render: the reference's scene-node test `0x6704c0`
-/// (`node && [node+0x94] == 0`, read at `0x4b0cab`). Every frame sets `[node+0x94]` on every node
-/// in the scene list `[0xca7d70]` (`0x698a07`) and clears it only for a node that passes the
-/// frustum test `0x682ef0` and the horizon test `0x686000` (`0x6833dd`-`0x6833ec`, and
-/// `0x68359b`-`0x6835aa` in WMO groups). Here it is any of the unit's meshes passing last frame's
-/// visibility check; benilla has no horizon cull yet, so that is the frustum verdict alone.
-fn speaker_drawn(
-    unit: Entity,
-    children: &Query<&Children>,
-    meshes: &Query<&ViewVisibility, With<Mesh3d>>,
-) -> bool {
-    children
-        .get(unit)
-        .is_ok_and(|kids| kids.iter().any(|c| meshes.get(c).is_ok_and(|v| v.get())))
-}
-
-/// The live bubbles by speaker guid, at most one per unit, and the next line's number.
+/// The live bubbles by speaker guid, at most one per unit, their stacking, and the next line's
+/// number.
 #[derive(Resource, Default)]
 struct Bubbles {
     live: HashMap<u64, Bubble>,
+    /// The stacking, farthest first (the list at `0xb6f038`); the index is the frame level.
+    stack: Vec<u64>,
+    /// The camera position the stack was last sorted from (`0xb6eff0`, held once `0xb6effc` is
+    /// set).
+    eye: Option<Vec3>,
     next_line: u64,
+}
+
+impl Bubbles {
+    /// A new line from `guid`: it replaces the speaker's old bubble, which goes back to the pool
+    /// (`0x608bb4` → `0x608c00`), and the new one is linked at the stack's tail (`0x608bbf` →
+    /// `0x4b1870`, `0x4b18f0`), unstacked until the next pass.
+    fn spawn(&mut self, guid: u64, bubble: Bubble) {
+        self.stack.retain(|g| *g != guid);
+        self.stack.push(guid);
+        self.live.insert(guid, bubble);
+    }
+
+    /// The stacking step of the bubble pass (`0x4b1060`). The camera moved when any coordinate
+    /// differs from the held one, compared exactly (`0x4b10a5`–`0x4b10d3`); then every bubble is
+    /// re-stacked, else only a new line (`0x4b11c7`), each from the held position to its speaker
+    /// (`pos`), into the stack before the first one nearer (`0x4b1360`). The rest keep their
+    /// place, so a speaker walking under a still camera keeps its stacking.
+    fn restack(&mut self, camera: Option<Vec3>, pos: impl Fn(u64) -> Option<Vec3>) {
+        let moved = camera.is_some() && camera != self.eye;
+        if moved {
+            self.eye = camera;
+        }
+        let Self {
+            live, stack, eye, ..
+        } = self;
+        stack.retain(|g| live.contains_key(g));
+        // Pulled out in stack order, then each re-inserted (`0x4b11d7`, `0x4b1220`).
+        let dirty: Vec<u64> = stack
+            .iter()
+            .copied()
+            .filter(|g| moved || live[g].depth.is_none())
+            .collect();
+        stack.retain(|g| !dirty.contains(g));
+        for g in dirty {
+            let Some(at) = pos(g) else {
+                continue;
+            };
+            let d = eye.map_or(0.0, |e| e.distance_squared(at));
+            if let Some(b) = live.get_mut(&g) {
+                b.depth = Some(d);
+            }
+            let slot = stack
+                .iter()
+                .position(|o| live[o].depth.is_some_and(|od| od < d))
+                .unwrap_or(stack.len());
+            stack.insert(slot, g);
+        }
+    }
 }
 
 /// This frame's live bubbles for the widget layer, farthest from the camera first, and the sizes
@@ -357,10 +402,13 @@ fn drive_bubbles(
     camera: Query<(&Camera, &Transform), With<WorldCamera>>,
     heights: Query<&StandBoxHeight>,
     time: Res<Time>,
-    window: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    (window, widescreen): (
+        Query<&Window, With<bevy::window::PrimaryWindow>>,
+        Option<Res<crate::video::Widescreen>>,
+    ),
     mut feed: ResMut<BubbleFeed>,
-    // The speakers' meshes and their last-frame visibility, for [`speaker_drawn`].
-    drawn: (Query<&Children>, Query<&ViewVisibility, With<Mesh3d>>),
+    // Whether the last render drew each speaker (`0x6704c0`, read at `0x4b0cab`).
+    drawn: crate::entities::SceneDrawn,
 ) {
     active.0.clear();
     feed.states.clear();
@@ -411,7 +459,7 @@ fn drive_bubbles(
         let line = bubbles.next_line;
         bubbles.next_line += 1;
         // Replace, never queue (`0x608bb4`): the old line's frame goes back to the pool.
-        bubbles.live.insert(
+        bubbles.spawn(
             guid,
             Bubble {
                 line,
@@ -425,6 +473,7 @@ fn drive_bubbles(
                 born: now,
                 lift,
                 fade: Fade::spawn(now),
+                depth: None,
             },
         );
     }
@@ -437,39 +486,37 @@ fn drive_bubbles(
         let (Some((entity, _, tf)), Some(s)) = (find(*guid), self_tf) else {
             return false;
         };
-        let in_range = speaker_drawn(entity, &drawn.0, &drawn.1)
-            && (tf.translation - s.translation).length_squared() < MAX_DIST_SQ;
+        let in_range =
+            drawn.unit(entity) && (tf.translation - s.translation).length_squared() < MAX_DIST_SQ;
         b.fade.tick(now, in_range, b.born, b.duration)
     });
 
     let cam = camera.single().ok();
     let window = window.single().ok();
-    // The order is the frame levels (`0x4b1360`, stamped `0x4b12d5`-`0x4b1312`): the camera's
-    // distance to the speaker, farthest first. The reference re-sorts only when the camera moved
-    // or a line spawned (`0x4b10a5`-`0x4b10d3`, `0x4b11c7`); this sorts every frame, so a speaker
-    // moving under a still camera can re-stack here and not there.
-    let mut order: Vec<(u64, f32)> = bubbles
-        .live
-        .keys()
-        .filter_map(|guid| {
-            let (entity, _, tf) = find(*guid)?;
+    // The order is the frame levels (`0x4b1360`, stamped `0x4b12d5`-`0x4b1312`), farthest from
+    // the camera first.
+    bubbles.restack(cam.map(|(_, pose)| pose.translation), |guid| {
+        find(guid).map(|(_, _, tf)| tf.translation)
+    });
+    for guid in &bubbles.stack {
+        if let Some((entity, _, _)) = find(*guid) {
             active.0.insert(entity);
-            let d2 = cam.map_or(0.0, |(_, pose)| {
-                pose.translation.distance_squared(tf.translation)
-            });
-            Some((*guid, d2))
-        })
-        .collect();
-    stack_sort(&mut order);
+        }
+    }
 
     // Sizes from the camera's viewport, else the window's; with neither there is nothing to lay
     // out against.
     let viewport = cam
         .and_then(|(c, _)| c.logical_viewport_size())
         .or_else(|| window.map(|w| Vec2::new(w.width(), w.height())));
-    let Some(viewport) = viewport.filter(|v| v.x > 0.0 && v.y > 0.0) else {
+    let Some(cam_viewport) = viewport.filter(|v| v.x > 0.0 && v.y > 0.0) else {
         return;
     };
+    // The bubbles seat on the interface's screen, 4:3 and stretched with `widescreen` 0
+    // ([`crate::ui_script::UiScreen`]), whose diagonal is their gx unit.
+    let ui_screen =
+        crate::ui_script::UiScreen::of(cam_viewport, widescreen.as_deref().is_none_or(|w| w.0));
+    let viewport = ui_screen.size;
     // Everything below is in window px, divided by the seam once for the `WorldFrame`'s units.
     let seam = window.map_or(1.0, |w| crate::ui_script::seam_scale(w.height()));
     let scale = window.map_or(1.0, Window::scale_factor);
@@ -481,9 +528,10 @@ fn drive_bubbles(
         text_height: text_px(TEXT_H, basis) / seam,
         device_px: seam * scale,
     });
-    feed.states = order
+    feed.states = bubbles
+        .stack
         .iter()
-        .filter_map(|(guid, _)| {
+        .filter_map(|guid| {
             let b = bubbles.live.get(guid)?;
             let (entity, _, tf) = find(*guid)?;
             // The anchor (`0x4b0c30`), from this frame's `Transform` and the latched lift.
@@ -502,9 +550,12 @@ fn drive_bubbles(
                 text: b.text.clone(),
                 colour: b.color,
                 shown: b.fade.shown,
-                alpha: f32::from(b.fade.alpha) / 255.0,
+                alpha: b.fade.alpha,
                 seat: match seat {
-                    Some((_, p)) => (p.x / seam, (viewport.y - p.y) / seam),
+                    Some((_, p)) => {
+                        let p = ui_screen.point(p);
+                        (p.x / seam, (viewport.y - p.y) / seam)
+                    }
                     // Short of the near plane (behind the camera) the projection writes no point
                     // (`0x483f7a`) and the placement ignores its verdict, seating the zeroed one
                     // (`0x4b14e4`): the text's BOTTOM on the screen's bottom-left corner. Bevy's
@@ -558,12 +609,6 @@ fn trace_seat(
     );
 }
 
-/// Farthest camera distance first, so the index is the frame level. Ties break on guid, as the
-/// reference keeps its order across an exact tie and a `HashMap` walk cannot.
-fn stack_sort(order: &mut [(u64, f32)]) {
-    order.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
-}
-
 /// The bubble stage; [`crate::nameplates`] orders after it to read [`BubblesActive`].
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct BubbleSet;
@@ -571,7 +616,10 @@ pub(crate) struct BubbleSet;
 pub(crate) struct ChatBubblePlugin;
 
 /// The two bubble CVars' change callback.
-pub(crate) fn on_cvar(ev: On<crate::cvars::CvarChanged>, mut bubbles: ResMut<BubbleConfig>) {
+pub(crate) fn on_cvar(
+    ev: &crate::cvars::CvarChanged,
+    mut bubbles: bevy::prelude::Mut<'_, BubbleConfig>,
+) {
     match ev.key().as_str() {
         "chatbubbles" => bubbles.all = ev.flag(),
         "chatbubblesparty" => bubbles.party = ev.flag(),
@@ -581,7 +629,6 @@ pub(crate) fn on_cvar(ev: On<crate::cvars::CvarChanged>, mut bubbles: ResMut<Bub
 
 impl Plugin for ChatBubblePlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(on_cvar);
         app.init_resource::<BubbleQueue>()
             .init_resource::<BubbleConfig>()
             .init_resource::<Bubbles>()
@@ -859,28 +906,96 @@ mod tests {
         );
     }
 
-    /// Farthest camera distance first, guid breaking an exact tie.
-    #[test]
-    fn the_stack_is_sorted_farthest_first() {
-        let mut p = vec![(7, 25.0), (3, 400.0), (9, 1.0), (2, 400.0)];
-        stack_sort(&mut p);
-        assert_eq!(
-            p.iter().map(|q| q.0).collect::<Vec<_>>(),
-            vec![2, 3, 7, 9],
-            "farthest first; the 400-yd² pair ordered by guid"
+    /// A line spoken by `guid` into `b`, as the spawn gate leaves it.
+    fn speak(b: &mut Bubbles, guid: u64) {
+        let line = b.next_line;
+        b.next_line += 1;
+        b.spawn(
+            guid,
+            Bubble {
+                line,
+                text: String::new(),
+                color: [1.0; 3],
+                born: 0,
+                duration: 0,
+                lift: 0.0,
+                fade: Fade::spawn(0),
+                depth: None,
+            },
         );
     }
 
-    /// 16 px at 1024-wide 4:3 (width/64), damped past the plate knee.
+    /// Farthest from the camera first, an exact tie keeping the earlier line in front of the
+    /// later; the stack stands while the camera does, whoever walks, and a camera move re-sorts.
     #[test]
-    fn border_unit_is_a_64th_of_the_width() {
+    fn the_stack_resorts_on_a_camera_move_or_a_new_line_only() {
+        let mut at: HashMap<u64, Vec3> = HashMap::from([
+            (1, Vec3::new(5.0, 0.0, 0.0)),
+            (2, Vec3::new(20.0, 0.0, 0.0)),
+            (3, Vec3::new(20.0, 0.0, 0.0)),
+        ]);
+        let mut b = Bubbles::default();
+        for g in [1, 2, 3] {
+            speak(&mut b, g);
+        }
+        let mut camera = Vec3::ZERO;
+        b.restack(Some(camera), |g| at.get(&g).copied());
+        assert_eq!(b.stack, [2, 3, 1], "farthest first; the tie in line order");
+
+        // Speaker 1 walks behind the others under a still camera.
+        at.insert(1, Vec3::new(40.0, 0.0, 0.0));
+        b.restack(Some(camera), |g| at.get(&g).copied());
+        assert_eq!(b.stack, [2, 3, 1], "a still camera keeps the stacking");
+
+        // A new line stacks at its own distance; the others keep their stale ones.
+        speak(&mut b, 4);
+        at.insert(4, Vec3::new(10.0, 0.0, 0.0));
+        b.restack(Some(camera), |g| at.get(&g).copied());
+        assert_eq!(b.stack, [2, 3, 4, 1]);
+
+        // The camera moves, by any amount: every bubble re-sorts.
+        camera.y = 1e-3;
+        b.restack(Some(camera), |g| at.get(&g).copied());
+        assert_eq!(b.stack, [1, 2, 3, 4]);
+
+        // A bubble that ends leaves the stack.
+        b.live.remove(&2);
+        b.restack(Some(camera), |g| at.get(&g).copied());
+        assert_eq!(b.stack, [1, 3, 4]);
+    }
+
+    /// A speaker who speaks again goes to the tail before the pass re-stacks the new lines in list
+    /// order (`0x4b1870`, `0x4b11d7`), so in a tie the later line lands in front.
+    #[test]
+    fn a_repeat_line_moves_its_speaker_to_the_tail() {
+        let at = |_: u64| Some(Vec3::new(10.0, 0.0, 0.0));
+        let mut b = Bubbles::default();
+        for g in [1, 2] {
+            speak(&mut b, g);
+        }
+        b.restack(Some(Vec3::ZERO), at);
+        assert_eq!(b.stack, [1, 2]);
+        // In one frame, 3 speaks, then 1 again, all at one distance.
+        speak(&mut b, 3);
+        speak(&mut b, 1);
+        b.restack(Some(Vec3::ZERO), at);
+        assert_eq!(b.stack, [2, 3, 1], "1's new line came after 3's");
+    }
+
+    /// `S(16)` (`0x4b09d2`): 16 px at 1024×768, a 64th of the width; at 16:9 under the plate
+    /// knee, 1024×576, 12 px, the 16 of 768 units the height spans, where a 64th of the width
+    /// would be 16; damped past the knee.
+    #[test]
+    fn border_unit_is_sixteen_script_units() {
         let vp = Vec2::new(1024.0, 768.0);
         assert_eq!(border_px(vp, plate_basis(vp)), 16.0);
+        let vp = Vec2::new(1024.0, 576.0);
+        assert_eq!(border_px(vp, plate_basis(vp)), 12.0);
         let wide = Vec2::new(2560.0, 1440.0);
         let b = border_px(wide, plate_basis(wide));
         assert!(
-            b > 16.0 && b < 40.0,
-            "damped growth between the native pin and the faithful 40 px, got {b}"
+            b > 16.0 && b < 30.0,
+            "damped growth between the native pin and the faithful 30 px, got {b}"
         );
     }
 }

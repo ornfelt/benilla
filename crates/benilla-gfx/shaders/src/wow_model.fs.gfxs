@@ -5,6 +5,7 @@ in 3 vec4 color
 in 4 vec3 point_lit
 in 5 float merged_fade
 in 6 int merged_slot
+in 7 vec2 env_uv
 
 out 0 vec4 color
 
@@ -32,10 +33,12 @@ constant 1 draw_block
 	vec4 tint
 	vec4 sidn
 	vec4 anim_slots
+	vec4 stage1
 }
 
 sampler 0 2d base_color_texture
 sampler 1 2d_array wow_light
+sampler 2 2d stage1_texture
 
 // The fragment stage of `benilla-assets/src/shaders/wow_model.wgsl`, line for line, with
 // bevy_pbr's `pbr_input_from_standard_material` and `alpha_discard` folded in: base colour =
@@ -75,6 +78,45 @@ vec4 sample_bias(vec2 uv, float bias)
 #else
 	return base_color_texture.SampleBias(base_color_texture_sampler, uv, bias);
 #endif
+}
+
+vec4 sample_stage1(vec2 uv, float bias)
+{
+#ifdef GFX_GLSL
+	return texture(stage1_texture, uv, bias);
+#else
+	return stage1_texture.SampleBias(stage1_texture_sampler, uv, bias);
+#endif
+}
+
+// Stage 1's colour combine on `prev`, the stage-0 result, by gx preset as Direct3D maps it: 0 and 1
+// modulate, 2 blends by the texel's alpha, 3 adds, 4 modulates x2, 5 blends by `diffuse_a`; each
+// stage saturates.
+vec3 stage1_rgb(uint preset, vec3 prev, vec4 tex, float diffuse_a)
+{
+	vec3 c = prev * tex.rgb;
+	if (preset == 2u)
+		c = mix(prev, tex.rgb, tex.a);
+	else if (preset == 3u)
+		c = prev + tex.rgb;
+	else if (preset == 4u)
+		c = 2.0 * prev * tex.rgb;
+	else if (preset == 5u)
+		c = mix(prev, tex.rgb, diffuse_a);
+	return clamp(c, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
+}
+
+// A stage's alpha on `prev` by gx preset: 1 modulates, 3 adds, 4 modulates x2, the rest pass it.
+float stage_alpha(uint preset, float prev, float tex)
+{
+	float a = prev;
+	if (preset == 1u)
+		a = prev * tex;
+	else if (preset == 3u)
+		a = prev + tex;
+	else if (preset == 4u)
+		a = 2.0 * prev * tex;
+	return clamp(a, 0.0, 1.0);
 }
 
 vec3 wow_normalize(vec3 v)
@@ -160,6 +202,17 @@ fs_output gfx_main(fs_input gfx_input)
 		float ramp = clamp((254.0 - 256.0 * u) / 255.0, 0.0, 252.0 / 255.0);
 		base_c.a = base_c.a * ramp;
 	}
+	// Stage 1: its alpha joins the stage-0 alpha the cutout reads; its colour combines after the
+	// light.
+	bool stage1_on = stage1.x > 0.5;
+	uint stage1_preset = uint(stage1.y);
+	float tex0_alpha = base_c.a;
+	vec4 tex1 = vec4(1.0, 1.0, 1.0, 1.0);
+	if (stage1_on)
+	{
+		tex1 = sample_stage1(gfx_input.env_uv, mip_bias);
+		base_c.a = stage_alpha(stage1_preset, base_c.a, tex1.a);
+	}
 
 	// The MeshTag: bit 31 highlight, bit 30 interior fog; payload bits 0-5 the fade alpha (zero is
 	// opaque), 19-29 the rig slot, 6-13 the ground shade or, on an interior prop, 6-18 the probe.
@@ -186,7 +239,15 @@ fs_output gfx_main(fs_input gfx_input)
 	// The blend twin re-applies its source's cutout (bit 10).
 	if ((markers & 1024u) != 0u && base_c.a < VANILLA_ALPHA_KEY)
 		discard;
+	// The blended alpha is the stage chain on the instance alpha: stage 0 by its preset's alpha op
+	// (`stage1.z` = the stage-0 preset + 1, 0 for none), then stage 1.
 	float faded_alpha = base_c.a * obj_fade;
+	if (stage1.z > 0.5)
+	{
+		faded_alpha = stage_alpha(uint(stage1.z) - 1u, obj_fade, tex0_alpha);
+		if (stage1_on)
+			faded_alpha = stage_alpha(stage1_preset, faded_alpha, tex1.a);
+	}
 	// `alpha_discard`: opaque pins alpha to 1, a mask cuts below its cutoff.
 	vec4 base = base_c;
 	float alpha_mode = uv_offset_cutoff_mode.w;
@@ -311,6 +372,9 @@ fs_output gfx_main(fs_input gfx_input)
 	bool is_mod2x = (markers & 256u) != 0u;
 	if ((is_mod || is_mod2x) && !is_wmo)
 		rgb = base.rgb;
+	// Stage 1 combines with the lit stage-0 result before the fog.
+	if (stage1_on)
+		rgb = stage1_rgb(stage1_preset, rgb, tex1, obj_fade);
 
 	// Linear fog by planar eye depth, per-batch colour policy (bits 4-6): 0 scene, 1 black,
 	// 2 white, 3 grey, 4 unfogged; tag bit 30 selects the interior triple.
@@ -336,7 +400,7 @@ fs_output gfx_main(fs_input gfx_input)
 		rgb = mix(fog_rgb, rgb, factor);
 	}
 
-	// Output alpha is tex x fade; opaque intent (bit 3) pins it to 1. Additive (bit 2) weights
+	// Output alpha is `faded_alpha`; opaque intent (bit 3) pins it to 1. Additive (bit 2) weights
 	// the colour by alpha in gamma; Mod/Mod2x fade toward the blend identity.
 	bool opaque_intent = (markers & 8u) != 0u;
 	bool is_additive = (markers & 4u) != 0u;

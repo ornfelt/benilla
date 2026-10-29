@@ -31,6 +31,8 @@ mod probe_tests;
 pub mod render;
 #[cfg(test)]
 mod render_tests;
+#[cfg(test)]
+mod test_support;
 /// The control for the one-VM-per-addon bound: the whole folder in one VM, as the 1.12 client runs
 /// it.
 pub mod together;
@@ -123,10 +125,33 @@ pub fn survey(root: &Path) -> Vec<AddonReport> {
     // Folder -> the method names its source defines, memoised: one library folder is a dependency
     // of dozens of addons.
     let mut defined_methods: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    // The stock interface is built once and each addon gets a fork of it.
+    let template = stock_vm(root, &registry);
+    let make = || -> Result<UiScript, String> {
+        template.as_ref().map(UiScript::fork).map_err(Clone::clone)
+    };
     names
         .iter()
-        .map(|n| survey_one(root, n, &installed, &registry, &mut defined_methods))
+        .map(|n| survey_one(root, n, &installed, &registry, &mut defined_methods, &make))
         .collect()
+}
+
+/// A VM with our whole interface under it (see the module doc), a session seated and the AddOn
+/// API answering for the whole installed set.
+fn stock_vm(root: &Path, registry: &[benilla_ui::script::AddOnInfo]) -> Result<UiScript, String> {
+    let mut script = UiScript::new().map_err(|e| e.to_string())?;
+    // A time bound, so one non-terminating addon cannot stall the survey: about 50x the heaviest
+    // corpus addon (Enchantrix, 4M instructions), so a runaway reports in about a second.
+    script.set_instruction_budget(ADDON_INSTRUCTION_BUDGET);
+    // A fixed `rand` seed, so two survey runs of an addon that draws at load agree.
+    script.lua().srand(1);
+    script.set_screen_size(1024.0, 768.0);
+    // The saved-variable roots are `None`, so a survey never reads or writes a player's; the
+    // AddOns root is passed, so `LoadAddOn("<folder addon>")` does not answer `MISSING`.
+    script.register_addons(registry.to_vec(), Some(root.to_path_buf()), None, None);
+    seat_a_session(&mut script);
+    let _ = crate::ui_script::load_default_ui(&script);
+    Ok(script)
 }
 
 /// The corpus every VM sees: the folders with a manifest, the case-folded installed set, and the
@@ -162,7 +187,7 @@ fn corpus(
             let toc = Toc::parse(&benilla_ui::source::decode(
                 &std::fs::read(manifest_path(root, n)?).unwrap_or_default(),
             ));
-            Some(crate::ui_script::addons::info_from_toc(n, &toc))
+            Some(crate::ui_script::addons::info_from_toc(n, &toc, false))
         })
         .collect();
 
@@ -219,6 +244,7 @@ fn survey_one(
     installed: &BTreeSet<String>,
     registry: &[benilla_ui::script::AddOnInfo],
     defined_methods: &mut BTreeMap<String, BTreeSet<String>>,
+    make: &dyn Fn() -> Result<UiScript, String>,
 ) -> AddonReport {
     let Some(toc_path) = manifest_path(root, name) else {
         return AddonReport {
@@ -238,8 +264,7 @@ fn survey_one(
         .map(str::to_owned)
         .collect();
 
-    // A VM with our whole interface under it (see the module doc).
-    let mut script = match UiScript::new() {
+    let script = match make() {
         Ok(s) => s,
         Err(e) => {
             return AddonReport {
@@ -251,28 +276,16 @@ fn survey_one(
             }
         }
     };
-    // A time bound, so one non-terminating addon cannot stall the survey: about 50x the heaviest
-    // corpus addon (Enchantrix, 4M instructions), so a runaway reports in about a second.
+    let mut script = script;
+    // A fork carries no budget; re-armed, the count starts at this addon.
     script.set_instruction_budget(ADDON_INSTRUCTION_BUDGET);
-    script.set_screen_size(1024.0, 768.0);
-    // The AddOn API answers for the whole installed set before anything runs. The saved-variable
-    // roots are `None`, so a survey never reads or writes a player's; the AddOns root is passed, so
-    // `LoadAddOn("<folder addon>")` does not answer `MISSING`.
-    script.register_addons(registry.to_vec(), Some(root.to_path_buf()), None, None);
-    seat_a_session(&mut script);
-    let _ = crate::ui_script::load_default_ui(&script);
     // The addon's dependencies, first and recursively, as `AddOn_Load` (`0x51f240`) does in its
     // first two steps. Loaded before `globals_of` below, so a name a dependency provides is not
     // missing.
-    let mut dep_loads: Vec<LoadedDep> = Vec::new();
-    load_dependencies(
-        &mut script,
-        root,
-        &toc,
-        installed,
-        &mut BTreeSet::new(),
-        &mut dep_loads,
-    );
+    // Marked first, as `AddOn_Load` marks an addon before its dependency loops (`0x51f313`): a
+    // dependency that requires the surveyed addon finds it loaded and does not load it here.
+    script.mark_addon_loaded(name);
+    let dep_loads = load_dependencies(&script, root, registry, &toc);
     let dep_order: Vec<String> = dep_loads.into_iter().map(|d| d.name).collect();
     let known = globals_of(&script);
     // The methods the dependency chain defines, read from its source (a method has no VM read).
@@ -289,15 +302,11 @@ fn survey_one(
     let warn_mark = script.diagnostics().last().map_or(0, |d| d.seq);
 
     let files = load_addon_files(&script, root, name, &toc);
-    // The live walk stamps each addon as loaded just before its `ADDON_LOADED` (`0x51f5ad`);
-    // without it `IsAddOnLoaded` answers nil and a LoadOnDemand dependent gets
-    // `DEP_NOT_DEMAND_LOADED`. The dependencies stamped themselves in `load_dependencies`.
-    script.mark_addon_loaded(name);
     let wants = missing_calls(root, name, &toc, &known, &dep_methods);
     // After the addon's files, so a template its own XML declares is registered.
     let missing_templates = missing_templates(&script, root, name, &toc);
     let missing_inherits = missing_inherits(&script, root, name, &toc);
-    let session_errors = drive_session_start(&mut script, name, installed);
+    let session_errors = drive_session_start(&mut script, name, installed, root, registry);
     let probe_errors = drive_ui_probe(&mut script);
     // Warnings only; errors have their own columns.
     let warnings: Vec<String> = script
@@ -576,6 +585,8 @@ fn drive_session_start(
     script: &mut UiScript,
     name: &str,
     installed: &BTreeSet<String>,
+    root: &Path,
+    registry: &[benilla_ui::script::AddOnInfo],
 ) -> Vec<String> {
     // Errors are attributed by the raising chunk, not the event window: AceAddon runs every queued
     // consumer's `OnInitialize` on any `ADDON_LOADED` it sees (`AceAddon-2.0.lua:104-105`, `:230`),
@@ -587,17 +598,59 @@ fn drive_session_start(
         "ADDON_LOADED",
         vec![benilla_ui::script::ScriptValue::Str(name.to_string())],
     );
-    for event in ["VARIABLES_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"] {
-        script.fire_event(event, Vec::new());
+    // `AddOn_Load` goes on to the addons whose `## LoadWith` names this one (`0x51f5b2`-
+    // `0x51f5e1`), their files and events inside this window; a raise in their own files is
+    // exempted below by its chunk name, like a dependency's.
+    if let Some(row) = script.addon_row(name) {
+        let mut host = HarnessLoad::new(script, root, registry);
+        for dependent in script.addon_dependents(row) {
+            script.load_addon_row(&mut host, dependent, false, false);
+        }
     }
-    for _ in 0..10 {
-        script.tick(0.1);
-    }
+    enter_world(script);
     let raised = script.errors().split_off(before);
     raised
         .into_iter()
         .filter(|e| !raised_inside_another_addons_own_file(e, name, installed))
         .collect()
+}
+
+/// The session start after the addons' own `ADDON_LOADED`: the load's tail, `VARIABLES_LOADED` and
+/// the `PLAYER_LOGIN` arm (`finish_ui_load_with`'s order, with no saved file), then the live
+/// client's world-enter cascade ([`UiScript::fire_world_enter`]: `PLAYER_LOGIN`,
+/// `PLAYER_ENTERING_WORLD`, the minimap and quest-log steps and their events, in its sound
+/// bracket), a target, then ten ticks of 0.1 s ([`drive_session_start`] says why). `"player"`
+/// already names guid 1 ([`seat_a_session`]), as the live feed seats it before the cascade.
+///
+/// The target comes after `PLAYER_ENTERING_WORLD`, with the argless `PLAYER_TARGET_CHANGED` that
+/// selecting one signals (`0x493540`): the interface is built (`0x48fbf0`) before the enter cascade
+/// (`0x4908c0`), and a selection needs its object in the world, so no load sees a target. Seated
+/// earlier, `TargetFrame_OnLoad`'s `TargetFrame_Update()` (`TargetFrame.lua:20`) indexes
+/// `TargetofTargetFrame`, which `TargetFrame.xml` declares later, before its `RegisterEvent` calls.
+fn enter_world(script: &mut UiScript) {
+    script.fire_event("VARIABLES_LOADED", Vec::new());
+    script.arm_player_login();
+    script.fire_world_enter();
+    script.set_unit(
+        "target",
+        Some(benilla_ui::script::UnitState {
+            exists: true,
+            name: Some("Target Dummy".into()),
+            health: 80,
+            max_health: 100,
+            level: 60,
+            power_type: 0,
+            power: 50,
+            max_power: 100,
+            class: Some("Warrior".into()),
+            class_file: Some("WARRIOR".into()),
+            ..Default::default()
+        }),
+    );
+    script.fire_event("PLAYER_TARGET_CHANGED", Vec::new());
+    for _ in 0..10 {
+        script.tick(0.1);
+    }
 }
 
 /// Does this raise belong to another installed addon's file? A library that fails is its own row;
@@ -726,54 +779,75 @@ fn drive_ui_probe(script: &mut UiScript) -> Vec<String> {
     out
 }
 
-/// Load an addon's declared dependencies into the VM, depth-first, each at most once.
-///
-/// The 1.12 client's order (`AddOn_Load`, `0x51f240`): optional dependencies first, failures
-/// ignored; required ones next, a failure aborting the dependent; then its own files. The abort is
-/// not reproduced, only the state the dependent's file scope meets; a missing required dependency
-/// is reported ([`AddonReport::missing_deps`]), an absent optional one is silent. Errors inside a
-/// dependency are its own row, never the dependent's.
+/// Load an addon's declared dependencies into the VM through the shared `AddOn_Load` driver
+/// (`0x51f240`): optional ones first, failures ignored, then required ones, each through the gate,
+/// its own dependencies first, its files, then `ADDON_LOADED` with its folder name, then the
+/// addons whose `## LoadWith` names it. The surveyed addon's own gate and abort are not
+/// reproduced, so a survey still measures it when a required dependency is missing; that is
+/// reported ([`AddonReport::missing_deps`]). Errors inside a dependency are its own row, never the
+/// dependent's. The caller marks the surveyed addon loaded first (`0x51f313`).
 fn load_dependencies(
-    script: &mut UiScript,
+    script: &UiScript,
     root: &Path,
+    registry: &[benilla_ui::script::AddOnInfo],
     toc: &Toc,
-    installed: &BTreeSet<String>,
-    seen: &mut BTreeSet<String>,
-    loaded: &mut Vec<LoadedDep>,
-) {
+) -> Vec<LoadedDep> {
     // Optional first, then required: `FuBar_BagFu` lists `FuBarPlugin-2.0.lua` before
     // `AceLibrary.lua`, and FuBarPlugin raises unless the optional `Ace2` loaded first.
-    let deps: Vec<&str> = toc
+    let mut host = HarnessLoad::new(script, root, registry);
+    for dep in toc
         .optional_dependencies()
         .into_iter()
         .chain(toc.dependencies())
-        .collect();
-    for dep in deps {
-        let key = dep.to_ascii_lowercase();
-        if !installed.contains(&key) || !seen.insert(key) {
-            continue; // not installed (already reported), or already in this VM
+    {
+        if let Some(row) = script.addon_row(dep) {
+            // Every addon loads: the harness forces past the version check, as the AddOns screen's
+            // Load out of date AddOns does.
+            script.load_addon_row(&mut host, row, false, false);
         }
-        let Some(dep_toc) = manifest_path(root, dep)
+    }
+    host.loaded
+}
+
+/// The harness's side of `AddOn_Load`: run a registry row's `.toc` files out of the corpus folder
+/// and keep what each did. Rows are the corpus's, in [`corpus`]'s order.
+struct HarnessLoad<'a> {
+    script: &'a UiScript,
+    root: &'a Path,
+    registry: &'a [benilla_ui::script::AddOnInfo],
+    /// Every addon the driver ran, in load order.
+    loaded: Vec<LoadedDep>,
+}
+
+impl<'a> HarnessLoad<'a> {
+    fn new(
+        script: &'a UiScript,
+        root: &'a Path,
+        registry: &'a [benilla_ui::script::AddOnInfo],
+    ) -> Self {
+        HarnessLoad {
+            script,
+            root,
+            registry,
+            loaded: Vec::new(),
+        }
+    }
+}
+
+impl benilla_ui::script::AddonLoad for HarnessLoad<'_> {
+    fn run(&mut self, i: usize) {
+        let name = &self.registry[i].name;
+        let Some(toc) = manifest_path(self.root, name)
             .and_then(|p| std::fs::read(p).ok())
             .map(|b| Toc::parse(&benilla_ui::source::decode(&b)))
         else {
-            continue;
+            return;
         };
-        load_dependencies(script, root, &dep_toc, installed, seen, loaded);
-        let files = load_addon_files(script, root, dep, &dep_toc);
-        // `ADDON_LOADED` fires here, at the 1.12 client's position: `AddOn_Load` (`0x51f240`) runs
-        // an addon's dependencies, its `.toc` files (`0x51f3fa`), `Bindings.xml`, the two
-        // SavedVariables chunks, then `ADDON_LOADED` (event 429, `0x51f5ad`), before the next
-        // addon. The loaded flag is set first (`[rec+0x18]=1` at `0x51f313`), so a handler's
-        // `IsAddOnLoaded` is true. Fired outside the surveyed addon's error mark: a library raising
-        // in its initialiser is its own row.
-        script.mark_addon_loaded(dep);
-        script.fire_event(
-            "ADDON_LOADED",
-            vec![benilla_ui::script::ScriptValue::Str(dep.to_string())],
-        );
-        loaded.push(LoadedDep {
-            name: dep.to_string(),
+        // `ADDON_LOADED` follows from the driver, after the files (`0x51f5ad`); a raise in a
+        // library's initialiser is its own row, outside the surveyed addon's error mark.
+        let files = load_addon_files(self.script, self.root, name, &toc);
+        self.loaded.push(LoadedDep {
+            name: name.clone(),
             files,
         });
     }
@@ -962,7 +1036,7 @@ pub fn framexml_digest() -> String {
 }
 
 /// Every name our VM publishes into `_G`, with its Lua type, with no addons loaded: our side of the
-/// diff against the 1.12 client's in-world `_G` (`reference/1.12-globals.tsv`). Dumped in Lua,
+/// diff against the 1.12 client's in-world `_G` (`reference/lua_globals.tsv`). Dumped in Lua,
 /// since `_G` is what an addon sees.
 pub fn surface() -> Vec<(String, String)> {
     let Ok(mut script) = UiScript::new() else {
@@ -978,7 +1052,7 @@ pub fn surface() -> Vec<(String, String)> {
         .eval(
             r#"
             local out = {}
-            for k, v in pairs(_G) do
+            for k, v in pairs(getfenv(0)) do
               if type(k) == "string" then
                 out[table.getn(out) + 1] = k .. "\t" .. type(v)
               end
@@ -1025,6 +1099,9 @@ fn global_strings() -> Option<&'static str> {
 /// Every seat below is a state an in-world character is always in, kept minimal and ordinary: a VM
 /// answering nil or zero there would fail addons on a state the 1.12 client cannot be in.
 fn seat_a_session(script: &mut UiScript) {
+    // No engine behind it: a verb's call is kept, not refused (stock `RaidFrame_OnEvent` asks
+    // `RequestRaidInfo()` on `PLAYER_ENTERING_WORLD`, `RaidFrame.lua:28-29`).
+    script.keep_calls();
     // The 1.12 client boots FrameXML with this file first; so does our app.
     if let Some(src) = global_strings() {
         let _ = script.run(src);
@@ -1056,7 +1133,7 @@ fn seat_a_session(script: &mut UiScript) {
     });
     script.set_realm_name("Harness");
     // The bind point: the server sends `SMSG_BINDPOINTUPDATE` at login, before any addon runs.
-    script.set_bind_location("Stormwind City");
+    script.set_bind_location(Some("Stormwind City"));
     script.set_unit(
         "player",
         Some(benilla_ui::script::UnitState {
@@ -1080,8 +1157,9 @@ fn seat_a_session(script: &mut UiScript) {
             // `UnitFactionGroup("player")`: every playable race has a side, and AceDB-2.0
             // concatenates it into its per-realm key at file scope.
             faction_group: Some("Alliance".into()),
-            // `0x5efe00`'s team digit for Human (race 1), the rank-title key's second `%d`.
-            pvp_team: crate::ui_unit::race_pvp_team(1),
+            // `0x5efe00`'s team digit for Human (race 1), the rank-title key's second `%d`: the
+            // stock row's template has group mask 3, Alliance.
+            pvp_team: 1,
             ..Default::default()
         }),
     );
@@ -1090,13 +1168,13 @@ fn seat_a_session(script: &mut UiScript) {
     //
     // One buff, one target and one action with a running cooldown, so an addon that only draws when
     // there is content (a buff bar, a target frame, cooldown text) is separated from one that
-    // failed.
+    // failed. The target is seated at world entry ([`enter_world`]).
     // The player's guid, which a token resolves to before its aura list is read.
     script.set_unit_guids(&benilla_ui::script::UnitGuids {
         player: 1,
         ..Default::default()
     });
-    script.set_player_auras(vec![benilla_ui::script::AuraState {
+    let fortitude = vec![benilla_ui::script::AuraState {
         spell_id: 1243,
         name: Some("Power Word: Fortitude".into()),
         icon: Some("Interface\\Icons\\Spell_Holy_WordFortitude".into()),
@@ -1104,23 +1182,10 @@ fn seat_a_session(script: &mut UiScript) {
         helpful: true,
         cancelable: true,
         ..Default::default()
-    }]);
-    script.set_unit(
-        "target",
-        Some(benilla_ui::script::UnitState {
-            exists: true,
-            name: Some("Target Dummy".into()),
-            health: 80,
-            max_health: 100,
-            level: 60,
-            power_type: 0,
-            power: 50,
-            max_power: 100,
-            class: Some("Warrior".into()),
-            class_file: Some("WARRIOR".into()),
-            ..Default::default()
-        }),
-    );
+    }];
+    // Both of the player's lists: the buff cache and the slots `UnitBuff("player")` reads.
+    script.set_unit_auras(1, Some(fortitude.clone().into()));
+    script.set_player_auras(fortitude);
     script.set_action(
         1,
         Some(benilla_ui::script::ActionSlot {
@@ -1129,6 +1194,7 @@ fn seat_a_session(script: &mut UiScript) {
             action: 100,
             count: 0,
             consumable: false,
+            use_spell: None,
         }),
     );
     script.set_action_state(
@@ -1144,45 +1210,48 @@ fn seat_a_session(script: &mut UiScript) {
     // A spellbook (seated below) and a quest log. An empty book fails `TheoryCraftEngine.lua:306`
     // (`for i=1, numSpells` off `GetSpellTabInfo(1)`); two tabs, four spells, `Attack` in slot 1.
     // The quest log is a zone header row (`isHeader`), an in-progress quest with one objective done
-    // and one not, and a complete one (`complete = 1`); failed (-1) and timed quests are not
-    // seated.
+    // and one not, and a complete one (`complete = 1`) with its one objective met, rows by level
+    // (`0x4decd9`); failed (-1) and timed quests are not seated.
     {
-        use benilla_ui::script::{QuestLogEntryView, QuestLogObjectiveView, QuestLogState};
-        let objective = |text: &str, cur: u32, req: u32| QuestLogObjectiveView {
-            text: text.into(),
-            kind: "monster".into(),
-            finished: cur >= req,
-            cur,
-            req,
-        };
-        let header = QuestLogEntryView {
-            quest_id: 0,
-            title: "Elwynn Forest".into(),
-            is_header: true,
+        use benilla_ui::script::{QuestObjectiveView, QuestRecordView, QuestSlotView};
+        let kill = |entry: u32, need: u32| QuestObjectiveView {
+            creature_or_go: entry,
+            required_count: need,
             ..Default::default()
         };
-        let in_progress = QuestLogEntryView {
+        let record = |title: &str, level: u32| QuestRecordView {
+            title: title.into(),
+            level,
+            zone_or_sort: 12,
+            header: "Elwynn Forest".into(),
+            ..Default::default()
+        };
+        let mut in_progress = record("The Fargodeep Mine", 7);
+        in_progress.objectives[0] = kill(40, 12);
+        in_progress.objectives[1] = kill(475, 6);
+        script.seed_quest_record(62, in_progress);
+        let mut complete = record("Kobold Candles", 8);
+        complete.objectives[0] = kill(476, 8);
+        script.seed_quest_record(176, complete);
+        script.set_quest_creature_name(40, "Kobold Miner".into());
+        script.set_quest_creature_name(475, "Kobold Vermin".into());
+        script.set_quest_creature_name(476, "Kobold Laborer".into());
+        let mut slots = [QuestSlotView::default(); benilla_ui::script::QUEST_LOG_SLOTS];
+        slots[0] = QuestSlotView {
             quest_id: 62,
-            title: "The Fargodeep Mine".into(),
-            level: 10,
-            objectives: vec![
-                objective("Kobold Miner slain: 8/12", 8, 12),
-                objective("Kobold Vermin slain: 6/6", 6, 6),
-            ],
+            counters: [8, 6, 0, 0],
             ..Default::default()
         };
-        let done = QuestLogEntryView {
+        slots[1] = QuestSlotView {
             quest_id: 176,
-            title: "Kobold Candles".into(),
-            level: 8,
-            complete: 1,
+            counters: [8, 0, 0, 0],
+            state: 0x01,
             ..Default::default()
         };
-        script.set_quest_log(QuestLogState {
-            entries: vec![header, in_progress, done],
-            num_quests: 2,
-            hidden_quest_ids: Vec::new(),
-        });
+        script.set_quest_log_player(true);
+        script.set_quest_slots(slots);
+        script.quest_log_changed();
+        script.flush_quest_log_refires();
     }
 
     // The purse: 12_345_678 copper (1234g 56s 78c), every denomination non-zero, so a coin
@@ -1207,7 +1276,7 @@ fn seat_a_session(script: &mut UiScript) {
         script.set_container(
             0,
             Some(benilla_ui::script::ContainerState {
-                name: Some("Backpack".into()),
+                name: None,
                 num_slots: 16,
                 slots,
             }),
@@ -1249,7 +1318,7 @@ fn seat_a_session(script: &mut UiScript) {
     // The talent tree (`Talent.dbc` x `TalentTab.dbc`), read by position at file scope
     // (`KTM_Data.lua:376`). Zero ranks and the full pool, a fresh 60 (51 points, `level - 9`), so a
     // rank is a number rather than nil.
-    if let Some(state) = talent_snapshot(script) {
+    if let Some(state) = talent_snapshot() {
         script.set_talents(state);
     }
 }
@@ -1278,9 +1347,8 @@ fn auction_item_classes() -> Vec<benilla_ui::script::AuctionCategory> {
 }
 
 /// The seated character's talent pages, built by the live client's `build_pages`. The DBCs are read
-/// once per process; the pages are built per VM, since the requirement lines come from that VM's
-/// `GlobalStrings.lua`. `None` with no install.
-fn talent_snapshot(script: &UiScript) -> Option<benilla_ui::script::TalentUiState> {
+/// once per process; the pages are built per VM. `None` with no install.
+fn talent_snapshot() -> Option<benilla_ui::script::TalentUiState> {
     use std::sync::OnceLock;
     #[allow(clippy::type_complexity)]
     static DBCS: OnceLock<
@@ -1298,23 +1366,17 @@ fn talent_snapshot(script: &UiScript) -> Option<benilla_ui::script::TalentUiStat
             Some((talents, spells))
         })
         .as_ref()?;
-    let get = |key: &str| {
-        script
-            .lua()
-            .globals()
-            .get::<String>(key)
-            .ok()
-            .filter(|t| !t.is_empty())
-    };
     // Human (`ChrRaces.dbc` 1) warrior (`ChrClasses.dbc` 1), the character `seat_a_session` seats.
     Some(crate::ui_talent::build_pages(
         talents,
-        &BTreeSet::new(),
+        crate::ui_talent::Known {
+            spells: &BTreeSet::new(),
+            lines: None,
+        },
         spells,
         1,
         1,
         (51, 0),
-        &get,
     ))
 }
 
@@ -1325,9 +1387,11 @@ fn equip_slot(item_id: u32, name: &str) -> benilla_ui::script::InvSlotView {
         icon: Some("Interface\\Icons\\INV_Misc_QuestionMark".into()),
         count: 1,
         quality: 2,
+        // A cached record of a wearable type.
+        inventory_type: Some(1),
         name: Some(name.to_string()),
-        // Full durability: the setter fires `UPDATE_INVENTORY_ALERTS`, and a worn item would light
-        // DurabilityFrame.
+        // Full durability: a worn item short of it would light DurabilityFrame at an alert
+        // recompute.
         durability: Some((100, 100)),
         link: Some(format!("|cff1eff00|Hitem:{item_id}:0:0:0|h[{name}]|h|r")),
         ..Default::default()
@@ -1362,7 +1426,7 @@ fn globals_of(script: &UiScript) -> BTreeSet<String> {
     script
         .eval::<Vec<String>>(
             "local out = {} \
-             for k in pairs(_G) do if type(k) == 'string' then table.insert(out, k) end end \
+             for k in pairs(getfenv(0)) do if type(k) == 'string' then table.insert(out, k) end end \
              return out",
         )
         .unwrap_or_default()
@@ -1397,6 +1461,19 @@ struct FileLoad {
 /// FrameXML, in the install-relative path space (`Interface/AddOns/<Folder>`, as
 /// `ui_script::addons::Addon::prefix`), so chunk names match a live session's.
 fn load_addon_files(script: &UiScript, root: &Path, name: &str, toc: &Toc) -> FileLoad {
+    // Under the addon's own context, as the live walk loads it.
+    let outer = script.swap_exec_context(benilla_ui::script::addon_load_context(
+        name,
+        // The corpus is folder addons, never the chain: no `.sig` stands beside them.
+        false,
+    ));
+    let load = load_addon_files_in_context(script, root, name, toc);
+    script.swap_exec_context(outer);
+    load
+}
+
+/// [`load_addon_files`]' body.
+fn load_addon_files_in_context(script: &UiScript, root: &Path, name: &str, toc: &Toc) -> FileLoad {
     let provider = |req: &str| -> Option<Vec<u8>> { read_under(root, req) };
     let base = addon_base(name);
     let mut errors = Vec::new();
@@ -2636,6 +2713,134 @@ mod dependency_tests {
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
+    /// A folder of addons under a temp root, `(name, toc, lua body)` each with one file `main.lua`;
+    /// every body starts by appending its folder to `Order`.
+    fn corpus_folder(tag: &str, addons: &[(&str, &str, &str)]) -> PathBuf {
+        let tmp =
+            std::env::temp_dir().join(format!("benilla-harness-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        for (name, toc, body) in addons {
+            let dir = tmp.join(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join(format!("{name}.toc")),
+                format!("## Interface: 11200\n{toc}main.lua\n"),
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("main.lua"),
+                format!("Order = (Order or '') .. '{name},'\n{body}"),
+            )
+            .unwrap();
+        }
+        tmp
+    }
+
+    /// What one probe step answers, `= <value>`.
+    fn answer(root: &Path, name: &str, chunk: &str) -> String {
+        let out = probe::probe(root, name, &[probe::Step::Eval(chunk.into())]).unwrap();
+        out.answers[0].1.clone()
+    }
+
+    /// `AddOn_Load` fires `ADDON_LOADED` with the record's folder name (`[rec+0x14]`, `0x51f573`,
+    /// `0x51f5a2`), whatever case the dependent's `.toc` spelled it in.
+    #[test]
+    fn a_dependencys_addon_loaded_carries_its_folder_name() {
+        let tmp = corpus_folder(
+            "deps-spelling",
+            &[
+                (
+                    "Lib",
+                    "",
+                    "Seen = {} Watch = CreateFrame('Frame') Watch:RegisterEvent('ADDON_LOADED') \
+                     Watch:SetScript('OnEvent', function() table.insert(Seen, arg1) end)",
+                ),
+                ("User", "## Dependencies: LIB\n", ""),
+            ],
+        );
+        assert_eq!(
+            answer(&tmp, "User", "return table.concat(Seen, ',')"),
+            "= Lib,User"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// The gate runs before anything loads (`0x51f2fa`): a dependency that requires a missing
+    /// addon does not load, its files do not run, and its own dependencies are left alone.
+    #[test]
+    fn a_dependency_the_gate_refuses_does_not_load() {
+        let tmp = corpus_folder(
+            "deps-gate",
+            &[
+                ("Blocked", "## Dependencies: Ghost\n", ""),
+                ("User", "## Dependencies: Blocked\n", ""),
+            ],
+        );
+        assert_eq!(answer(&tmp, "User", "return Order"), "= User,");
+        assert_eq!(
+            answer(&tmp, "User", "return IsAddOnLoaded('Blocked')"),
+            "= nil"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// `AddOn_Load` loads the addons whose `## LoadWith` names the loaded one, right after its
+    /// `ADDON_LOADED` (`0x51f5b2`).
+    #[test]
+    fn a_dependencys_load_with_dependents_load_after_it() {
+        let tmp = corpus_folder(
+            "deps-load-with",
+            &[
+                ("Lib", "", ""),
+                ("Tag", "## LoadWith: Lib\n", ""),
+                ("User", "## Dependencies: Lib\n", ""),
+            ],
+        );
+        assert_eq!(answer(&tmp, "User", "return Order"), "= Lib,Tag,User,");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// The surveyed addon's own `AddOn_Load` ends with the addons that name it in `## LoadWith`
+    /// (`0x51f5b2`-`0x51f5e1`): they load right after its `ADDON_LOADED`, before the session events.
+    #[test]
+    fn the_surveyed_addons_load_with_dependents_load_after_its_addon_loaded() {
+        let tmp = corpus_folder(
+            "deps-own-load-with",
+            &[
+                ("Lib", "", ""),
+                (
+                    "Tag",
+                    "## LoadWith: User\n",
+                    "TagSawUser = IsAddOnLoaded('User')",
+                ),
+                ("User", "## Dependencies: Lib\n", ""),
+            ],
+        );
+        assert_eq!(answer(&tmp, "User", "return Order"), "= Lib,User,Tag,");
+        assert_eq!(answer(&tmp, "User", "return TagSawUser"), "= 1");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// The surveyed addon is loaded (`0x51f313`) before its dependencies, so one that requires it
+    /// back finds it loaded and neither runs twice.
+    #[test]
+    fn a_dependency_cycle_through_the_surveyed_addon_loads_each_once() {
+        let tmp = corpus_folder(
+            "deps-cycle",
+            &[
+                ("Ping", "## Dependencies: Pong\n", ""),
+                (
+                    "Pong",
+                    "## Dependencies: Ping\n",
+                    "PingLoadedForPong = IsAddOnLoaded('Ping')\n",
+                ),
+            ],
+        );
+        assert_eq!(answer(&tmp, "Ping", "return Order"), "= Pong,Ping,");
+        assert_eq!(answer(&tmp, "Ping", "return PingLoadedForPong"), "= 1");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
     /// An indexed frame (`ColorPickerFrame.func`, `ColorPickerFrame:SetColorRGB`) is a missing
     /// surface, not a missing function.
     #[test]
@@ -3495,6 +3700,80 @@ mod dependency_tests {
         script
     }
 
+    /// The stock interface loads clean with no target, as 1.12 loads it before world entry, and
+    /// the target frame shows the target seated at world entry.
+    #[test]
+    fn the_target_is_seated_after_the_interface_loads() {
+        benilla_formats::wow_data_or_skip!();
+        let mut s = seated_vm_reporting_failures();
+        assert!(
+            s.eval::<bool>("return UnitExists('target') == nil")
+                .unwrap(),
+            "1.12 loads the interface before world entry, with no target"
+        );
+        assert!(!s.frame_visible("TargetFrame"));
+
+        enter_world(&mut s);
+        assert!(s.errors().is_empty(), "{:#?}", s.errors());
+        assert_eq!(
+            s.eval::<String>("return UnitName('target')").unwrap(),
+            "Target Dummy"
+        );
+        assert!(
+            s.frame_visible("TargetFrame"),
+            "the target frame registered its events at load, so world entry shows the target"
+        );
+    }
+
+    /// The harness enters the world through the client's cascade (`0x4908c0`), not a list of its
+    /// own: `PLAYER_LOGIN` once, then `PLAYER_ENTERING_WORLD`, then the quest log's rebuild and its
+    /// `QUEST_LOG_UPDATE` (`0x4909a1`), every handler inside the sound bracket (`0x4908d5`).
+    #[test]
+    fn the_world_entry_is_the_clients_cascade() {
+        let mut s = UiScript::new().unwrap();
+        seat_a_session(&mut s);
+        s.run(
+            r#"
+            Seen = {}
+            local f = CreateFrame("Frame")
+            for _, e in ipairs({ "VARIABLES_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD",
+                                 "QUEST_LOG_UPDATE" }) do
+                f:RegisterEvent(e)
+            end
+            f:SetScript("OnEvent", function()
+                table.insert(Seen, event)
+                if event == "PLAYER_ENTERING_WORLD" then PlaySound("igMainMenuOpen") end
+            end)
+            "#,
+        )
+        .unwrap();
+        s.take_sounds();
+        enter_world(&mut s);
+        assert!(s.errors().is_empty(), "{:#?}", s.errors());
+        let seen = s.eval::<String>("return table.concat(Seen, ' ')").unwrap();
+        assert!(
+            seen.starts_with(
+                "VARIABLES_LOADED PLAYER_LOGIN PLAYER_ENTERING_WORLD QUEST_LOG_UPDATE"
+            ),
+            "{seen}"
+        );
+        assert_eq!(seen.matches("PLAYER_LOGIN").count(), 1, "{seen}");
+        assert!(
+            s.take_sounds().is_empty(),
+            "the cascade's handlers are silent"
+        );
+    }
+
+    /// [`seated_vm`], failing on any load failure of the stock interface.
+    fn seated_vm_reporting_failures() -> UiScript {
+        let mut script = UiScript::new().unwrap();
+        script.set_screen_size(1024.0, 768.0);
+        seat_a_session(&mut script);
+        let failures = crate::ui_script::load_default_ui(&script);
+        assert!(failures.is_empty(), "{failures:#?}");
+        script
+    }
+
     /// The seated session is visible through the Lua surface an addon sees, so a seat that silently
     /// fails to take is caught.
     #[test]
@@ -3503,10 +3782,10 @@ mod dependency_tests {
 
         // The backpack: 16 slots, two filled.
         assert_eq!(s.eval::<i64>("return GetContainerNumSlots(0)").unwrap(), 16);
-        assert_eq!(
-            s.eval::<String>("return GetBagName(0)").unwrap(),
-            "Backpack"
-        );
+        // Named by the stock global, empty where no interface defines it (`0x703bf0`).
+        assert!(s
+            .eval::<bool>("return GetBagName(0) == (BACKPACK_TOOLTIP or '')")
+            .unwrap());
         assert_eq!(
             s.eval::<i64>("local _, c = GetContainerItemInfo(0, 5) return c")
                 .unwrap(),

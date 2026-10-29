@@ -3,7 +3,7 @@
 //! follows the reference's loader (`0x6edc00`–`0x6f3000`, the file loader `0x6ede10`), whose XML
 //! tokenizer is an embedded expat and ours `roxmltree`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 
 /// An owned XML element, attributes in document order. Lookups fold case, as the reference's
@@ -27,16 +27,27 @@ impl Element {
             .map(|(_, v)| v.as_str())
     }
 
-    /// True only for a case-insensitive `"true"` (`0x6f1b30`); there is no `"false"` branch.
-    pub fn attr_bool(&self, name: &str) -> bool {
+    /// A boolean attribute as the frame loaders read it: `0x6f2cf0` fetches the attribute and a
+    /// missing or empty one is skipped (`0x769891`, `0x77a0b5`), leaving what the constructor set;
+    /// any other goes through the client's string-to-bool `0x6f1b30`
+    /// ([`crate::strings::string_to_bool`]), so `hidden="1"` and `movable="yes"` are true and
+    /// `hidden="false"` is not.
+    pub fn attr_bool_opt(&self, name: &str) -> Option<bool> {
         self.attr(name)
-            .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+            .filter(|v| !v.is_empty())
+            .map(crate::strings::string_to_bool)
     }
 
-    /// [`attr_bool`](Self::attr_bool), but `None` when absent, for a flag whose default is on
-    /// (`<EditBox autoFocus="false">`).
-    pub fn attr_bool_opt(&self, name: &str) -> Option<bool> {
-        self.attr(name).map(|v| v.eq_ignore_ascii_case("true"))
+    /// [`attr_bool_opt`](Self::attr_bool_opt) for a flag the constructor leaves off.
+    pub fn attr_bool(&self, name: &str) -> bool {
+        self.attr_bool_opt(name).unwrap_or(false)
+    }
+
+    /// The two attributes the reference compares whole, case-insensitively, against `"true"`
+    /// (`0x862234`) rather than parsing: `virtual` (`0x6ee190`) and `setAllPoints` (`0x767879`).
+    pub fn attr_is_true(&self, name: &str) -> bool {
+        self.attr(name)
+            .is_some_and(|v| v.eq_ignore_ascii_case("true"))
     }
 
     pub fn name(&self) -> Option<&str> {
@@ -81,22 +92,146 @@ pub enum TopLevel {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ParsedDocument {
     pub items: Vec<TopLevel>,
-    /// An unnamed virtual, an `<Include>` or `<Font>` missing its attribute, a root that is not
-    /// `<Ui>`: logged, and the file goes on.
+    /// An `<Include>` or `<Font>` missing its attribute, a root that is not `<Ui>`: logged, and the
+    /// file goes on.
     pub warnings: Vec<String>,
 }
 
 impl ParsedDocument {
-    /// The named templates, for [`expand`]; an unnamed one (the reference's "Unnamed virtual
-    /// node" error, `0x6ee500`) is absent.
-    pub fn templates(&self) -> HashMap<&str, &Element> {
-        self.items
-            .iter()
-            .filter_map(|item| match item {
-                TopLevel::Template(el) => el.name().map(|name| (name, el)),
-                _ => None,
-            })
-            .collect()
+    /// The named templates, registered in document order as the loader registers them; an unnamed
+    /// one (the reference's "Unnamed virtual node" error, `0x6ee1c4`) is
+    /// absent.
+    pub fn templates(&self) -> Templates {
+        let mut templates = Templates::default();
+        for item in &self.items {
+            if let TopLevel::Template(el) = item {
+                if let Some(name) = el.name().filter(|n| !n.is_empty()) {
+                    templates.register(name, el.clone(), None);
+                }
+            }
+        }
+        templates
+    }
+}
+
+/// The FrameXML template table (`0x6ee500`), global across a UI load's files. A name registers
+/// once: the hash upper-cases it (`SStrHash 0x64b3f0`) and the bucket walk compares with
+/// `SStrCmpI 0x64a4c0`, so the key is the name with ASCII case folded, and the lookup `0x6ee6f0`
+/// matches the same way. Each entry keeps the script-execution context it was registered under.
+#[derive(Debug, Clone, Default)]
+pub struct Templates {
+    entries: HashMap<String, Template>,
+}
+
+#[derive(Debug, Clone)]
+struct Template {
+    /// Shared, so a load's per-level reads hold the node without copying it.
+    element: std::rc::Rc<Element>,
+    /// The context word at registration (`[entry+0x1c]`, `0x6ee6be`); `None` is the reference's 0.
+    context: Option<String>,
+}
+
+/// What [`Templates::register`] did with a definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Registration {
+    /// The name was free.
+    Added,
+    /// The name's entry came from a non-zero context and this one from context 0 (`0x6ee5c1`).
+    Replaced,
+    /// The name was taken: the reference logs `"Virtual object named %s already exists"`
+    /// (`0x871188`, severity 1) and keeps the first (`0x6ee5a4`).
+    Refused,
+}
+
+impl Templates {
+    /// Register `element` under `name` from `context` (`None` is context 0). A taken name is
+    /// replaced only when its entry's context is non-zero and this one is 0 (`0x6ee594`-`0x6ee5a2`);
+    /// every other repeat is refused and leaves the entry as it was.
+    pub fn register(
+        &mut self,
+        name: &str,
+        element: Element,
+        context: Option<&str>,
+    ) -> Registration {
+        let template = Template {
+            element: std::rc::Rc::new(element),
+            context: context.map(str::to_owned),
+        };
+        match self.entries.entry(name.to_ascii_lowercase()) {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(template);
+                Registration::Added
+            }
+            std::collections::hash_map::Entry::Occupied(mut slot) => {
+                if slot.get().context.is_some() && context.is_none() {
+                    slot.insert(template);
+                    Registration::Replaced
+                } else {
+                    Registration::Refused
+                }
+            }
+        }
+    }
+
+    /// The template registered under `name`, case-folded (`0x6ee6f0`).
+    pub fn get(&self, name: &str) -> Option<&Element> {
+        self.entries
+            .get(&name.to_ascii_lowercase())
+            .map(|t| &*t.element)
+    }
+
+    /// The templates `element`'s load runs before its own body, in the order the reference runs
+    /// them: each level's `inherits` template is loaded through its own recursive load first
+    /// (`0x76fe5b`), the most distant first; nothing is merged, so per-level state (a texture's
+    /// wrap flag, `0x76fec6`) keeps its boundaries. `inherits` is one name, not a list: `0x6ee6f0`
+    /// has no splitter, so `"A, B"` misses (later clients split it); it is used verbatim
+    /// (`GetAttribute 0x6f2cf0` does not trim; `""` is skipped, `" "` misses) and matched without
+    /// ASCII case. A cycle stops at the repeated name.
+    pub fn inherited_levels(&self, element: &Element) -> Vec<std::rc::Rc<Element>> {
+        self.inherited_levels_until(element, |_| false)
+    }
+
+    /// [`Self::inherited_levels`], the walk stopping at the first `inherits` that `is_font` claims:
+    /// a FontString looks the name up as a font first and loads no template once one answers
+    /// (`0x770f69` → `0x770fb7`), so a template of the same name, and what it inherits, is never a
+    /// level.
+    pub fn inherited_levels_until(
+        &self,
+        element: &Element,
+        is_font: impl Fn(&str) -> bool,
+    ) -> Vec<std::rc::Rc<Element>> {
+        let mut out: Vec<std::rc::Rc<Element>> = Vec::new();
+        let mut active: Vec<String> = Vec::new();
+        let mut name = element.attr("inherits").map(str::to_string);
+        while let Some(n) = name.filter(|n| !n.is_empty()) {
+            if is_font(&n) {
+                break;
+            }
+            let key = n.to_ascii_lowercase();
+            if active.contains(&key) {
+                break;
+            }
+            let Some(t) = self.entries.get(&key) else {
+                break;
+            };
+            active.push(key);
+            name = t.element.attr("inherits").map(str::to_string);
+            out.push(t.element.clone());
+        }
+        out.reverse();
+        out
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.entries.contains_key(&name.to_ascii_lowercase())
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 }
 
@@ -161,30 +296,27 @@ pub fn parse(text: &str) -> Result<ParsedDocument, Error> {
                 None => warnings.push("<Include> without a file attribute; skipped".to_string()),
             }
         } else if tag.eq_ignore_ascii_case("Script") {
-            match attr_ci(child, "file") {
-                Some(file) => items.push(TopLevel::Script(ScriptRef::File(file))),
-                None => items.push(TopLevel::Script(ScriptRef::Inline {
-                    body: direct_text(child),
+            // The file runs first (`0x6ee0d4`), then a non-empty body, file or no file
+            // (`0x6ee0d9`-`0x6ee10f`).
+            let body = direct_text(child);
+            let file = attr_ci(child, "file");
+            let has_file = file.is_some();
+            if let Some(file) = file {
+                items.push(TopLevel::Script(ScriptRef::File(file)));
+            }
+            if !has_file || !body.is_empty() {
+                items.push(TopLevel::Script(ScriptRef::Inline {
+                    body,
                     line: inline_start_line(&doc, child),
-                })),
+                }));
             }
         } else if tag.eq_ignore_ascii_case("Font") {
-            let el = element_from_node(child);
-            if el.name().is_none() {
-                warnings.push("<Font> without a name attribute".to_string());
-            }
-            items.push(TopLevel::Font(el));
+            // An unnamed one is kept: the loader reports it where the reference does.
+            items.push(TopLevel::Font(element_from_node(child)));
         } else {
             let el = element_from_node(child);
-            if el.attr_bool("virtual") {
-                if el.name().is_none() {
-                    warnings.push(format!(
-                        "virtual <{}> without a name — a load error in the real client \
-                         (\"Unnamed virtual node\"); kept but unregistered, \
-                         so nothing can inherit it",
-                        el.tag
-                    ));
-                }
+            if el.attr_is_true("virtual") {
+                // An unnamed one is kept: the loader reports it where the reference does.
                 items.push(TopLevel::Template(el));
             } else {
                 items.push(TopLevel::Instance(el));
@@ -310,123 +442,9 @@ fn element_from_node(node: roxmltree::Node) -> Element {
     }
 }
 
-/// Resolve `inherits` into a materialized [`Element`]: the named template, itself expanded first,
-/// then the element on top. Children are the template's then the element's; the element's
-/// attributes override or extend the template's (case-insensitively). The reference merges
-/// nothing: `LoadXML` re-enters itself on the one object against each template, the most distant
-/// first, then the instance (`0x76985c`; `<Frames>` repeat the walk, `0x76a060`), and reads `name`
-/// and `id` from the instance alone (`PreLoadXML 0x769770`; a region's factory reads its `name`
-/// once, outside the walk, `0x6f2751`/`0x6f27e1`). So here `name` and `id` come from the element
-/// alone, and an unnamed instance stays unnamed; `virtual` merges like any attribute, read only at
-/// registration. A cycle is skipped with a warning.
-pub fn expand(
-    element: &Element,
-    templates: &HashMap<&str, &Element>,
-    warnings: &mut Vec<String>,
-) -> Element {
-    expand_known(element, templates, &HashSet::new(), warnings)
-}
-
-/// [`expand`], skipping without a warning an `inherits` that names a font object: a
-/// `<FontString inherits="GameFontNormalSmall">` takes a font, applied later, not a template.
-pub fn expand_known(
-    element: &Element,
-    templates: &HashMap<&str, &Element>,
-    fonts: &HashSet<&str>,
-    warnings: &mut Vec<String>,
-) -> Element {
-    let mut active = HashSet::new();
-    expand_inner(element, templates, fonts, warnings, &mut active)
-}
-
-fn expand_inner(
-    element: &Element,
-    templates: &HashMap<&str, &Element>,
-    fonts: &HashSet<&str>,
-    warnings: &mut Vec<String>,
-    active: &mut HashSet<String>,
-) -> Element {
-    let Some(inherits) = element.attr("inherits") else {
-        return element.clone();
-    };
-
-    // `inherits` is one name, not a list: `0x6ee6f0` has no splitter, so `"A, B"` misses (later
-    // clients split it). It is used verbatim (`GetAttribute 0x6f2cf0` does not trim; `""` is
-    // skipped, `" "` misses) and matched case-insensitively, ASCII only: `_strnicmp` at
-    // `0x6ee747`, reached despite a mis-cased name because `SStrHash 0x64b3f0` uppercases.
-    let mut base: Option<Element> = None;
-    for name in [inherits].into_iter().filter(|s| !s.is_empty()) {
-        if !active.insert(name.to_string()) {
-            warnings.push(format!(
-                "inheritance cycle detected at template '{name}'; skipping this reference"
-            ));
-            continue;
-        }
-        let hit = templates.get(name).copied().or_else(|| {
-            templates
-                .iter()
-                .find(|(k, _)| k.eq_ignore_ascii_case(name))
-                .map(|(_, v)| *v)
-        });
-        let Some(template) = hit else {
-            // A font object is not an unknown template; it is applied after this.
-            if !fonts.contains(name) {
-                warnings.push(format!(
-                    "unknown template '{name}' referenced by inherits; skipping"
-                ));
-            }
-            active.remove(name);
-            continue;
-        };
-        let expanded_template = expand_inner(template, templates, fonts, warnings, active);
-        active.remove(name);
-        base = Some(match base {
-            None => expanded_template,
-            Some(acc) => merge(&acc, &expanded_template),
-        });
-    }
-
-    match base {
-        Some(base) => merge(&base, element),
-        None => element.clone(),
-    }
-}
-
-/// [`expand`]'s merge; `over`'s tag wins, and its body when it has one. `base`'s `name` and `id`
-/// are dropped: they belong to the node they are written on.
-fn merge(base: &Element, over: &Element) -> Element {
-    let mut attrs: Vec<(String, String)> = base
-        .attrs
-        .iter()
-        .filter(|(k, _)| !k.eq_ignore_ascii_case("name") && !k.eq_ignore_ascii_case("id"))
-        .cloned()
-        .collect();
-    for (k, v) in &over.attrs {
-        if let Some(slot) = attrs.iter_mut().find(|(ek, _)| ek.eq_ignore_ascii_case(k)) {
-            slot.1 = v.clone();
-        } else {
-            attrs.push((k.clone(), v.clone()));
-        }
-    }
-
-    let mut children = base.children.clone();
-    children.extend(over.children.iter().cloned());
-
-    Element {
-        tag: over.tag.clone(),
-        attrs,
-        children,
-        body: if over.body.is_empty() {
-            base.body.clone()
-        } else {
-            over.body.clone()
-        },
-    }
-}
-
-/// The bare node a runtime `CreateFrame(kind, name, parent, inherits)` expands through
-/// [`expand`], so Lua and XML resolve `inherits` alike. The result keeps `tag`, the kind
-/// `CreateFrame` was given: a template's `<Button>` cannot retype a `"Frame"`.
+/// The bare node a runtime `CreateFrame(kind, name, parent, inherits)` loads (`0x70628b` →
+/// `0x6ee280`), so Lua and XML resolve `inherits` alike. The frame keeps the kind `CreateFrame`
+/// was given: a template's `<Button>` cannot retype a `"Frame"`.
 pub fn inherits_node(tag: &str, inherits: &str) -> Element {
     Element {
         tag: tag.to_string(),
@@ -457,6 +475,34 @@ pub fn resolve_name(raw: &str, parent_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// The frame loaders' bool attribute (`0x6f2cf0` then `0x6f1b30`, skipped when missing or
+    /// empty), and the two the reference compares against `"true"` alone.
+    #[test]
+    fn bool_attributes_read_through_the_clients_string_to_bool() {
+        let doc = parse(
+            r#"<Ui><Frame a="1" b="yes" c="On" d="false" e="0" f="" g="maybe" h="true" i="Y" j="off"/></Ui>"#,
+        )
+        .unwrap();
+        let TopLevel::Instance(el) = &doc.items[0] else {
+            panic!("an instance");
+        };
+        for yes in ["a", "b", "c", "h", "i"] {
+            assert_eq!(el.attr_bool_opt(yes), Some(true), "{yes}");
+            assert!(el.attr_bool(yes), "{yes}");
+        }
+        for no in ["d", "e", "g", "j"] {
+            assert_eq!(el.attr_bool_opt(no), Some(false), "{no}");
+            assert!(!el.attr_bool(no), "{no}");
+        }
+        assert_eq!(el.attr_bool_opt("f"), None, "an empty value is skipped");
+        assert_eq!(el.attr_bool_opt("absent"), None);
+        assert!(!el.attr_bool("f") && !el.attr_bool("absent"));
+        assert!(el.attr_is_true("h") && !el.attr_is_true("a") && !el.attr_is_true("i"));
+        // `virtual="1"` is no template: its test is the whole word `true` (`0x6ee190`).
+        let doc = parse(r#"<Ui><Frame name="One" virtual="1"/></Ui>"#).unwrap();
+        assert!(matches!(doc.items[0], TopLevel::Instance(_)));
+    }
+
     use super::*;
 
     #[test]
@@ -591,6 +637,27 @@ print(x)</Script>
         }
     }
 
+    /// A `<Script file>` with a body is the file, then the body (`0x6ee0d4`, `0x6ee10f`).
+    #[test]
+    fn a_script_file_with_a_body_keeps_both_in_order() {
+        let doc = parse(
+            r#"<Ui>
+                <Script file="Foo.lua">Ran = true</Script>
+            </Ui>"#,
+        )
+        .unwrap();
+        assert_eq!(
+            doc.items,
+            [
+                TopLevel::Script(ScriptRef::File("Foo.lua".to_string())),
+                TopLevel::Script(ScriptRef::Inline {
+                    body: "Ran = true".to_string(),
+                    line: 2,
+                }),
+            ]
+        );
+    }
+
     #[test]
     fn virtual_registers_as_template_non_virtual_as_instance() {
         let doc = parse(
@@ -608,8 +675,8 @@ print(x)</Script>
             "virtual attribute name/value compare is case-insensitive"
         );
         let templates = doc.templates();
-        assert!(templates.contains_key("MyTemplate"));
-        assert!(templates.contains_key("CasedTemplate"));
+        assert!(templates.contains("MyTemplate"));
+        assert!(templates.contains("CasedTemplate"));
         assert_eq!(templates.len(), 2);
     }
 
@@ -617,11 +684,8 @@ print(x)</Script>
     fn unnamed_virtual_warns_but_does_not_fail() {
         let doc = parse(r#"<Ui><Frame virtual="true"/></Ui>"#).unwrap();
         assert!(matches!(doc.items[0], TopLevel::Template(_)));
-        assert_eq!(doc.warnings.len(), 1);
-        assert!(
-            doc.warnings[0].contains("Unnamed virtual node")
-                || doc.warnings[0].contains("without a name")
-        );
+        // Reported by the loader into the document's record, not at parse.
+        assert!(doc.warnings.is_empty(), "{:?}", doc.warnings);
         assert!(
             doc.templates().is_empty(),
             "an unnamed template cannot be inherited"
@@ -647,64 +711,31 @@ print(x)</Script>
     fn a_comma_list_is_one_literal_name_that_misses_and_applies_neither_template() {
         let doc = parse(
             r#"<Ui>
-                <Frame name="A" virtual="true">
-                    <Layers><Layer level="ARTWORK"><Texture name="FromA"/></Layer></Layers>
-                </Frame>
-                <Frame name="B" virtual="true" alpha="0.5">
-                    <Layers><Layer level="ARTWORK"><Texture name="FromB"/></Layer></Layers>
-                </Frame>
-                <Frame name="Inst" inherits="A, B" alpha="1.0">
-                    <Layers><Layer level="ARTWORK"><Texture name="FromInst"/></Layer></Layers>
-                </Frame>
+                <Frame name="A" virtual="true"/>
+                <Frame name="B" virtual="true"/>
+                <Frame name="Inst" inherits="A, B"/>
                 <Frame name="Padded" inherits=" A "/>
             </Ui>"#,
         )
         .unwrap();
         let templates = doc.templates();
-        let TopLevel::Instance(inst) = &doc.items[2] else {
-            panic!("expected instance")
-        };
-        let mut warnings = Vec::new();
-        let expanded = expand(inst, &templates, &mut warnings);
-
-        assert_eq!(warnings.len(), 1, "{warnings:?}");
-        assert!(
-            warnings[0].contains("A, B"),
-            "the warning must name the literal it looked up: {warnings:?}"
-        );
-
-        // The element loads with its own content only.
-        assert_eq!(expanded.attr("alpha"), Some("1.0"));
-        assert_eq!(expanded.children.len(), 1);
-        fn texture_name(el: &Element) -> &str {
-            el.children[0].children[0].attr("name").unwrap()
+        assert!(templates.get("A, B").is_none());
+        for i in [2, 3] {
+            let TopLevel::Instance(inst) = &doc.items[i] else {
+                panic!("expected instance")
+            };
+            // The element loads with its own node only; the miss is the loader's to log.
+            assert!(templates.inherited_levels(inst).is_empty(), "{inst:?}");
         }
-        assert_eq!(texture_name(&expanded.children[0]), "FromInst");
-
-        // A padded name misses: the value is used verbatim.
-        let TopLevel::Instance(padded) = &doc.items[3] else {
-            panic!("expected instance")
-        };
-        let mut w2 = Vec::new();
-        let expanded = expand(padded, &templates, &mut w2);
-        assert_eq!(w2.len(), 1, "{w2:?}");
-        assert!(
-            expanded.children.is_empty(),
-            "picked up A despite the spaces"
-        );
     }
 
     #[test]
-    fn inheritance_chain_recurses() {
+    fn inheritance_chain_recurses_the_most_distant_first() {
         let doc = parse(
             r#"<Ui>
-                <Frame name="Root" virtual="true" frameStrata="LOW">
-                    <Layers><Layer level="ARTWORK"><Texture name="RootTex"/></Layer></Layers>
-                </Frame>
-                <Frame name="Mid" virtual="true" inherits="Root" frameStrata="MEDIUM">
-                    <Layers><Layer level="ARTWORK"><Texture name="MidTex"/></Layer></Layers>
-                </Frame>
-                <Frame name="Leaf" inherits="Mid"/>
+                <Frame name="Root" virtual="true"/>
+                <Frame name="Mid" virtual="true" inherits="ROOT"/>
+                <Frame name="Leaf" inherits="mid"/>
             </Ui>"#,
         )
         .unwrap();
@@ -712,20 +743,16 @@ print(x)</Script>
         let TopLevel::Instance(leaf) = &doc.items[2] else {
             panic!("expected instance")
         };
-        let mut warnings = Vec::new();
-        let expanded = expand(leaf, &templates, &mut warnings);
-        assert!(warnings.is_empty());
-        // Mid's frameStrata overrides Root's, and Leaf sets none.
-        assert_eq!(expanded.attr("frameStrata"), Some("MEDIUM"));
-        assert_eq!(
-            expanded.children.len(),
-            2,
-            "Root's then Mid's <Layers>, in order"
-        );
+        let names: Vec<_> = templates
+            .inherited_levels(leaf)
+            .iter()
+            .map(|t| t.name().unwrap().to_string())
+            .collect();
+        assert_eq!(names, ["Root", "Mid"]);
     }
 
     #[test]
-    fn inheritance_cycle_warns_and_terminates() {
+    fn an_inheritance_cycle_stops_at_the_repeated_name() {
         let doc = parse(
             r#"<Ui>
                 <Frame name="A" virtual="true" inherits="B"/>
@@ -738,12 +765,12 @@ print(x)</Script>
         let TopLevel::Instance(inst) = &doc.items[2] else {
             panic!("expected instance")
         };
-        let mut warnings = Vec::new();
-        let _expanded = expand(inst, &templates, &mut warnings);
-        assert!(
-            warnings.iter().any(|w| w.contains("cycle")),
-            "expected a cycle warning, got {warnings:?}"
-        );
+        let names: Vec<_> = templates
+            .inherited_levels(inst)
+            .iter()
+            .map(|t| t.name().unwrap().to_string())
+            .collect();
+        assert_eq!(names, ["B", "A"]);
     }
 
     #[test]

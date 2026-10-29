@@ -62,15 +62,46 @@ pub(crate) const PROBE_VARS: &[ProbeVar] = &[
     },
     ProbeVar {
         name: "WOW_PROBE_KEY",
-        purpose: "\"<key>@<secs>[:<hold>][;…]\" — synthesize key presses once in-world (a jump, a mount flourish, a held W)",
+        purpose: "\"<key>@<secs>[:<hold>][;text=<chars>@<secs>…]\" — synthesize key presses and typed text once in-world (a jump, a mount flourish, a held W, a chat line)",
         // Each tap fires at its `@<secs>` and releases `<hold>` later, on `ProbeClock`.
         wall_clock: true,
+    },
+    ProbeVar {
+        name: "WOW_PROBE_CLICK",
+        purpose: "\"<Frame>@<secs>[:Right][;…]\" — click a named frame's centre through the window's own events",
+        // Each click fires at its `@<secs>`, on `ProbeClock`.
+        wall_clock: true,
+    },
+    ProbeVar {
+        name: "WOW_PROBE_INPUT_GLUE",
+        purpose: "1 — arm the key and click probes at boot, for the login screen",
+        wall_clock: false,
     },
     ProbeVar {
         name: "WOW_PROBE_LUA",
         purpose: "\"<chunk>\" — run a Lua chunk in the live UI VM once per world entry (the press-the-button-headlessly instrument)",
         // First fire at `_AT` seconds, re-armed `_AGAIN` seconds into every later world entry.
         wall_clock: true,
+    },
+    ProbeVar {
+        name: "WOW_PROBE_GLUE_LUA",
+        purpose: "\"<chunk>\" — run a Lua chunk once in the stock glue VM (press the login screen's buttons headlessly)",
+        wall_clock: true,
+    },
+    ProbeVar {
+        name: "WOW_PROBE_GLUE_LUA_AT",
+        purpose: "<secs> — when the glue chunk runs (default 10)",
+        wall_clock: false,
+    },
+    ProbeVar {
+        name: "WOW_PROBE_GLUE_SHOT",
+        purpose: "<path> — one PNG after the glue chunk runs",
+        wall_clock: false,
+    },
+    ProbeVar {
+        name: "WOW_PROBE_GLUE_SHOT_AFTER",
+        purpose: "<secs> — how long after the glue chunk the shot is taken (default 1)",
+        wall_clock: false,
     },
     ProbeVar {
         name: "WOW_PROBE_LUA_AT",

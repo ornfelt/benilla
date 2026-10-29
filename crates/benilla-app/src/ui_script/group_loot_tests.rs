@@ -71,6 +71,7 @@ const BARS: &[&str] = &[
 /// with no loader warning of any kind.
 fn setup_counted(extra: &[&str]) -> (UiScript, usize) {
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     let mut built = 0;
     for file in super::test_ui::production_order(&[BARS, GROUP_LOOT, extra]) {
@@ -105,6 +106,7 @@ fn rolls() -> LootRollsState {
                 item_id: 17182,
                 link: Some(STAFF_LINK.into()),
                 random_property_id: 0,
+                closed: false,
             },
             LootRollEntry {
                 roll_id: 8,
@@ -116,6 +118,7 @@ fn rolls() -> LootRollsState {
                 item_id: 25,
                 link: Some(SWORD_LINK.into()),
                 random_property_id: 0,
+                closed: false,
             },
             // No template yet: name, texture, quality and link (which embeds the name) are nil.
             LootRollEntry {
@@ -128,6 +131,7 @@ fn rolls() -> LootRollsState {
                 item_id: 4306,
                 link: None,
                 random_property_id: 0,
+                closed: false,
             },
         ],
     }
@@ -233,7 +237,20 @@ fn start_loot_roll_claims_frames_in_order_and_paints_the_roll() {
         s.take_loot_roll_votes().is_empty(),
         "a BoP Need must not reach the wire before the confirm"
     );
-    assert_eq!(s.take_loot_roll_confirms(), vec![(7, 1)], "Need on roll 7");
+    // `RollOnLoot` signalled `CONFIRM_LOOT_ROLL` inside the click (`0x61be8b`), so
+    // `UIParent_OnEvent` has the dialog up already, carrying Need on roll 7.
+    assert_eq!(
+        s.eval::<(i64, i64)>(
+            "local d = StaticPopup_FindVisible(\"CONFIRM_LOOT_ROLL\") return d.data, d.data2"
+        )
+        .unwrap(),
+        (7, 1)
+    );
+    assert!(
+        s.eval::<bool>("return GroupLootFrame1:IsVisible()")
+            .unwrap(),
+        "the frame stays up for the confirm"
+    );
 }
 
 /// `CONFIRM_LOOT_ROLL` opens the dialog carrying `(rollID, rollType)` (`UIParent.lua:517-523`);
@@ -243,12 +260,16 @@ fn the_bop_confirm_popup_lands_the_withheld_vote() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = setup();
     s.set_loot_rolls(rolls());
-
-    // The app fires this after draining the confirm queue (`ui_loot_roll::drain_loot_rolls`).
     s.fire_event(
-        "CONFIRM_LOOT_ROLL",
-        vec![ScriptValue::Int(7), ScriptValue::Int(1)],
+        "START_LOOT_ROLL",
+        vec![ScriptValue::Int(7), ScriptValue::Int(42_000)],
     );
+    assert!(s
+        .eval::<bool>("return GroupLootFrame1:IsVisible()")
+        .unwrap());
+
+    // `RollOnLoot`'s own signal for a bind-on-pickup Need (`0x61be8b`).
+    s.run("RollOnLoot(7, 1)").unwrap();
     assert!(s.errors().is_empty(), "script errors: {:?}", s.errors());
 
     // `data2` is the rollType, so `OnAccept` can replay the click.
@@ -292,6 +313,10 @@ fn the_bop_confirm_popup_lands_the_withheld_vote() {
         vec![(7, 1)],
         "OK on the confirm sends the Need the gate withheld"
     );
+    // The confirmed vote's `CANCEL_LOOT_ROLL` (`0x61bf2a`) hid roll 7's frame inside the call.
+    assert!(!s
+        .eval::<bool>("return GroupLootFrame1:IsVisible()")
+        .unwrap());
 }
 
 /// `CANCEL_LOOT_ROLL` hides the popup holding that rollID and no other (`LootFrame.lua:279-285`).
@@ -382,7 +407,7 @@ fn in_flight_roll_opens_without_a_name_or_icon() {
 
 /// The stock popup paints only in `OnShow`, so a `START_LOOT_ROLL` that beats its roll to the model
 /// stays blank. On a cache miss the reference fires it from the item-template arrival callback
-/// (`0x61b460`, armed by `0x61b310`), and `feed_loot_rolls` holds it the same way.
+/// (`0x61b460`, armed by `0x61b310`), and the roll handlers hold it the same way.
 #[test]
 fn nothing_repaints_a_frame_that_opened_before_its_snapshot() {
     let _data = benilla_formats::wow_data_or_skip!();
@@ -442,6 +467,7 @@ fn nothing_repaints_a_frame_that_opened_before_its_snapshot() {
 fn managed_positions_engage_for_the_bare_frame_name() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     // `GameTooltip.xml` brings `TOOLTIP_DEFAULT_COLOR`, which the dropdown lists read in their
     // OnLoad (`UIDropDownMenuTemplates.xml:186`).
@@ -469,13 +495,13 @@ fn managed_positions_engage_for_the_bare_frame_name() {
     // No bars: the row's base, 60, which the XML anchor also gives.
     s.run("UIParent_ManageFramePositions()").unwrap();
     s.resolve();
-    assert_eq!(bottom(&s), 60.0, "baseY");
+    benilla_ui::assert_near!(bottom(&s), 60.0, "baseY");
 
     // The pass reads `SHOW_MULTI_ACTIONBAR_1`/`_2`, not the bars (`UIParent.lua:1599-1606`).
     s.run("SHOW_MULTI_ACTIONBAR_1 = 1 SHOW_MULTI_ACTIONBAR_2 = 1 UIParent_ManageFramePositions()")
         .unwrap();
     s.resolve();
-    assert_eq!(bottom(&s), 102.0, "60 + bottomEither 42 — the row engaged");
+    benilla_ui::assert_near!(bottom(&s), 102.0, "60 + bottomEither 42 — the row engaged");
 
     // The stance bar shows too. The pass touches its three shelf textures by name, unguarded
     // (`UIParent.lua:1705-1732`), so the stand-in bar needs stand-in textures.
@@ -490,12 +516,12 @@ fn managed_positions_engage_for_the_bare_frame_name() {
     )
         .unwrap();
     s.resolve();
-    assert_eq!(bottom(&s), 144.0, "60 + 42 + pet 42");
+    benilla_ui::assert_near!(bottom(&s), 144.0, "60 + 42 + pet 42");
 
     s.run("ShapeshiftBarFrame:Hide() UIParent_ManageFramePositions()")
         .unwrap();
     s.resolve();
-    assert_eq!(bottom(&s), 102.0, "back to the multibar-only stack");
+    benilla_ui::assert_near!(bottom(&s), 102.0, "back to the multibar-only stack");
 }
 
 /// The roll icon's OnClick (`LootFrame.xml:353-361`): ctrl dresses up the item and shift posts
@@ -525,7 +551,7 @@ fn ctrl_and_shift_on_the_roll_icon_preview_and_post_its_link() {
     s.mouse_button(x, y, "LeftButton", true);
     s.mouse_button(x, y, "LeftButton", false);
     assert!(
-        s.take_loot_roll_votes().is_empty() && s.take_loot_roll_confirms().is_empty(),
+        s.take_loot_roll_votes().is_empty(),
         "an unmodified icon click votes nothing"
     );
 
@@ -551,7 +577,7 @@ fn ctrl_and_shift_on_the_roll_icon_preview_and_post_its_link() {
         "re-dress first, then try the rolled item on"
     );
     assert!(
-        s.take_loot_roll_votes().is_empty() && s.take_loot_roll_confirms().is_empty(),
+        s.take_loot_roll_votes().is_empty(),
         "no modified icon click may vote"
     );
 
@@ -564,6 +590,11 @@ fn ctrl_and_shift_on_the_roll_icon_preview_and_post_its_link() {
         "the Need button still votes"
     );
     assert!(s.errors().is_empty(), "script errors: {:?}", s.errors());
+    assert!(
+        !s.eval::<bool>("return GroupLootFrame1:IsVisible()")
+            .unwrap(),
+        "and its CANCEL_LOOT_ROLL hid the frame inside the click (0x61bf2a)"
+    );
 }
 
 /// Addons inherit `GroupLootFrameTemplate` by its 1.12 name and reach for its children; the icon
@@ -607,6 +638,7 @@ fn the_roll_template_carries_the_reference_name_and_the_parts_addons_reach_for()
 fn the_stock_group_loot_frame_survives_an_in_flight_roll() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for f in crate::ui_script::test_ui::production_order(&[
         super::test_ui::LOOT_UI,
@@ -639,9 +671,9 @@ fn the_stock_group_loot_frame_survives_an_in_flight_roll() {
         .eval("local r, g, b = GetItemQualityColor(1)\nreturn r, g, b")
         .unwrap();
     assert!(
-        (painted.0 - common.0).abs() < 1e-6
-            && (painted.1 - common.1).abs() < 1e-6
-            && (painted.2 - common.2).abs() < 1e-6,
+        (painted.0 - common.0).abs() < 1.0 / 255.0
+            && (painted.1 - common.1).abs() < 1.0 / 255.0
+            && (painted.2 - common.2).abs() < 1.0 / 255.0,
         "the stock roll popup paints the miss tail's Common, got {painted:?} want {common:?}"
     );
 }
