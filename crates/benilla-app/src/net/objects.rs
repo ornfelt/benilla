@@ -82,6 +82,7 @@ pub(crate) struct Scene<'w, 's> {
     remote: Query<'w, 's, &'static mut RemoteMotion>,
     modes: Query<'w, 's, &'static mut UnitMoveModes>,
     xp_awarded: Query<'w, 's, (), With<crate::ui_chat::combat::watch::XpAwarded>>,
+    client_controlled: Query<'w, 's, (), With<super::ClientControlled>>,
     riders: Query<'w, 's, &'static mut crate::transport::TransportRider>,
     /// A transport's clock, which only a new object's create sets (`0x5f7080`).
     anchors: Query<'w, 's, &'static crate::transport::TransportAnchor>,
@@ -158,6 +159,16 @@ pub(crate) struct Scene<'w, 's> {
     place: crate::ui_party::net::SnapshotPlace<'w, 's>,
     /// The active mover, which its unit's release and destroy zero.
     mover: Option<ResMut<'w, super::MoverClaim>>,
+    /// The far-sight subject, whose view-out term the stun's tick reads.
+    view_subject: Option<Res<'w, crate::player::ViewSubject>>,
+    /// The active mover's auto-move, which its release and the watchers' stops end.
+    follow: Option<ResMut<'w, crate::player::FollowState>>,
+    approach: Option<ResMut<'w, crate::player::Approach>>,
+    /// Autorun as the frame's calls leave it, which an auto-move's stop clears.
+    call_autorun: Option<ResMut<'w, crate::player::CallAutorun>>,
+    /// Our own control, which our arrival restores and `IsClientControlled` reads for our
+    /// character (`0x5fa5f0`).
+    own_control_lost: Option<ResMut<'w, crate::player::OwnControlLost>>,
     /// Who we drive and whether we may, which our own arrival gives back.
     mover_lock: Option<ResMut<'w, crate::player::MoverLock>>,
     /// The area spirit healer the ghost flag's clear empties (`0x5dea20` → `0x4921c0`), and the
@@ -306,11 +317,24 @@ fn run_callback(
             }
             Cb::CooldownQuery => {}
             Cb::Stationery => run_answer_step(world, paper_answered, entry),
+            // `ShowItemCastFailure 0x6e29b0`, for a record and a refusal alike: the line again,
+            // on the cast lane here.
+            Cb::CastFailure { spell, reason } => {
+                if let Some(mut reports) = world.get_resource_mut::<crate::ui_cast::CastReports>() {
+                    reports.redisplay(spell, reason, entry);
+                }
+            }
             // `QUEST_LOG_UPDATE` for a ready record only (`0x4e0838`), held and parked here.
             Cb::QuestLog if answered => crate::ui_items::feed::quest_log_answered(world),
             // The tooltips' rebuilds for a found record only (`0x52e551`, `0x52f826`).
             Cb::Tooltip if answered => crate::ui_items::feed::tooltips_answered(world, entry),
             Cb::QuestLog | Cb::Tooltip => {}
+            // The profession and craft lists' rebuilds, for a found record only.
+            Cb::TradeSkill | Cb::TradeSkillBuild | Cb::Craft => {
+                if answered {
+                    crate::ui_tradeskill::record_answered(world, callback);
+                }
+            }
             _ => run_answer_step(world, run_record_callback, (entry, callback, answered)),
         }
     }
@@ -388,13 +412,23 @@ fn run_record_callback(
                 id: crate::field_watch::id::UNIT_INVENTORY_CHANGED,
             }),
         Cb::Trade | Cb::Ammo => {}
+        // The bar's recount of the entry, for a ready record only (`0x4e5b86` → `0x4e5c70`).
+        Cb::ActionSlots if answered => sc.item_lane.push(crate::item_watch::Run {
+            notice: Some(crate::item_watch::ItemNotice::ActionRecord { entry }),
+            ..Default::default()
+        }),
+        Cb::ActionSlots => {}
         Cb::Swap
         | Cb::AutoEquip
         | Cb::ItemCooldown
         | Cb::CooldownQuery
         | Cb::Stationery
+        | Cb::CastFailure { .. }
         | Cb::QuestLog
-        | Cb::Tooltip => {}
+        | Cb::Tooltip
+        | Cb::TradeSkill
+        | Cb::TradeSkillBuild
+        | Cb::Craft => {}
         // The vendor's run for a record and a refusal alike (`0x4fb0f0`, `0x4fb570`).
         Cb::Merchant => sc.merchant.row_answered(),
         Cb::Buyback => sc.merchant.buyback_answered(),
@@ -632,6 +666,24 @@ fn on_monster_move(In(ev): In<SessionEvent>, mut sc: Scene) {
             &mut sc.transforms,
             &mut sc.riders,
         );
+        // A path started on the active mover runs its input tick (`0x6187a0` → `0x602053`), whose
+        // precondition the server's spline fails (`0x5144e0`): the teardown leg stops the auto-move
+        // (`0x5146d6`). A stop starts no path, and nor does a rooted mover: the start returns 0 on
+        // the root bit `0x1000` (`0x6187c2`-`0x6187c7`), so `0x601fee` skips the tick.
+        let mover_rooted = sc
+            .player
+            .as_deref()
+            .is_some_and(crate::player::Player::rooted);
+        if !stop && !mover_rooted {
+            update::stop_auto_move(
+                sc.mover.as_deref(),
+                sc.follow.as_deref_mut(),
+                sc.approach.as_deref_mut(),
+                sc.call_autorun.as_deref_mut(),
+                &mut sc.field_notices,
+                guid,
+            );
+        }
     }
 }
 

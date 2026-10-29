@@ -43,8 +43,8 @@ use crate::game_plugins::schedule_tests::{census, type_names_available, SyncPoin
 
 /// The most rows [`super::guard_tests::READS_FRAME_FINAL`] may hold, and the most inputs across
 /// them: each only falls, so lower it when a row or an input goes.
-const FRAME_FINAL_FEEDS: usize = 14;
-const FRAME_FINAL_INPUTS: usize = 92;
+const FRAME_FINAL_FEEDS: usize = 7;
+const FRAME_FINAL_INPUTS: usize = 30;
 
 /// The systems that may run after the dispatch (`apply_net_updates`) and run ahead of the drain
 /// (`fire_in_order`), by a suffix of the system's name, with what each writes of the state a
@@ -72,15 +72,6 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
     ("::transport::compose_riders", &["Transform", "net::motion::remote::RemoteMotion"],
         "the arrival snap `0x7c6420` (`0x618dfc`) is written inside the packet"),
-    ("::ui_action::state::feed_action_state", &["ui_action::state::ActionStateMemory"],
-        "stores the slots' usable pairs the frame's writes owe and the reactive list the frame's \
-         learns grew, which the usable refreshes inside the packets read, where the reference \
-         stores each at its write (`0x4e590a`, `0x4b27c7`)"),
-    ("::ui_cast::feed_cast_reports", &["ui_action::cast_lines::CastFailRedisplays"],
-        "holds the refusals that wait on their item's record, which it tests to queue the cast \
-         lane's retry behind the frame's packets, where the reference shows each in the record's \
-         callback (`ShowItemCastFailure` `0x6e29b0`), inside `ItemCacheReceive` `0x55bdb0` in the \
-         answer's handler"),
     ("::ui_char::feed_char", &["UiScript", "ui_char::AmmoRecordHits"],
         "a field event's listeners read its push, and it takes the ammo getters' record hits, a \
          `UNIT_INVENTORY_CHANGED` each behind it, where the reference's hit registers no callback \
@@ -89,14 +80,6 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
         "recomputes the language skills off the book and the skill lines, which a page's show \
          reads inside its packet (`0x4e3856`), where the reference reads the skill live at the \
          show (`0x4e3837`)"),
-    ("::ui_craft::feed_craft", &["ui_craft::CraftItemWaits"],
-        "spends the craft getters' record waits as their records land and rebuilds the list, \
-         where the reference runs each callback (`OnCraftItemRecord` `0x4f7710`) in \
-         `ItemCacheReceive` `0x55bdb0`, inside the answer's handler (`0x555140`, `0x555160`)"),
-    ("::ui_follow::feed_follow", &["ui_follow::FollowFeed"],
-        "fires the engine's follow transitions off the followee memo the host's `FollowUnit` \
-         tells too, where the reference signals inside the move's start and end (`0x611130`, \
-         `0x60fb60`)"),
     ("::ui_item_text::apply_reads", &["ui_item_text::ItemTextOpen"],
         "a click's or a bag use's read, queued in its input or its call, which the reference \
          opens inside them (`0x5f58c0`, `0x4e32e0`), ahead of the packets (`0x420d23`)"),
@@ -109,10 +92,6 @@ const BETWEEN_THE_DISPATCH_AND_THE_DRAIN: &[(&str, &[&str], &str)] = &[
         "copies the interaction latch into the `npc` unit the token lookups read, where the \
          reference's `npc` is the latch itself (`0x515c00`), set inside the handlers through \
          `SetInteractionTarget` `0x4930d0`"),
-    ("::ui_tradeskill::feed_trade_skill", &["ui_tradeskill::TradeSkillItemWaits"],
-        "spends the profession getters' record waits as their records land and rebuilds the \
-         list, where the reference runs each callback (`OnTradeSkillItemRecord` `0x4fdc30`) in \
-         `ItemCacheReceive` `0x55bdb0`, inside the answer's handler (`0x555140`, `0x555160`)"),
 ];
 
 /// The systems between the dispatch and the drain that write what the host's live reads read,
@@ -155,6 +134,9 @@ const AFTER_THE_PACKETS_IN_THE_REFERENCE: &[(&str, &[&str], &str)] = &[
     ("::ui_action::cooldown_lane::drop_cooldown_log<benilla_app::ui_pet::PetBar>",
         &["ui_pet::PetBar"],
         "drops the pet's cooldown log, run only while no in-game interface \
+         is up, so no listener exists; it goes with the log"),
+    ("::ui_cast::views::drop_cast_views", &["ui_cast::views::CastViews"],
+        "drops the cast views' log, run only while no in-game interface \
          is up, so no listener exists; it goes with the log"),
     ("::ui_chat::language::load_language_words", &["ui_chat::language::ChatLanguages"],
         "loads `LanguageWords.dbc` once, the first frame the install is open, ahead of every \

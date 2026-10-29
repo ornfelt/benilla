@@ -19,10 +19,11 @@ use bevy::ecs::system::{SystemParam, SystemParamItem};
 use bevy::prelude::*;
 
 use benilla_ui::script::{
-    AuctionCall, AuraCall, BankCall, BinderCall, CallHost, CallTail, CraftCall, DeathAction,
-    DuelRequest, GmTicketCall, GossipCall, InstanceCall, ItemTextCall, LootRollCall, MailCall,
-    MeetingStoneCall, MerchantCall, MinimapCall, PetitionCall, PostureCall, PvpCall, ScriptCall,
-    StableCall, SummonCall, TabardCall, TaxiCall, TradeCall, TradeSkillCall, TrainerCall, UiScript,
+    ActionBarCall, AuctionCall, AuraCall, BankCall, BinderCall, CallHost, CallTail, CraftCall,
+    DeathAction, DuelRequest, GmTicketCall, GossipCall, InstanceCall, ItemTextCall, LootRollCall,
+    MailCall, MeetingStoneCall, MerchantCall, MinimapCall, PetitionCall, PostureCall, PvpCall,
+    ScriptCall, StableCall, SummonCall, TabardCall, TaxiCall, TradeCall, TradeSkillCall,
+    TrainerCall, UiScript,
 };
 
 pub(crate) mod disjoint;
@@ -135,10 +136,9 @@ disjoint::disjoint_set! {
         aura: crate::ui_aura::AuraSteps<'static, 'static>,
         minimap: crate::minimap::MinimapSteps<'static>,
         pet_unlearn: crate::ui_dialog_verbs::PetUnlearnSteps<'static, 'static>,
-        /// The engine's plate bits, and the follow's start and what the VM was told of it.
+        /// The engine's plate bits, and the follow's start.
         plates: crate::vplates::PlateSteps<'static>,
         follow: crate::target::FollowSteps<'static, 'static>,
-        follow_feed: Option<ResMut<'static, crate::ui_follow::FollowFeed>>,
         /// The console's commands, against what they read and write, and the getters' lookups.
         console: crate::console::ConsoleSteps<'static, 'static>,
         /// The CVar registry and every row's change callback, run inside the write.
@@ -209,11 +209,14 @@ impl ScriptCallHost<'_, '_> {
     /// `SetSelection` (`0x493540`) signals inside whatever runs it: the teardown's
     /// `PET_BAR_UPDATE` (`0x4bd6b4`) before the store and the send, the change's signals before
     /// the re-swing (`0x4938c8`), each point running its listeners there, and what they left
-    /// applied once the turn ends, with the host lent.
+    /// applied once the turn ends, with the host lent. A unit the writer's select handed the
+    /// targeting cursor (`0x4935d5`), such as the melee probe's nearest-enemy pick (`0x6130bc` →
+    /// `0x4941e6`), is bound first, where its select returned.
     pub(crate) fn engine_select(&mut self, script: &mut UiScript, select: EngineSelect) {
         #[cfg(test)]
         self.census_probe();
         script.host_out(|script| {
+            self.appliers.cursor().bind_parked();
             let mut at = Signalled {
                 selected: select.before,
                 latched: select.latched,
@@ -227,10 +230,12 @@ impl ScriptCallHost<'_, '_> {
         script.hosted(self, |_| ());
     }
 
-    /// An engine writer's StartAttack (`0x5ecb70`) at `guid` outside any call, such as a spell's
-    /// deferred melee start (`0x6e8402` → `0x6131a0`): its own select (`0x5eccaa`) signals in
-    /// place, before its swing, behind the cast reports made since `mark`.
-    pub(crate) fn engine_start_attack(
+    /// A go's deferred melee start outside any call (`0x6e8402` → `0x6131a0`), the player's Attack
+    /// with the first hit as the validator's candidate: the actor checks and the target half
+    /// (`0x612df0`), whose select of the hit signals in place, or with the targeting cursor up
+    /// binds it and selects nothing; then the swing at the selection as the validator re-read it
+    /// (`0x6130c1`), or a refusal's line and no swing. Behind the cast reports made since `mark`.
+    pub(crate) fn engine_attack(
         &mut self,
         script: &mut UiScript,
         guid: u64,
@@ -244,8 +249,8 @@ impl ScriptCallHost<'_, '_> {
                 latched: self.appliers.pet().attack_latched(),
                 mark: self.appliers.reports().mark_at(mark),
             };
-            let owed = self.appliers.select().start_attack(guid);
-            self.settle_selection(script, &mut at, owed);
+            // A packet runs in no script: the gate's tag 4 passes (`0x494a5a`).
+            self.attack_at(script, &mut at, Some(guid), true);
             self.commit_views(script);
             #[cfg(test)]
             self.census_done();
@@ -290,21 +295,120 @@ impl ScriptCallHost<'_, '_> {
     }
 
     /// The world-enter cascade's usable cache refresh (`0x490979` → `0x4e4f90` → `0x4e5c00`),
-    /// in its place ([`crate::ui_action::ActionStates::enter_world_refresh`]): whether a pair
+    /// in its place ([`crate::ui_action::ActionStates::cache_refresh`]): whether a pair
     /// changed. A harness without the action feed's inputs refreshes nothing.
     pub(crate) fn engine_enter_world_refresh(&mut self, script: &mut UiScript) -> bool {
         self.appliers
             .action_states()
             .as_mut()
-            .is_some_and(|states| states.enter_world_refresh(script))
+            .is_some_and(|states| states.cache_refresh(script))
     }
 
-    /// A recount's slot write outside any call (`0x4e58e0`): the slot's usable pair stored and
-    /// pushed, with nothing signalled ([`crate::ui_action::ActionStates::slot_written`]).
-    pub(crate) fn engine_slot_written(&mut self, script: &mut UiScript) {
-        if let Some(states) = self.appliers.action_states().as_mut() {
-            states.slot_written(script);
+    /// The bar's usable cache refreshed outside the usable refresh (`RefreshActionBarUsable
+    /// 0x4e5c00`), `RaiseBagUpdate`'s in an item watcher's run (`0x4f9374`): every pair recomputed
+    /// and stored, and `ACTIONBAR_UPDATE_USABLE` signalled with the host lent when one changed
+    /// (`0x4e5c53`). A harness without the action feed's inputs refreshes nothing.
+    pub(crate) fn engine_usable_cache_refresh(&mut self, script: &mut UiScript) {
+        let changed = self
+            .appliers
+            .action_states()
+            .as_mut()
+            .is_some_and(|states| states.cache_refresh(script));
+        if changed {
+            script.hosted(self, |script| {
+                script.fire_event("ACTIONBAR_UPDATE_USABLE", vec![]);
+            });
         }
+    }
+
+    /// `EditMacro`'s refresh of the bar's usable cache (`0x4f132e` into `0x4e5c00`), inside the
+    /// call: `ACTIONBAR_UPDATE_USABLE` at its signal point when a pair changed (`0x4e5c53`).
+    fn refresh_usable_cache(
+        &mut self,
+        script: &mut UiScript,
+        mark: &mut crate::ui_cast::ReportMark,
+    ) {
+        let changed = self
+            .appliers
+            .action_states()
+            .as_mut()
+            .is_some_and(|states| states.cache_refresh(script));
+        if changed {
+            script.fire_event("ACTIONBAR_UPDATE_USABLE", vec![]);
+            self.at_point(script, mark);
+        }
+    }
+
+    /// A slot write outside any call (`0x4e58e0`), a recount's or a spell packet's: the 1-based
+    /// `action`'s usable pair stored and pushed, with nothing signalled
+    /// ([`crate::ui_action::ActionStates::slot_written`]).
+    pub(crate) fn engine_slot_written(&mut self, script: &mut UiScript, action: u32) {
+        if let Some(states) = self.appliers.action_states().as_mut() {
+            states.slot_written(script, action);
+        }
+    }
+
+    /// Our player's arrival's slot pass (`0x5deae2`-`0x5deb12`): the staged words loaded into the
+    /// bar but an unknown spell's ([`crate::ui_action::ActionSlots::load_staged`]), then each
+    /// loaded word into the VM's copy, each item word recounted and its usable pair stored
+    /// ([`crate::ui_action::ActionStates::arrival_slots`]).
+    pub(crate) fn engine_arrival_slots(&mut self, script: &mut UiScript) {
+        let Some(known) = self
+            .appliers
+            .action_states()
+            .as_ref()
+            .map(|states| states.known_spells())
+        else {
+            return;
+        };
+        let loaded = self
+            .appliers
+            .action_bar()
+            .load_staged(|word| known.contains(&word));
+        if let Some(states) = self.appliers.action_states().as_mut() {
+            states.arrival_slots(script, &loaded);
+        }
+    }
+
+    /// `0x4e6d20(entry)`, a recount's one count of its entry (`0x4e5c75`); `None` in a harness
+    /// without the action feed's inputs.
+    pub(crate) fn engine_item_count(&mut self, entry: u32) -> Option<u32> {
+        self.appliers
+            .action_states()
+            .as_ref()
+            .map(|states| states.item_count(entry))
+    }
+
+    /// `0x4e5de0`'s notify of the 1-based `action` when it stands for `spell` in the player's book:
+    /// its usable pair stored; whether it did
+    /// ([`crate::ui_action::ActionStates::spell_slot_notified`]).
+    pub(crate) fn engine_spell_slot_notified(
+        &mut self,
+        script: &mut UiScript,
+        action: u32,
+        spell: u32,
+    ) -> bool {
+        self.appliers
+            .action_states()
+            .as_mut()
+            .is_some_and(|states| states.spell_slot_notified(script, action, spell))
+    }
+
+    /// A recount's write of the 1-based `action` when it holds `entry`: `count` stored
+    /// (`0x4e5caa`), the VM's copy with it, and the slot's usable pair (`0x4e5cb1` into
+    /// `0x4e58e0`); whether it held the entry
+    /// ([`crate::ui_action::ActionStates::recounted`]).
+    pub(crate) fn engine_recounted(
+        &mut self,
+        script: &mut UiScript,
+        action: u32,
+        entry: u32,
+        count: u32,
+    ) -> bool {
+        self.appliers
+            .action_states()
+            .as_mut()
+            .is_some_and(|states| states.recounted(script, action, entry, count))
     }
 
     /// Push the views a call left for the script's next line, and for the listeners at a signal
@@ -492,12 +596,25 @@ impl ScriptCallHost<'_, '_> {
     /// the toggle at the target it settled. Its `SelectTarget`s bind a unit to a standing
     /// targeting cursor's cast inside the validator, so that cast is sent ahead of the swing.
     fn attack(&mut self, script: &mut UiScript, at: &mut Signalled, may_pick: bool) {
-        let Some(owed) = self.appliers.attack().pick_attack(may_pick) else {
+        self.attack_at(script, at, None, may_pick);
+    }
+
+    /// [`Self::attack`] with `passed` as the validator's candidate (`0x6131a0(guid)`). A unit its
+    /// select handed the targeting cursor is bound where the select returned (`0x4935d5`), before
+    /// the selection's re-read (`0x6130c1`).
+    fn attack_at(
+        &mut self,
+        script: &mut UiScript,
+        at: &mut Signalled,
+        passed: Option<u64>,
+        may_pick: bool,
+    ) {
+        let Some(owed) = self.appliers.attack().pick_attack_at(passed, may_pick) else {
             return;
         };
+        self.appliers.cursor().bind_parked();
         self.settle_selection(script, at, owed.into());
         let target = self.appliers.attack().settle_attack();
-        self.appliers.cursor().bind_parked();
         if let Some(guid) = target {
             self.appliers.attack().start_attack(guid);
         }
@@ -520,6 +637,9 @@ impl ScriptCallHost<'_, '_> {
                 let Some(owed) = self.appliers.pet_press().pick_attack(&attack) else {
                     return;
                 };
+                // A unit the validator's select handed the targeting cursor binds where the select
+                // returned (`0x613100`, `0x4935d5`), ahead of the re-read (`0x6130c1`).
+                self.appliers.cursor().bind_parked();
                 self.settle_selection(script, at, owed.into());
                 let finished = self.appliers.pet_press().finish_attack(attack);
                 if finished.as_ref().is_some_and(|&(_, latched)| latched) {
@@ -543,7 +663,6 @@ impl ScriptCallHost<'_, '_> {
             step => step,
         };
         let appliers = &mut self.appliers;
-        appliers.cursor().bind_parked();
         match step {
             Some(PetStep::Order(send)) => appliers.pet_press().finish_press(send),
             Some(PetStep::Cast(cast)) => crate::ui_pet::cast_pet_press(&mut appliers.cast(), cast),
@@ -860,7 +979,7 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::Stable(StableCall::Close) => self.close_stable(script, &mut at.mark),
             ScriptCall::Stable(call) => appliers.stable().apply(call),
             ScriptCall::Session(request) => appliers.session().apply(request),
-            ScriptCall::Tutorial(call) => appliers.tutorial().apply(call),
+            ScriptCall::Tutorial(call) => appliers.tutorial().apply(script, call),
             ScriptCall::Bank(BankCall::Close) => self.close_bank(script, &mut at.mark),
             ScriptCall::Bank(BankCall::Purchase) => appliers.bank().purchase(script),
             ScriptCall::TradeSkill(TradeSkillCall::Do { spell_id, count }) => {
@@ -897,7 +1016,22 @@ impl CallHost for ScriptCallHost<'_, '_> {
             ScriptCall::Instance(InstanceCall::Reset) => appliers.instance().reset(),
             ScriptCall::Pvp(PvpCall::Toggle) => appliers.pvp().toggle(),
             ScriptCall::WornDisplay(set) => appliers.worn().set(set),
-            ScriptCall::ActionBar(call) => appliers.action_bar().apply(call),
+            ScriptCall::ActionBar(ActionBarCall::RefreshUsable) => {
+                self.refresh_usable_cache(script, &mut at.mark);
+            }
+            ScriptCall::ActionBar(call) => {
+                appliers.action_bar().apply(call);
+                // An item word's count (`0x4e66e9`-`0x4e66f1`), then the write's store of the
+                // slot's pair (`0x4e5903`-`0x4e5914`), ahead of its signal.
+                if let ActionBarCall::Set { id, .. } | ActionBarCall::Notify { id } = call {
+                    if let Some(states) = appliers.action_states().as_mut() {
+                        if matches!(call, ActionBarCall::Set { .. }) {
+                            states.item_written(script, id);
+                        }
+                        states.slot_written(script, id);
+                    }
+                }
+            }
             ScriptCall::GmTicket(GmTicketCall::Ticket(intent)) => {
                 appliers.gm_ticket().ticket(intent);
             }
@@ -1209,14 +1343,71 @@ impl<P: SystemParam + 'static> VmWith<'_, '_, P> {
         }
     }
 
-    /// A recount's slot write with the host ([`ScriptCallHost::engine_slot_written`]); with no VM
-    /// or no host, the next feed stores the pair.
-    pub(crate) fn engine_slot_written(&mut self) {
+    /// `RaiseBagUpdate`'s cache refresh with the host
+    /// ([`ScriptCallHost::engine_usable_cache_refresh`]); with no VM or no host, nobody listens.
+    pub(crate) fn engine_usable_cache_refresh(&mut self) {
         if let Some(script) = self.script.as_deref_mut() {
             if let Some(host) = self.set.p1().as_mut() {
-                host.engine_slot_written(script);
+                host.engine_usable_cache_refresh(script);
             }
         }
+    }
+
+    /// A follow stop's autorun clear on the host's bit, VM or not
+    /// ([`crate::player::CommandSteps::clear_autorun`]); with no host, nothing holds the bit.
+    pub(crate) fn engine_autorun_clear(&mut self) {
+        if let Some(host) = self.set.p1().as_mut() {
+            host.appliers.commands().clear_autorun();
+        }
+    }
+
+    /// A slot write with the host ([`ScriptCallHost::engine_slot_written`]); with no VM or no
+    /// host, nothing stores the pair.
+    pub(crate) fn engine_slot_written(&mut self, action: u32) {
+        if let Some(script) = self.script.as_deref_mut() {
+            if let Some(host) = self.set.p1().as_mut() {
+                host.engine_slot_written(script, action);
+            }
+        }
+    }
+
+    /// Our player's arrival's slot pass with the host ([`ScriptCallHost::engine_arrival_slots`]).
+    pub(crate) fn engine_arrival_slots(&mut self) {
+        if let Some(script) = self.script.as_deref_mut() {
+            if let Some(host) = self.set.p1().as_mut() {
+                host.engine_arrival_slots(script);
+            }
+        }
+    }
+
+    /// A recount's count of `entry` with the host ([`ScriptCallHost::engine_item_count`]); `None`
+    /// with no VM or no host, where no slot is read.
+    pub(crate) fn engine_item_count(&mut self, entry: u32) -> Option<u32> {
+        self.script.as_ref()?;
+        self.set.p1().as_mut()?.engine_item_count(entry)
+    }
+
+    /// `0x4e5de0`'s notify of one slot with the host
+    /// ([`ScriptCallHost::engine_spell_slot_notified`]); with no VM or no host nothing is notified.
+    pub(crate) fn engine_spell_slot_notified(&mut self, action: u32, spell: u32) -> bool {
+        let Some(script) = self.script.as_deref_mut() else {
+            return false;
+        };
+        self.set
+            .p1()
+            .as_mut()
+            .is_some_and(|host| host.engine_spell_slot_notified(script, action, spell))
+    }
+
+    /// A recount's write of one slot with the host ([`ScriptCallHost::engine_recounted`]).
+    pub(crate) fn engine_recounted(&mut self, action: u32, entry: u32, count: u32) -> bool {
+        let Some(script) = self.script.as_deref_mut() else {
+            return false;
+        };
+        self.set
+            .p1()
+            .as_mut()
+            .is_some_and(|host| host.engine_recounted(script, action, entry, count))
     }
 
     /// An engine writer's `SelectTarget(0)`, signalled in place with the host
@@ -1230,9 +1421,9 @@ impl<P: SystemParam + 'static> VmWith<'_, '_, P> {
         }
     }
 
-    /// An engine writer's StartAttack at `guid`, its select signalled in place with the host
-    /// ([`ScriptCallHost::engine_start_attack`]); with no VM or no host, `start` runs it on `P`.
-    pub(crate) fn engine_start_attack(
+    /// A go's deferred Attack at `guid`, its validator's select signalled in place with the host
+    /// ([`ScriptCallHost::engine_attack`]); with no VM or no host, `start` runs it on `P`.
+    pub(crate) fn engine_attack(
         &mut self,
         guid: u64,
         mark: crate::lanes::Mark,
@@ -1240,7 +1431,7 @@ impl<P: SystemParam + 'static> VmWith<'_, '_, P> {
     ) {
         if let Some(script) = self.script.as_deref_mut() {
             if let Some(host) = self.set.p1().as_mut() {
-                host.engine_start_attack(script, guid, mark);
+                host.engine_attack(script, guid, mark);
                 return;
             }
         }
@@ -1374,17 +1565,25 @@ pub(crate) fn run_cached<O: 'static, M, S: IntoSystem<(), O, M> + 'static>(
     r
 }
 
-/// Bind the units a selection writer outside the calls (a loot window's select, the chat layer's
-/// `/target`) found the targeting cursor up for (`SelectTarget`, `0x4935d5`), in the target chain:
-/// a call binds its own as it applies.
-pub(crate) fn bind_parked_picks(mut cursor: crate::spell::ScriptCursor) {
-    cursor.bind_parked();
+/// Bind the units a plate click's select found the targeting cursor up for (`SelectTarget`,
+/// `0x4935d5`), in the click's legs, ahead of its interact: a call binds its own as it applies, and
+/// a handler at its select ([`crate::spell::PickBind`]).
+pub(crate) fn bind_parked_picks(mut bind: crate::spell::PickBind) {
+    bind.bind();
 }
 
 /// [`bind_parked_picks`] after a walk's arrival in the frame time, whose dispatch selects through
 /// the same front.
-pub(crate) fn bind_arrival_picks(mut cursor: crate::spell::ScriptCursor) {
-    cursor.bind_parked();
+pub(crate) fn bind_arrival_picks(mut bind: crate::spell::PickBind) {
+    bind.bind();
+}
+
+/// [`bind_parked_picks`] from an exclusive writer, at its select's place; a harness without the
+/// cursor's seams binds nothing.
+pub(crate) fn bind_picks_here(world: &mut World) {
+    if let Err(err) = run_cached(world, bind_parked_picks) {
+        debug!("targeting: the parked picks were not bound: {err}");
+    }
 }
 
 /// The census list ([`benilla_ui::script::census`]).
@@ -1400,6 +1599,22 @@ impl<F: FnMut(&mut UiScript, ScriptCall)> CallHost for FnHost<F> {
     fn apply(&mut self, script: &mut UiScript, call: ScriptCall) -> Option<CallTail> {
         (self.0)(script, call);
         None
+    }
+}
+
+/// [`FnHost`] whose getters' live questions `L` answers, as the app's host's families do.
+#[cfg(test)]
+pub(crate) struct FnHostReading<F, L>(pub(crate) F, pub(crate) L);
+
+#[cfg(test)]
+impl<F: FnMut(&mut UiScript, ScriptCall), L: live::LiveFamily> CallHost for FnHostReading<F, L> {
+    fn apply(&mut self, script: &mut UiScript, call: ScriptCall) -> Option<CallTail> {
+        (self.0)(script, call);
+        None
+    }
+
+    fn read_live(&mut self, ask: &mut benilla_ui::script::live::LiveAsk<'_>) -> bool {
+        self.1.answer(ask)
     }
 }
 
@@ -4004,27 +4219,6 @@ mod tests {
         assert_eq!(selected(&f), Some(OLD), "the friend stays selected");
     }
 
-    /// The selection writers outside the script calls (a loot window's select, `0x48f3a0`) hand the
-    /// unit to the cursor too, and the target chain's bind binds it.
-    #[test]
-    fn a_loot_windows_select_with_the_cursor_up_is_bound_by_the_chains_bind() {
-        let mut f = frame(true);
-        spawn_mob(&mut f, &[(2, 0x9)]);
-        with_the_cursor_up(&mut f);
-        let world = f.app.world_mut();
-        world
-            .run_system_once(|mut select: crate::target::SelectCommit| select.select_unit(MOB))
-            .expect("the select runs");
-        assert_eq!(selected(&f), Some(OLD), "nothing selected");
-        assert_eq!(casts(&f), vec![], "and nothing bound until the bind");
-        f.app
-            .world_mut()
-            .run_system_once(bind_parked_picks)
-            .expect("the bind runs as a one-shot system");
-        assert_eq!(casts(&f), vec![(HEAL, Some(MOB))]);
-        assert_eq!(selected(&f), Some(OLD));
-    }
-
     /// `CastBookSpell` (`0x4b3300`) asks `GetTargetingSpellId` (`0x6e48e0`) ahead of the cast and the
     /// gate: if the book spell is the one awaiting its target, the press stops targeting
     /// (`StopSpellTargeting`, `0x4b347d`) and casts nothing, a macro's refused one as well. A
@@ -4760,10 +4954,11 @@ mod tests {
             crate::dev::add_every_instrument,
         );
         let (writers, unhosted) = vm_writers_and_the_unhosted(&mut app);
-        // The census reads the client's systems: a hundred writers at least in either build, and
-        // where the build carries type names, a feed and two frame polls among them.
+        // The census reads the client's systems: eighty writers at least in either build, a floor
+        // the feeds' going live lowers toward, and where the build carries type names, a feed and
+        // two frame polls among them.
         assert!(
-            writers.len() >= 100,
+            writers.len() >= 80,
             "the census reads the client's VM writers: {} read",
             writers.len()
         );

@@ -119,6 +119,13 @@ live_reads! {
         dialogs: crate::ui_dialog_verbs::DialogLive<'static, 'static>,
         /// The trainer rows' icons, descriptions and ability tests.
         trainer: crate::ui_trainer::TrainerLive<'static, 'static>,
+        /// The open profession book as a build reads it, a recipe's reagents, tools and icon, and
+        /// its line's rank; absent in a harness without the window.
+        trade_skill: Option<crate::ui_tradeskill::TradeSkillLive<'static, 'static>>,
+        /// The open craft type's book as a build reads it, a recipe's reagents, tools, cost, level
+        /// and description, the effect slot's name and the display line; absent in a harness
+        /// without the window.
+        craft: Option<crate::ui_craft::CraftLive<'static, 'static>>,
         /// The tabard designer's guild record and save latch.
         tabard: crate::ui_tabard::TabardLive<'static, 'static>,
         /// The stable's records, counts and the summoned pet's display.
@@ -164,6 +171,9 @@ live_reads! {
         /// The targeting word's halves and `SpellCanTargetUnit`'s unit leg; absent in a harness
         /// without the unit checks' inputs.
         targeting: Option<crate::spell::targeting::TargetingLive<'static, 'static>>,
+        /// Our cast's state: the in-flight slot, the targeting word, the auto-repeat key and the
+        /// attack flag; absent in a harness without the cast state.
+        cast: Option<crate::ui_cast::CastLive<'static, 'static>>,
         #[cfg(test)]
         probe: tests::ProbeLive<'static>,
     }
@@ -175,6 +185,7 @@ impl LiveFamily for crate::ui_items::live::ItemLive<'_, '_> {}
 impl LiveFamily for StatsLive<'_, '_> {
     fn answer(&mut self, ask: &mut LiveAsk<'_>) -> bool {
         ask.answer(|q: &benilla_ui::script::WearsItem| Some(self.wears(q.0)))
+            || ask.answer(|_: &benilla_ui::script::InventoryAlertInputs| Some(self.alert_inputs()))
     }
 }
 
@@ -320,6 +331,22 @@ impl StatsLive<'_, '_> {
             Some(store) => read(&crate::ui_unit::StoreObject(store)),
             None => read(&benilla_ui::script::NoPlayer),
         }
+    }
+
+    /// The alert recompute's reads (`0x4c7ee0`) off the active player as of here, each item found
+    /// as of here, its enchantment deadline as the time packets left it; `None` while none is
+    /// held.
+    fn alert_inputs(&self) -> Option<benilla_ui::script::AlertInputs> {
+        let items = self.stores.item_objects(&self.objects);
+        // `0x5d9d00(1)`: the deadline less now, 0 when unset or run out.
+        let left = |guid| {
+            self.objects
+                .countdowns(guid)
+                .and_then(|c| c.enchant_deadline_ms(1))
+                .map_or(0, |ms| u32::try_from(ms).unwrap_or(u32::MAX))
+        };
+        self.player()
+            .map(|store| crate::ui_char::alert_inputs(&store.0, &items, &self.items, left))
     }
 
     /// Whether the active player's worn slots, as of here, hold a whole item of `entry`, each item

@@ -589,9 +589,6 @@ pub(crate) struct Model {
     pub(crate) macros_dirty: bool,
     /// Bumped by every seed and change, for readers that must not drain `macros_dirty`.
     pub(crate) macros_generation: u64,
-    /// Bumped by every `EditMacro` that names a macro, whose worker `0x4f1280` ends in the action
-    /// bar's usable refresh (`0x4f132e`).
-    pub(crate) macro_edits: u64,
     /// Each macro's cached cast by id, derived in the verbs and the app's pass; an absent macro
     /// reads unbound.
     pub(crate) macro_bindings: HashMap<u32, macros::MacroBinding>,
@@ -754,9 +751,6 @@ pub(crate) struct Model {
     pub(crate) trainer_filter: u32,
     /// The profession build's pending count (`0xbde048`).
     pub(crate) trade_skill_pending: u32,
-    /// The product records the builds missed, one per miss, each waiting with the callback
-    /// `0x4fc8e0` (`0x4fcd32`).
-    pub(crate) trade_skill_build_waits: Vec<u32>,
     /// Collapsed skill-line ids, kept across a re-push and cleared when the trainer closes.
     pub(crate) trainer_collapsed: HashSet<u32>,
     /// The skill-line filter `ds:0xb73a20`: bit n set shows header group n, every bit on a list.
@@ -1038,7 +1032,8 @@ pub(crate) struct Model {
     pub(crate) inventory_slots: char_stats::InventorySlots,
     /// The six bank-bag slots, ids 64..=69, fed from the player descriptor's guids.
     pub(crate) bank_bag_slots: char_stats::BankBagSlots,
-    /// `GetInventoryAlertStatus` in `0x806eb8` order; every push fires `UPDATE_INVENTORY_ALERTS`.
+    /// The 12 alert statuses `GetInventoryAlertStatus` reads (`0xb71f60`), in `0x806eb8` order, as
+    /// the last recompute left them ([`super::UiScript::recompute_inventory_alerts`]).
     pub(crate) inventory_alerts: [u8; 12],
     /// Main- and off-hand temporary enchants in `GetWeaponEnchantInfo`'s order, pushed each frame.
     pub(crate) weapon_enchants: [Option<weapon_enchant::WeaponEnchant>; 2],
@@ -1494,7 +1489,6 @@ impl Model {
             macros: macros::MacroState::default(),
             macros_dirty: false,
             macros_generation: 0,
-            macro_edits: 0,
             macro_bindings: HashMap::new(),
             macro_icons: Vec::new(),
             macro_icon_source: None,
@@ -1557,7 +1551,6 @@ impl Model {
             trainer_selection: None,
             trainer_filter: 7,
             trade_skill_pending: 0,
-            trade_skill_build_waits: Vec::new(),
             trainer_collapsed: HashSet::new(),
             trainer_line_filter: u32::MAX,
             trainer_rows: Vec::new(),

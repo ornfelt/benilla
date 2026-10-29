@@ -47,7 +47,6 @@ use crate::ui_chat::UiChatPlugin;
 use crate::ui_craft::UiCraftPlugin;
 use crate::ui_dialog_verbs::UiDialogVerbsPlugin;
 use crate::ui_duel::UiDuelPlugin;
-use crate::ui_follow::UiFollowPlugin;
 use crate::ui_gm_ticket::UiGmTicketPlugin;
 use crate::ui_gossip::UiGossipPlugin;
 use crate::ui_guild::UiGuildPlugin;
@@ -176,7 +175,6 @@ impl PluginGroup for GamePlugins {
             .add(crate::swing_refusal::SwingRefusalPlugin)
             .add(UiSummonPlugin)
             .add(UiGmTicketPlugin)
-            .add(UiFollowPlugin)
             .add(UiInstancePlugin)
             .add(crate::ui_billing::UiBillingPlugin)
             .add(crate::ui_memory::UiMemoryPlugin)
@@ -1387,7 +1385,6 @@ pub(crate) mod schedule_tests {
             "::player::controller::control",
             // The drain, which fires the notices the restore signals.
             "::lanes::fire_in_order",
-            "::ui_action::state::feed_action_state",
             "::player::camera_saved::load_camera_pose",
             "::tutorial::watch_self",
             "::poi_marker::expire_marker",
@@ -1818,13 +1815,13 @@ pub(crate) mod schedule_tests {
          "a lane's firing, run only by the drain: `drop_cooldown_log`, gated on the interface being down, drops the log the frame it is written, so no signal fires into a later VM"),
         ("ui_action/drain.rs", "drain_click_casts", Because::FilledByVm,
          "filled only by a nameplate's right-click, which a frameless VM has no plate to make, or a crate's `Interact`; the world click's own casts drain inside its call, and the drain sends casts to the wire"),
+        ("ui_action/recount.rs", "arrival_slot_pass", Because::Deliberate,
+         "no system: a leg the arrival lane's firing runs, inside the drain, which runs only with the interface up"),
         ("ui_action/recount.rs", "recount", Because::Deliberate,
          "no system: the item lane's firing calls it per run (`item_lane::fire_run`), inside the lanes' drain, which runs only with the interface up (`ingame_ui_up`)"),
         ("ui_char.rs", "feed_char", Because::FilledByVm,
          "its take is the ammo getters' hits, which only a getter's call leaves, and a frameless VM \
           calls none; the doll's own pushes ride `VmMemo`s"),
-        ("ui_follow.rs", "feed_follow", Because::MemoLatched,
-         "`feed.vm: VmMemo<FollowFeedMemo>`; a fresh VM re-fires BEGIN for a follow in progress"),
         ("ui_guild/lane.rs", "fire_guild", Because::Deliberate,
          "a lane's firing, run only by the drain, which runs only with the interface up (`ingame_ui_up`): the lane holds what the packets queue until a drain fires it, so the login's message of the day, which lands ahead of the interface, fires into the VM that comes up"),
         ("ui_loot/mod.rs", "drain_loot", Because::Deliberate,

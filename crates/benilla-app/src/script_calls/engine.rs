@@ -27,19 +27,12 @@ impl ScriptCallHost<'_, '_> {
                 crate::player::FollowRequest::Name { name, exact }
             }
         };
-        let name = match self.appliers.follow().start(&request) {
+        let (name, replaced) = match self.appliers.follow().start(&request) {
             FollowStart::Refused(key) => return self.appliers.chat().display_error(script, key),
             FollowStart::Silent => return,
-            FollowStart::Started { name } => name,
+            FollowStart::Started { name, replaced } => (name, replaced),
         };
-        let guid = self.appliers.follow().followee();
-        let told = match self.appliers.follow_feed().as_deref_mut() {
-            Some(feed) => feed.tell(script, guid),
-            None => None,
-        };
-        // Deviation: the feed's stops fire `END` for every follow ([`crate::ui_follow`]), so the
-        // arm's stop fires it for the follow this VM was last told of.
-        if told.is_some() {
+        if replaced {
             script.fire_event("AUTOFOLLOW_END", vec![]);
             self.at_point(script, mark);
         }
@@ -64,8 +57,6 @@ pub(crate) struct RecordAsks<'w, 's> {
     /// The quest cache the rebuild's lookups ask, and the leaderboard's creature waits.
     quest_log: Option<ResMut<'w, crate::ui_quest_log::QuestLog>>,
     latch_refreshes: Option<ResMut<'w, crate::ui_quest::LatchRefreshes>>,
-    craft: Option<ResMut<'w, crate::ui_craft::CraftItemWaits>>,
-    trade_skill: Option<ResMut<'w, crate::ui_tradeskill::TradeSkillItemWaits>>,
     merchant: Option<ResMut<'w, crate::ui_merchant::MerchantOpen>>,
     stable: Option<ResMut<'w, crate::ui_stable::StableCreatureWaits>>,
     go_templates: Option<Res<'w, crate::go_templates::GameObjectTemplates>>,
@@ -174,16 +165,10 @@ impl RecordAsks<'_, '_> {
                         }
                     }
                     ItemCallback::Craft => {
-                        if let Some(waits) = self.craft.as_deref_mut() {
-                            crate::ui_craft::ask_item_record(items, &self.net, waits, entry, owner);
-                        }
+                        crate::ui_craft::ask_item_record(items, &self.net, entry, owner);
                     }
                     ItemCallback::TradeSkill => {
-                        if let Some(waits) = self.trade_skill.as_deref_mut() {
-                            crate::ui_tradeskill::ask_item_record(
-                                items, &self.net, waits, entry, owner,
-                            );
-                        }
+                        crate::ui_tradeskill::ask_item_record(items, &self.net, entry, owner);
                     }
                     // The VM counts the landing; the callback, one per entry as the VM keeps its
                     // waits, signals at its place in the entry's list.

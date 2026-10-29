@@ -288,12 +288,30 @@ fn a_guild_event_shows_its_line_ahead_of_its_roster_update() {
     );
 }
 
-/// A ready check another leads shows the leader's line (`0x4ba51e`), then `READY_CHECK`
-/// (`0x4ba53a`).
+/// A ready check another leads shows the leader's line (`0x4ba51e`) when the name cache holds the
+/// leader (`0x4ba50f`, no callback), then `READY_CHECK` (`0x4ba53a`); with the name still to
+/// come the line is skipped and `READY_CHECK` fires all the same (`0x4ba514`-`0x4ba53a`).
 #[test]
 fn a_ready_check_shows_its_line_ahead_of_its_popup() {
     let mut c = client();
     grouped(&mut c, MATE);
+    assert_eq!(
+        between(&mut c, SessionEvent::ReadyCheckRequest),
+        [
+            "CHAT_MSG_MONSTER_SAY:a",
+            "READY_CHECK",
+            "CHAT_MSG_MONSTER_SAY:b",
+        ],
+        "the leader's name is not cached"
+    );
+    c.frame(vec![vec![SessionEvent::PlayerName {
+        guid: MATE,
+        name: "Dorn".into(),
+        race: 1,
+        gender: 0,
+        class: 1,
+    }]]);
+    c.seen();
     assert_eq!(
         between(&mut c, SessionEvent::ReadyCheckRequest),
         [
@@ -303,6 +321,53 @@ fn a_ready_check_shows_its_line_ahead_of_its_popup() {
             "CHAT_MSG_MONSTER_SAY:b",
         ]
     );
+}
+
+/// The ready check's lines print inside the handler that composes them (`0x49a870`), between the
+/// neighbouring packets' events: a member's not-ready answer prints `RAID_MEMBER_NOT_READY` for
+/// them (`0x4ba48a`), and with nobody left pending the close runs the timeout worker at once
+/// (`0x4ba4d9` → `0x4bb310`), whose summary follows (`0x4bb49a`).
+#[test]
+fn a_ready_check_answer_prints_its_lines_at_its_packet() {
+    let mut c = client();
+    c.frame(vec![vec![SessionEvent::GroupList {
+        group_type: crate::ui_party::GROUPTYPE_RAID,
+        own_flags: 0,
+        members: vec![GroupMemberEntry {
+            name: "Dorn".into(),
+            guid: MATE,
+            status: member_status::ONLINE,
+            flags: 0,
+        }],
+        leader: ME,
+        loot: None,
+    }]]);
+    c.frame(vec![]);
+    crate::script_calls::with_hosted_vm(c.app.world_mut(), |s| {
+        s.expect("a VM")
+            .run(
+                r#"RAID_MEMBER_NOT_READY = "%s is not ready"
+                   READY_CHECK_NO_AFK = "No players are away"
+                   DoReadyCheck()"#,
+            )
+            .expect("the check starts")
+    });
+    c.seen();
+    let answer = SessionEvent::ReadyCheckAnswer {
+        guid: MATE,
+        ready: 0,
+    };
+    assert_eq!(
+        between(&mut c, answer),
+        [
+            "CHAT_MSG_MONSTER_SAY:a",
+            "CHAT_MSG_SYSTEM:Dorn is not ready",
+            "CHAT_MSG_SYSTEM:No players are away",
+            "CHAT_MSG_MONSTER_SAY:b",
+        ]
+    );
+    c.frame(vec![]);
+    assert_eq!(c.seen(), Vec::<String>::new(), "once");
 }
 
 /// A world session that ends before the world is entered releases what it held behind its entry

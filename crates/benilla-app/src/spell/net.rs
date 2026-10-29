@@ -87,6 +87,8 @@ pub(crate) struct Lifecycle<'w> {
     actions: ResMut<'w, PlayerActions>,
     /// The registrar's and the learn's latches, which the book's handlers write at their packet.
     learned: ResMut<'w, crate::ui_action::LearnedAbilities>,
+    /// The registrar's reactive list; absent in a harness without the action bar.
+    reactive: Option<ResMut<'w, crate::ui_action::ReactiveSpells>>,
     reports: ResMut<'w, CastReports>,
     tutorials: Option<Res<'w, crate::tutorial::Tutorials>>,
     pending: ResMut<'w, PendingCast>,
@@ -126,7 +128,7 @@ pub(crate) struct Scene<'w, 's> {
 /// `SMSG_INITIAL_SPELLS`, once at login, into the known spells and the learn latches, the book's
 /// reset first (`0x4b2439`, `0x4b243f`) and then each spell in wire order, as the arrival learns
 /// them (`0x5dea8b`-`0x5deab9`); then the bar's ranks ([`crate::ui_action::normalize_ranks`]),
-/// once this login's bar has come.
+/// over this login's staging while it waits for the arrival.
 fn on_spell_book(In(ev): In<SessionEvent>, mut l: Lifecycle, sc: Scene, mut bar: LoginRanks) {
     if let SessionEvent::SpellBook {
         spell_ids,
@@ -147,10 +149,21 @@ fn on_spell_book(In(ev): In<SessionEvent>, mut l: Lifecycle, sc: Scene, mut bar:
             &mut l.cooldowns,
             (l.spells.as_deref(), &sc.items, &l.spell_mods, pad),
         );
-        // Only over this login's bar: the book comes ahead of it (vmangos `Player.cpp:19253`,
-        // `:19256`).
-        if bar.slots.arrived() {
+        // Only over this login's staging while it waits for the arrival: the book comes ahead of
+        // the bar (vmangos `Player.cpp:19253`, `:19256`), at the login and at each worldport, whose
+        // book finds the last staging already loaded and the bar moved on since.
+        if bar.slots.staged_unloaded() {
             bar.normalize(&l.actions, &l.net);
+        }
+    }
+}
+
+impl Lifecycle<'_> {
+    /// The registrar's reactive leg (`0x4b2705`-`0x4b2844`) for a spell a packet registers; the
+    /// initial spells' run at our player's arrival ([`crate::net::objects`]).
+    fn register_reactive(&mut self, spell_id: u32) {
+        if let (Some(reactive), Some(spells)) = (self.reactive.as_mut(), self.spells.as_deref()) {
+            reactive.0.learned(spell_id, &spells.catalog);
         }
     }
 }
@@ -209,6 +222,7 @@ fn on_spell_learned(In(ev): In<SessionEvent>, mut l: Lifecycle, mut book: BookSi
     if let SessionEvent::SpellLearned { spell_id } = ev {
         let line = learned_spell(spell_id, &mut l.actions, l.spells.as_deref());
         l.learned.registered(spell_id, l.spells.as_deref());
+        l.register_reactive(spell_id);
         l.learned.learned(spell_id, l.spells.as_deref());
         book.entered(
             spell_id,
@@ -281,6 +295,7 @@ fn on_spell_superceded(
         // The book pair's unlearn and registration (`0x4b2f50`), then the player's own unlearn.
         l.learned.unregistered(old_spell_id);
         l.learned.registered(new_spell_id, l.spells.as_deref());
+        l.register_reactive(new_spell_id);
         book.left(
             old_spell_id,
             was_known,
@@ -417,10 +432,11 @@ fn on_spell_start(
     }
 }
 
-/// The GO, then its deferred auto-attack start (`0x6e8402` → `0x6131a0` → `0x5ecb70`): StartAttack
-/// with its own select (`0x5eccaa`), which selects the hit unit whatever is selected and signals
-/// in place, behind the GO's reports, before the swing
-/// ([`crate::script_calls::ScriptCallHost::engine_start_attack`]).
+/// The GO, then its deferred auto-attack start (`0x6e8402` → `0x6131a0`): the player's Attack at
+/// the hit unit, whose validator (`0x612df0`, `0x6131aa`) refuses on the actor's state or the
+/// target with its line and no swing, selects the hit whatever is selected and signals in place,
+/// behind the GO's reports, then swings at the selection it re-read (`0x6130c1`)
+/// ([`crate::script_calls::ScriptCallHost::engine_attack`]).
 #[allow(clippy::type_complexity)] // a Bevy system's full input set
 fn on_spell_go(
     In(ev): In<SessionEvent>,
@@ -429,7 +445,12 @@ fn on_spell_go(
         crate::script_calls::VmWith<
             'static,
             'static,
-            crate::target::SelectCommit<'static, 'static>,
+            crate::script_calls::disjoint::Pair<
+                'static,
+                'static,
+                crate::ui_action::AttackPress<'static, 'static>,
+                Option<crate::spell::PickBind<'static, 'static>>,
+            >,
         >,
     >,
 ) {
@@ -455,6 +476,8 @@ fn on_spell_go(
             source,
             dest,
         };
+        // No hit leaves the start at the packet's target, the `Deviation:` in [`spell_go`].
+        let no_hit = hits.is_empty();
         let deferred = {
             let (mut l, mut sc) = set.p0();
             let engaged = sc
@@ -486,9 +509,24 @@ fn on_spell_go(
                 l.play_seq.next(),
             )
         };
+        // The fallback starts only at a unit the validator keeps, so its pick never runs the
+        // nearest-enemy cycle (`0x6130b5`) for a target the player is friendly toward.
+        let deferred = deferred.filter(|&guid| !no_hit || set.p1().own().p0().keeps(guid));
         if let Some(guid) = deferred {
-            set.p1()
-                .engine_start_attack(guid, mark, |mut commit| commit.start_attack(guid));
+            set.p1().engine_attack(guid, mark, |mut press| {
+                // With no listeners, the validator's select is paid at once, after its bind.
+                let Some(owed) = press.p0().pick_attack_at(Some(guid), true) else {
+                    return;
+                };
+                if let Some(mut bind) = press.p1() {
+                    bind.bind();
+                }
+                let mut press = press.p0();
+                press.pay(owed);
+                if let Some(target) = press.settle_attack() {
+                    press.start_attack(target);
+                }
+            });
         }
     }
 }
@@ -839,11 +877,12 @@ fn spell_book(
     }
 }
 
-/// `SMSG_ACTION_BUTTONS`, at login and on server-side edits, into the action store, every slot
-/// replaced.
+/// `SMSG_ACTION_BUTTONS` (`0x5e6680`), at login and at each worldport (vmangos
+/// `CharacterHandler.cpp:574`, `MovementHandler.cpp:112` → `Player.cpp:19256`): its words staged,
+/// every one replaced, for our player's arrival to load ([`crate::ui_action::ActionSlots`]).
 fn action_buttons(buttons: Vec<ActionButton>, slots: &mut crate::ui_action::ActionSlots) {
-    debug!("net: action bar — {} occupied slots", buttons.len());
-    slots.arrive(buttons);
+    debug!("net: action bar — {} occupied slots staged", buttons.len());
+    slots.stage(buttons);
 }
 
 /// `SMSG_LEARNED_SPELL`: the spell joins the known spells, which the book reads (learning never
@@ -1107,7 +1146,8 @@ fn cast_result(
             arg,
             spells.and_then(|s| s.catalog.get(spell_id)),
             spells.map(|s| &s.forms),
-            // The packet's lookup with the callback `0x6e29b0` (`0x6e1ea4`).
+            // The packet's lookup (`0x6e1ea4`), asking on a miss; the line's own registers the
+            // callback `0x6e29b0` ([`crate::ui_action::CastFailLines`]).
             |item| items.is_some_and(|i| i.template(item, 0, Ask::Event(net)).is_some()),
         );
         // The line, then the tail: the spell in flight popped with its failed flag and no packet
@@ -1434,10 +1474,11 @@ fn spell_go(
         // The GO-deferred auto-attack start (`0x6e83c0`), the complement of
         // [`crate::spell::cast_send`]'s send-time tail: an `AttributesEx2 & 0x100000` spell (the
         // stealth openers and Judgement, 36 rows) starts the swing once the server confirms it.
-        // The target is `hits[0]`, else the null pair (`0x6e83e9`–`0x6e83fe`), which `0x612df0`
-        // resolves to the selection or else the nearest hostile. Deviation: the fallback is the
-        // packet's target guid, never the nearest-hostile acquire, because that would attack
-        // something the player never named. Gated on `[player+0xc48] == 0` (`0x6e83e7`).
+        // The validator's candidate is `hits[0]`, else the null pair (`0x6e83e9`–`0x6e83fe`),
+        // which `0x612df0` resolves to the selection or else the nearest hostile (`0x61306b`,
+        // `0x6130b5`). Deviation: the fallback is the packet's target guid, started only when the
+        // validator keeps it ([`on_spell_go`]), and with none there is no start, never the
+        // nearest-hostile acquire, because that would attack something the player never named. Gated on `[player+0xc48] == 0` (`0x6e83e7`).
         if display.initiates_auto_attack_at_go() && !engaged {
             if let (true, Some(guid)) = (
                 index.0.contains_key(&caster),

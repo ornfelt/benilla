@@ -115,7 +115,7 @@ impl NoticeFiring<'_, '_> {
             return false;
         }
         if notice == FieldNotice::SkillMax {
-            script.rebuild_trade_skill(&mut |t| self.reband(t));
+            script.rebuild_trade_skill(&mut |_| {});
             script.rebuild_skills();
             return false;
         }
@@ -132,7 +132,7 @@ impl NoticeFiring<'_, '_> {
             return false;
         }
         if notice == FieldNotice::Professions {
-            script.rebuild_trade_skill(&mut |t| self.reband(t));
+            script.rebuild_trade_skill(&mut |_| {});
             return false;
         }
         if notice == FieldNotice::PetMacros {
@@ -241,11 +241,6 @@ impl NoticeFiring<'_, '_> {
         true
     }
 
-    /// The profession list's rebuild by a skill watch, its bands and line rank read again.
-    fn reband(&self, t: &mut benilla_ui::script::TradeSkillState) {
-        crate::ui_tradeskill::reband(t, self.me.iter().next(), self.skill_lines.as_deref());
-    }
-
     /// `0x5de180`'s line after its rebuild (`0x5de345`-`0x5de41c`), for a line with a `SkillLine`
     /// row and a race-class row without flags `0x402` (`0x5de34a`-`0x5de35f`): over an old value
     /// of 0 `ERR_SKILL_GAINED_S` (`0x5de378`), else, on a shown value above 0,
@@ -311,6 +306,11 @@ fn fire_lane(vm: &mut NoticeVm, lane: &mut NoticeLane, firing: &mut NoticeFiring
         return;
     }
     while let Some((stamp, notice)) = lane.pop(until) {
+        // An engine write, with no signal: the host's autorun bit.
+        if notice == FieldNotice::AutorunClear {
+            vm.engine_autorun_clear();
+            continue;
+        }
         if notice == FieldNotice::UsableRefresh {
             let ((), moved) = crate::lanes::firing(stamp, || vm.engine_usable_refresh());
             if moved {
@@ -318,9 +318,32 @@ fn fire_lane(vm: &mut NoticeVm, lane: &mut NoticeLane, firing: &mut NoticeFiring
             }
             continue;
         }
+        if let FieldNotice::SpellSlots { spell } = notice {
+            // Each slot resolved as the walk reaches it (`0x4e5df5`), so a listener's write to a
+            // later slot is seen.
+            let ((), moved) = crate::lanes::firing(stamp, || {
+                for action in 1..=120 {
+                    if !vm.engine_spell_slot_notified(action, spell) {
+                        continue;
+                    }
+                    vm.run(|script| {
+                        if let Some(script) = script {
+                            script.fire_event(
+                                "ACTIONBAR_SLOT_CHANGED",
+                                vec![ScriptValue::Int(i64::from(action))],
+                            );
+                        }
+                    });
+                }
+            });
+            if moved {
+                break;
+            }
+            continue;
+        }
         if let FieldNotice::ActionSlotChanged { action } = notice {
             let ((), moved) = crate::lanes::firing(stamp, || {
-                vm.engine_slot_written();
+                vm.engine_slot_written(action);
                 vm.run(|script| {
                     if let Some(script) = script {
                         script.fire_event(
@@ -498,6 +521,10 @@ pub(super) fn add_notice_lane(app: &mut App) {
 /// to hear them, and the one that comes up later must not hear changes from before it. The
 /// reference's interface exists before the world it watches, so it has no such window; the
 /// snapshots the VM reads are pushed whole when it comes up, as they are at a `/reload`.
+///
+/// A follow stop's autorun clear goes too: with no VM no call touches the bit, so the steer's
+/// release takes it clear ([`crate::player::CallAutorun`]), as it does where [`fire_lane`] drops
+/// the lane for want of a VM.
 pub(super) fn drop_field_notices(mut lane: ResMut<NoticeLane>) {
     lane.clear();
 }
@@ -584,7 +611,9 @@ pub(crate) fn fire(
         // Caught by [`fire_lane`] before it reaches here: the refresh and the slot write's pair
         // run on the host's action states
         // ([`crate::script_calls::ScriptCallHost::engine_usable_refresh`]).
-        FieldNotice::UsableRefresh | FieldNotice::ActionSlotChanged { .. } => {}
+        FieldNotice::UsableRefresh
+        | FieldNotice::ActionSlotChanged { .. }
+        | FieldNotice::SpellSlots { .. } => {}
         // Fired by [`NoticeFiring::fire`], which holds the slots, the banks, the names, the form
         // table, the spell catalog, the aura cache, the skill lines and the pet's stat tables.
         FieldNotice::QuestLog
@@ -603,7 +632,11 @@ pub(crate) fn fire(
         | FieldNotice::PetMacros
         | FieldNotice::PetGuidSet { .. } => {}
         // Put on the trainer lane by the packet's handler ([`crate::ui_trainer::TrainerPasses`]).
-        FieldNotice::TrainerPass => {}
+        FieldNotice::TrainerPass
+        | FieldNotice::AutoMoveStop
+        | FieldNotice::AutorunClear
+        | FieldNotice::InputTick
+        | FieldNotice::FarSightStop { .. } => {}
         // Run at its place by the packet's handler ([`crate::net::objects`]), its signal written
         // there.
         FieldNotice::AreaSpiritHealerClear | FieldNotice::QuestAccepted { .. } => {}
@@ -773,6 +806,7 @@ fn global_event(id: u16) -> Option<&'static str> {
     Some(match id {
         id::PLAYER_REGEN_DISABLED => "PLAYER_REGEN_DISABLED",
         id::PLAYER_REGEN_ENABLED => "PLAYER_REGEN_ENABLED",
+        id::AUTOFOLLOW_END => "AUTOFOLLOW_END",
         id::PET_ATTACK_START => "PET_ATTACK_START",
         id::PET_ATTACK_STOP => "PET_ATTACK_STOP",
         id::PLAYER_GUILD_UPDATE => "PLAYER_GUILD_UPDATE",
@@ -1470,19 +1504,11 @@ mod tests {
     #[test]
     fn the_field_event_pushes_run_ahead_of_the_drain() {
         let mut headless = crate::game_plugins::schedule_tests::headless_client();
-        let ahead = [
-            crate::test_support::runs_before(
-                &mut headless,
-                crate::ui_char::feed_char,
-                crate::lanes::fire_in_order,
-            ),
-            crate::test_support::runs_before(
-                &mut headless,
-                crate::ui_party::feed_party,
-                crate::lanes::fire_in_order,
-            ),
-        ];
-        assert_eq!(ahead, [true; 2], "char, party");
+        assert!(crate::test_support::runs_before(
+            &mut headless,
+            crate::ui_char::feed_char,
+            crate::lanes::fire_in_order,
+        ));
     }
 
     /// The active player's arrival runs its ghost state (`0x5dea50` → `0x5deb2a` → `0x5de9c0`)
