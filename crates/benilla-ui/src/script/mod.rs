@@ -217,7 +217,10 @@ mod ui_errors;
 mod ui_scale;
 mod update_walk;
 pub use tooltip_studied::{PetAbility, StudiedCreature};
-pub use tooltip_unit::{OwnerTitle, OwnerTitleKind, PartyRecord, TooltipTint, UnitTooltipFacts};
+pub use tooltip_unit::{
+    CorpsePlateQuery, ObjectPlate, ObjectPlateQuery, OwnerTitle, OwnerTitleKind, PartyRecord,
+    TooltipTint, UnitTooltipFacts,
+};
 mod trade;
 mod tradeskill;
 mod trainer;
@@ -229,6 +232,7 @@ mod weapon_enchant;
 mod who_sort;
 mod worldmap;
 mod worldstate;
+mod worn;
 mod worn_display;
 pub(crate) mod xml_layout;
 mod zone_text;
@@ -345,8 +349,8 @@ pub use guild_read::{GuildAnswer, GuildRead, OwnGuild, UnitGuildRead};
 pub use held::{BagGuidQuery, BagHead, BagItemsQuery, BagQuery, BagSlotQuery, HasKeyQuery};
 pub use host::{CallHost, CallTail, Deferring, LiveReader};
 pub use input_verbs::{
-    BindingInput, ClickCall, ClickMode, ClickPress, FiredInput, HeldInput, LookCall, PostureCall,
-    ViewAxis,
+    BindingInput, ClickCall, ClickMode, ClickPress, FiredInput, HeldInput, LookCall,
+    MouselookingQuery, PostureCall, ViewAxis,
 };
 pub use item_calls::ItemCall;
 pub use item_read::{ItemInfoFields, ItemKey, ItemRead, ItemRoll};
@@ -373,6 +377,7 @@ pub use tabard::{
 };
 pub use video_pairs::VIDEO_PAIR_CVARS;
 pub use worldmap_arrow::ARROW_MODEL;
+pub use worn::{WornKeys, WornKeysQuery, WornSlotQuery};
 
 pub(crate) use button::{refresh_label_lua, state_font_lua, LabelFont};
 pub(crate) use font_block::{face_loads, font_size_loads, own_font_lua, SAME_FONT_HEIGHT};
@@ -418,6 +423,7 @@ pub use model::{
     FontProbe, MacroIconSource, TextureProbe, TextureSizeFn, TextureSizeProbe, WorldLocFn,
     WorldLocProjector,
 };
+pub use mouseover::FreelookQuery;
 pub use party::{
     PartyMemberInfo, PartyRequest, PartyState, RaidMemberInfo, ReadyCheckState, SavedInstanceInfo,
 };
@@ -425,6 +431,7 @@ pub use pet::{
     PetActionView, PetBarFlags, PetBarFlagsView, PetBookNow, PetCall, PetMenuNow, PetSlot,
     PetSlots, PetStats, PetStatsNow, PET_DISMISS_WORD,
 };
+pub use pointer::PointerTarget;
 pub use pvp::{
     decorated_name, pvp_name_global_keys, HonorNow, HonorState, InspectHonorData, InspectHonorNow,
     InspectHonorSlot, PvpCall, RankTitle,
@@ -513,12 +520,13 @@ pub use unit::{
     UnitRelations, UnitState, UnitStateAnswer, UnitStateQuery, UnitTokenGlobals, UnitTokenObjects,
     UnitTokenParse,
 };
-pub use use_gates::ControlBypassQuery;
-pub use weapon_enchant::WeaponEnchant;
+pub use use_gates::{ControlBypassQuery, FarSightOnQuery};
+pub use weapon_enchant::{WeaponEnchant, WeaponEnchantQuery};
 pub use who_sort::{WhoSortChain, WhoSortKey};
 pub use worldmap::{
-    WorldMapContinentView, WorldMapLandmarkSource, WorldMapLandmarkView, WorldMapLevel,
-    WorldMapOverlayView, WorldMapSheetRow, WorldMapState, WorldMapZoneView,
+    UnitMapPosition, UnitMapPositionQuery, WorldMapContinentView, WorldMapLandmarkSource,
+    WorldMapLandmarkView, WorldMapLevel, WorldMapOverlayView, WorldMapSheetRow, WorldMapState,
+    WorldMapZoneView,
 };
 pub use worldstate::WorldStateUiView;
 pub use worn_display::{WornDisplay, WornDisplaySet};
