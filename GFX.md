@@ -166,3 +166,7 @@ copies, to iterate without a rebuild.
   name a key from its scancode as winit's does, but an SDL window's scancodes are USB usages, and
   on Linux the gfx window reports no unshifted character, so there a letter or punctuation key
   keeps its US name (an AZERTY Z binds as W).
+- Vsync on is plain `Fifo` on every device: wgpu's path reads its adapter to trade `Fifo` for a
+  refresh-paced `AutoNoVsync` on NVIDIA's Vulkan driver on Windows, which crashes in `Fifo` after a
+  resize (`video::present_choice`, #2058); the gfx device reports no adapter, so the trade is
+  never made. Whether the gfx vk device on that driver crashes the same way is not known.
