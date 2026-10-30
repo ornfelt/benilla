@@ -345,6 +345,8 @@ pub(super) fn control(
         Option<ResMut<super::press::CallAutorun>>,
         Option<ResMut<crate::field_watch::NoticeLane>>,
     ),
+    // The world frame's live latches, where Quake 3 movement's auto-hop reads a held jump.
+    #[cfg(feature = "q3_movement")] latches: Res<crate::bindings::BindingLatches>,
 ) {
     let (world, transports, child_of) = (&world_q.0, &world_q.1, &world_q.2);
     let Ok((mut cam_t, mut cam)) = cameras.single_mut() else {
@@ -754,7 +756,7 @@ pub(super) fn control(
             && !swimming
             && player.airborne_since.is_some()
             && may_translate
-            && binds.command_held("JUMP")
+            && latches.command_held("JUMP")
         {
             want_jump = true;
         }

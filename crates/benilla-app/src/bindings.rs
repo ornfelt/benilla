@@ -121,6 +121,16 @@ pub(crate) struct BindingLatches {
     down: KeyDownList,
 }
 
+impl BindingLatches {
+    /// Is a key bound to `command` (`"JUMP"`) still down from its press: every press latches its
+    /// command until the release. Quake 3 movement's auto-hop reads a held jump here, since JUMP's
+    /// `Jump()` is a one-shot with no held bit.
+    #[cfg(feature = "q3_movement")]
+    pub(crate) fn command_held(&self, command: &str) -> bool {
+        self.latched.iter().any(|(_, c)| c == command)
+    }
+}
+
 /// The keys believed down, the reference's own list (`0x4248b3`): a press of a key on it is an
 /// auto-repeat, whatever the OS flagged. One instance is the bindings', another the UI key feed's
 /// ([`crate::ui_script`]), which decides repeat for the frames by the same rule and reconcile.
@@ -186,13 +196,6 @@ impl BindingsState {
     /// Did this one-shot fire this frame?
     pub(crate) fn fired(&self, i: Input) -> bool {
         self.edges.fired.contains(&i)
-    }
-    /// Is a key bound to `command` (`"JUMP"`) still down from its press: every press latches its
-    /// command until the release. Quake 3 movement's auto-hop reads a held jump here, since JUMP's
-    /// `Jump()` is a one-shot with no held bit.
-    #[cfg(feature = "q3_movement")]
-    pub(crate) fn command_held(&self, command: &str) -> bool {
-        self.latched.iter().any(|(_, c)| c == command)
     }
     /// Fire the one-shot `i` this frame, as a body's Lua call would.
     #[cfg(test)]
