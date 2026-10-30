@@ -57,6 +57,12 @@ impl SystemMeta {
         }
     }
 
+    /// Returns the system's name
+    #[inline]
+    pub fn name(&self) -> &DebugName {
+        &self.name
+    }
+
     /// Sets the system to be not [`Send`].
     ///
     /// This is irreversible.

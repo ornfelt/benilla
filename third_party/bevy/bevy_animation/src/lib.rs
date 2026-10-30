@@ -391,6 +391,11 @@ impl ActiveAnimation {
         self
     }
 
+    /// Returns the amount of time the animation has been playing.
+    pub fn elapsed(&self) -> f32 {
+        self.elapsed
+    }
+
     /// Returns the seek time of the animation.
     ///
     /// This is nonnegative and no more than the clip duration.

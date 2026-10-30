@@ -137,9 +137,10 @@ the same repository's.
   `bevy_transform`: `BuildChildrenTransformExt` (`commands.rs`), the no-std serial propagation
   (`std` is always on; the parallel one stays), `StaticTransformOptimizations::from_threshold`/
   `disabled` (benilla inserts `enabled()`; the threshold logic stays for the default), and
-  `Transform`'s `from_matrix`, `from_isometry`, `to_isometry`, `looking_to`, `aligned_by`,
-  `align`, `rotate_axis`, `rotate_x`, `rotate_z`, `rotate_local*`, `translate_around`,
-  `rotate_around` with `GlobalTransform`'s `from_isometry`/`to_isometry`. `bevy_camera`:
+  `Transform`'s `from_matrix`, `from_isometry`, `to_isometry`, `aligned_by`, `align`,
+  `rotate_axis`, `rotate_x`, `rotate_z`, `rotate_local*`, `translate_around`, `rotate_around`
+  with `GlobalTransform`'s `from_isometry`/`to_isometry` (`looking_to` was cut here too and is
+  back, "What came back"). `bevy_camera`:
   `VisibilityRange` and `VisibleEntityRanges` (no entity carries a range, so the range test in
   `check_visibility` and `bevy_light`'s two shadow-caster checks never culled; their reads go),
   `check_visibility_ranges` kept as an empty stand-in in `PostUpdate` with its plugin, set and
@@ -1341,6 +1342,29 @@ the same repository's.
   `Children`; `Children` no longer derives `Reflect` and nothing registers types automatically, so
   the trimmed Bevy spawns no hierarchical scene, and benilla spawns none), with the test-only
   types and imports only they used.
+
+## What came back
+
+Cut pieces benilla's code calls again, restored as stock 0.18.1 has them (same API, same
+behaviour) when the merge of `main` through `ad1b9329` brought in the callers. Each one's cut is
+still described above, where it was made.
+
+- `bevy_ecs`: `RemovedSystem` with `initialized`/`system`, so `unregister_system(_cached)` return
+  it again (the lane and handler guards re-register what they unregister, `lanes.rs`,
+  `net/handlers.rs`); `Access::is_subset_resources`, `resource_reads_and_writes`,
+  `resource_reads`, `resource_writes` and `FilteredAccessSet::filtered_accesses` (the access
+  guards, `lanes/guard_tests.rs`, `lanes/host_read_tests.rs`, `ui_world_enter.rs`,
+  `vm_pass.rs`); `World::get_resource_change_ticks` (`cvars`); `SystemMeta::name` and
+  `Tables::iter` (`script_calls/disjoint.rs`).
+- `bevy_state`: `CommandsStatesExt` with `set_state` alone, in the prelude (`glue_session/login.rs`).
+  `set_state_if_neq` stays cut with `PendingIfNeq`, so the command writes `NextState::set`; stock's
+  overwrite log reads only that variant, so it could not fire.
+- `bevy_transform`: `helper.rs`, `TransformHelper` and `ComputeGlobalTransformError` whole, with
+  their test (`target/by_name.rs`, `ui_unit/live.rs`); `Transform::looking_to` (`sun/follow.rs`).
+- `bevy_animation`: `ActiveAnimation::elapsed` (`creature_anim` tests).
+- `bevy_platform`: `HashMap`'s `From<[(K, V); N]>` (`spell/cast_target.rs` tests).
+
+The frame is unchanged by these: none adds a system, set or ordering.
 
 ## How to check
 

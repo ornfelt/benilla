@@ -1773,6 +1773,13 @@ impl World {
             })
     }
 
+    /// Retrieves the change ticks for the given resource.
+    pub fn get_resource_change_ticks<R: Resource>(&self) -> Option<ComponentTicks> {
+        self.components
+            .get_valid_resource_id(TypeId::of::<R>())
+            .and_then(|component_id| self.get_resource_change_ticks_by_id(component_id))
+    }
+
     /// Retrieves the change ticks for the given [`ComponentId`].
     pub fn get_resource_change_ticks_by_id(
         &self,

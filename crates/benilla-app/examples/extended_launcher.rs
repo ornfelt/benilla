@@ -29,10 +29,9 @@
 //! benilla-buildstamp = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //!
 //! # Cargo reads `[patch]` and `[profile]` from the root manifest only, so benilla's are repeated:
-//! # without the patches the addon Lua and the mixer are not benilla's, and Bevy and its plugins
+//! # without the patches the mixer is not benilla's, and Bevy and its plugins
 //! # are crates.io's, not the trimmed copies under `third_party/` (`third_party/bevy/BENILLA.md`).
 //! [patch.crates-io]
-//! lua-src = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! kira = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! bevy = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! bevy_animation = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
@@ -44,6 +43,7 @@
 //! bevy_core_pipeline = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! bevy_derive = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! bevy_diagnostic = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
+//! bevy_dylib = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! bevy_ecs = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! bevy_ecs_macros = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }
 //! bevy_encase_derive = { git = "https://github.com/ornfelt/benilla", branch = "trimmed-bevy" }

@@ -27,11 +27,11 @@ sampler 0 2d quad_texture
 sampler 1 2d mask_texture
 
 // The player-UI quad (`fragment` of `ui_quad.wgsl`): tint and premultiply on gamma bytes for the
-// `(One, OneMinusSrcAlpha)` blend into the UI lane's byte target. `modes` = (additive, circular,
-// desaturate, premultiplied), `test` = (the alpha-test reference, <= 0 off; gamma_texel),
-// `mask_rect` = the screen mask's span in physical px (z <= x off), `uv_clamp` = the sampled UV
-// window (min > max leaves an axis unclamped). `tag.x` is the run's tint, a byte a channel,
-// complemented so no tag is opaque white.
+// `(One, OneMinusSrcAlpha)` blend into the UI lane's byte target, or emit the texel for MOD's
+// `DestColor/Zero`. `modes` = (the EGxBlend 0-4, circular, desaturate, premultiplied), `test` =
+// (the alpha-test reference, <= 0 off; gamma_texel; mask_rgb), `mask_rect` = the screen mask's
+// span in physical px (z <= x off), `uv_clamp` = the sampled UV window (min > max leaves an axis
+// unclamped). `tag.x` is the run's tint, a byte a channel, complemented so no tag is opaque white.
 
 vec3 linear_to_srgb(vec3 c)
 {
@@ -55,12 +55,12 @@ vec4 unpack_tint(uint word)
 	return vec4(float(t & 255u), float((t >> 8u) & 255u), float((t >> 16u) & 255u), float(t >> 24u)) / 255.0;
 }
 
-float sample_mask(vec2 uv)
+vec4 sample_mask(vec2 uv)
 {
 #ifdef GFX_GLSL
-	return textureLod(mask_texture, uv, 0.0).a;
+	return textureLod(mask_texture, uv, 0.0);
 #else
-	return mask_texture.SampleLevel(mask_texture_sampler, uv, 0.0).a;
+	return mask_texture.SampleLevel(mask_texture_sampler, uv, 0.0);
 #endif
 }
 
@@ -80,9 +80,10 @@ fs_output gfx_main(fs_input gfx_input)
 		float l = dot(texel, vec3(0.299, 0.587, 0.114));
 		rgb = vec3(l, l, l);
 	}
-	float k = c.a;
+	// `m`, the masks' coverage, and `k`, the UI's (frame alpha and masks), stay apart from `t.a`.
+	float m = 1.0;
 	if (modes.y != 0.0)
-		k *= 1.0 - smoothstep(0.48, 0.5, distance(gfx_input.uv, vec2(0.5, 0.5)));
+		m *= 1.0 - smoothstep(0.48, 0.5, distance(gfx_input.uv, vec2(0.5, 0.5)));
 	if (mask_rect.z > mask_rect.x)
 	{
 		// The physical pixel, top-down: the rows run bottom-up where `misc.y` is 1 or 3 (GL, but
@@ -92,9 +93,13 @@ fs_output gfx_main(fs_input gfx_input)
 			frag.y = misc.z - frag.y;
 		vec2 muv = (frag - mask_rect.xy) / (mask_rect.zw - mask_rect.xy);
 		float inside = (muv.x >= 0.0 && muv.y >= 0.0 && muv.x <= 1.0 && muv.y <= 1.0) ? 1.0 : 0.0;
-		float m = sample_mask(clamp(muv, vec2(0.0, 0.0), vec2(1.0, 1.0)));
-		k *= m * inside;
+		vec4 ms = sample_mask(clamp(muv, vec2(0.0, 0.0), vec2(1.0, 1.0)));
+		m *= ms.a * inside;
+		// The mask's stage modulates colour too (combine preset 1).
+		if (test.z != 0.0)
+			rgb *= ms.rgb;
 	}
+	float k = c.a * m;
 	if (test.x > 0.0)
 	{
 		if (t.a * c.a < test.x)
@@ -102,9 +107,30 @@ fs_output gfx_main(fs_input gfx_input)
 		gfx_output.color = vec4(srgb_to_linear(t.rgb) * c.rgb, 1.0);
 		return gfx_output;
 	}
+	// DISABLE (0) and ALPHAKEY (1, the texel's alpha tested at 223.5/255) write the texel over the
+	// target, the masks still cutting it; MOD (4) multiplies the target by it, tested at 0.5/255.
+	if (modes.x < 0.5)
+	{
+		gfx_output.color = vec4(rgb * m, m);
+		return gfx_output;
+	}
+	if (modes.x < 1.5)
+	{
+		if (t.a < 223.5 / 255.0)
+			discard;
+		gfx_output.color = vec4(rgb * m, m);
+		return gfx_output;
+	}
+	if (modes.x > 3.5)
+	{
+		if (t.a * c.a < 0.5 / 255.0)
+			discard;
+		gfx_output.color = vec4(mix(vec3(1.0, 1.0, 1.0), rgb, m), 1.0);
+		return gfx_output;
+	}
 	float a = t.a * k;
 	float weight = modes.w != 0.0 ? k : a;
-	if (modes.x != 0.0)
+	if (modes.x > 2.5)
 		gfx_output.color = vec4(rgb * weight, 0.0);
 	else
 		gfx_output.color = vec4(rgb * weight, a);

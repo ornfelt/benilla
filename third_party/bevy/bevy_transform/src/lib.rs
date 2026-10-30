@@ -19,6 +19,10 @@ pub mod components;
 #[cfg(feature = "bevy-support")]
 pub mod plugins;
 
+/// Helpers related to computing global transforms
+#[cfg(feature = "bevy-support")]
+pub mod helper;
+
 /// Systems responsible for transform propagation
 #[cfg(feature = "bevy-support")]
 pub mod systems;

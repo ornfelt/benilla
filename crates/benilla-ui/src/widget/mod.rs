@@ -19,6 +19,14 @@ pub struct FrameHandle {
     generation: u32,
 }
 
+impl FrameHandle {
+    /// Index and generation in one integer, for a deterministic order over a hashed set.
+    #[inline]
+    pub(crate) fn fingerprint_bits(self) -> u64 {
+        (u64::from(self.generation) << 32) | u64::from(self.index)
+    }
+}
+
 /// A generational handle to a [`Region`] (a texture or fontstring leaf).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RegionHandle {
@@ -36,15 +44,20 @@ impl RegionHandle {
 
 // ── The generational arena ───────────────────────────────────────────────────────────────────
 
+#[derive(Clone)]
 struct Slot<T> {
     generation: u32,
     value: Option<T>,
 }
 
 /// `remove` bumps the slot's generation, so an old handle stops resolving.
+#[derive(Clone)]
 struct Arena<T> {
     slots: Vec<Slot<T>>,
     free: Vec<u32>,
+    /// Bumped by every access that can change a value or the set: an equal count since a read
+    /// means nothing changed in between.
+    mutations: u64,
 }
 
 impl<T> Arena<T> {
@@ -52,10 +65,12 @@ impl<T> Arena<T> {
         Arena {
             slots: Vec::new(),
             free: Vec::new(),
+            mutations: 0,
         }
     }
 
     fn insert(&mut self, value: T) -> (u32, u32) {
+        self.mutations = self.mutations.wrapping_add(1);
         if let Some(index) = self.free.pop() {
             let slot = &mut self.slots[index as usize];
             slot.value = Some(value);
@@ -71,6 +86,7 @@ impl<T> Arena<T> {
     }
 
     fn remove(&mut self, index: u32, generation: u32) -> Option<T> {
+        self.mutations = self.mutations.wrapping_add(1);
         let slot = self.slots.get_mut(index as usize)?;
         if slot.generation != generation {
             return None;
@@ -92,6 +108,7 @@ impl<T> Arena<T> {
     }
 
     fn get_mut(&mut self, index: u32, generation: u32) -> Option<&mut T> {
+        self.mutations = self.mutations.wrapping_add(1);
         let slot = self.slots.get_mut(index as usize)?;
         if slot.generation != generation {
             return None;
@@ -107,6 +124,7 @@ impl<T> Arena<T> {
     }
 
     fn iter_mut(&mut self) -> impl Iterator<Item = (u32, u32, &mut T)> + '_ {
+        self.mutations = self.mutations.wrapping_add(1);
         self.slots
             .iter_mut()
             .enumerate()
@@ -117,16 +135,21 @@ impl<T> Arena<T> {
 // ── Widget kinds ─────────────────────────────────────────────────────────────────────────────
 
 mod kinds;
+pub(crate) use kinds::ButtonFonts;
 pub use kinds::{
-    model_key, slider_fraction, slider_grab, slider_set_value, ArmedSequence, ButtonFont,
-    ButtonState, ButtonVisualState, ColorSelectState, EditAction, EditBoxState, EditOutcome,
-    EditUnit, FrameKind, InsertMode, KindState, KindUpdate, MessageFrameState, MessageLine,
-    MinimapState, ModelFileFacts, ModelFog, ModelLight, ModelPlayHead, ModelState, RegionKind,
-    ScrollFrameState, ScrollingMessageState, SequenceFacts, ShownWrites, SliderState,
-    StatusBarState, TooltipAnchor, TooltipState, MINIMAP_DEFAULT_ARROW_MODEL, MINIMAP_DEFAULT_MASK,
-    MINIMAP_DEFAULT_PLAYER_MODEL, MINIMAP_DEFAULT_ZOOM, MINIMAP_ENGINE_CHILDREN,
-    MINIMAP_ZOOM_LEVELS, TOOLTIP_DOUBLE_GAP, TOOLTIP_FADE_SECS, TOOLTIP_LINE_GAP, TOOLTIP_PAD,
-    TOOLTIP_WRAP_WIDTH,
+    minimap_radius_yd, model_key, pane_clock_step_ms, slider_fraction, slider_grab,
+    slider_set_value, ArmedSequence, ButtonState, ButtonVisualState, CharacterPane,
+    ColorSelectState, CopyCamera, EditAction, EditBoxState, EditOutcome, EditUnit, FrameKind,
+    InsertMode, InstalledCamera, KindState, KindUpdate, MessageFrameState, MessageLine, MinimapArt,
+    MinimapArtSlot, MinimapState, MinimapStatics, ModelFileFacts, ModelFog, ModelLight,
+    ModelPlayHead, ModelState, PaneArm, PaneCopy, RegionKind, ScrollFrameState,
+    ScrollingMessageState, SequenceFacts, ShownWrites, SliderState, StatusBarState, TooltipAnchor,
+    TooltipState, Viewport, ANIM_SHUFFLE_LEFT, ANIM_SHUFFLE_RIGHT, ANIM_STAND, MINIMAP_ARROW_SCALE,
+    MINIMAP_DEFAULT_ARROW_MODEL, MINIMAP_DEFAULT_MASK, MINIMAP_DEFAULT_PLAYER_MODEL,
+    MINIMAP_DEFAULT_ZOOM, MINIMAP_DISC, MINIMAP_ENGINE_CHILDREN, MINIMAP_GROUP_ARROWS,
+    MINIMAP_INDOOR_RADII, MINIMAP_RIM_ARROWS, MINIMAP_ZOOM_CHUNKS, MINIMAP_ZOOM_LEVELS,
+    TOOLTIP_COLUMN_GAP, TOOLTIP_FADE_SECS, TOOLTIP_LINE_GAP, TOOLTIP_PLATE_PAD, TOOLTIP_WRAP_WIDTH,
+    TURN_HOLD_MS,
 };
 
 // ── Frame and Region nodes ───────────────────────────────────────────────────────────────────
@@ -154,11 +177,10 @@ pub struct Frame {
     pub strata: Strata,
     /// The level within the stratum (`frameLevel +0xc4`, default 0).
     pub level: u16,
-    /// This frame's own alpha, 0.0..=1.0 (`alpha +0xc8`, default 1.0).
-    pub alpha: f32,
-    /// Always equal to [`Frame::alpha`]: alpha cascades at set time, and at draw a region
-    /// multiplies only its owner frame's alpha (`0x772180`/`0x77fac0`).
-    pub effective_alpha: f32,
+    /// This frame's alpha byte (`+0xc8`, default 255). It cascades at set time
+    /// ([`WidgetArena::set_alpha`]), and at draw a region multiplies only its owner frame's
+    /// (`0x772180`/`0x77fac0`).
+    pub alpha: u8,
     /// The frame's own Show/Hide bit (`+0xd0`, default true).
     pub shown: bool,
     /// `shown` and every ancestor effectively visible (`+0xd4`).
@@ -167,22 +189,46 @@ pub struct Frame {
     /// the post-load hook starts (`0x76a2ff`). While it is set the frame's own OnShow and OnHide
     /// fire nothing (`0x76b270`/`0x76b2a0`); it still transitions and walks its children.
     pub load_window: bool,
+    /// The layout object's deferral flag (`0x2` of `G+0x3c`, written only by `0x768060`): set by a
+    /// hide (`0x76ad70`) and a load's start (`0x7697cc`), cleared by a show (`0x76ae58`), a load's
+    /// end while visible (`0x76a310`) and an anchor read (`0x7a2fc0`). While it is set the frame's
+    /// resolve waits; [`crate::script::Model`] keeps what it owes.
+    pub layout_deferred: bool,
     /// `EnableMouse`: the mouse bit (bit 2) of the input mask `[frame+0xcc]`.
     pub mouse_enabled: bool,
-    /// `EnableMouseWheel`, or an `<OnMouseWheel>` script at XML load: the mask's wheel bit (3).
-    /// A frame with the script but not the bit is transparent to the wheel.
+    /// `EnableMouseWheel`, or an `<OnMouseWheel>` script at XML load (`0x76a044`): the mask's
+    /// wheel bit (3), membership in the wheel walk. A frame with the script but not the bit is
+    /// transparent to the wheel. Born set only for the WorldFrame (`0x481b1f`); `EnableMouseWheel`
+    /// and an XML `<OnMouseWheel>` set it later.
     pub mouse_wheel_enabled: bool,
-    /// `EnableKeyboard` (`0x776ec0`), XML `enableKeyboard` or a key script at XML load: the
-    /// mask's char and key bits (`0x76af00`), which key delivery walks
-    /// ([`crate::script::keyboard`]); a script-less frame there declines.
-    pub keyboard_enabled: bool,
-    /// `SetClampedToScreen`, geometry flags bit 4: `0x767a20` shifts the rect back on screen.
+    /// The input mask's char bit (0): membership in the char walk ([`crate::script::keyboard`]),
+    /// `0x76af00(0)`. `EnableKeyboard` (`0x776ec0`), XML `enableKeyboard` or a key script at XML
+    /// load set it with [`Self::key_enabled`]; the EditBox ctor sets it (`0x779ced`); a script-less
+    /// frame in the walk declines.
+    pub char_enabled: bool,
+    /// The mask's key bit (1): membership in the key-down walk, `0x76af00(1)`. The EditBox ctor
+    /// (`0x779cf8`) and the WorldFrame's (`0x481b09`, which has no char bit) set it.
+    pub key_enabled: bool,
+    /// When the frame last joined the char bucket (`0x764aa0`, kind 0): at its link (creation
+    /// visible, show, a strata or level change) or, on a linked frame, at the bit's own enable
+    /// (`0x76af00`). Equal-level frames walk in this order, oldest first. A [`WidgetArena`]
+    /// counter, apart from [`Self::insertion_seq`], whose draw order an enable does not touch.
+    pub char_stamp: u64,
+    /// The same for the key bucket (kind 1).
+    pub key_stamp: u64,
+    /// The same for the wheel bucket (kind 3): at the link or, on a linked frame, at the bit's
+    /// own enable (`0x76af00`).
+    pub wheel_stamp: u64,
+    /// The same for the mouse bucket (kind 2), the hover sweep's list (`0x7661f2`): at the link
+    /// or, on a linked frame, at the bit's own enable (`0x76af00`).
+    pub mouse_stamp: u64,
+    /// `SetClampedToScreen`, geometry flags `0x10`: `0x767a20` shifts the rect back on screen.
     /// Every GameTooltip is born with it here; the stock tooltips get it from their template,
     /// `GameTooltipTemplate.xml:3`.
     pub clamped_to_screen: bool,
     /// `SetHitRectInsets` or `<HitRectInsets>`: the mouse rect's `[left, right, top, bottom]`
     /// inset. Only the hit test reads it; drawing, anchoring and `GetLeft`/`GetWidth` do not.
-    pub hit_rect_insets: [f32; 4],
+    pub hit_rect_insets: [crate::layout::Len; 4],
     /// `SetMovable`: only a guard, as `StartMoving` errors without it.
     pub movable: bool,
     /// `SetResizable`: the guard `StartSizing` checks.
@@ -190,9 +236,9 @@ pub struct Frame {
     /// `SetMinResize` (`0x776020`; `GetMinResize` `0x775f20`): the resize drag's floor, `(width,
     /// height)` in `SetWidth` units. `0.0` is unbounded per axis (ctor `0x767680`); a negative
     /// bound clamps (`0x768710`). Only the drag reads it, never `SetWidth` or the layout.
-    pub min_resize: (f32, f32),
+    pub min_resize: (crate::layout::Len, crate::layout::Len),
     /// `SetMaxResize` (`0x7762a0`; `GetMaxResize` `0x7761a0`): the ceiling, same rules.
-    pub max_resize: (f32, f32),
+    pub max_resize: (crate::layout::Len, crate::layout::Len),
     /// `SetUserPlaced`: the layout cache keeps this frame's position. Every drag (`0x7652b0`)
     /// stamps it (`0x7652e5`), so the cache also requires `movable` or `resizable`, at write and
     /// at apply.
@@ -201,9 +247,24 @@ pub struct Frame {
     /// `resizable` `0x200`, all set by `0x76a3c0`). It raises nothing; `CSimpleTop::Raise`
     /// (`0x7650f0`) raises the nearest toplevel self-or-ancestor of a clicked or shown frame.
     pub toplevel: bool,
+    /// Flag `0x10` of `[frame+0xb4]`: a toplevel frame overlapped by a frame at its level or above
+    /// in its stratum, as a checked raise (`0x7651a3`) or the draw pass (`0x765851`) last found
+    /// it. Only the unchecked raise of a held move reads it (`0x7651ac`).
+    pub overlapped: bool,
+    /// Flag `0x2000` of `[frame+0xb4]`: the frame is in a scroll child's subtree, so the flat draw
+    /// pass skips it (`0x7659df`) and its ScrollFrame draws it; the hit test clips it to its first
+    /// ancestor without the flag (`0x76b034`). [`WidgetArena::set_scroll_flags`] writes it.
+    pub scroll_member: bool,
+    /// Flag `0x4000`: the frame is a scroll child itself, so a recursive draw that reaches it
+    /// through its parent skips it (`0x76b509`): its ScrollFrame draws it.
+    pub scroll_root: bool,
     /// This frame's own scale (`ownScale +0xb8`, default 1.0).
     pub scale: f32,
-    /// `layoutScale` = `parentEffective * ownScale`, ε-gated (`0x76ac90`).
+    /// The parent scale (`+0xbc`, default 1.0): the parent's layout scale as the child walk last
+    /// passed it (`0x76ac50`), kept even when this frame refused it.
+    pub parent_scale: f32,
+    /// The layout scale (`+0x7c`), `parent_scale * scale` as `0x76ac90` last stored it; never 0,
+    /// which the layout refuses (`0x768366`).
     pub effective_scale: f32,
     /// A later client's `ignoreParentScale`, not 1.12: nothing sets it.
     pub ignore_parent_scale: bool,
@@ -220,6 +281,13 @@ pub struct Frame {
     next_decl: u32,
 }
 
+impl Frame {
+    /// Its place on the list of every live frame (`root+0xcc4`), creation order.
+    pub(crate) fn created(&self) -> u64 {
+        self.created
+    }
+}
+
 /// A region leaf: a texture or font string owned by one frame.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Region {
@@ -229,11 +297,21 @@ pub struct Region {
     /// The engine's own order within a layer, which only the EditBox caret sets, to draw over the
     /// text; 1.12 gives Lua and XML no sub-level (`0x76a860`, `0x79a780`).
     pub sub_level: i8,
-    /// The index within the owner frame, the last within-layer draw tiebreak.
+    /// The place in its owner's layer list, the last within-layer draw tiebreak: taken at each
+    /// registration (`0x77fcb0` → `0x76a860`, a tail link the layer is drawn from the head of,
+    /// `0x76b3a0`), so the region registered last draws last in its layer.
     pub decl_seq: u32,
     /// `Region:SetParent(nil)`: unlinked and not drawn, but not destroyed (`0x77fd10` with a null
     /// parent). The owner's `regions` keeps it so `destroy` frees it; `SetParent(frame)` relinks.
     pub detached: bool,
+    /// The region's own name, the expanded string `SetName` keeps at `[+0x98]` (`0x76c650`); `None`
+    /// while anonymous. Only the `_G` entry is first-come (`0x701bd0`), so two regions can hold
+    /// one name, and `GetName` answers each its own.
+    pub name: Option<String>,
+    /// The layout object's deferral bit, as [`Frame::layout_deferred`]: set when the region stops
+    /// drawing (`0x77fc82`) and at its owner's load (`0x769807`), cleared when it starts
+    /// (`0x77fce6`) and by an anchor read.
+    pub layout_deferred: bool,
 }
 
 /// A cursor over a frame's child list for [`WidgetArena::next_child`]: the child last returned and
@@ -249,15 +327,23 @@ pub struct ChildWalk {
 /// The frame arena: frames, regions, the name registry and the propagation mutators. The screen
 /// root is not a node: a frame with no parent hangs off it. Within a bucket the client's list is a
 /// head insert walked tail to head, the same order as the ascending [`Frame::insertion_seq`].
+#[derive(Clone)]
 pub struct WidgetArena {
     frames: Arena<Frame>,
     regions: Arena<Region>,
     names: HashMap<String, FrameHandle>,
     next_insertion: u32,
+    /// The next [`Frame::char_stamp`] / [`Frame::key_stamp`] / [`Frame::wheel_stamp`] /
+    /// [`Frame::mouse_stamp`].
+    next_kb_stamp: u64,
     /// Each stratum's level bound, the reference's `bucket+0x8`: one above the highest level a
     /// visible frame has linked at since the last compaction set it. It starts at 0 and only a
     /// visible link grows it ([`Self::link_bound`]); nothing else lowers it but the compaction.
     level_bound: [u32; Strata::ALL.len()],
+    /// Bit `n` set: stratum `n`'s levels are dirty (the record's `+0x4`), set by a link
+    /// (`0x764780`) and a frame's rect change (`0x764a36`), so the next draw pass recomputes the
+    /// overlap bit of its toplevel frames (`0x7657d0`).
+    levels_dirty: u16,
     /// The next [`Frame::created`].
     next_created: u64,
     /// How many times the link stamps were renumbered at the cap, so a reader holding stamps can
@@ -268,8 +354,6 @@ pub struct WidgetArena {
     link_log: Option<Vec<FrameHandle>>,
     /// The draw list's fingerprint cache ([`crate::order::traversal`]).
     pub(crate) order_cache: crate::order::OrderCache,
-    /// Minimap frames ever created, so the state feed notices a new one without a walk.
-    minimap_created: u64,
     /// The live model panes, so the host's passes over them (the paint list, the implicit rects)
     /// skip the rest of the arena. Added at creation, as kinds never change; `destroy` removes its
     /// own.
@@ -277,7 +361,8 @@ pub struct WidgetArena {
     /// The live frames whose kind has a [`KindUpdate`], kept the same way: the update walk reaches
     /// each one shown, with an `OnUpdate` or without.
     walked_kinds: Vec<FrameHandle>,
-    /// The live GameTooltips, kept the same way, for the layout pre-pass and unit push.
+    /// The live GameTooltips, kept the same way, for the layout's cursor pre-pass, the headless
+    /// sizing and the unit push.
     tooltip_kinds: Vec<FrameHandle>,
     /// The live Minimaps, kept the same way, for the containment, zoom and arrow-facing feeds.
     minimap_kinds: Vec<FrameHandle>,
@@ -296,7 +381,7 @@ impl Default for WidgetArena {
 /// (`0x778771`, CheckButton through it), Slider (`0x789467`), ColorSelect (`0x78b2b5`), EditBox
 /// (`0x779ced`..`0x779d03`, with char and key) and Minimap (`0x4edc38`) set its mouse bit. The
 /// ScrollFrame and ScrollingMessageFrame ctors set none; a chat link takes clicks through a
-/// mouse-enabled child per span (`0x7a3240`), which `script::pointer` models as rects.
+/// mouse-enabled Button child per span (`0x7a3240`), which `script::hyperlink` builds.
 pub fn mouse_enabled_by_ctor(kind: FrameKind) -> bool {
     matches!(
         kind,
@@ -320,11 +405,12 @@ impl WidgetArena {
             regions: Arena::new(),
             names: HashMap::new(),
             next_insertion: 0,
+            next_kb_stamp: 0,
             level_bound: [0; Strata::ALL.len()],
+            levels_dirty: 0,
             next_created: 0,
             renumbers: 0,
             link_log: None,
-            minimap_created: 0,
             order_cache: Default::default(),
             model_kinds: Vec::new(),
             walked_kinds: Vec::new(),
@@ -332,11 +418,6 @@ impl WidgetArena {
             minimap_kinds: Vec::new(),
             editbox_kinds: Vec::new(),
         }
-    }
-
-    /// Minimap frames ever created, a cheap signal that a new one exists.
-    pub fn minimap_created(&self) -> u64 {
-        self.minimap_created
     }
 
     /// The live model panes.
@@ -381,6 +462,12 @@ impl WidgetArena {
         self.regions.get_mut(h.index, h.generation)
     }
 
+    /// How many times the frames could have changed: any frame borrowed mutably, created or
+    /// destroyed. An equal count since a read means every frame is as that read saw it.
+    pub(crate) fn frame_mutations(&self) -> u64 {
+        self.frames.mutations
+    }
+
     /// Every live frame, in arena order, not draw order.
     pub fn iter_frames(&self) -> impl Iterator<Item = (FrameHandle, &Frame)> + '_ {
         self.frames
@@ -413,9 +500,15 @@ impl WidgetArena {
             self.renumbers += 1;
         }
         let seq = self.next_insertion;
+        let stamp = self.next_kb_stamp;
+        self.next_kb_stamp += 1;
         let mut linked = None;
         if let Some(f) = self.frame_mut(h) {
             f.insertion_seq = seq;
+            f.char_stamp = stamp;
+            f.key_stamp = stamp;
+            f.wheel_stamp = stamp;
+            f.mouse_stamp = stamp;
             linked = Some((f.strata, f.level));
             self.next_insertion += 1;
             if let Some(log) = &mut self.link_log {
@@ -433,6 +526,18 @@ impl WidgetArena {
     fn link_bound(&mut self, strata: Strata, level: u16) {
         let bound = &mut self.level_bound[strata.index() as usize];
         *bound = (*bound).max(u32::from(level) + 1);
+        // The add marks the levels dirty (`0x764901`).
+        self.levels_dirty |= 1 << strata.index();
+    }
+
+    /// Mark the strata of `mask` (bit per [`Strata::index`]) as having dirty levels.
+    pub(crate) fn mark_levels_dirty(&mut self, mask: u16) {
+        self.levels_dirty |= mask;
+    }
+
+    /// The strata whose levels are dirty, cleared, as the draw pass clears each (`0x765872`).
+    pub(crate) fn take_levels_dirty(&mut self) -> u16 {
+        std::mem::take(&mut self.levels_dirty)
     }
 
     /// Start recording every link into a bucket, for the update walk (`0x765650`), which must see
@@ -477,17 +582,20 @@ impl WidgetArena {
         let parent = parent.filter(|&p| self.frame(p).is_some());
         let parent_visible = parent.is_none_or(|p| self.frame(p).unwrap().effective_visible);
         let parent_scale = parent.map_or(1.0, |p| self.frame(p).unwrap().effective_scale);
+        // The ctor's `SetParent` (`0x769318`) copies the parent's scroll membership (`0x76ab92`).
+        let scroll_member = parent.is_some_and(|p| self.frame(p).unwrap().scroll_member);
 
         let insertion_seq = self.next_insertion;
         self.next_insertion += 1;
+        let kb_stamp = self.next_kb_stamp;
+        self.next_kb_stamp += 1;
         let created = self.next_created;
         self.next_created += 1;
 
         let shown = true;
         let scale = 1.0f32;
-        // 1.0 whatever the parent's: only `SetAlpha` pushes alpha down the tree.
-        let alpha = 1.0f32;
-        let effective_alpha = alpha;
+        // Opaque whatever the parent's: only `SetAlpha` pushes alpha down the tree.
+        let alpha = 255u8;
 
         let frame = Frame {
             disabled_layers: 0,
@@ -505,29 +613,43 @@ impl WidgetArena {
             },
             level: 0,
             alpha,
-            effective_alpha,
             shown,
             effective_visible: shown && parent_visible,
             load_window: false,
+            // The ctor zeroes the layout flags (`0x767680`); the load sets the bit.
+            layout_deferred: false,
             mouse_enabled: mouse_enabled_by_ctor(kind),
-            // The WorldFrame ctor takes the wheel (`0x481b1f`); the reference's ScrollFrame and
-            // ScrollingMessageFrame ctors do not, and a stock one takes it from `<OnMouseWheel>`.
-            mouse_wheel_enabled: matches!(
-                kind,
-                FrameKind::ScrollingMessageFrame | FrameKind::ScrollFrame | FrameKind::WorldFrame
-            ),
-            // No kind is keyboard-enabled at creation here; the reference's EditBox
-            // (`0x779ced`/`0x779cf8`) and WorldFrame (`0x481b09`) ctors enable key input.
-            keyboard_enabled: false,
+            // The WorldFrame ctor takes the wheel (`0x481b1f`); the ScrollFrame and
+            // ScrollingMessageFrame ctors do not (`0x786a40`, `0x787670`), and a frame takes it
+            // from an XML `<OnMouseWheel>` (`0x76a044`) or `EnableMouseWheel`.
+            mouse_wheel_enabled: kind == FrameKind::WorldFrame,
+            // The EditBox ctor enables char and key input (`0x779ced`, `0x779cf8`), the
+            // WorldFrame's key input alone (`0x481b09`); every other kind is born inert.
+            char_enabled: kind == FrameKind::EditBox,
+            key_enabled: matches!(kind, FrameKind::EditBox | FrameKind::WorldFrame),
+            char_stamp: kb_stamp,
+            key_stamp: kb_stamp,
+            wheel_stamp: kb_stamp,
+            mouse_stamp: kb_stamp,
             clamped_to_screen: matches!(kind, FrameKind::GameTooltip),
-            hit_rect_insets: [0.0; 4],
+            hit_rect_insets: [crate::layout::Len::Script(0.0); 4],
             movable: false,
             resizable: false,
-            min_resize: (0.0, 0.0),
-            max_resize: (0.0, 0.0),
+            min_resize: (
+                crate::layout::Len::Script(0.0),
+                crate::layout::Len::Script(0.0),
+            ),
+            max_resize: (
+                crate::layout::Len::Script(0.0),
+                crate::layout::Len::Script(0.0),
+            ),
             user_placed: false,
             toplevel: false,
+            overlapped: false,
+            scroll_member,
+            scroll_root: false,
             scale,
+            parent_scale,
             effective_scale: parent_scale * scale,
             ignore_parent_scale: false,
             wow_id: 0,
@@ -550,12 +672,12 @@ impl WidgetArena {
                 FrameKind::ColorSelect => {
                     KindState::ColorSelect(kinds::ColorSelectState::default())
                 }
-                // `CGCharacterModelBase` extends `CSimpleModel`, adding only a turn-animation pair,
-                // which is not modelled.
-                FrameKind::Model
-                | FrameKind::PlayerModel
-                | FrameKind::DressUpModel
-                | FrameKind::TabardModel => KindState::Model(kinds::ModelState::default()),
+                // `CGCharacterModelBase` (`0x505680`) extends `CSimpleModel` with its subject, its
+                // turn latch and its own light.
+                FrameKind::PlayerModel | FrameKind::DressUpModel | FrameKind::TabardModel => {
+                    KindState::Model(kinds::ModelState::character())
+                }
+                k if k.is_model() => KindState::Model(kinds::ModelState::default()),
                 FrameKind::Minimap => KindState::Minimap(kinds::MinimapState::default()),
                 FrameKind::GameTooltip => KindState::Tooltip(kinds::TooltipState::default()),
                 _ => KindState::None,
@@ -563,16 +685,7 @@ impl WidgetArena {
             next_decl: 0,
         };
 
-        if matches!(kind, FrameKind::Minimap) {
-            self.minimap_created += 1;
-        }
-        let model_kind = matches!(
-            kind,
-            FrameKind::Model
-                | FrameKind::PlayerModel
-                | FrameKind::DressUpModel
-                | FrameKind::TabardModel
-        );
+        let model_kind = kind.is_model();
         let visible = frame.effective_visible;
         let (strata, level) = (frame.strata, frame.level);
         let (index, generation) = self.frames.insert(frame);
@@ -607,9 +720,6 @@ impl WidgetArena {
         }
         if matches!(kind, FrameKind::Minimap) {
             self.minimap_kinds.push(handle);
-            // The `CMinimap` ctor's last act, so a `CreateFrame("Minimap")` has its nine children
-            // before its `OnLoad` too.
-            self.build_minimap_engine_children(handle);
         }
         handle
     }
@@ -632,18 +742,6 @@ impl WidgetArena {
             s.text_region = text;
             s.selection_regions = selection;
             s.caret_region = caret;
-        }
-    }
-
-    /// Build a Minimap's nine engine `Model` children, the ninth its player arrow. They are born
-    /// anonymous and without a model file; `CMinimap::LoadXML` (`0x4ee2b0`) assigns the paths.
-    fn build_minimap_engine_children(&mut self, minimap: FrameHandle) {
-        let mut ninth = None;
-        for _ in 0..kinds::MINIMAP_ENGINE_CHILDREN {
-            ninth = Some(self.create(FrameKind::Model, None, Some(minimap)));
-        }
-        if let Some(KindState::Minimap(m)) = self.frame_mut(minimap).map(|f| &mut f.kind_state) {
-            m.player_arrow = ninth;
         }
     }
 
@@ -690,6 +788,11 @@ impl WidgetArena {
         sub_level: i8,
     ) -> Option<RegionHandle> {
         let decl_seq = self.take_decl(owner)?;
+        // The link takes the owner's bit (`0x77fd1e`), and the shown region's start clears it on a
+        // visible owner out of its load (`0x77fcb0`).
+        let layout_deferred = self
+            .frame(owner)
+            .is_some_and(|f| f.layout_deferred && !(f.effective_visible && !f.load_window));
         let (index, generation) = self.regions.insert(Region {
             kind,
             owner,
@@ -697,6 +800,8 @@ impl WidgetArena {
             sub_level,
             decl_seq,
             detached: false,
+            name: None,
+            layout_deferred,
         });
         let handle = RegionHandle { index, generation };
         self.frame_mut(owner)
@@ -706,13 +811,14 @@ impl WidgetArena {
         Some(handle)
     }
 
-    /// The next declaration seq on `owner`, the region's link position. At the draw key's cap the
-    /// frame's regions renumber from 0 in link order (`regions` ascends by seq), so a frame that
-    /// rebuilds regions for ever, a backdrop set on every show, keeps its order and never
-    /// outgrows the key.
+    /// The next declaration seq on `owner`, the region's place in its layer list. At the draw
+    /// key's cap the frame's regions renumber from 0 in their current order, so a frame that
+    /// rebuilds or re-registers regions for ever, a backdrop set on every show, keeps its order
+    /// and never outgrows the key.
     pub(crate) fn take_decl(&mut self, owner: FrameHandle) -> Option<u32> {
         if self.frame(owner)?.next_decl >= crate::order::DECL_CAP {
-            let regions = self.frame(owner)?.regions.clone();
+            let mut regions = self.frame(owner)?.regions.clone();
+            regions.sort_by_key(|&rh| self.region(rh).map_or(0, |r| r.decl_seq));
             let mut next = 0;
             for rh in regions {
                 if let Some(r) = self.region_mut(rh) {
@@ -728,7 +834,20 @@ impl WidgetArena {
         Some(d)
     }
 
-    /// Free one region, as `CSimpleHTML::SetText` pool-frees the last parse's blocks (`0x78adc6`)
+    /// Register `rh` in its owner's layer list again (`0x77fcb0` → `0x76a860`): it takes the
+    /// list's tail and draws over the rest of its layer.
+    pub(crate) fn restamp_region(&mut self, rh: RegionHandle) {
+        let Some(owner) = self.region(rh).map(|r| r.owner) else {
+            return;
+        };
+        if let Some(d) = self.take_decl(owner) {
+            if let Some(r) = self.region_mut(rh) {
+                r.decl_seq = d;
+            }
+        }
+    }
+
+    /// Free one region, as `CSimpleHTML::SetText` deletes the last parse's blocks (`0x78a580`)
     /// and a backdrop's teardown its nine pieces (`0x77f4d0`). The caller drops the region's
     /// script-model state too, and never frees a region some state holds by handle.
     pub fn destroy_region(&mut self, h: RegionHandle) -> bool {

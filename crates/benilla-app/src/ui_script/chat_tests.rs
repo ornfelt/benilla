@@ -8,6 +8,9 @@ use super::test_ui::load_ui as load_xml;
 /// The chat stack, fonts first so `inherits="ChatFontNormal"` resolves.
 pub(crate) fn chat_frame() -> UiScript {
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
+    // No engine behind it: the calls its verbs make are kept for the `take_*` readers.
+    s.keep_calls();
     load_xml(&s, "Interface\\FrameXML\\GlobalStrings.lua");
     load_xml(&s, "Interface\\FrameXML\\Fonts.xml");
     load_xml(&s, "Interface\\FrameXML\\BasicControls.xml");
@@ -33,8 +36,29 @@ pub(crate) fn chat_frame() -> UiScript {
     load_xml(&s, "Interface\\FrameXML\\FloatingChatFrame.xml");
     super::fire_chat_login(&mut s);
     s.set_screen_size(1600.0, 900.0);
+    // The local player `SendChatMessage` needs (`0x49f223`).
+    s.set_unit(
+        "player",
+        Some(benilla_ui::script::UnitState {
+            exists: true,
+            name: Some("Probe".into()),
+            ..Default::default()
+        }),
+    );
     s.resolve();
     s
+}
+
+/// Seat the active player, whose absence the language walk answers with no value (`0x49fb60`):
+/// the chat menu's language rows count from it (`ChatFrame.lua:2395-2397`).
+fn seat_player(s: &mut UiScript) {
+    s.set_unit(
+        "player",
+        Some(benilla_ui::script::UnitState {
+            exists: true,
+            ..Default::default()
+        }),
+    );
 }
 
 fn text_color(quads: &[ExtractedQuad], t: &str) -> Option<[f32; 4]> {
@@ -118,8 +142,12 @@ fn wheel_scroll_re_arms_the_fade_then_freezes_it() {
     let mut s = chat_frame();
     s.run("ChatFrame1:SetTimeVisible(0); ChatFrame1:SetFadeDuration(4)")
         .unwrap();
-    for t in ["L0", "L1", "L2"] {
-        s.add_chat_message("ChatFrame1", t, 1.0, 1.0, 1.0);
+    // More lines than the window holds: a view that shows the oldest cannot scroll up (`0x78861c`).
+    for t in (0..20)
+        .map(|n| format!("F{n}"))
+        .chain(["L0", "L1", "L2"].map(String::from))
+    {
+        s.add_chat_message("ChatFrame1", &t, 1.0, 1.0, 1.0);
     }
     s.resolve();
     s.tick(1.0);
@@ -141,6 +169,27 @@ fn wheel_scroll_re_arms_the_fade_then_freezes_it() {
     let a4 = text_color(&s.extract(), "L1").expect("L1 visible")[3];
     assert!(a4 < 1.0 && a4 > 0.0, "the fade resumed at the bottom: {a4}");
     assert!(close(a4, a1), "and from a full re-arm: {a4} vs {a1}");
+}
+
+/// The stock `ChatFrame.xml` writes `<FontString bytes="256"/>` on the chat box, which caps it at
+/// 255 bytes (`0x77a225`-`0x77a260`, `0x77c040`): a line is stopped before vmangos would drop it.
+#[test]
+fn the_stock_chat_box_stops_at_255_bytes() {
+    benilla_formats::wow_data_or_skip!();
+    let s = chat_frame();
+    assert_eq!(
+        s.eval::<i64>("return ChatFrameEditBox:GetMaxBytes()")
+            .unwrap(),
+        256
+    );
+    s.run("ChatFrameEditBox:SetText(string.rep('\\195\\169', 200))")
+        .unwrap();
+    assert_eq!(
+        s.eval::<i64>("return string.len(ChatFrameEditBox:GetText())")
+            .unwrap(),
+        254,
+        "127 two-byte letters"
+    );
 }
 
 #[test]
@@ -174,6 +223,14 @@ fn the_edit_box_speaks_the_language_picked_in_the_chat_menu() {
     let mut s = chat_frame();
     s.set_language_table(vec![(2, "Darnassian".into()), (7, "Common".into())]);
     s.set_known_languages(vec!["Darnassian".into(), "Common".into()]);
+    // The walk answers only with an active player (`0x49fb50`).
+    s.set_unit(
+        "player",
+        Some(benilla_ui::script::UnitState {
+            exists: true,
+            ..Default::default()
+        }),
+    );
     for line in ["/s before", "/s ishnu", "/y alah"] {
         if line == "/s ishnu" {
             s.run("ChatFrameEditBox.language = GetLanguageByIndex(1)")
@@ -293,6 +350,7 @@ fn chat_click_dismisses_a_stuck_spell_but_not_an_item() {
             "Interface\\FrameXML\\FloatingChatFrame.xml",
         ],
     );
+    seat_player(&mut s);
     s.fire_event("PLAYER_ENTERING_WORLD", vec![]);
     s.set_spellbook(SpellBookState {
         tabs: vec![SpellTabView {
@@ -315,7 +373,7 @@ fn chat_click_dismisses_a_stuck_spell_but_not_an_item() {
     s.run("ToggleSpellBook(BOOKTYPE_SPELL)").unwrap();
     s.resolve();
 
-    // Drag Fireball off its book button (press → past the 4px threshold → the payload is up).
+    // Drag Fireball off its book button (press → past the drag-start distance → the payload is up).
     let (l, r, t, b) = (
         s.eval::<f32>("return SpellButton1:GetLeft()").unwrap(),
         s.eval::<f32>("return SpellButton1:GetRight()").unwrap(),
@@ -352,29 +410,43 @@ fn chat_click_dismisses_a_stuck_spell_but_not_an_item() {
     slots.insert(
         1,
         ContainerSlot {
+            uncached_link: None,
+            use_fork: Default::default(),
+            item_class: None,
             duration_ms: None,
+            field_duration: 0,
             petition: None,
             already_bound: false,
+            occupied_seats: None,
+            bonding: 0,
+            use_spell: 0,
             bar_placeable: true,
+            consumable: false,
             durability: None,
             texture: Some("Interface\\Icons\\INV_Misc_Food_16".into()),
             count: 5,
             quality: Some(1),
+            inventory_type: 0,
             item_id: 117,
             link: None,
-            locked: false,
+            guid: 0x710,
             equip_slots: Vec::new(),
             cooldown: None,
             readable: false,
             creator: None,
+            gift_creator: None,
+            creator_guid: 0,
+            gift_creator_guid: 0,
             flags: 0,
             enchants: Vec::new(),
+            spell_0: false,
+            spell_charges: [0; 5],
         },
     );
     s.set_container(
         0,
         Some(ContainerState {
-            name: Some("Backpack".into()),
+            name: None,
             num_slots: 16,
             slots,
         }),
@@ -712,7 +784,7 @@ fn an_idle_dock_stops_rewriting_the_tab_alpha_every_frame() {
 
     let alpha: f64 = s.eval("return ChatFrame1Tab:GetAlpha()").unwrap();
     assert!(
-        (alpha - 0.42).abs() < 1e-6,
+        alpha == benilla_ui::color::alpha_f64(benilla_ui::color::frame_alpha_byte(0.42)),
         "a settled dock must not rewrite its tab alpha — got {alpha}"
     );
 }
@@ -756,8 +828,9 @@ fn hovering_the_dock_still_reveals_the_tabs() {
 fn a_chat_view_at_the_bottom_stops_rewriting_the_flash() {
     benilla_formats::wow_data_or_skip!();
     let mut s = chat_frame();
-    for t in ["L0", "L1", "L2"] {
-        s.add_chat_message("ChatFrame1", t, 1.0, 1.0, 1.0);
+    // More lines than the window holds, so the view can scroll up (`0x78861c`).
+    for t in (0..20).map(|n| format!("L{n}")) {
+        s.add_chat_message("ChatFrame1", &t, 1.0, 1.0, 1.0);
     }
     for _ in 0..3 {
         s.tick(0.016);
@@ -923,6 +996,7 @@ fn the_combat_log_window_runs_its_own_bottom_button_blink() {
 fn the_chat_menu_builds_its_rows_on_the_references_kit() {
     let _data = benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for f in [
         "Interface\\FrameXML\\GlobalStrings.lua",
@@ -943,6 +1017,7 @@ fn the_chat_menu_builds_its_rows_on_the_references_kit() {
     ] {
         load_xml(&s, f);
     }
+    seat_player(&mut s);
     s.fire_event("PLAYER_ENTERING_WORLD", vec![]);
     let _ = s.errors();
 
@@ -1010,7 +1085,7 @@ fn a_glass_windows_plate_fades_in_on_every_hover() {
         assert!(s.errors().is_empty(), "{:?}", s.errors());
         let a = bg(&mut s);
         assert!(
-            (a - 0.25).abs() < 1e-6,
+            a == benilla_ui::color::alpha_f64(benilla_ui::color::wrap_alpha_byte(0.25)),
             "hover {round}: the plate fades to DEFAULT_CHATFRAME_ALPHA — got {a} (oldAlpha={:?})",
             s.eval::<Option<f64>>("return ChatFrame1.oldAlpha").unwrap()
         );
@@ -1032,6 +1107,7 @@ fn a_glass_windows_plate_fades_in_on_every_hover() {
 fn a_glass_windows_plate_fades_in_on_every_hover_under_the_full_manifest() {
     benilla_formats::wow_data_or_skip!();
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1600.0, 900.0);
     super::test_ui::load_ui(&s, "Interface\\FrameXML\\GlobalStrings.lua");
     let failures = super::load_default_ui(&s);
@@ -1086,13 +1162,13 @@ fn a_glass_windows_plate_fades_in_on_every_hover_under_the_full_manifest() {
         });
         assert!(
             over_frame1.is_some_and(|(_, a, c)| {
-                (a - 0.25).abs() < 1e-3 && c.is_some_and(|c| c[0] == 0.0 && c[1] == 0.0 && c[2] == 0.0)
+                (a - 0.25).abs() < 1.0 / 255.0 && c.is_some_and(|c| c[0] == 0.0 && c[1] == 0.0 && c[2] == 0.0)
             }),
             "hover {round}: the extracted plate quad over ChatFrame1 ({left}, {bottom}) — {plates:?}"
         );
         let a = bg(&mut s);
         assert!(
-            (a - 0.25).abs() < 1e-6,
+            a == benilla_ui::color::alpha_f64(benilla_ui::color::wrap_alpha_byte(0.25)),
             "hover {round}: the plate fades to DEFAULT_CHATFRAME_ALPHA — got {a} (oldAlpha={:?}, hover={:?}, hasBeenFaded={:?}, init={:?})",
             s.eval::<Option<f64>>("return ChatFrame1.oldAlpha").unwrap(),
             s.eval::<Option<f64>>("return ChatFrame1.hover").unwrap(),
@@ -1170,7 +1246,10 @@ fn a_quick_exit_and_reentry_keeps_the_plates_hover_fade() {
     // The control: the reference's Lua alone.
     let mut bare = chat_frame();
     let (first, reentry, later) = drive(&mut bare);
-    assert!((first - 0.25).abs() < 1e-6, "control, first hover: {first}");
+    assert!(
+        first == benilla_ui::color::alpha_f64(benilla_ui::color::wrap_alpha_byte(0.25)),
+        "control, first hover: {first}"
+    );
     assert!(
         reentry.abs() < 1e-6 && later.abs() < 1e-6,
         "the control must trap — the reference's Lua nils oldAlpha under a live hover \
@@ -1184,6 +1263,7 @@ fn a_quick_exit_and_reentry_keeps_the_plates_hover_fade() {
 
     // The shipped interface, with the guard the layer installs.
     let mut shipped = UiScript::new().unwrap();
+    shipped.keep_calls();
     shipped.set_screen_size(1600.0, 900.0);
     super::test_ui::load_ui(&shipped, "Interface\\FrameXML\\GlobalStrings.lua");
     let failures = super::load_default_ui(&shipped);
@@ -1192,15 +1272,40 @@ fn a_quick_exit_and_reentry_keeps_the_plates_hover_fade() {
     super::fire_chat_login(&mut shipped);
     shipped.resolve();
     let (first, reentry, later) = drive(&mut shipped);
-    assert!((first - 0.25).abs() < 1e-6, "shipped, first hover: {first}");
     assert!(
-        (reentry - 0.25).abs() < 1e-6,
+        first == benilla_ui::color::alpha_f64(benilla_ui::color::wrap_alpha_byte(0.25)),
+        "shipped, first hover: {first}"
+    );
+    assert!(
+        reentry == benilla_ui::color::alpha_f64(benilla_ui::color::wrap_alpha_byte(0.25)),
         "shipped: the plate comes back on the quick re-entry — got {reentry}"
     );
     assert!(
-        (later - 0.25).abs() < 1e-6,
+        later == benilla_ui::color::alpha_f64(benilla_ui::color::wrap_alpha_byte(0.25)),
         "shipped: and on every hover after — got {later}"
     );
+}
+
+/// The Lua binding's chat-type table (`0x49f7a0`) and the drain's token map are one list: every
+/// token the binding accepts is a send, and `RAID_LEADER` and `BATTLEGROUND_LEADER`, which the
+/// reference derives itself (`0x49f3bf`, `0x49f48b`), are neither, so a token the binding lets
+/// through is never dropped by the drain.
+#[test]
+fn the_binding_and_the_drain_share_one_chat_type_list() {
+    use crate::ui_chat::edit::SendType;
+    use std::collections::HashSet;
+
+    let mut wires = HashSet::new();
+    for token in benilla_ui::script::SEND_CHAT_TOKENS {
+        let kind = SendType::from_token(token).unwrap_or_else(|| panic!("{token} has no send"));
+        assert!(
+            wires.insert(format!("{:?}", kind.wire())),
+            "{token} repeats a wire kind"
+        );
+    }
+    for token in ["RAID_LEADER", "BATTLEGROUND_LEADER"] {
+        assert!(SendType::from_token(token).is_none(), "{token}");
+    }
 }
 
 /// The stock `/afk` and `/dnd` call `SendChatMessage(msg, "AFK")` or `"DND"`
@@ -1258,4 +1363,116 @@ fn the_stock_afk_and_dnd_commands_reach_the_wire() {
         SendType::from_token("TEXT_EMOTE").is_none(),
         "a real ChatTypeInfo key that is nonetheless not sendable stays None"
     );
+}
+
+/// A session's dock on the whole shipped UI: the login's events, the Combat Log selected and
+/// deselected, and the dock moved by the bars `UIParent_ManageFramePositions` places, with
+/// `FCF_OnUpdate` running every frame. The docked tabs sit on one row on ChatFrame1's background
+/// throughout. The hidden Combat Log's layout waits while it is hidden, and the dock's own reads
+/// (`MouseIsOver`'s getters in `FCF_OnUpdate`) resolve it each frame (`0x7a1980`), so its tab
+/// follows the dock.
+#[test]
+fn the_docked_tabs_follow_the_dock_through_a_session() {
+    benilla_formats::wow_data_or_skip!();
+    let mut s = UiScript::new().unwrap();
+    seat_player(&mut s);
+    s.keep_calls();
+    // No engine behind it: `RaidFrame`'s `RequestRaidInfo()` at world entry is kept.
+    s.keep_calls();
+    s.set_screen_size(768.0 * 16.0 / 9.0, 768.0);
+    s.set_texture_size_probe(Box::new(|_| Some((32, 32))));
+    s.set_text_measurer(Box::new(super::FixedWidthFont(6.0)));
+    let failures = super::load_default_ui(&s);
+    assert!(failures.is_empty(), "{failures:?}");
+    super::lifecycle::finish_ui_load_with(&mut s, |_| {}, super::fire_chat_login);
+    s.fire_world_enter();
+    let frames = |s: &mut UiScript, n: usize| {
+        for _ in 0..n {
+            s.tick(0.016);
+            s.resolve();
+        }
+    };
+    let check = |s: &mut UiScript, step: &str| {
+        // Hover the dock, so the tabs show (`FCF_OnUpdate`).
+        let (x, y): (f32, f32) = s
+            .eval(
+                "return (ChatFrame1:GetLeft() + ChatFrame1:GetRight()) / 2, \
+                 (ChatFrame1:GetBottom() + ChatFrame1:GetTop()) / 2",
+            )
+            .unwrap();
+        s.mouse_move(x, y);
+        frames(s, 45);
+        let row: f32 = s.eval("return ChatFrame1Background:GetTop()").unwrap();
+        let quads = s.extract();
+        for tab in ["ChatFrame1Tab", "ChatFrame2Tab"] {
+            let q = quads
+                .iter()
+                .find(|q| {
+                    matches!(q.content, QuadContent::Frame)
+                        && s.target_owner_name(q.target).as_deref() == Some(tab)
+                })
+                .unwrap_or_else(|| panic!("{step}: {tab} draws"));
+            let bottom = q.rect.expect("a placed tab").bottom;
+            assert!(
+                (bottom - row).abs() < 0.01,
+                "{step}: {tab} sits at {bottom}, the dock's row is {row}"
+            );
+        }
+    };
+    let click = |s: &mut UiScript, tab: &str| {
+        s.run(&format!(
+            "this = {tab} FCF_Tab_OnClick('LeftButton') this = nil"
+        ))
+        .unwrap();
+        frames(s, 5);
+    };
+    frames(&mut s, 30);
+    check(&mut s, "login");
+    click(&mut s, "ChatFrame2Tab");
+    check(&mut s, "Combat Log selected");
+    click(&mut s, "ChatFrame1Tab");
+    check(&mut s, "General selected");
+    s.run("SHOW_MULTI_ACTIONBAR_1 = 1 MultiActionBar_Update() UIParent_ManageFramePositions()")
+        .unwrap();
+    frames(&mut s, 5);
+    check(&mut s, "bottom-left bar");
+    s.run("PetActionBarFrame:Show() UIParent_ManageFramePositions()")
+        .unwrap();
+    frames(&mut s, 5);
+    check(&mut s, "pet bar");
+    click(&mut s, "ChatFrame2Tab");
+    check(&mut s, "Combat Log selected over the pet bar");
+    s.run("PetActionBarFrame:Hide() UIParent_ManageFramePositions()")
+        .unwrap();
+    frames(&mut s, 5);
+    check(&mut s, "pet bar gone");
+    click(&mut s, "ChatFrame1Tab");
+    check(&mut s, "General selected again");
+    assert!(s.errors().is_empty(), "{:?}", s.errors());
+}
+
+/// The stock chat frames re-read window 1's channels on the cascade's `UPDATE_CHAT_WINDOWS`
+/// (`ChatFrame.lua:1272`), so `ChatFrame1` lists `GuildRecruitment` before
+/// `SetGuildRecruitmentMode(1)` returns (`0x49eb70`, then `0x49eb5f` and `0x4a00a9`).
+#[test]
+fn the_recruitment_join_reaches_the_chat_frame_before_the_verb_returns() {
+    benilla_formats::wow_data_or_skip!();
+    let mut s = chat_frame();
+    // No engine: the join's call is kept, its window entry made in the verb.
+    s.keep_calls();
+    s.set_guild_recruitment_plan(benilla_ui::script::RecruitmentPlan::Join {
+        name: "GuildRecruitment - City".into(),
+        shortcut: "GuildRecruitment".into(),
+        id: 25,
+    });
+    let listed: bool = s
+        .eval(
+            "SetGuildRecruitmentMode(1) \
+             for _, c in ipairs(ChatFrame1.channelList) do \
+               if c == 'GuildRecruitment' then return true end \
+             end return false",
+        )
+        .unwrap();
+    assert!(listed, "ChatFrame1.channelList lacks GuildRecruitment");
+    assert!(s.errors().is_empty(), "{:?}", s.errors());
 }

@@ -70,6 +70,28 @@ impl SystemIdMarker {
     }
 }
 
+/// A system that has been removed from the registry.
+/// It contains the system and whether or not it has been initialized.
+///
+/// This struct is returned by [`World::unregister_system`].
+pub struct RemovedSystem<I = (), O = ()> {
+    initialized: bool,
+    system: BoxedSystem<I, O>,
+}
+
+impl<I, O> RemovedSystem<I, O> {
+    /// Is the system initialized?
+    /// A system is initialized the first time it's ran.
+    pub fn initialized(&self) -> bool {
+        self.initialized
+    }
+
+    /// The system removed from the storage.
+    pub fn system(self) -> BoxedSystem<I, O> {
+        self.system
+    }
+}
+
 /// An identifier for a registered system.
 ///
 /// These are opaque identifiers, keyed to a specific [`World`],
@@ -199,7 +221,7 @@ impl World {
     pub fn unregister_system<I, O>(
         &mut self,
         id: SystemId<I, O>,
-    ) -> Result<(), RegisteredSystemError<I, O>>
+    ) -> Result<RemovedSystem<I, O>, RegisteredSystemError<I, O>>
     where
         I: SystemInput + 'static,
         O: 'static,
@@ -210,10 +232,12 @@ impl World {
                     .take::<RegisteredSystem<I, O>>()
                     .ok_or(RegisteredSystemError::SelfRemove(id))?;
                 entity.despawn();
-                registered_system
-                    .system
-                    .ok_or(RegisteredSystemError::SystemMissing(id))?;
-                Ok(())
+                Ok(RemovedSystem {
+                    initialized: registered_system.initialized,
+                    system: registered_system
+                        .system
+                        .ok_or(RegisteredSystemError::SystemMissing(id))?,
+                })
             }
             Err(_) => Err(RegisteredSystemError::SystemIdNotRegistered(id)),
         }
@@ -451,7 +475,7 @@ impl World {
     pub fn unregister_system_cached<I, O, M, S>(
         &mut self,
         _system: S,
-    ) -> Result<(), RegisteredSystemError<I, O>>
+    ) -> Result<RemovedSystem<I, O>, RegisteredSystemError<I, O>>
     where
         I: SystemInput + 'static,
         O: 'static,

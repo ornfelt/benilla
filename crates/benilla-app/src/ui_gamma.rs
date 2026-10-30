@@ -68,7 +68,10 @@ fn stamp_lane_gamma(gamma: Res<DisplayGamma>, mut lanes: Query<&mut UiGammaLane>
 pub(crate) struct UiGammaPlugin;
 
 /// The `gamma` CVar's change callback, clamped to [`GAMMA_RANGE`].
-pub(crate) fn on_cvar(ev: On<crate::cvars::CvarChanged>, mut gamma: ResMut<DisplayGamma>) {
+pub(crate) fn on_cvar(
+    ev: &crate::cvars::CvarChanged,
+    mut gamma: bevy::prelude::Mut<'_, DisplayGamma>,
+) {
     if ev.is(benilla_ui::script::CVAR_GAMMA) {
         gamma.0 = ev.num().clamp(*GAMMA_RANGE.start(), *GAMMA_RANGE.end());
     }
@@ -76,9 +79,9 @@ pub(crate) fn on_cvar(ev: On<crate::cvars::CvarChanged>, mut gamma: ResMut<Displ
 
 impl Plugin for UiGammaPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(on_cvar);
         app.init_resource::<DisplayGamma>()
             .add_plugins(ExtractComponentPlugin::<UiGammaLane>::default())
-            .add_systems(Update, stamp_lane_gamma);
+            // After the calls, whose `gamma` callback writes the knob.
+            .add_systems(Update, stamp_lane_gamma.after(crate::vm_pass::VmPass::End));
     }
 }

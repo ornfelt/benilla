@@ -24,6 +24,16 @@ pub fn auth_session(
     body
 }
 
+/// `CMSG_CHAR_RENAME` body, as `0x46b340` builds it: the full guid, then the name and its NUL
+/// (`0x418370`, `0x418430`).
+pub fn char_rename(guid: u64, name: &str) -> Vec<u8> {
+    let mut body = Vec::with_capacity(9 + name.len());
+    body.extend_from_slice(&guid.to_le_bytes());
+    body.extend_from_slice(name.as_bytes());
+    body.push(0);
+    body
+}
+
 /// `CMSG_CHAR_CREATE` body: the name cstring then nine bytes (`Packets/Character.cpp:4-19`); the
 /// last, `outfit_id`, is 0 because the server ignores it (`CharacterHandler.cpp:310`).
 pub fn char_create(req: &CharCreateReq) -> Vec<u8> {
@@ -191,6 +201,13 @@ pub fn random_roll(min: u32, max: u32) -> Vec<u8> {
     body
 }
 
+/// `CMSG_EMOTE` body: the `u32` emote, which vmangos plays only for `EMOTE_ONESHOT_NONE` and
+/// `EMOTE_ONESHOT_WAVE` (`ChatHandler.cpp:670-672`). The reference sends it from one site, a
+/// placed bid's wave (`0x4cc5dd`-`0x4cc60c`, emote 3).
+pub fn emote(emote: u32) -> Vec<u8> {
+    emote.to_le_bytes().to_vec()
+}
+
 /// `CMSG_TEXT_EMOTE` body: `u32` EmotesText.dbc id, `u32` text variation (only relayed), `u64`
 /// target or 0 (`Misc.cpp:60-65`). The server echoes `SMSG_TEXT_EMOTE` to us as well.
 pub fn text_emote(text_id: u32, target: u64) -> Vec<u8> {
@@ -306,6 +323,13 @@ pub fn knock_back_ack(guid: u64, counter: u32, info: &MovementInfo) -> Vec<u8> {
 mod tests {
     use super::*;
     use crate::wire::Vector3d;
+
+    /// The placed bid's wave (`0x4cc5dd` opcode `0x102`, `0x4cc5fc` the one `u32`, 3): four bytes.
+    #[test]
+    fn emote_body_golden() {
+        assert_eq!(emote(3), [0x03, 0x00, 0x00, 0x00]);
+        assert_eq!(emote(0x0102_0304), [0x04, 0x03, 0x02, 0x01]);
+    }
 
     /// vmangos `MoveSplineDone::ReadFromWorldPacket` reads info, spline id, then a skipped float.
     #[test]

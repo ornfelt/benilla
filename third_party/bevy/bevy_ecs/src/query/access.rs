@@ -454,6 +454,30 @@ impl Access {
         self.is_components_compatible(other) && self.is_resources_compatible(other)
     }
 
+    /// Returns `true` if the set's resource access is a subset of another, i.e. `other`'s resource access
+    /// contains at least all the values in `self`.
+    pub fn is_subset_resources(&self, other: &Access) -> bool {
+        if self.writes_all_resources {
+            return other.writes_all_resources;
+        }
+
+        if other.writes_all_resources {
+            return true;
+        }
+
+        if self.reads_all_resources {
+            return other.reads_all_resources;
+        }
+
+        if other.reads_all_resources {
+            return self.resource_writes.is_subset(&other.resource_writes);
+        }
+
+        self.resource_read_and_writes
+            .is_subset(&other.resource_read_and_writes)
+            && self.resource_writes.is_subset(&other.resource_writes)
+    }
+
     fn get_component_conflicts(&self, other: &Access) -> AccessConflicts {
         let mut conflicts = FixedBitSet::new();
 
@@ -530,6 +554,23 @@ impl Access {
                 .intersection(&other.resource_writes),
         );
         AccessConflicts::Individual(conflicts)
+    }
+
+    /// Returns the indices of the resources this has access to.
+    pub fn resource_reads_and_writes(&self) -> impl Iterator<Item = ComponentId> + '_ {
+        self.resource_read_and_writes.ones().map(ComponentId::new)
+    }
+
+    /// Returns the indices of the resources this has non-exclusive access to.
+    pub fn resource_reads(&self) -> impl Iterator<Item = ComponentId> + '_ {
+        self.resource_read_and_writes
+            .difference(&self.resource_writes)
+            .map(ComponentId::new)
+    }
+
+    /// Returns the indices of the resources this has exclusive access to.
+    pub fn resource_writes(&self) -> impl Iterator<Item = ComponentId> + '_ {
+        self.resource_writes.ones().map(ComponentId::new)
     }
 
     /// Returns an iterator over the component IDs and their [`ComponentAccessKind`].
@@ -1052,6 +1093,12 @@ impl FilteredAccessSet {
     #[inline]
     pub fn combined_access(&self) -> &Access {
         &self.combined_access
+    }
+
+    /// Returns a reference to the filtered accesses of the set.
+    #[inline]
+    pub fn filtered_accesses(&self) -> &[FilteredAccess] {
+        &self.filtered_accesses
     }
 
     /// Returns `true` if this and `other` can be active at the same time.

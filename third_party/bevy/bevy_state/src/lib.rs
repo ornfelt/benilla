@@ -26,6 +26,8 @@ extern crate self as bevy_state;
 #[cfg(feature = "bevy_app")]
 /// Provides [`App`](bevy_app::App) and [`SubApp`](bevy_app::SubApp) with state installation methods
 pub mod app;
+/// Provides extension methods for [`Commands`](bevy_ecs::prelude::Commands).
+pub mod commands;
 /// Provides definitions for the runtime conditions that interact with the state system
 pub mod condition;
 /// Provides definitions for the basic traits required by the state system
@@ -41,6 +43,7 @@ pub mod prelude {
 
     #[doc(hidden)]
     pub use crate::{
+        commands::CommandsStatesExt,
         condition::*,
         state::{
             last_transition, EnterSchedules, ExitSchedules, NextState, OnEnter, OnExit, State,

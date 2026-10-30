@@ -6,6 +6,7 @@
 
 use core::{
     fmt::Debug,
+    hash::Hash,
     ops::{Deref, DerefMut, Index},
 };
 
@@ -156,6 +157,15 @@ where
     #[inline]
     fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         self.0.extend(iter);
+    }
+}
+
+impl<K, V, const N: usize> From<[(K, V); N]> for HashMap<K, V, FixedHasher>
+where
+    K: Eq + Hash,
+{
+    fn from(arr: [(K, V); N]) -> Self {
+        arr.into_iter().collect()
     }
 }
 

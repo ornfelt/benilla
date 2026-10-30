@@ -18,8 +18,14 @@ fn empty_bag(name: &str, num_slots: u32) -> Option<ContainerState> {
 }
 
 /// [`BAG_UI`] carries the bank's whole chain, `BankFrame.xml` included; it needs client data.
+const BANK_CLOSE: benilla_ui::script::ScriptCall =
+    benilla_ui::script::ScriptCall::Bank(benilla_ui::script::BankCall::Close);
+const BANK_PURCHASE: benilla_ui::script::ScriptCall =
+    benilla_ui::script::ScriptCall::Bank(benilla_ui::script::BankCall::Purchase);
+
 fn setup() -> UiScript {
     let mut s = UiScript::new().unwrap();
+    s.keep_calls();
     s.set_screen_size(1024.0, 768.0);
     for file in BAG_UI {
         load_xml(&s, file);
@@ -97,7 +103,7 @@ fn bankframe_closed_queues_close_closes_open_popouts_and_plays_the_close_kit() {
     s.set_bank(Some(BankState::default()));
     s.fire_event("BANKFRAME_OPENED", vec![ScriptValue::Str("Banker".into())]);
     let _ = s.take_sounds();
-    let _ = s.take_bank_close();
+    let _ = s.take_calls_like(&BANK_CLOSE);
 
     // A bank bag left open when the bank closes: what `CloseBankBagFrames` exists for.
     s.run("OpenBag(5)").unwrap();
@@ -116,7 +122,7 @@ fn bankframe_closed_queues_close_closes_open_popouts_and_plays_the_close_kit() {
         "closing the bank closes the bank bag it left open (CloseBankBagFrames)"
     );
     assert!(
-        s.take_bank_close(),
+        s.take_calls_like(&BANK_CLOSE) > 0,
         "OnHide queued CloseBankFrame() — the client-side close intent (no wire opcode)"
     );
     assert!(
@@ -342,15 +348,18 @@ fn purchase_flow_shows_popup_queues_the_intent_and_the_row_hides_when_full() {
         s.eval::<i64>("return BankFrame.nextSlotCost").unwrap(),
         100_000
     );
-    assert!(!s.take_bank_purchase(), "nothing queued until accept");
+    assert!(
+        s.take_calls_like(&BANK_PURCHASE) == 0,
+        "nothing queued until accept"
+    );
 
     s.run("StaticPopup1Button1:Click()").unwrap(); // Yes
     assert!(s.errors().is_empty(), "script errors: {:?}", s.errors());
     assert!(
-        s.take_bank_purchase(),
+        s.take_calls_like(&BANK_PURCHASE) > 0,
         "accepting the popup queued PurchaseSlot()'s intent"
     );
-    assert!(!s.take_bank_purchase(), "drained");
+    assert!(s.take_calls_like(&BANK_PURCHASE) == 0, "drained");
 
     // Six is full. A successful buy has no reply packet: `PLAYERBANKBAGSLOTS_CHANGED` repaints.
     s.set_bank(Some(BankState {
@@ -479,16 +488,19 @@ fn is_greyed(quads: &[ExtractedQuad], needle: &str) -> bool {
     }
 }
 
+/// The bank bag's item guid, which the client's lock names.
+const BAG_GUID: u64 = 0x4000_0000_0000_0b06;
+
 /// A bag in a bank bag slot. `contents_count: Some(_)` makes it a container to
 /// `GetInventoryItemCount`, non-zero so that the binding's slot-`0x16` cutoff does the zeroing.
-fn a_bag(locked: bool) -> benilla_ui::script::InvSlotView {
+fn a_bag() -> benilla_ui::script::InvSlotView {
     benilla_ui::script::InvSlotView {
         item_id: 4500,
         icon: Some(r"Interface\Icons\INV_Misc_Bag_08".into()),
         count: 1,
         contents_count: Some(3),
         name: Some("Traveler's Backpack".into()),
-        locked,
+        guid: BAG_GUID,
         ..Default::default()
     }
 }
@@ -519,10 +531,11 @@ fn a_bank_bag_button_paints_the_drop_and_lets_go_of_the_lock() {
         "no bag in the slot yet"
     );
 
-    // The drop lands and the server has not answered: the send locks both ends.
+    // The drop lands and the server has not answered: the bag's lock holds.
     let mut bags: benilla_ui::script::BankBagSlots = Default::default();
-    bags[0] = Some(a_bag(true));
+    bags[0] = Some(a_bag());
     s.set_bank_bag_slots(bags.clone());
+    s.lock_item(BAG_GUID);
     // The event carries no arguments (`0x703e50`): every bank button repaints its own slot.
     s.fire_event("PLAYERBANKSLOTS_CHANGED", vec![]);
     assert!(s.errors().is_empty(), "script errors: {:?}", s.errors());
@@ -538,11 +551,8 @@ fn a_bank_bag_button_paints_the_drop_and_lets_go_of_the_lock() {
         "a bank bag counts nothing — the count fontstring stays hidden"
     );
 
-    // The lock lets go: `ITEM_LOCK_CHANGED` alone must ungrey it, which holds only because
-    // `ui_items::feed::resolve_item_locks` corrects the snapshot ahead of both feeds.
-    bags[0] = Some(a_bag(false));
-    s.set_bank_bag_slots(bags.clone());
-    s.fire_event("ITEM_LOCK_CHANGED", vec![]);
+    // The lock lets go: its own `ITEM_LOCK_CHANGED` alone must ungrey it.
+    s.unlock_item(BAG_GUID);
     assert!(
         !is_greyed(&s.extract(), "INV_Misc_Bag_08"),
         "the stuck grey: unlocked, the button must come back to full colour"
@@ -550,7 +560,7 @@ fn a_bank_bag_button_paints_the_drop_and_lets_go_of_the_lock() {
 
     // Moved to the next bag slot: only the repaint event takes the icon off the first button.
     bags[0] = None;
-    bags[1] = Some(a_bag(false));
+    bags[1] = Some(a_bag());
     s.set_bank_bag_slots(bags);
     s.fire_event("PLAYERBANKSLOTS_CHANGED", vec![]);
     s.fire_event("PLAYERBANKSLOTS_CHANGED", vec![]);

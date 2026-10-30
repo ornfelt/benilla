@@ -716,6 +716,11 @@ impl Tables {
         self.tables.get(id.as_usize())
     }
 
+    /// Iterates through all of the tables stored within in [`TableId`] order.
+    pub fn iter(&self) -> core::slice::Iter<'_, Table> {
+        self.tables.iter()
+    }
+
     /// Fetches mutable references to two different [`Table`]s.
     ///
     /// # Panics

@@ -5,8 +5,9 @@
 //! there and forces alpha opaque. `SetInsertMode` and `GetInsertMode` (`0x794ed0`, `0x794ff0`)
 //! exist on this class only.
 
-use mlua::{Lua, Table, Value};
+use mlua::{Lua, MultiValue, Table, Value};
 
+use super::{channel, is_number};
 use crate::script::object::frame_handle_of;
 use crate::script::Model;
 use crate::widget::{InsertMode, KindState, MessageFrameState};
@@ -29,16 +30,7 @@ fn with_mf<T>(
         .ok_or_else(|| mlua::Error::runtime("stale frame handle"))?;
     match &mut frame.kind_state {
         KindState::Message(mf) => Ok(f(mf)),
-        _ => Err(mlua::Error::runtime("not a MessageFrame")),
-    }
-}
-
-/// A colour argument as f32, 0 for anything but a number.
-fn num_f32(v: &Value) -> f32 {
-    match v {
-        Value::Number(n) => *n as f32,
-        Value::Integer(i) => *i as f32,
-        _ => 0.0,
+        _ => Err(mlua::Error::runtime(crate::script::object::ERR_WRONG_TYPE)),
     }
 }
 
@@ -46,7 +38,7 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     let m = lua.create_table()?;
 
     // The justify quartet, on both classes ([`super::install_justify`]).
-    super::install_justify(lua, &m, "MessageFrame")?;
+    super::install_justify(lua, &m)?;
 
     // AddMessage(text [, r, g, b [, a]]) (`0x795590`). An unusable text is a silent no-op
     // ([`super::message_text`]). r, g and b count only as a trio, else white, and a bad colour
@@ -60,18 +52,23 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
                 let Some(text) = super::message_text(lua, &text) else {
                     return Ok(());
                 };
-                let has_rgb = !matches!(
-                    (&r, &g, &b),
-                    (Value::Nil, _, _) | (_, Value::Nil, _) | (_, _, Value::Nil)
-                );
+                // The line goes through `SetText` with its expand flag as it is added (`0x7863fe`).
+                let text = lua
+                    .app_data_ref::<crate::script::Model>()
+                    .expect("model app_data")
+                    .localized_text(text);
+                // Each of r, g and b is `lua_isnumber`-gated (`0x79565f`-`0x795687`) and the trio is
+                // all or nothing; a failed gate still adds the line, in white (`0x79581c`).
+                let has_rgb = [&r, &g, &b].iter().all(|v| is_number(lua, v).is_some());
                 let (r, g, b) = if has_rgb {
-                    (num_f32(&r), num_f32(&g), num_f32(&b))
+                    (channel(lua, &r), channel(lua, &g), channel(lua, &b))
                 } else {
                     (1.0, 1.0, 1.0)
                 };
-                // The alpha counts only with the trio, read in the same parse.
-                let a = match (&a, has_rgb) {
-                    (Value::Number(_) | Value::Integer(_), true) => num_f32(&a),
+                // The alpha is its own `lua_isnumber` gate (`0x795759`), default 1.0, read with
+                // the trio.
+                let a = match (is_number(lua, &a), has_rgb) {
+                    (Some(n), true) => n as f32,
                     _ => 1.0,
                 };
                 with_mf(lua, &this, |mf| mf.add(text, r, g, b, a))
@@ -84,21 +81,24 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         lua.create_function(|lua, this: Table| with_mf(lua, &this, MessageFrameState::clear))?,
     )?;
 
-    // SetInsertMode (`0x794ed0`) compares against "BOTTOM" (`0x871404`), so anything else is
-    // TOP; the ctor default is BOTTOM.
+    // SetInsertMode (`0x794ed0`): a `lua_isstring` value (`0x794f5c`), a number as its text,
+    // compared whole and without case, untrimmed (`SStrCmpI`), with "TOP" (`0x8713e0`) then
+    // "BOTTOM" (`0x871404`). Anything else raises `Usage: %s:SetInsertMode("TOP" or "BOTTOM")`
+    // (`0x87ba50`) naming the frame, the mode left alone. The ctor default is BOTTOM.
     m.set(
         "SetInsertMode",
         lua.create_function(|lua, (this, mode): (Table, Value)| {
-            let mode = match &mode {
-                Value::String(s) => {
-                    if s.to_str()?.trim().eq_ignore_ascii_case("BOTTOM") {
-                        InsertMode::Bottom
-                    } else {
-                        InsertMode::Top
-                    }
+            with_mf(lua, &this, |_| ())?;
+            let mode = match crate::script::binding_abi::optional_string(lua, &mode) {
+                Some(m) if m.eq_ignore_ascii_case("TOP") => InsertMode::Top,
+                Some(m) if m.eq_ignore_ascii_case("BOTTOM") => InsertMode::Bottom,
+                _ => {
+                    return Err(crate::script::binding_abi::usage(
+                        lua,
+                        &this,
+                        r#"SetInsertMode("TOP" or "BOTTOM")"#,
+                    ))
                 }
-                // A non-string fails the compare too.
-                _ => InsertMode::Top,
             };
             with_mf(lua, &this, |mf| mf.insert_mode = mode)
         })?,
@@ -116,8 +116,9 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     // The fade accessors, as on the scrolling class; XML's `displayDuration` is `TimeVisible`.
     m.set(
         "SetFading",
-        lua.create_function(|lua, (this, on): (Table, Value)| {
-            let on = !matches!(on, Value::Nil | Value::Boolean(false));
+        lua.create_function(|lua, (this, args): (Table, MultiValue)| {
+            // `GetBoolOrDefault` (`0x6f1c10`, `0x7950d0`) with default 1: a bare call enables.
+            let on = crate::script::binding_abi::bool_or_default(args.front(), true);
             with_mf(lua, &this, |mf| mf.fading_enabled = on)
         })?,
     )?;
@@ -130,10 +131,19 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
             })
         })?,
     )?;
+    // A `lua_isnumber` miss raises `Usage: %s:SetTimeVisible(seconds)` and `...SetFadeDuration(seconds)`
+    // (`0x87b918`, `0x87b93c`; `0x79530c`, `0x7954bc`); the number is stored as it is, no clamp
+    // (`0x785c65`, `0x785cc5`), and every line whose own time is not 0 takes it (`0x785c3d`).
     m.set(
         "SetTimeVisible",
-        lua.create_function(|lua, (this, s): (Table, f32)| {
-            with_mf(lua, &this, |mf| mf.time_visible = s.max(0.0))
+        lua.create_function(|lua, (this, s): (Table, Value)| {
+            let s = crate::script::binding_abi::method_number(
+                lua,
+                &this,
+                s,
+                "SetTimeVisible(seconds)",
+            )? as f32;
+            with_mf(lua, &this, |mf| mf.set_time_visible(s))
         })?,
     )?;
     m.set(
@@ -142,8 +152,14 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
     )?;
     m.set(
         "SetFadeDuration",
-        lua.create_function(|lua, (this, s): (Table, f32)| {
-            with_mf(lua, &this, |mf| mf.fade_duration = s.max(0.0))
+        lua.create_function(|lua, (this, s): (Table, Value)| {
+            let s = crate::script::binding_abi::method_number(
+                lua,
+                &this,
+                s,
+                "SetFadeDuration(seconds)",
+            )? as f32;
+            with_mf(lua, &this, |mf| mf.set_fade_duration(s))
         })?,
     )?;
     m.set(
@@ -161,9 +177,9 @@ pub(super) fn install(lua: &Lua) -> mlua::Result<()> {
         |lua, this| {
             let h = frame_handle_of(lua, this)?;
             super::ensure_font_region(lua, h)
-                .ok_or_else(|| mlua::Error::runtime("not a MessageFrame"))
+                .ok_or_else(|| mlua::Error::runtime(crate::script::object::ERR_WRONG_TYPE))
         },
-        "MessageFrame",
+        crate::script::font_block::FontKind::Instance,
         None,
     )?;
 

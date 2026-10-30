@@ -129,6 +129,20 @@ impl Transform {
         self
     }
 
+    /// Returns this [`Transform`] with a new rotation so that [`Transform::forward`]
+    /// points in the given `direction` and [`Transform::up`] points towards `up`.
+    ///
+    /// In some cases it's not possible to construct a rotation. Another axis will be picked in those cases:
+    /// * if `direction` fails converting to `Dir3` (e.g if it is `Vec3::ZERO`), `Dir3::Z` is used instead
+    /// * if `up` fails converting to `Dir3`, `Dir3::Y` is used instead
+    /// * if `direction` is parallel with `up`, an orthogonal vector is used as the "right" direction
+    #[inline]
+    #[must_use]
+    pub fn looking_to(mut self, direction: impl TryInto<Dir3>, up: impl TryInto<Dir3>) -> Self {
+        self.look_to(direction, up);
+        self
+    }
+
     /// Returns this [`Transform`] with a new translation.
     #[inline]
     #[must_use]
