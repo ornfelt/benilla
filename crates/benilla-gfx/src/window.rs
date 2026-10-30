@@ -613,13 +613,17 @@ pub(crate) unsafe fn apply_position(window: ffi::GfxWindow, position: WindowPosi
 }
 
 /// `Window` changes to the gfx window (bevy_winit's `changed_windows`). What gfx has no call for
-/// is named once in the log.
+/// is named once in the log. No context, no window (a headless app, which the runner never ran):
+/// nothing to change, as a build without winit has no such system.
 fn sync_windows(
-    mut ctx: NonSendMut<GfxContext>,
+    ctx: Option<NonSendMut<GfxContext>>,
     mut windows: Query<(&Window, &mut CachedWindow), Changed<Window>>,
     mut trace: ResMut<InputTrace>,
     mut unsupported: Local<HashSet<&'static str>>,
 ) {
+    let Some(mut ctx) = ctx else {
+        return;
+    };
     for (window, mut cache) in &mut windows {
         let gfx = ctx.window;
         if window.title != cache.0.title {
@@ -708,6 +712,10 @@ fn sync_cursor_options(
     world: &mut World,
     changed: &mut QueryState<(Entity, &CursorOptions), Changed<CursorOptions>>,
 ) {
+    // Nothing without a context, as [`sync_windows`].
+    if world.get_non_send_resource::<GfxContext>().is_none() {
+        return;
+    }
     let changed: Vec<(Entity, CursorOptions)> =
         changed.iter(world).map(|(e, o)| (e, o.clone())).collect();
     for (entity, options) in changed {
@@ -787,8 +795,9 @@ fn native_shape(icon: SystemCursorIcon) -> u32 {
 
 /// `CursorIcon` changes to the pointer (bevy_winit's `update_cursors`): an image cursor is made
 /// from the image's pixels once it is loaded, and kept; a removed icon is the default pointer.
+/// Nothing without a context, as [`sync_windows`].
 fn sync_cursor_icon(
-    mut ctx: NonSendMut<GfxContext>,
+    ctx: Option<NonSendMut<GfxContext>>,
     windows: Query<(Entity, Ref<CursorIcon>), With<Window>>,
     mut removed: RemovedComponents<CursorIcon>,
     images: Res<Assets<Image>>,
@@ -796,6 +805,9 @@ fn sync_cursor_icon(
     mut trace: ResMut<InputTrace>,
     mut waiting: Local<HashSet<Entity>>,
 ) {
+    let Some(mut ctx) = ctx else {
+        return;
+    };
     let gfx = ctx.window;
     for entity in removed.read() {
         if windows.get(entity).is_err() {
