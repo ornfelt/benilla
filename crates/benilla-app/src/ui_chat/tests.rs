@@ -3496,6 +3496,48 @@ fn the_call_host_applies_the_chat_calls_inside_the_verb() {
     );
 }
 
+/// `SendChatMessage`'s away lines run their listeners where they show, ahead of the packets after
+/// them: `SetAFK`'s echo before its packet (`0x5eb7a9`, `0x5eb801`), the AFK clear's line before
+/// the empty AFK packet and the message (`0x5eb878`, `0x5eb8d0`), and the DND echo before the
+/// message (`0x49f588`, `0x49f72a`), through the real call host.
+#[test]
+fn an_away_lines_listener_sends_ahead_of_the_packets_after_it() {
+    use crate::net::{ClientCommand, NetCommands};
+
+    let mut app = crate::game_plugins::schedule_tests::headless_client_unrun();
+    let (tx, rx) = crossbeam_channel::unbounded();
+    app.insert_resource(NetCommands(tx));
+    app.world_mut().insert_non_send_resource(in_world_vm());
+    // Alive (`UNIT_FIELD_HEALTH`), so the say passes the dead check (`0x49f592`).
+    crate::test_support::hold_self_player(app.world_mut(), 0x7, &[(22, 100)]);
+    crate::script_calls::with_hosted_vm(app.world_mut(), |s| {
+        s.expect("a VM").run(
+            r#"MARKED_AFK_MESSAGE = "You are now AFK: %s"
+            CLEARED_AFK = "You are no longer AFK."
+            MARKED_DND = "You are now DND: %s."
+            local f = CreateFrame("Frame")
+            f:RegisterEvent("CHAT_MSG_SYSTEM")
+            f:SetScript("OnEvent", function() RandomRoll(1, 2) end)
+            SendChatMessage("brb", "AFK")
+            SendChatMessage("hi")
+            SendChatMessage("busy", "DND")"#,
+        )
+    })
+    .expect("lua");
+    let sent: Vec<String> = rx
+        .try_iter()
+        .filter_map(|c| match c {
+            ClientCommand::Chat { kind, text, .. } => Some(format!("{kind:?} {text}")),
+            ClientCommand::RandomRoll { .. } => Some("roll".into()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        sent,
+        ["roll", "Afk brb", "roll", "Afk ", "Say hi", "roll", "Dnd busy"]
+    );
+}
+
 /// A raid of the player (guid 1, at `rank`) and one other, led by `leader`.
 fn raid_group(rank: u32, leader: u64) -> benilla_ui::script::PartyState {
     use benilla_ui::script::{PartyMemberInfo, PartyState, RaidMemberInfo};
@@ -4060,6 +4102,8 @@ fn the_combat_edge_and_the_regen_notice_fire_in_their_packets_order() {
         ),
     ] {
         let mut app = App::new();
+        // In the world with the interface up, so the dispatch fires each packet's lanes.
+        app.insert_resource(State::new(crate::client_state::ClientState::InWorld));
         app.add_plugins(crate::ui_unit::UiUnitPlugin);
         crate::ui_chat::add_chat_lane(&mut app);
         app.net_handler(SessionEventKind::LoggedOut, edge)
@@ -4166,6 +4210,8 @@ fn a_notices_chat_line_shows_where_the_notice_fires() {
         ),
     ] {
         let mut app = App::new();
+        // In the world with the interface up, so the dispatch fires each packet's lanes.
+        app.insert_resource(State::new(crate::client_state::ClientState::InWorld));
         app.add_plugins(crate::ui_unit::UiUnitPlugin);
         crate::ui_chat::add_chat_lane(&mut app);
         app.net_handler(SessionEventKind::LoggedOut, enter)

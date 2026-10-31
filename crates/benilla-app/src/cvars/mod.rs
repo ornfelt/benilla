@@ -1046,8 +1046,9 @@ pub(crate) fn boot_cvar(name: &str) -> Option<String> {
 /// callbacks and push the registry's writes into the mirror, so the look's rates and the camera's
 /// dynamics have moved before the world's mouse reads them. A Lua verb's write ran its callback
 /// inside its call already ([`CvarSteps`]), as the reference's `CVar::Set` (`0x63df50`) calls it
-/// inside the write (`0x63df7d`). A new VM is seeded by [`sync_cvars`], which drains its writes
-/// first as well.
+/// inside the write (`0x63df7d`). The host's writes outside any call since the last packets (the
+/// tip cursor's, the fullscreen size) reach the mirror here, ahead of the frame's packets. A new VM
+/// is seeded by [`sync_cvars`], which drains its writes first as well.
 pub(crate) fn sync_input_cvars(mut vm: crate::script_calls::VmWith<CvarSteps<'static>>) {
     vm.turn(|script, mut steps| steps.sync(script))
 }
@@ -1168,7 +1169,8 @@ const HEADER: &str = "\
 /// Dirty and one quiet second since the last change: save, so a crash loses at most that second.
 /// Deviation: the reference's `SaveConfig` (`0x63d980`) writes only at world entry (`0x46b6f6`),
 /// at the leave-world tail (`0x490c35`-`0x490c64`) and at shutdown (`0x63daf0`), so a crash or a
-/// kill loses every change since; here a player's settings survive one.
+/// kill loses every change since; here a player's settings survive one because the config saves a
+/// quiet second after a change.
 fn save_config_when_quiet(mut cvars: ResMut<Cvars>) {
     if cvars.dirty && cvars.last_change.is_none_or(|t| t.elapsed() >= SAVE_QUIET) {
         write_config(&mut cvars);

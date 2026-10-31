@@ -138,18 +138,26 @@ pub(crate) struct Bridge<'w, 's> {
     mover: Option<ResMut<'w, super::MoverClaim>>,
     /// Our player's far-sight latch, which the teardowns free with it.
     far_sight: Option<Res<'w, crate::player::FarSight>>,
+    /// The item lane, where the teardowns' free takes every item's lock with its object.
+    item_lane: Option<ResMut<'w, crate::item_lane::ItemLane>>,
 }
 
 impl Bridge<'_, '_> {
     /// Every object freed (`0x467700` → `0x467800`), our own player too: the active mover it
-    /// names is zeroed unless its unit is still held (`0x5fb650`), and its far-sight latch goes
-    /// with it ([`crate::player::FarSight::free`]).
+    /// names is zeroed unless its unit is still held (`0x5fb650`), its far-sight latch goes
+    /// with it ([`crate::player::FarSight::free`]), and every item's lock with its item
+    /// ([`crate::item_watch::Freed::All`]).
     fn objects_freed(&mut self) {
         if let Some(mover) = self.mover.as_deref_mut() {
             mover.forget_unless_held(&self.index);
         }
         if let Some(far_sight) = self.far_sight.as_deref() {
             far_sight.free();
+        }
+        if let Some(lane) = self.item_lane.as_deref_mut() {
+            lane.push(crate::item_watch::Run::freeing(
+                crate::item_watch::Freed::All,
+            ));
         }
     }
 }
@@ -300,9 +308,9 @@ fn on_disconnected(
         // so the selection ends as at the world's teardown, with nothing sent or signalled.
         //
         // Deviation: on benilla's unattended reconnect, which the reference lacks, the world's VM
-        // survives the loss, so the clear signals its `PLAYER_TARGET_CHANGED` and usable refresh
-        // as a release's teardown does (`0x493a69`, `0x493a73`), still sending nothing, and the
-        // surviving target frame lets the lost unit go.
+        // survives the loss; because of that the clear signals its `PLAYER_TARGET_CHANGED` and
+        // usable refresh as a release's teardown does (`0x493a69`, `0x493a73`), still sending
+        // nothing, and the surviving target frame lets the lost unit go.
         let LostSelection { selection, owed } = lost;
         if let Some(mut selection) = selection.filter(|s| s.guid.is_some()) {
             let before = selection.guid;

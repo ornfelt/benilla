@@ -177,7 +177,8 @@ fn new_vm<E: std::fmt::Display>(
         channels.mirror_into(&mut script);
     }
     // The reference seeds `rand` with the clock before `WinMain` (`0x5b800b`). Deviation: a
-    // capture run (`scenario_active`) keeps the CRT's default seed, 1, so its frames reproduce.
+    // capture run (`scenario_active`) keeps the CRT's default seed, 1, because that way its frames
+    // reproduce.
     if crate::run_mode::scenario_active() {
         script.lua().srand(1);
     }
@@ -368,6 +369,14 @@ pub(crate) fn ingame_ui_up(
         && state.is_some_and(|s| *s.get() == crate::client_state::ClientState::InWorld)
 }
 
+/// [`ingame_ui_up`] off the world, for a caller that holds it.
+pub(crate) fn ingame_ui_up_in(world: &World) -> bool {
+    !world.contains_resource::<PendingEntryUiLoad>()
+        && world
+            .get_resource::<State<crate::client_state::ClientState>>()
+            .is_some_and(|s| *s.get() == crate::client_state::ClientState::InWorld)
+}
+
 /// `PreUpdate`, after [`run_pending_reload`] so a reload never interleaves an armed entry load:
 /// run the armed entry load once the cover has presented, at once when there is no cover (a
 /// capture booting straight `InWorld`). Leaving the world first drops the latch unrun, and
@@ -533,7 +542,9 @@ fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
     // item objects.
     crate::ui_items::locks::seed_vm_item_locks(world, &mut script, seat == LoadSeat::Live);
     crate::ui_party::seed_vm_party(world, &mut script, seat == LoadSeat::Live);
+    crate::ui_unit::field_events::seed_vm_token_flags(world, &mut script, seat == LoadSeat::Live);
     crate::ui_guild::seed_vm_guild(world, &mut script, seat == LoadSeat::Live);
+    crate::ui_social::seed_vm_lfg(world, &mut script, seat == LoadSeat::Live);
     // The realm before the load, since addons read `GetRealmName()` at file scope; the roster
     // carries the realm-list entry this session connected to.
     let realm = world
@@ -593,16 +604,17 @@ fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
         .get_resource::<crate::cvars::Cvars>()
         .is_none_or(crate::cvars::Cvars::addon_version_check);
     // Per-VM `Update` claims the load itself reads, seeded now: the zone-channel catalog (empty,
-    // `General` would be filed and joined as a custom channel), the binding table (stock
-    // `ActionButton_OnLoad` paints the hotkeys) and the language table a file-scope
+    // `General` would be filed and joined as a custom channel), the default bindings the stored
+    // sets are diffs against, and the language table a file-scope
     // `SendChatMessage` names its tongue from. The default language is never seeded: it is the
     // held player's (`0x49fce9`), and a login's load runs before the player's create can arrive
     // (the login-verify handler is registered after it, `0x401789`), so the load reads none.
     crate::ui_chat::seed_zone_channel_catalog(world, &mut script);
-    crate::bindings::seed_bindings_for_vm(world, &mut script);
+    crate::bindings::seed_bindings_for_vm(&mut script);
     // The engine globals a previous VM folded out: the quest log's fold mask, with the records its
-    // cache holds, and the tradeskill repeat.
+    // cache holds, the item cache's records, and the tradeskill repeat.
     crate::ui_quest_log::seed_quest_log(world, &mut script);
+    crate::ui_items::feed::seed_vm_item_records(world, &mut script);
     crate::ui_tradeskill::seed_repeat(world, &mut script);
     crate::ui_unit::seed_language_table(world, &mut script);
     // The world map's continent and zone lists: static DBC data in the reference, read at file
@@ -664,6 +676,13 @@ fn load_ingame_ui_seated(world: &mut World, seat: LoadSeat) {
                 crate::vplates::seat_legacy_settings(script, &legacy_plates)
             });
         });
+        // The account-data readers register after `VARIABLES_LOADED`, in `CGGameUI::Initialize`'s
+        // order: the layout's (`0x4900c2`), the bindings' (`0x4900c7` → `0x4b62b0`), the macros'
+        // (`0x4900d1` → `0x4f0a70`), then the chat setup's below (`0x4900d6`). Each reads now on a
+        // settled section, a `/reload`'s, else once it settles.
+        crate::ui_layout::register_layout_reader(world, script);
+        crate::bindings::register_binding_readers(world, script);
+        crate::ui_macro::register_macro_readers(world, script);
         // The chat cache restores after `VARIABLES_LOADED` and before any chat is routed: its
         // `UPDATE_CHAT_WINDOWS` registers each chat frame for its `CHAT_MSG_*` events
         // (`ChatFrame.lua:1261-1273`).
@@ -1057,8 +1076,12 @@ fn close_ui_session(world: &mut World, root: ShutdownRoot) {
     crate::ui_items::locks::fold_dying_vm_item_locks(world);
     // And the ready check, engine state the reference's reload never writes.
     crate::ui_party::fold_dying_vm_ready_check(world);
+    // The units' token flags, which live on the unit objects, past the shutdown's deselect.
+    crate::ui_unit::field_events::fold_dying_vm_token_flags(world);
     // The guild roster's show-offline flag and selection, which only a login zeroes.
     crate::ui_guild::fold_dying_vm_guild(world);
+    // And the looking-for-group list, which only its reply's handler writes.
+    crate::ui_social::fold_dying_vm_lfg(world);
     // So do the engine globals the VM holds for the session: the quest log's fold mask and the
     // tradeskill repeat, which no UI init resets.
     crate::ui_quest_log::fold_dying_vm_quest_folds(world);
@@ -1080,9 +1103,8 @@ fn close_ui_session(world: &mut World, root: ShutdownRoot) {
     if let Some(mut minimap) = world.get_resource_mut::<crate::minimap::MinimapWidget>() {
         minimap.0 = None;
     }
-    // And the signals the frame's field callbacks and releases parked in it, for their lanes.
+    // And the refused records' walks the field callbacks' lane holds for it.
     crate::field_callbacks::drop_parked(world);
-    crate::target::drop_parked_releases(world);
 }
 
 /// A `ReloadUI()` waiting to run: set when [`crate::ui_logout`] drains
@@ -2180,6 +2202,8 @@ mod tests {
             .arm();
         let mut loot = crate::ui_loot::LootState::default();
         loot.open(CORPSE, 1, 0, Vec::new());
+        // Open long ago: its `LOOT_OPENED` has fired.
+        loot.signals_fired();
         world.insert_resource(loot);
         let body = world.spawn_empty().id();
         {

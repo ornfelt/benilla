@@ -36,7 +36,7 @@ mod worldmap_arrow;
 mod button;
 mod calls;
 mod camera_view;
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(debug_assertions)]
 pub mod census;
 mod channel;
 mod char_stats;
@@ -68,7 +68,7 @@ mod addon_enable;
 pub mod addon_gate;
 mod char_name;
 mod client;
-pub use client::FrameTimeRing;
+pub use client::{BindLocationQuery, FrameTimeRing};
 mod clock;
 mod cooldown_read;
 mod cvar_checks;
@@ -159,8 +159,10 @@ mod messageframe;
 mod minimap;
 mod movieframe;
 pub mod nameplate;
+pub mod unit_watch;
 pub use nameplate::{
-    PlateBitWrite, PlateBitWrites, PlateGeometry, PlateState, PLATE_BIT_ENEMY, PLATE_BIT_FRIEND,
+    PlateAction, PlateBitWrite, PlateBitWrites, PlateClick, PlateGateQuery, PlateGeometry,
+    PlateState, PlateUnit, PlateUnitQuery, PLATE_BIT_ENEMY, PLATE_BIT_FRIEND,
 };
 mod model;
 mod modelframe;
@@ -275,7 +277,7 @@ pub use calls::{spell_owner, ItemCallback, NearestMode, QueuedCall, RecordAsk, S
 pub use camera_view::{CameraViewRequest, CAMERA_VIEW_COUNT};
 pub use channel::{
     channel_send_target, ChannelCommand, JoinedChannel, JoinedChannelsQuery, RecruitmentPlan,
-    ZoneChannelRow,
+    RecruitmentPlanQuery, ZoneChannelRow,
 };
 pub use char_stats::{
     weapon_subclass_skill, AlertInputs, AlertItem, BankBagSlots, InvSlotView, InventoryAlertInputs,
@@ -347,14 +349,14 @@ pub use guild::{
 };
 pub use guild_read::{GuildAnswer, GuildRead, OwnGuild, UnitGuildRead};
 pub use held::{BagGuidQuery, BagHead, BagItemsQuery, BagQuery, BagSlotQuery, HasKeyQuery};
-pub use host::{CallHost, CallTail, Deferring, LiveReader};
+pub use host::{CallHost, CallTail, LiveReader};
 pub use input_verbs::{
     BindingInput, ClickCall, ClickMode, ClickPress, FiredInput, HeldInput, LookCall,
     MouselookingQuery, PostureCall, ViewAxis,
 };
 pub use item_calls::ItemCall;
 pub use item_read::{ItemInfoFields, ItemKey, ItemRead, ItemRoll};
-pub use lfg::LfgDungeon;
+pub use lfg::{LfgDungeon, LfgReply, LfgResultRead, LfgStore};
 pub use lottery::UnservedSend;
 pub use modelframe::{CharacterPaneFrame, ModelPaneFrame, ModelWanted};
 pub use movieframe::{
@@ -384,8 +386,8 @@ pub(crate) use font_block::{face_loads, font_size_loads, own_font_lua, SAME_FONT
 pub use inspect::{InspectCall, UnitReach, UnitReachQuery, VisibleSlotQuery};
 pub use instance::InstanceCall;
 pub use item_stats::{
-    item_usable, ItemRecipe, ItemSetQuery, ItemSetView, ItemSpellLine, ItemTemplateView,
-    LiveItemSet, PlayerReqState, TaughtSpell,
+    item_usable, reputation_line, ItemRecipe, ItemSetQuery, ItemSetView, ItemSpellLine,
+    ItemTemplateView, ItemViewQuery, LiveItemSet, LiveItemView, PlayerReqState, TaughtSpell,
 };
 pub use item_text::{ItemTextCall, ItemTextCreator, ItemTextQuery, ItemTextState, ItemTextView};
 pub use layout_cache::{AnchorLayout, FrameLayout, LayoutPoint};
@@ -520,15 +522,19 @@ pub use unit::{
     UnitRelations, UnitState, UnitStateAnswer, UnitStateQuery, UnitTokenGlobals, UnitTokenObjects,
     UnitTokenParse,
 };
+pub use unit_watch::{
+    HealthWatch, TokenChange, TokenFlagsCarry, TOKEN_PARTY, TOKEN_PARTY_PET, TOKEN_PET,
+    TOKEN_PLAYER, TOKEN_RAID, TOKEN_RAID_PET, TOKEN_TARGET,
+};
 pub use use_gates::{ControlBypassQuery, FarSightOnQuery};
 pub use weapon_enchant::{WeaponEnchant, WeaponEnchantQuery};
 pub use who_sort::{WhoSortChain, WhoSortKey};
 pub use worldmap::{
-    UnitMapPosition, UnitMapPositionQuery, WorldMapContinentView, WorldMapLandmarkSource,
-    WorldMapLandmarkView, WorldMapLevel, WorldMapOverlayView, WorldMapSheetRow, WorldMapState,
-    WorldMapZoneView,
+    CorpseMapPointQuery, MapSetterQuery, MapSetterReads, UnitMapPosition, UnitMapPositionQuery,
+    WorldMapContinentView, WorldMapLandmarkSource, WorldMapLandmarkView, WorldMapLevel,
+    WorldMapOverlayView, WorldMapSheetRow, WorldMapState, WorldMapZoneView,
 };
-pub use worldstate::WorldStateUiView;
+pub use worldstate::{WorldStateUiQuery, WorldStateUiView};
 pub use worn_display::{WornDisplay, WornDisplaySet};
 pub use zone_text::{PlayerFactionMasksQuery, ZonePvp, ZoneTexts};
 
@@ -855,7 +861,7 @@ impl UiScript {
         let lua = install_framescript(VmKind::InGame)?;
         install_in_game(&lua)?;
         object::guard_receivers(&lua)?;
-        #[cfg(any(test, feature = "test-support"))]
+        #[cfg(debug_assertions)]
         census::survey_listener(&lua);
         Ok(Self::host(lua))
     }
@@ -945,8 +951,9 @@ impl UiScript {
     /// runs. The app arms it only for the world-entry load, so a hung load reports instead of
     /// freezing the loading screen, and disarms it ([`Self::clear_instruction_budget`]) before the
     /// session's first frame. Deviation: the client's Lua has no such bound, as nothing sets a
-    /// hook (`lua_sethook`, `0x6fba40`, has no caller and no pointer to it), so a load that
-    /// never ends hangs it.
+    /// hook (`lua_sethook`, `0x6fba40`, has no caller and no pointer to it), so a load that never
+    /// ends hangs it; benilla bounds it because a hung load would otherwise freeze the loading
+    /// screen instead of reporting.
     ///
     /// An abort runs no error handler, so its message waits and is handed to the error function
     /// when the budget is disarmed, as a compile failure is (`0x704b42`), once per arming: the

@@ -701,8 +701,8 @@ fn arbitrate_pointer_over_ui(
 /// The session lifecycle: the VM's birth, identity, death and reload.
 mod lifecycle;
 pub(crate) use lifecycle::{
-    ingame_ui_up, run_pending_reload, setup_script, strings_vm, AddOnIdentity, PendingEntryUiLoad,
-    ReloadUiPending, SessionEnd,
+    ingame_ui_up, ingame_ui_up_in, run_pending_reload, setup_script, strings_vm, AddOnIdentity,
+    PendingEntryUiLoad, ReloadUiPending, SessionEnd,
 };
 /// The leave-world sweep `0x490a80`: its latch, its schedule and its legs' order.
 mod sweep;
@@ -824,7 +824,7 @@ pub(crate) fn demo_unit_feed(
             // stock `ActionButton_UpdateCount` shows only a consumable's count
             // (`ActionButton.lua:287`).
             script.set_bonus_bar_offset(1);
-            // A macro on button 4; a capture has no character for `ui_macro::load_macros` to read.
+            // A macro on button 4; a capture has no character for the macro reader to read.
             script.set_macros(benilla_ui::script::MacroState::from_scopes(
                 vec![benilla_ui::script::MacroView {
                     name: "spawn".into(),
