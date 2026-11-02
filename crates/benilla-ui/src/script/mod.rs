@@ -314,8 +314,8 @@ pub use cvar_checks::{
     check_anisotropic, check_dist_cull, check_error_filter, check_error_level_max,
     check_error_level_min, check_ffx_echo, check_footstep_bias, check_horizon_farclip,
     check_lod_dist, check_map_obj_light_lod, check_max_lights, check_particle_density,
-    check_shadow_bias, check_target_nearest_distance, check_texture_lod_dist, check_unit_draw_dist,
-    check_water_lod, check_weather_density, scanf_f_prefix,
+    check_shadow_bias, check_shadow_lod, check_target_nearest_distance, check_texture_lod_dist,
+    check_unit_draw_dist, check_water_lod, check_weather_density, scanf_f_prefix,
 };
 pub use cvar_checks::{
     check_base_mip, check_camera_decay, check_camera_distance_max, check_camera_pitch,
@@ -875,7 +875,11 @@ impl UiScript {
         let lua = install_framescript(VmKind::Glue)?;
         glue::install(&lua)?;
         object::guard_receivers(&lua)?;
-        Ok(Self::host(lua))
+        let script = Self::host(lua);
+        // The glue build's `CSimpleTop::SetCursor` with the cursor texture (`0x46a872` →
+        // `0x764da6`) shows the pointer.
+        script.model_mut().glue.pointer_calls.push(true);
+        Ok(script)
     }
 
     fn host(lua: Lua) -> UiScript {
@@ -1108,24 +1112,13 @@ impl UiScript {
         self.model_mut().minimap.inside = inside;
     }
 
-    /// The Minimap's per-frame update (`0x4eb040`) on every Minimap's player arrow: once its model
-    /// is loaded (`0x7103d0`), `0x4ee100` centres it on its own size, half its width and height
-    /// (slots 0x1c and 0x20) in layout units; then `CMinimap::SetPlayerFacing` (`0x4eb8e0`, fed at
-    /// `0x4eb0a4`–`0x4eb0b1`) copies the player's facing (radians) raw into the field
-    /// `Model:SetFacing` (`0x76dce0`) writes, so the arrow's `GetFacing()` reads it.
-    pub fn set_minimap_player_facing(&mut self, facing: f32) {
+    /// The Minimap's per-frame update (`0x4eb040`) on every Minimap's player arrow, ahead of its
+    /// object lookup (`0x4eb04f`-`0x4eb074`): once its model is loaded (`0x7103d0`), `0x4ee100`
+    /// centres it on its own size, half its width and height (slots 0x1c and 0x20) in layout units.
+    pub fn centre_minimap_player_arrows(&mut self) {
         let mut model = self.model_mut();
         let unit = model.layout_unit();
-        let arrows: Vec<crate::widget::FrameHandle> = model
-            .arena
-            .minimap_kinds()
-            .iter()
-            .filter_map(|&h| match model.arena.frame(h).map(|f| &f.kind_state) {
-                Some(KindState::Minimap(m)) => m.player_arrow,
-                _ => None,
-            })
-            .collect();
-        for h in arrows {
+        for h in minimap::player_arrows(&model) {
             let size = model.layout_inputs.get(&h).map_or((0.0, 0.0), |i| {
                 let u = model.layout_units();
                 (i.width.script(u), i.height.script(u))
@@ -1137,12 +1130,26 @@ impl UiScript {
                     .is_some_and(|p| model.model_facts.contains_key(&crate::widget::model_key(p))),
                 _ => false,
             };
+            if !loaded {
+                continue;
+            }
             if let Some(KindState::Model(state)) =
                 model.arena.frame_mut(h).map(|f| &mut f.kind_state)
             {
-                if loaded {
-                    state.position = (size.0 / unit * 0.5, size.1 / unit * 0.5, 0.0);
-                }
+                state.position = (size.0 / unit * 0.5, size.1 / unit * 0.5, 0.0);
+            }
+        }
+    }
+
+    /// `CMinimap::SetPlayerFacing` (`0x4eb8e0`, fed at `0x4eb0a4`–`0x4eb0b1`) on every Minimap's
+    /// player arrow: copies the facing (radians) of the object the camera follows raw into the
+    /// field `Model:SetFacing` (`0x76dce0`) writes, so the arrow's `GetFacing()` reads it.
+    pub fn set_minimap_player_facing(&mut self, facing: f32) {
+        let mut model = self.model_mut();
+        for h in minimap::player_arrows(&model) {
+            if let Some(KindState::Model(state)) =
+                model.arena.frame_mut(h).map(|f| &mut f.kind_state)
+            {
                 state.facing = facing;
             }
         }

@@ -31,7 +31,7 @@ pub fn decode(packet: ServerPacket) -> Vec<SessionEvent> {
         } => decode_objects(first_pass, objects),
         // In order, each move as if alone: the app rebuilds a mover's arc from packet order.
         ServerPacket::CompressedMoves { packets } => packets.into_iter().flat_map(decode).collect(),
-        ServerPacket::CharEnum { characters } => vec![SessionEvent::CharacterList {
+        ServerPacket::CharEnum { characters, .. } => vec![SessionEvent::CharacterList {
             characters,
             realm: None,
             cause: super::RosterCause::Unasked,
@@ -931,6 +931,9 @@ pub fn decode(packet: ServerPacket) -> Vec<SessionEvent> {
         }
         ServerPacket::GameObjectDespawnAnim { guid } => {
             vec![SessionEvent::GameObjectDespawnAnim { guid }]
+        }
+        ServerPacket::GameObjectResetState { guid } => {
+            vec![SessionEvent::GameObjectResetState { guid }]
         }
         ServerPacket::GameObjectPageText { guid } => {
             vec![SessionEvent::GameObjectPageText { guid }]

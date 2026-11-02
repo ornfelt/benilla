@@ -479,6 +479,8 @@ pub(crate) struct Model {
     pub(crate) known_languages: Vec<String>,
     /// `Languages.dbc`'s `(ID, Name_lang)` rows in file order, whatever the character knows.
     pub(crate) language_table: Vec<(u32, String)>,
+    /// The `ChrRaces` and `ChrClasses` rows an item's race and class lines walk.
+    pub(crate) item_req_names: super::tooltip_item::names::ItemReqNames,
     pub(crate) zone_channel_catalog: Vec<super::channel::ZoneChannelRow>,
     /// The recruitment auto-join latch `[0x843608]`: 0 `STANDARD`, 1 `AUTO` (`0x49ea70` maps any
     /// other word to 1). Boots at 1, as the reference writes `AUTO` for an untouched option.
@@ -1023,6 +1025,10 @@ pub(crate) struct Model {
 
     /// `GetBillingTimeRested()` (`0x48ec50`) in minutes from `SMSG_AUTH_RESPONSE`, unconverted.
     pub(crate) billing_time_rested: u32,
+    /// `GetBillingTimeRemaining()`'s minutes (`+0x1af4`, `0x46dbf0`) from the same group.
+    pub(crate) billing_time_remaining: u32,
+    /// The plan flags (`+0x1afc`) `GetBillingPlan()` decodes (`0x46dc40`).
+    pub(crate) billing_plan_flags: u8,
     /// `InCinematic()`. While set, `StaticPopup_Show` refuses any dialog without
     /// `interruptCinematic` (`StaticPopup.lua:1454`).
     pub(crate) in_cinematic: bool,
@@ -1468,6 +1474,7 @@ impl Model {
             chat_colors_changed: false,
             known_languages: Vec::new(),
             language_table: Vec::new(),
+            item_req_names: Default::default(),
             zone_channel_catalog: Vec::new(),
             guild_recruitment_mode: 1,
             guild_recruitment_cascade: false,
@@ -1702,6 +1709,8 @@ impl Model {
             partial_play_time: false,
             no_play_time: false,
             billing_time_rested: 0,
+            billing_time_remaining: 0,
+            billing_plan_flags: 0,
             in_cinematic: false,
             exhaustion: [
                 (1, ("Rested".to_string(), 2.0)),

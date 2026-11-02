@@ -71,11 +71,14 @@ pub enum ServerPacket {
         result: u8,
         /// Our login-queue place; only for [`super::AUTH_WAIT_QUEUE`] with a long enough body.
         queue_position: Option<u32>,
-        /// The billing group; `None` on a body too short for it.
-        billing: Option<super::Billing>,
+        /// The billing fields read; `None` when under 5 bytes follow the result (`0x5b41f9`).
+        billing: Option<super::BillingRead>,
     },
     CharEnum {
         characters: Vec<Character>,
+        /// The list failed, `characters` then empty: the flag `0x5b42a0` passes to `0x5ab300`,
+        /// which completes the query `0x2c` for `0x2b` (`0x5b4574`).
+        failed: bool,
     },
     CharCreate {
         result: u8,
@@ -393,6 +396,11 @@ pub enum ServerPacket {
     /// `SMSG_GAMEOBJECT_DESPAWN_ANIM`: a bare `u64` guid. The client arms substate 12 (anim 157)
     /// and pins the object, so the same tick's `SMSG_DESTROY_OBJECT` waits for the play to end.
     GameObjectDespawnAnim {
+        guid: u64,
+    },
+    /// `SMSG_GAMEOBJECT_RESET_STATE`: a bare `u64` guid; the client re-applies the object's
+    /// descriptor state to its animation (`0x6e9790` → `0x5f8c00`).
+    GameObjectResetState {
         guid: u64,
     },
     /// `SMSG_GAMEOBJECT_PAGETEXT`: a bare `u64` guid, the object whose page the reader opens on.
@@ -1416,6 +1424,7 @@ impl ServerPacket {
             ServerPacket::PageTextQueryResponse { .. } => "SMSG_PAGE_TEXT_QUERY_RESPONSE".into(),
             ServerPacket::GameObjectCustomAnim { .. } => "SMSG_GAMEOBJECT_CUSTOM_ANIM".into(),
             ServerPacket::GameObjectDespawnAnim { .. } => "SMSG_GAMEOBJECT_DESPAWN_ANIM".into(),
+            ServerPacket::GameObjectResetState { .. } => "SMSG_GAMEOBJECT_RESET_STATE".into(),
             ServerPacket::GameObjectPageText { .. } => "SMSG_GAMEOBJECT_PAGETEXT".into(),
             ServerPacket::ReadItemOk { .. } => "SMSG_READ_ITEM_OK".into(),
             ServerPacket::ReadItemFailed { .. } => "SMSG_READ_ITEM_FAILED".into(),

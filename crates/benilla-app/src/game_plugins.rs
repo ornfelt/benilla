@@ -979,6 +979,15 @@ pub(crate) mod schedule_tests {
     /// that commutes by construction belongs in [`Classes`].
     const UPDATE_ACTIONABLE_CEILING: usize = 1_467;
     const UPDATE_ACTIONABLE_SLACK: usize = 40;
+    /// Quake 3 movement's own pairs, on top of the ceiling: `q3move::toggle`, which reads only the
+    /// keys and flips an atomic, against the exclusive drains (`lanes::fire_in_order`,
+    /// `net::apply::apply_net_updates`, `ui_script::input::dispatch_input_records`) and
+    /// `terrain_stream::await_reads_and_attach`; and `q3move::speedometer`, which appends only its
+    /// own overlay quads, against six other `UiQuads` appenders.
+    #[cfg(feature = "q3_movement")]
+    const Q3_MOVE_PAIRS: usize = 10;
+    #[cfg(not(feature = "q3_movement"))]
+    const Q3_MOVE_PAIRS: usize = 0;
 
     fn ratchet(what: &str, n: usize, ceiling: usize, slack: usize) {
         eprintln!("{what}: {n} ambiguous pairs (ceiling {ceiling}, slack {slack})");
@@ -1058,7 +1067,7 @@ pub(crate) mod schedule_tests {
         ratchet(
             "Update (actionable)",
             actionable.len(),
-            UPDATE_ACTIONABLE_CEILING,
+            UPDATE_ACTIONABLE_CEILING + Q3_MOVE_PAIRS,
             UPDATE_ACTIONABLE_SLACK,
         );
         ratchet(
@@ -1715,8 +1724,6 @@ pub(crate) mod schedule_tests {
          "no system: a leg the arrival lane's firing runs, inside the drain, which runs only with the interface up; its take is the range latch, which it zeroes into the live VM"),
         ("net/objects/update.rs", "on_update_end", Because::Deliberate,
          "a net handler whose take is the packet's own pass, the blocks its write pass recorded, documented at the line: it publishes nothing to the VM, whose `UNKNOWNOBJECT` text it reads only to name a party member's pet; its notices go to the gated field-notice firing"),
-        ("screenshot.rs", "ask_for_captures", Because::FilledByVm,
-         "`pending` holds only the VM's own `Screenshot()` asks, and the take spawns a capture, publishing nothing"),
         ("screenshot.rs", "report_captures", Because::FilledByVm,
          "the outcome chain starts with the VM's own `Screenshot()` call"),
         ("ui_action/cooldown_lane.rs", "fire_cooldowns", Because::Deliberate,
