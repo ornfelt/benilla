@@ -72,6 +72,23 @@ pub(crate) fn with_wow_mover<R>(f: impl FnOnce() -> R) -> R {
     out
 }
 
+/// Quake 3 movement off on this thread until the guard drops: for a test outside the mover that
+/// pins WoW's movement through the whole controller, one line at its top.
+#[cfg(test)]
+pub(crate) fn wow_mover() -> WowMover {
+    WowMover(TEST_OFF.with(|c| c.replace(true)))
+}
+
+#[cfg(test)]
+pub(crate) struct WowMover(bool);
+
+#[cfg(test)]
+impl Drop for WowMover {
+    fn drop(&mut self) {
+        TEST_OFF.with(|c| c.set(self.0));
+    }
+}
+
 /// `PM_Friction` for a walking player: the ground's drop, at least `pm_stopspeed`'s.
 fn friction(vel: Vec3, dt: f32) -> Vec3 {
     let speed = vel.xz().length();
@@ -142,8 +159,9 @@ pub(crate) fn clip(vel: Vec3, projected: Vec3) -> Vec3 {
 // ---- The toggle ------------------------------------------------------------------------------
 
 fn toggle(keys: Res<ButtonInput<KeyCode>>) {
-    // The dev chord, not a bare `Q`, which strafes left; a chord cannot be typed text.
-    if benilla_world::modkeys::dev_chord(&keys, KeyCode::KeyQ) {
+    // The dev chord, not a bare `Q`, which strafes left; a chord cannot be typed text. Through
+    // `run_mode`, so a player build has no chord and only the console command switches.
+    if crate::run_mode::dev_chord(&keys, KeyCode::KeyQ) {
         set_enabled(!enabled());
     }
 }
@@ -328,8 +346,10 @@ mod tests {
         let dt = 1.0 / 144.0;
         let mut v = Vec3::NEG_Z * RUN;
         for _ in 0..120 {
-            // The wish direction held just past a right angle off the velocity, the strafe.
-            let a = v.z.atan2(v.x) + 1.5;
+            // The strafe: the wish direction turned off the velocity until its share of the
+            // velocity is under the wish speed, so the air acceleration still adds along it; the
+            // angle widens as the speed grows.
+            let a = v.z.atan2(v.x) + (RUN * 0.9 / v.length()).min(1.0).acos();
             v = velocity(v, false, Vec3::new(a.cos(), 0.0, a.sin()), RUN, dt);
         }
         assert!(v.length() > RUN * 1.3, "{v}");

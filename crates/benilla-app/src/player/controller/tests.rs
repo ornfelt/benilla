@@ -1111,6 +1111,9 @@ fn a_pitch_press_while_swimming_starts_before_the_frames_packets() {
 /// down leaves the nibble clear, so a forward press mid-arc steers the jump.
 #[test]
 fn a_standing_jump_keeps_its_air_nudge_for_a_key_pressed_mid_arc() {
+    // WoW's air nudge: Quake 3 movement's air acceleration takes its place.
+    #[cfg(feature = "q3_movement")]
+    let _wow = crate::q3move::wow_mover();
     let mut client = Client::standing(Body::Own);
     client.traced(vec![], vec![Fire(FiredInput::Jump)], |_| {});
     for _ in 0..5 {
