@@ -1,6 +1,6 @@
 ---
 name: benilla-upstream-sync
-description: Bring the new commits on benilla's main branch - upstream benilla's, the fork's own and the fork's merges - into the two fork branches, gfx-dll-backend and trimmed-bevy, one commit at a time in commit-date order. Each commit is merged into each branch and investigated against that branch's own rules before it lands - gfx-dll-backend keeps the feature-off path identical to main and makes the gfx side follow, trimmed-bevy is gfx-only on a trimmed, vendored Bevy - so it lands as is, adapted, or not at all; a merge is skipped only when it changes nothing. Records every commit after the fork point in ledger.md (pending until looked at, with its origin, its handling and any special handling or upstream bug flag), can rebuild the ledger from git, and commits on both branches with no co-author.
+description: Bring the new commits on benilla's main branch - upstream benilla's, the fork's own and the fork's merges - into the two fork branches, gfx-dll-backend and trimmed-bevy, one commit at a time in commit-date order. Each commit is merged into each branch and investigated against that branch's own rules before it lands - gfx-dll-backend keeps the feature-off path identical to main and makes the gfx side follow, trimmed-bevy is gfx-only on a trimmed, vendored Bevy - so it lands as is, adapted, or not at all; a merge is skipped only when it changes nothing. Records every commit after the fork point in ledger.md (pending until looked at, with its origin, its handling and any special handling or upstream bug flag), keeps upstream_info.txt naming the newest main commit each branch is merged through, can rebuild the ledger from git, and commits on both branches with no co-author.
 disable-model-invocation: true
 argument-hint: "[empty or continue | setup | status | fetch | rebuild | skip <sha> <reason> | replay <sha> | continue gfx-dll-backend | continue trimmed-bevy]"
 ---
@@ -51,7 +51,8 @@ branch must still work with the gfx DLL afterwards, but every change on `main` i
   GitHub; `main` moving on GitHub afterwards makes the branch behind again until the next run.
 
 `ledger.md` in this skill's folder records every commit on `main` after the fork point and how it
-landed on each branch - including the ones not looked at yet.
+landed on each branch - including the ones not looked at yet. `upstream_info.txt` beside it names,
+per branch, the commit on `main` the branch is merged through.
 
 ## Where things are
 
@@ -145,8 +146,8 @@ Decide from the argument:
    the other).
 2. **Setup** - `setup`. Check the fork point, add the `upstream` remote when missing, find or
    create both checkouts, write `ledger.md` from the template and fill it per "Picking up the
-   current state" (every commit after the fork point, decided or pending), commit it on
-   gfx-dll-backend, then carry on as continue.
+   current state" (every commit after the fork point, decided or pending), write
+   `upstream_info.txt` from it, commit both on gfx-dll-backend, then carry on as continue.
 3. **Status** - `status`. Fetch, then report per branch: merged through, how many commits remain
    (the pending rows plus the commits on `main` the ledger has no row for yet), the next one, the
    open questions, the open upstream flags, disk space, and per branch
@@ -154,12 +155,12 @@ Decide from the argument:
    merge it still lists. **Write nothing** (the `main` fast-forward aside).
 4. **Fetch** - `fetch`. Do "Fetching", report, stop.
 5. **Rebuild** - `rebuild`. Redo the ledger from git per "Picking up the current state", keeping
-   the notes, Special handling entries and flags of rows that are still right, commit it on
-   gfx-dll-backend, report what changed, stop.
+   the notes, Special handling entries and flags of rows that are still right, update
+   `upstream_info.txt`, commit both on gfx-dll-backend, report what changed, stop.
 6. **Skip** - `skip <sha> <reason>`. For the next unmerged commit of a branch that the maintainer
    decided not to land (usually the answer to an open question): merge it with `-s ours` on each
    branch where it is next, record it `skipped (<reason>)` with Handling `requested` and a Special
-   handling entry quoting the reason, clear its question, commit.
+   handling entry quoting the reason, clear its question, update `upstream_info.txt`, commit.
 7. **Replay** - `replay <sha>`. Redo a commit that already landed - adapted wrongly, left out,
    skipped and now wanted, or flagged for upstream and now to be fixed on the branches too. See
    "Replaying". The existing ledger row is updated, never duplicated.
@@ -250,6 +251,24 @@ maintainer's decision>)`>
   and "remaining" are recomputed every run from git, not carried over: "remaining" is
   `git rev-list --count <branch>..main`, the number GitHub shows as behind.
 
+### upstream_info.txt
+
+`upstream_info.txt` beside `ledger.md` (tracked, on gfx-dll-backend only, like the ledger) names
+per branch the commit on `main` the branch is merged through - its "merged through" row's full
+hash:
+
+```text
+gfx-dll-backend
+  commit <full hash of gfx-dll-backend's merged-through commit>
+
+trimmed-bevy
+  commit <full hash of trimmed-bevy's merged-through commit>
+```
+
+A branch's block changes whenever its "merged through" moves, and the file is committed with the
+ledger. It sits beside the ledger, not in the repo root, so that like the ledger it stays out of
+the tree step 2 compares with `main` and never reaches trimmed-bevy.
+
 ### Picking up the current state
 
 The ledger can be rebuilt from git alone - on setup, in `rebuild` mode, and for the rows concerned
@@ -274,7 +293,8 @@ per branch:
    whether or not a later merge has brought it into the branch yet.
 
 Keep the notes, Special handling entries, flags and open questions of rows the rebuild confirms;
-for a row it changes, say in the run's output what it was and what it is now.
+for a row it changes, say in the run's output what it was and what it is now. Recompute each
+branch's "merged through" and `upstream_info.txt` from the rows.
 
 ## A run
 
@@ -444,7 +464,12 @@ and commit the gfx-dll-backend merge with the ledger in it - one commit per comm
 branch, nothing left uncommitted at the end of the run. The run's new pending rows and skipped
 no-change merges ride along in the next gfx-dll-backend commit; when no merge follows, they go in a
 ledger-only commit on gfx-dll-backend (`benilla-upstream-sync ledger: <n> new pending rows, <n>
-no-change merges skipped`). Stage explicit paths.
+no-change merges skipped`). Stage explicit paths. `upstream_info.txt` goes in every commit the
+ledger goes in, the block of each branch whose "merged through" moved updated first:
+
+```bash
+git -C "$GFX" add .claude/skills/benilla-upstream-sync/ledger.md .claude/skills/benilla-upstream-sync/upstream_info.txt
+```
 
 **`.claude/` is not gitignored on these branches**, unlike upstream, whose `.gitignore` ignores
 `/.claude/` as each person's own. Keep it that way: a merge that touches `.gitignore` keeps
@@ -578,7 +603,7 @@ Every run ends with:
 6. **Upstream flags** - the new ones in full (bug, repro, suggested fix, where the pull request
    belongs), and how many older ones are still open.
 7. **Ledger changes** - rows a rebuild or a disagreement with git changed, what they were and what
-   they are now.
+   they are now, and `upstream_info.txt` as it stands: per branch, the commit merged through.
 8. **Commits** - per branch the commits made (short sha and subject), and in the gfx repo if any.
    Never pushed.
 9. A last line: `Next: <origin> <sha> <subject>` - or that both branches are level with `main`
