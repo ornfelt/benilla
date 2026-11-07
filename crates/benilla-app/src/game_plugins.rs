@@ -269,7 +269,16 @@ pub(crate) mod schedule_tests {
     pub(crate) fn headless_client_with(more: impl FnOnce(&mut App)) -> App {
         let mut app = finished_client(more);
         app.cleanup();
+        in_world(&mut app);
         app
+    }
+
+    /// The client in the world with its interface up, as every packet after the world entry meets
+    /// it: [`crate::ui_script::ingame_ui_up_in`] holds, so the dispatch fires each packet's lanes
+    /// at its end ([`crate::lanes::flush`]), the path play takes. A test of the loading screen or
+    /// the world entry sets the state it needs.
+    fn in_world(app: &mut App) {
+        app.insert_resource(State::new(crate::client_state::ClientState::InWorld));
     }
 
     /// The whole client's world, for a fixture that drives it by hand (a one-shot system, a call
@@ -293,6 +302,7 @@ pub(crate) mod schedule_tests {
         unrun(&mut app);
         app.world_mut()
             .remove_resource::<crate::vm_pass::PassOrder>();
+        in_world(&mut app);
         app
     }
 
@@ -903,9 +913,10 @@ pub(crate) mod schedule_tests {
 
     /// `PostUpdate`'s undeclared-order pairs on the declared graph; `GlobalTransform` and the
     /// particle `EffectQuads` are most of it. Every pair here is one stock Bevy 0.18.1 builds for
-    /// the same code (the merge of `main` through `ad1b9329` brought the 339th, compared pair for
-    /// pair against gfx-dll-backend's gfx build).
-    const POST_UPDATE_CEILING: usize = 339;
+    /// the same code (the merge of `main` through `ad1b9329` brought the 339th and the merge
+    /// through `013423de` the 340th, each compared pair for pair against gfx-dll-backend's gfx
+    /// build).
+    const POST_UPDATE_CEILING: usize = 340;
     const POST_UPDATE_SLACK: usize = 20;
     /// The actionable pairs in `Update`: conflicting access, no declared order, and nothing
     /// [`Classes`] explains, so the executor orders them however the graph falls. The count may
@@ -964,6 +975,15 @@ pub(crate) mod schedule_tests {
     /// that commutes by construction belongs in [`Classes`].
     const UPDATE_ACTIONABLE_CEILING: usize = 1_467;
     const UPDATE_ACTIONABLE_SLACK: usize = 40;
+    /// Quake 3 movement's own pairs, on top of the ceiling: `q3move::toggle`, which reads only the
+    /// keys and flips an atomic, against the exclusive drains (`lanes::fire_in_order`,
+    /// `net::apply::apply_net_updates`, `ui_script::input::dispatch_input_records`) and
+    /// `terrain_stream::await_reads_and_attach`; and `q3move::speedometer`, which appends only its
+    /// own overlay quads, against six other `UiQuads` appenders.
+    #[cfg(feature = "q3_movement")]
+    const Q3_MOVE_PAIRS: usize = 10;
+    #[cfg(not(feature = "q3_movement"))]
+    const Q3_MOVE_PAIRS: usize = 0;
 
     fn ratchet(what: &str, n: usize, ceiling: usize, slack: usize) {
         eprintln!("{what}: {n} ambiguous pairs (ceiling {ceiling}, slack {slack})");
@@ -1043,7 +1063,7 @@ pub(crate) mod schedule_tests {
         ratchet(
             "Update (actionable)",
             actionable.len(),
-            UPDATE_ACTIONABLE_CEILING,
+            UPDATE_ACTIONABLE_CEILING + Q3_MOVE_PAIRS,
             UPDATE_ACTIONABLE_SLACK,
         );
         ratchet(
@@ -1331,11 +1351,6 @@ pub(crate) mod schedule_tests {
              lanes' drain, which fires the tick's packets' signals (`0x420d55`), and ahead of the \
              `OnUpdate` walk (`0x420d6a`)",
         ),
-        (
-            "::ui_unit::views::mark_frame_start",
-            "a debug snapshot of what the frame starts from, ahead of the net stage by design: it \
-             reads the units the resolver's last inputs name and pushes nothing",
-        ),
     ];
 
     /// The create's control restore (`player::regain_control_on_arrival`) runs inside the net
@@ -1403,63 +1418,6 @@ pub(crate) mod schedule_tests {
         }
     }
 
-    /// A nameplate's right-click is `SelectTarget` (`0x492870`), which with a targeting cursor up
-    /// binds the cast and returns, and then the unit's interact (`0x492881`), so the cast goes out
-    /// ahead of what the interact does. The click's select parks the unit; the target chain's bind
-    /// gives it to the cast; the interact runs after that, or its attack leg would swing before the
-    /// cast and select nothing.
-    #[test]
-    fn a_plates_interact_runs_after_the_bind_of_the_unit_its_click_parked() {
-        let mut app = headless_client();
-        let c = census(
-            &mut app,
-            crate::target::WorldClickLegs,
-            SyncPoints::Declared,
-        );
-        if !type_names_available(&c) {
-            eprintln!(
-                "skipped: this build carries no type names (bevy/debug rides with the dev feature)"
-            );
-            return;
-        }
-        let one = |suffix: &str| {
-            let mut hits = c.systems.iter().filter(|(_, s)| s.name.ends_with(suffix));
-            match (hits.next(), hits.next()) {
-                (Some((k, _)), None) => *k,
-                _ => panic!("exactly one system named `…{suffix}` in the click's legs"),
-            }
-        };
-        let (select, bind, interact) = (
-            one("::target::click::select_on_plate_click"),
-            one("::script_calls::bind_parked_picks"),
-            one("::target::click::act_on_interact"),
-        );
-        let mut succ: HashMap<SystemKey, Vec<SystemKey>> = HashMap::new();
-        for (a, b) in &c.dependencies {
-            succ.entry(*a).or_default().push(*b);
-        }
-        let runs_before = |from: SystemKey, to: SystemKey| {
-            let mut seen = HashSet::new();
-            let mut stack = vec![from];
-            while let Some(n) = stack.pop() {
-                for m in succ.get(&n).into_iter().flatten() {
-                    if seen.insert(*m) {
-                        stack.push(*m);
-                    }
-                }
-            }
-            seen.contains(&to)
-        };
-        assert!(
-            runs_before(select, bind),
-            "the click parks before the chain binds"
-        );
-        assert!(
-            runs_before(bind, interact),
-            "the interact runs after the chain's bind"
-        );
-    }
-
     /// A command press cancels the cast inside `SetCommands` (`0x51512a` → `0x6e4940`), after the
     /// press's verdict and before its tick (`0x5151a0`), so `CMSG_CANCEL_CAST` goes out ahead of
     /// the start: the self-cancel sits between the press's two systems in the built graph.
@@ -1504,50 +1462,6 @@ pub(crate) mod schedule_tests {
             "the verdict before the cancel"
         );
         assert!(after(cancel).contains(&tick), "the cancel before the tick");
-    }
-
-    /// A plate click's trade leg runs ahead of its select (`0x4925d0`: the trade request at
-    /// `0x49278e`, `SelectTarget` at `0x49280c`), so the targeting cursor it tests (`0x492668`)
-    /// is the one the click found, not what the select's bind left.
-    #[test]
-    fn a_plate_clicks_trade_leg_runs_before_its_select() {
-        let mut app = headless_client();
-        let c = census(
-            &mut app,
-            crate::target::WorldClickLegs,
-            SyncPoints::Declared,
-        );
-        if !type_names_available(&c) {
-            eprintln!(
-                "skipped: this build carries no type names (bevy/debug rides with the dev feature)"
-            );
-            return;
-        }
-        let one = |suffix: &str| {
-            let mut hits = c.systems.iter().filter(|(_, s)| s.name.ends_with(suffix));
-            match (hits.next(), hits.next()) {
-                (Some((k, _)), None) => *k,
-                _ => panic!("exactly one system named `…{suffix}` in the click's legs"),
-            }
-        };
-        let trade = one("::ui_action::drop_item::trade_on_plate_click");
-        let mut succ: HashMap<SystemKey, Vec<SystemKey>> = HashMap::new();
-        for (a, b) in &c.dependencies {
-            succ.entry(*a).or_default().push(*b);
-        }
-        let mut seen = HashSet::new();
-        let mut stack = vec![trade];
-        while let Some(n) = stack.pop() {
-            for m in succ.get(&n).into_iter().flatten() {
-                if seen.insert(*m) {
-                    stack.push(*m);
-                }
-            }
-        }
-        assert!(
-            seen.contains(&one("::target::click::select_on_plate_click")),
-            "the trade leg runs before the plate's select"
-        );
     }
 
     /// The `Startup` VM, the stock glue's, is built after the glyph cache:
@@ -1772,9 +1686,8 @@ pub(crate) mod schedule_tests {
     }
 
     /// The consumer markers: a VM holder that does one of these to host state has spent
-    /// something this frame that nothing can re-spend. A feed posts its events
-    /// (`script_calls::Fires::post`) to fire once its pushes are in.
-    const CONSUMES: &[&str] = &["fire_event(", "fires.post(", "mem::take(", ".drain("];
+    /// something this frame that nothing can re-spend.
+    const CONSUMES: &[&str] = &["fire_event(", "mem::take(", ".drain("];
 
     /// Why an ungated one-shot consumer holding the VM loses nothing in the one-frame window
     /// where the wire is in world and the glue VM is still live.
@@ -1784,8 +1697,6 @@ pub(crate) mod schedule_tests {
         FilledByVm,
         /// Consumed in the window or not, the state is re-asked or re-derived once the UI is up.
         SelfHealing,
-        /// The publication is driven by a `VmMemo` diff, so a new VM re-derives and re-fires it.
-        MemoLatched,
         /// Documented at the line as intentional.
         Deliberate,
     }
@@ -1793,8 +1704,6 @@ pub(crate) mod schedule_tests {
     /// Every one-shot VM consumer not gated on `ingame_ui_up` (read off the schedule) and not a
     /// memo-diffed `fire_event`, keyed `(path under src/, fn)`, with the reason it is safe.
     const EXEMPT: &[(&str, &str, Because, &str)] = &[
-        ("bindings.rs", "sync_dispatch", Because::MemoLatched,
-         "`seen_generation` is a `VmMemo`: a new VM reads `None` and rebuilds, and its seed's load owes the UPDATE_BINDINGS"),
         ("capture/probe_bg.rs", "bg_probe", Because::SelfHealing,
          "the battleground probe: dev-only (`WOW_PROBE_BG`, `cfg(feature = \"dev\")`) so it is not in a player build at all, and its `mem::take` is of its OWN pending-events string, not a queue anything else fills. Its one real VM dependency is the Lua event tap, which self-heals: `EVENT_DRAIN` returns a `<tap-gone>` sentinel when the tap's globals are missing — the case this window causes, since a tap installed in the glue VM is discarded when `mint_entry_vm` builds the interface — and the probe re-installs on the next frame"),
         ("capture/fixtures.rs", "open_character_fixture", Because::Deliberate,
@@ -1811,28 +1720,18 @@ pub(crate) mod schedule_tests {
          "no system: a leg the arrival lane's firing runs, inside the drain, which runs only with the interface up; its take is the range latch, which it zeroes into the live VM"),
         ("net/objects/update.rs", "on_update_end", Because::Deliberate,
          "a net handler whose take is the packet's own pass, the blocks its write pass recorded, documented at the line: it publishes nothing to the VM, whose `UNKNOWNOBJECT` text it reads only to name a party member's pet; its notices go to the gated field-notice firing"),
-        ("screenshot.rs", "ask_for_captures", Because::FilledByVm,
-         "`pending` holds only the VM's own `Screenshot()` asks, and the take spawns a capture, publishing nothing"),
         ("screenshot.rs", "report_captures", Because::FilledByVm,
          "the outcome chain starts with the VM's own `Screenshot()` call"),
-        ("vplates.rs", "drive_vplates", Because::Deliberate,
-         "its take is the hits queued for plates: a hit before the interface is up has no plate to flash, since a plate exists only once this driver has bound it under a loaded interface, so a dropped one loses nothing"),
-        ("target/click.rs", "select_on_plate_click", Because::FilledByVm,
-         "filled only by a nameplate frame's click, which a frameless VM has no plate to make"),
         ("ui_action/cooldown_lane.rs", "fire_cooldowns", Because::Deliberate,
          "a lane's firing, run only by the drain: `drop_cooldown_log`, gated on the interface being down, drops the log the frame it is written, so no signal fires into a later VM"),
         ("ui_action/drain.rs", "drain_click_casts", Because::FilledByVm,
-         "filled only by a nameplate's right-click, which a frameless VM has no plate to make, or a crate's `Interact`; the world click's own casts drain inside its call, and the drain sends casts to the wire"),
+         "filled only by a crate's `Interact`; the world click's and a nameplate click's own casts drain inside their calls, and the drain sends casts to the wire"),
         ("ui_action/recount.rs", "arrival_slot_pass", Because::Deliberate,
          "no system: a leg the arrival lane's firing runs, inside the drain, which runs only with the interface up"),
         ("ui_action/recount.rs", "recount", Because::Deliberate,
          "no system: the item lane's firing calls it per run (`item_lane::fire_run`), inside the lanes' drain, which runs only with the interface up (`ingame_ui_up`)"),
         ("ui_guild/lane.rs", "fire_guild", Because::Deliberate,
          "a lane's firing, run only by the drain, which runs only with the interface up (`ingame_ui_up`): the lane holds what the packets queue until a drain fires it, so the login's message of the day, which lands ahead of the interface, fires into the VM that comes up"),
-        ("ui_loot/mod.rs", "drain_loot", Because::Deliberate,
-         "its takes of `LootMoveStart` and `LootCloseAtRest` close on the engine's side and publish nothing to the VM, whose `LOOT_CLOSED` is the loot lane's; the at-rest sweep signals only on a disenchant window, which the interface's own cast opens"),
-        ("ui_macro/mod.rs", "load_macros", Because::MemoLatched,
-         "`MacroFiles.identity` is a `VmMemo`, so a new session re-reads the files and re-fires UPDATE_MACROS; also `InWorldGated`"),
         ("ui_panes.rs", "feed_character_panes", Because::FilledByVm,
          "the answers answer the VM's own build requests and arms on panes it listed; a frameless VM lists none, and an answer for another VM's rows is dropped"),
         ("ui_script/glue_mgr.rs", "drive_glue_mgr", Because::Deliberate,

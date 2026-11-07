@@ -1,9 +1,10 @@
 //! Frame pacing: the frame's time step follows the presentation cadence, not the CPU loop. Under
 //! `PresentMode::Fifo` frames are shown on refresh boundaries, but `Time<Real>` is stamped where
-//! the main thread waits on the render thread, so two frames shown 16.67 ms apart can measure
-//! 26.4 and 8.0 ms, and every bone of a standing model jitters at once. When recent deltas look
-//! vsync'd, each is snapped to a whole number of refresh periods and the remainder carried, so
-//! elapsed time still matches the wall clock; otherwise (uncapped, a real stall) it passes through.
+//! the main thread starts its frame (gfx has no render world to send it an instant: `time_system`
+//! reads the clock), after it waits on the present, so two frames shown 16.67 ms apart can measure 26.4 and 8.0 ms, and every bone of a
+//! standing model jitters at once. When recent deltas look vsync'd, each is snapped to a whole
+//! number of refresh periods and the remainder carried, so elapsed time still matches the wall
+//! clock; otherwise (uncapped, a real stall) it passes through.
 //!
 //! The paced step is [`FrameStep`], the one the interface sees: 1.12.1 hands every `OnUpdate` the
 //! loop's frame time unclamped (`0x420f70` → `0x442330` → `0x442350` → `0x764330` → `0x76b2c0`).

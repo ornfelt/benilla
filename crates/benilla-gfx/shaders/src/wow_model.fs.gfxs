@@ -2,10 +2,9 @@ in 0 vec4 world_position
 in 1 vec3 world_normal
 in 2 vec2 uv
 in 3 vec4 color
-in 4 vec3 point_lit
+in 4 vec3 primary
 in 5 float merged_fade
-in 6 int merged_slot
-in 7 vec2 env_uv
+in 6 vec2 stage1_uv
 
 out 0 vec4 color
 
@@ -34,6 +33,7 @@ constant 1 draw_block
 	vec4 sidn
 	vec4 anim_slots
 	vec4 stage1
+	vec4 stage1_uv
 }
 
 sampler 0 2d base_color_texture
@@ -42,15 +42,11 @@ sampler 2 2d stage1_texture
 
 // The fragment stage of `benilla-assets/src/shaders/wow_model.wgsl`, line for line, with
 // bevy_pbr's `pbr_input_from_standard_material` and `alpha_discard` folded in: base colour =
-// material colour x vertex colour x texel, the texel at the StandardMaterial UV transform and the
-// view's mip bias. `tag.y` bits: 3 = `VERTEX_COLORS`, 6 = `WOW_MERGED_FADE`, 7 = `WOW_MERGED_SLOT`;
-// `flags.x` = `WOW_WATER_CLIP` (the blend pass).
-//
-// Bevy negates a double-sided back face's normal and the WGSL negates it back, and every model
-// material is double-sided exactly when it culls nothing, so the lit normal is the interpolated
-// one on either face: no `front_facing` here, which the HLSL entry point cannot take.
+// material colour x the vertex alpha x texel (the vertex colour's rgb is the lit material, inside
+// `vertex_light`'s clamp), the texel at the StandardMaterial UV transform and the view's mip bias.
+// `tag.y` bits: 3 = `VERTEX_COLORS`, 6 = `WOW_MERGED_FADE`; `flags.x` = `WOW_WATER_CLIP` (the blend
+// pass). The light is the vertex stage's, interpolated in `primary`.
 
-#define WOW_PROBES_BASE 533
 #define WOW_RIG_TINT_BASE 58389
 #define WOW_MATANIM_BASE 60949
 #define WOW_WATER_CLIP_BASE 62997
@@ -119,12 +115,6 @@ float stage_alpha(uint preset, float prev, float tex)
 	return clamp(a, 0.0, 1.0);
 }
 
-vec3 wow_normalize(vec3 v)
-{
-	float l2 = dot(v, v);
-	return l2 > 1e-12 ? normalize(v) : vec3(0.0, 0.0, 0.0);
-}
-
 vec3 clamp01(vec3 v)
 {
 	return clamp(v, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
@@ -136,7 +126,6 @@ fs_output gfx_main(fs_input gfx_input)
 	uint present = tag.y;
 	bool has_colors = (present & 8u) != 0u;
 	bool merged_fade_on = (present & 64u) != 0u;
-	bool merged_slot_on = merged_fade_on && (present & 128u) != 0u;
 	uint markers = uint(clutter_fade.z);
 	vec3 wp = gfx_input.world_position.xyz;
 	float eye_z = -mul(vec4(wp, 1.0), view_from_world).z;
@@ -187,14 +176,16 @@ fs_output gfx_main(fs_input gfx_input)
 	vec2 suv = vec2(uv_matrix.x * uv.x + uv_matrix.z * uv.y, uv_matrix.y * uv.x + uv_matrix.w * uv.y) + uv_offset_cutoff_mode.xy;
 	float mip_bias = misc.x;
 	vec4 vcolor = gfx_input.color;
-	vec4 base_c = base_color * vcolor * sample_bias(suv, mip_bias);
+	// Bevy folds only the vertex alpha into the texel: the rgb is the lit material.
+	vec4 vfold = vec4(1.0, 1.0, 1.0, vcolor.a);
+	vec4 base_c = base_color * vfold * sample_bias(suv, mip_bias);
 	// WMO MOCV alpha is lighting data: the output alpha is the texel's alone. This and the clutter
 	// sample read the untransformed UV, as the WGSL's own samples do.
 	if (has_colors && model_flags.x > 0.5)
 		base_c.a = sample_bias(uv, mip_bias).a;
 	// The detail-doodad LOD bias, on the clutter sample.
 	if (clutter_fade.w > 0.5)
-		base_c = sample_bias(uv, mip_bias + DETAIL_DOODAD_LOD_BIAS) * vcolor;
+		base_c = sample_bias(uv, mip_bias + DETAIL_DOODAD_LOD_BIAS) * vfold;
 	// The clutter distance fade, the reference's stage-1 ramp by camera-space depth.
 	if (clutter_fade.w > 0.5)
 	{
@@ -210,13 +201,23 @@ fs_output gfx_main(fs_input gfx_input)
 	vec4 tex1 = vec4(1.0, 1.0, 1.0, 1.0);
 	if (stage1_on)
 	{
-		tex1 = sample_stage1(gfx_input.env_uv, mip_bias);
+		// A stage on its UV set moves by its own transform, the law stage 0's takes; the generated
+		// coordinate takes none.
+		vec2 st1_uv = gfx_input.stage1_uv;
+		if (stage1.w > 0.5)
+		{
+			vec2 st1_t = gfx_input.stage1_uv + stage1_uv.zw + light_row(WOW_MATANIM_BASE + int(stage1_uv.x)).xy;
+			vec4 affine1 = light_row(WOW_MATANIM_BASE + int(stage1_uv.y));
+			vec2 d1 = (st1_t - vec2(0.5, 0.5)) * vec2(1.0 + affine1.z, 1.0 + affine1.w);
+			float c1 = 1.0 + affine1.x;
+			st1_uv = vec2(0.5 + d1.x * c1 - d1.y * affine1.y, 0.5 + d1.x * affine1.y + d1.y * c1);
+		}
+		tex1 = sample_stage1(st1_uv, mip_bias);
 		base_c.a = stage_alpha(stage1_preset, base_c.a, tex1.a);
 	}
 
 	// The MeshTag: bit 31 highlight, bit 30 interior fog; payload bits 0-5 the fade alpha (zero is
 	// opaque), 19-29 the rig slot, 6-13 the ground shade or, on an interior prop, 6-18 the probe.
-	bool interior_prop = model_flags.z > 0.5 && model_flags.x < 0.5;
 	uint raw_tag = tag.x;
 	bool highlighted = (raw_tag & 0x80000000u) != 0u;
 	bool interior_fogged = (raw_tag & 0x40000000u) != 0u;
@@ -263,109 +264,34 @@ fs_output gfx_main(fs_input gfx_input)
 	}
 
 	// --- Lighting ---------------------------------------------------------------------------
+	// The stage-0 modulate: the texel times the lit colour `vertex_light` clamped per vertex.
 	vec4 light_ambient = light_row(0);
-	vec4 light_diffuse = light_row(1);
-	vec4 light_sun = light_row(2);
-	vec4 grade = light_row(17);
-	bool is_clutter = clutter_fade.w > 0.5;
-	vec3 L = -normalize(light_sun.xyz);
-	vec3 n_lit = wow_normalize(gfx_input.world_normal);
-	float ndotl = max(dot(n_lit, L), 0.0);
-	vec3 lit_nl = clamp01(light_ambient.rgb + light_diffuse.rgb * ndotl);
-	vec4 quad = vec4(n_lit.x * n_lit.y, n_lit.y * n_lit.z, n_lit.z * n_lit.z, n_lit.x * n_lit.z);
-	vec4 n1 = vec4(n_lit, 1.0);
-	float x2y2 = n_lit.x * n_lit.x - n_lit.y * n_lit.y;
-	// The `Model2.bls` lobe at the per-instance intensity (see the WGSL for the families and the
-	// `min(I, 1)` deviation).
-	float inst_shade = interior_prop ? 0.0 : float((fade_tag >> 6u) & 0xffu) / 255.0;
-	float mat_shade = sun_scale.x < 0.5 ? 1.0 : 0.0;
-	float shade_t = max(mat_shade, inst_shade);
-	bool mid_band = sun_scale.x >= 0.5 && sun_scale.x < 0.85;
-	float intensity = min(mid_band ? 1.0 : mix(2.5, 0.5, shade_t), 1.0);
-	vec3 sun_dc = grade.yzw * intensity;
-	vec4 sh_c10_r = light_row(6);
-	vec4 sh_c10_g = light_row(7);
-	vec4 sh_c10_b = light_row(8);
-	vec4 sh_c16 = light_row(12);
-	vec3 sun_lobe = vec3(
-		sh_c10_r.w + sun_dc.x + intensity * (dot(sh_c10_r.xyz, n_lit) + dot(light_row(9), quad) + sh_c16.x * x2y2),
-		sh_c10_g.w + sun_dc.y + intensity * (dot(sh_c10_g.xyz, n_lit) + dot(light_row(10), quad) + sh_c16.y * x2y2),
-		sh_c10_b.w + sun_dc.z + intensity * (dot(sh_c10_b.xyz, n_lit) + dot(light_row(11), quad) + sh_c16.z * x2y2));
-	vec3 lit_doodad = clamp01(sun_lobe);
 	bool is_wmo = model_flags.x > 0.5;
 	bool is_interior = model_flags.z > 0.5;
-	bool use_doodad_shade = light_sun.w > 0.5 && !is_clutter && !is_wmo;
-	vec3 lit_exterior = use_doodad_shade ? lit_doodad : lit_nl;
-	// WMO interior groups by batch class (`tint.w`): INT unlit, TRANS the lit/unlit lerp by
-	// MOCV.a, EXT `lit_nl`; a WINDOW batch lights at the Direct/Ambient midpoint.
-	float trans_a = has_colors ? vcolor.a : 1.0;
-	vec3 window_mid = 0.5 * (light_ambient.rgb + light_diffuse.rgb);
-	vec3 lit_window = clamp01(window_mid + vec3(16.0 / 255.0, 16.0 / 255.0, 16.0 / 255.0) + window_mid * ndotl);
-	vec3 lit_int_base = sidn.w > 0.5 ? lit_window : lit_nl;
-	vec3 lit_wmo_interior = vec3(1.0, 1.0, 1.0);
-	if (tint.w > 1.5)
-		lit_wmo_interior = mix(vec3(1.0, 1.0, 1.0), lit_int_base, trans_a);
-	else if (tint.w < 0.5)
-		lit_wmo_interior = lit_int_base;
-	// Interior M2 props: the prop's order-2 SH probe (7 rows a slot).
-	int probe = WOW_PROBES_BASE + 7 * (merged_slot_on ? gfx_input.merged_slot : int((fade_tag >> 6u) & 0x1fffu));
-	vec4 p3 = light_row(probe + 3);
-	vec4 p4 = light_row(probe + 4);
-	vec4 p5 = light_row(probe + 5);
-	vec4 p6 = light_row(probe + 6);
-	vec3 lit_m2_interior = clamp01(vec3(
-		dot(light_row(probe), n1) + dot(p3, quad) + p6.x * x2y2,
-		dot(light_row(probe + 1), n1) + dot(p4, quad) + p6.y * x2y2,
-		dot(light_row(probe + 2), n1) + dot(p5, quad) + p6.z * x2y2));
-	vec3 lit_interior = is_wmo ? lit_wmo_interior : lit_m2_interior;
-	bool is_rig = sun_scale.x >= 1.5;
-	vec3 lit = is_rig ? lit_m2_interior : (is_interior ? lit_interior : lit_exterior);
-	// Gamma-space albedo, times the animated M2Color tint.
+	// The vertex colour, white without one (the program input's default).
+	vec4 vcol = vcolor;
+	vec3 primary = gfx_input.primary;
+	// Gamma-space colours: `anim_tint` is the animated M2Color, `albedo` a WMO's unlit `tex x MOCV`.
 	vec3 anim_tint = tint.rgb + light_row(WOW_MATANIM_BASE + int(anim_slots.y)).xyz;
-	vec3 albedo = base.rgb * anim_tint;
+	vec3 albedo = base.rgb * vcol.rgb * anim_tint;
 	bool is_emissive = model_flags.w > 0.5;
-	// SIDN night glow, on lit lanes only.
-	float sidn_w = 1.0;
-	if (is_interior && is_wmo)
-	{
-		if (tint.w > 1.5)
-			sidn_w = trans_a;
-		else if (tint.w > 0.5)
-			sidn_w = 0.0;
-	}
-	vec3 sidn_e = sidn.rgb * (grade.x * sidn_w);
-	vec3 point_diffuse = gfx_input.point_lit;
-	// The hover/target highlight: the scene ambient, inside the final clamp.
 	vec3 highlight = highlighted ? light_ambient.rgb : vec3(0.0, 0.0, 0.0);
-	// The FFP combine `tex x clamp(C sum + emission)`, C = MOCV on WMO, the body tint on M2.
-	vec3 lit_rgb;
-	if (has_colors && is_wmo)
+	vec3 lit_rgb = base.rgb * primary;
+	if (is_wmo)
 	{
-		vec3 vc = vcolor.rgb;
-		vec3 primary = clamp01(vc * (lit + point_diffuse) + sidn_e + highlight);
-		vec3 tex_rgb = base.rgb / max(vc, vec3(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0));
-		lit_rgb = tex_rgb * tint.rgb * primary;
-		if (is_interior && tint.w > 0.5 && tint.w < 1.5)
-			lit_rgb = clamp01(tex_rgb * tint.rgb * vc * (1.0 + 4.0 * trans_a));
+		lit_rgb = base.rgb * tint.rgb * primary;
+		// TRANS: the lit pass by MOCV.a under the unlit `tex x MOCV` by 1 - MOCV.a, as one lerp.
+		if (is_interior && tint.w > 1.5)
+			lit_rgb = base.rgb * tint.rgb * mix(vcol.rgb, primary, vcol.a);
+		// INT: the reference's interior pixel shader, `tex MOCV.rgb (1 + 4 MOCV.a)`, clamped once.
+		if (has_colors && is_interior && tint.w > 0.5 && tint.w < 1.5)
+			lit_rgb = clamp01(base.rgb * tint.rgb * vcol.rgb * (1.0 + 4.0 * vcol.a));
 	}
-	else
-	{
-		vec3 primary = clamp01(inst_tint * (lit + point_diffuse) + sidn_e + highlight);
-		lit_rgb = albedo * primary;
-	}
-	// The unlit path: an M2 modulates `clamp(C tint + highlight)`; a WMO the plain modulate.
+	// The unlit path: an M2 modulates `clamp(C tint + highlight)`, C the M2Color on the vertex
+	// colour; a WMO keeps the plain modulate.
 	vec3 unlit_rgb = albedo * inst_tint;
 	if (!is_wmo)
-	{
-		vec3 unlit_c = anim_tint;
-		vec3 unlit_tex = base.rgb;
-		if (has_colors)
-		{
-			unlit_c = vcolor.rgb * anim_tint;
-			unlit_tex = base.rgb / max(vcolor.rgb, vec3(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0));
-		}
-		unlit_rgb = unlit_tex * clamp01(unlit_c * inst_tint + highlight);
-	}
+		unlit_rgb = base.rgb * clamp01(vcol.rgb * anim_tint * inst_tint + highlight);
 	vec3 rgb = is_emissive ? unlit_rgb : lit_rgb;
 	// An M2 Mod or Mod2x batch draws the bare texel.
 	bool is_mod = (markers & 128u) != 0u;

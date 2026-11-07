@@ -103,11 +103,12 @@ fs_output gfx_main(fs_input gfx_input)
 	specmask = mix(specmask, s2.a, a.g);
 	specmask = mix(specmask, s3.a, a.b);
 
-	// MCSH: the shadow map is 1 shadowed, 0 lit; a chunk without one (`uv_b.y < 0`) is lit.
-	float shadow_lit = 1.0;
+	// MCSH: the shadow map is 1 shadowed, 0 lit; a chunk without one (`uv_b.y < 0`) is lit. The
+	// sample runs unconditionally, at layer 0 for a chunk with none, and `si` selects after:
+	// implicit derivatives need uniform control flow, and `si` is a varying.
 	float si = gfx_input.uv_b.y;
-	if (si >= 0.0)
-		shadow_lit = 1.0 - shadow_at(auv, int(round(si)));
+	float mcsh = shadow_at(auv, max(int(round(si)), 0));
+	float shadow_lit = si >= 0.0 ? 1.0 - mcsh : 1.0;
 
 	vec3 diffuse_term = color * gfx_input.primary * (0.3 * shadow_lit + 0.7);
 	vec3 spec_term = gfx_input.specular * specmask * shadow_lit;

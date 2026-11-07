@@ -4,10 +4,10 @@
 //! outside its fixed table, `VK_A`-`VK_Z` and `VK_OEM_*` among them, to
 //! `MapVirtualKeyA(vk, MAPVK_VK_TO_CHAR)` (`0x42da39`), which returns `VK_A`-`VK_Z`'s own letter
 //! whatever the layout types there. The Mac client fills its letter and punctuation keys from the
-//! live layout, `KeyTranslate` (`0x8a3c3`) on the current `KCHR` (re-read when it changes,
-//! `0x8a345`), and fixes its digits by position (`0x5bf320`). Bevy's `KeyboardInput` carries the
-//! physical key and a `logical_key` with Shift applied, so the name is read off the gfx window's
-//! raw key messages here ([`benilla_gfx::GfxRawKey`]), before any `Update` reader.
+//! live layout, `KeyTranslate` (`mac:08a3c3`) on the current `KCHR` (re-read when it changes,
+//! `mac:08a345`), and fixes its digits by position (`mac:5bf320`). Bevy's `KeyboardInput` carries
+//! the physical key and a `logical_key` with Shift applied, so the name is read off the gfx
+//! window's raw key messages here ([`benilla_gfx::GfxRawKey`]), before any `Update` reader.
 
 use std::collections::HashMap;
 
@@ -35,7 +35,7 @@ impl Position {
 /// The keys a layout names: the letters, the digits, the punctuation, the ISO and JIS extras and
 /// the keypad comma. Windows sends `VK_OEM_102`, `VK_ABNT_C2` and `VK_SEPARATOR` to the layout arm
 /// like any `VK_OEM_*` key, and the Mac client's table leaves the ISO key `0x0A` and keypad comma
-/// `0x5F` to `KeyTranslate` (`-1` at `0x5bf320`). winit 0.30 cannot deliver those on a Mac, as on
+/// `0x5F` to `KeyTranslate` (`-1` at `mac:5bf320`). winit 0.30 cannot deliver those on a Mac, as on
 /// main: it reports `0x0A` as `Backquote` (whose scancode it gives back as `0x32`) and leaves
 /// `0x5E` and `0x5F` unidentified, so the `IntlBackslash`, `IntlRo` and `NumpadComma` arms never
 /// fire there.
@@ -114,7 +114,7 @@ impl LayoutNames {
     /// reported (a headless run) keeps its US name.
     ///
     /// Deviation: on the Mac and Linux a key its platform reports no character for keeps its US
-    /// name too, where the Mac reference drops it (`0x8a4aa`), and a Linux dead key not yet pressed
+    /// name too, where the Mac reference drops it (`mac:08a4aa`), and a Linux dead key not yet pressed
     /// bare stays bindable.
     pub(crate) fn name(&self, key: KeyCode) -> Option<LayoutName> {
         let position = position(key)?;
@@ -163,10 +163,10 @@ fn record_gfx_layout_names(
 /// The reference's name for the virtual key `vk`, given `MapVirtualKeyExW(vk, MAPVK_VK_TO_CHAR)`;
 /// `None` for a key `0x42d800`'s fixed table names.
 ///
-/// Deviation: a character above U+00FF names the key by itself. The reference's `MapVirtualKeyA`
-/// returns an ANSI code-page byte, which `0x42da4b` drops past `0xff` and the namer's UTF-8
-/// encoder (`0x41abb0`) otherwise reads as Latin-1, so such a key is mislabelled or dropped; named
-/// by what it types, it stays bindable and readable.
+/// Deviation: a character above U+00FF names the key by itself because the reference's
+/// `MapVirtualKeyA` returns an ANSI code-page byte, which `0x42da4b` drops past `0xff` and the
+/// namer's UTF-8 encoder (`0x41abb0`) otherwise reads as Latin-1, so such a key is mislabelled or
+/// dropped; named by what it types, it stays bindable and readable.
 #[cfg(any(target_os = "windows", test))]
 fn windows_name(vk: u32, to_char: u32) -> Option<LayoutName> {
     match vk {

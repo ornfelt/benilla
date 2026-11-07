@@ -6,15 +6,15 @@ in 4 uvec4 joint_indices
 in 5 vec4 joint_weights
 in 6 vec4 fade_sphere
 in 7 int merged_slot
+in 8 vec2 uv_b
 
 out 0 vec4 world_position
 out 1 vec3 world_normal
 out 2 vec2 uv
 out 3 vec4 color
-out 4 vec3 point_lit
+out 4 vec3 primary
 out 5 float merged_fade
-out 6 int merged_slot
-out 7 vec2 env_uv
+out 6 vec2 stage1_uv
 
 constant 0 view_block
 {
@@ -41,11 +41,13 @@ constant 1 draw_block
 	vec4 sidn
 	vec4 anim_slots
 	vec4 stage1
+	vec4 stage1_uv
 }
 
 // The vertex stage of `benilla-assets/src/shaders/wow_model.wgsl` (the M2, WMO and clutter pass),
 // line for line. Bevy's shader defs are runtime tests here: `tag.y` has bit `i` for program input
-// `i` the mesh has (4 = `WOW_RIG_SKIN`, 6 = `WOW_MERGED_FADE`, 7 = `WOW_MERGED_SLOT`).
+// `i` the mesh has (4 = `WOW_RIG_SKIN`, 6 = `WOW_MERGED_FADE`, 7 = `WOW_MERGED_SLOT`, 8 =
+// `VERTEX_UVS_B`).
 
 // The shared light buffer as a data texture (`benilla-gfx/src/data.rs`), declared here by hand:
 // the compiler prints samplers in the fragment stage only. Same slot as the fragment stage's.
@@ -64,8 +66,11 @@ Texture2DArray wow_light : register(t1);
 // Row bases of the `wow_light` regions, row = byte offset / 16 of the wgpu buffer (in sync with
 // `benilla-world/src/gfx/light.rs`, whose test reads these lines).
 #define WOW_POINTS_BASE 21
+#define WOW_PROBES_BASE 533
 #define WOW_RIG_TABLE_BASE 57877
+#define WOW_RIG_TINT_BASE 58389
 #define WOW_RIG_ORIGIN_BASE 58901
+#define WOW_MATANIM_BASE 60949
 #define WOW_PALETTE_BASE 64021
 
 vec4 light_row(int i)
@@ -86,9 +91,15 @@ vec3 wow_normalize(vec3 v)
 	return l2 > 1e-12 ? normalize(v) : vec3(0.0, 0.0, 0.0);
 }
 
+vec3 clamp01(vec3 v)
+{
+	return clamp(v, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
+}
+
 // The <=3 point lights nearest `anchor` (`point_light_sum`): range bounds candidacy only, a
-// selected light falls off as 1/(0.7 d + 0.03 d^2), diffuse on the submitted normal.
-vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
+// selected light falls off as 1/(0.7 d + 0.03 d^2), diffuse on the submitted normal. `.w` is how
+// many are bound.
+vec4 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 {
 	// At most the 256 lights the table holds (512 rows): a count read off a wrong binding must
 	// not spin the GPU into a reset.
@@ -122,7 +133,7 @@ vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 			sd2 = d2; sel2 = i;
 		}
 	}
-	vec3 sum = vec3(0.0, 0.0, 0.0);
+	vec4 sum = vec4(0.0, 0.0, 0.0, 0.0);
 	for (int s = 0; s < 3; s++)
 	{
 		float sd = s == 0 ? sd0 : (s == 1 ? sd1 : sd2);
@@ -134,9 +145,109 @@ vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 		float d = length(to_light);
 		float atten = 1.0 / (0.7 * d + 0.03 * d * d);
 		float nl = max(dot(N, to_light / max(d, 1e-4)), 0.0);
-		sum += light_row(WOW_POINTS_BASE + 2 * sel + 1).rgb * (atten * nl);
+		sum += vec4(light_row(WOW_POINTS_BASE + 2 * sel + 1).rgb * (atten * nl), 1.0);
 	}
 	return sum;
+}
+
+// The body tint by the tag's rig slot (`body_tint`; `rig_tint` packed as rgb24 floats with -1 the
+// identity): the material colour, multiplying the light sum inside the clamp.
+vec3 body_tint(uint fade_tag)
+{
+	int rig_slot = int((fade_tag >> 19u) & 0x7ffu);
+	vec4 tint_row = light_row(WOW_RIG_TINT_BASE + (rig_slot >> 2));
+	int tint_lane = rig_slot & 3;
+	float tint_word = tint_lane == 0 ? tint_row.x : (tint_lane == 1 ? tint_row.y : (tint_lane == 2 ? tint_row.z : tint_row.w));
+	if (tint_word < 0.0)
+		return vec3(1.0, 1.0, 1.0);
+	uint word = uint(tint_word);
+	return vec3(float((word >> 16u) & 0xffu), float((word >> 8u) & 0xffu), float(word & 0xffu)) * (1.0 / 255.0);
+}
+
+// The lit colour at one vertex (`vertex_light`): the reference lights in the vertex stage and the
+// rasterizer interpolates the clamped result. `vcol` is the vertex colour (white without one),
+// `point_lit` the bound point lights' sum and, in `.w`, their count. The colour is the lit
+// material, inside the one clamp.
+vec3 vertex_light(vec3 world_normal, vec4 point_lit, vec4 vcol, int probe_slot, uint raw_tag)
+{
+	vec4 light_ambient = light_row(0);
+	vec4 light_diffuse = light_row(1);
+	vec4 light_sun = light_row(2);
+	vec4 grade = light_row(17);
+	bool is_clutter = clutter_fade.w > 0.5;
+	bool is_wmo = model_flags.x > 0.5;
+	bool is_interior = model_flags.z > 0.5;
+	bool interior_prop = is_interior && !is_wmo;
+	uint fade_tag = raw_tag & 0x3fffffffu;
+	// The hover/target highlight (tag bit 31): the scene ambient, inside the final clamp.
+	vec3 highlight = (raw_tag & 0x80000000u) != 0u ? light_ambient.rgb : vec3(0.0, 0.0, 0.0);
+	vec3 L = -normalize(light_sun.xyz);
+	vec3 n_lit = wow_normalize(world_normal);
+	float ndotl = max(dot(n_lit, L), 0.0);
+	// The FFP light sum, unclamped: GL clamps the lit colour once, after the material colour.
+	vec3 sum_nl = light_ambient.rgb + light_diffuse.rgb * ndotl;
+	if (is_wmo)
+	{
+		// WMO interior groups by batch class (`tint.w`): INT (1) unlit, TRANS (2) this the lit
+		// pass, EXT (0) the FFP sum. A WINDOW batch on the interior drawer lights with the
+		// Direct/Ambient midpoint, its +16/255 ambient saturating on its own.
+		vec3 window_mid = 0.5 * (light_ambient.rgb + light_diffuse.rgb);
+		vec3 sum_window = min(window_mid + vec3(16.0 / 255.0, 16.0 / 255.0, 16.0 / 255.0), vec3(1.0, 1.0, 1.0)) + window_mid * ndotl;
+		vec3 sum_wmo = sum_nl;
+		// SIDN night glow: an emission term beside MOCV inside the clamp.
+		float sidn_w = 1.0;
+		if (is_interior)
+		{
+			sum_wmo = sidn.w > 0.5 ? sum_window : sum_nl;
+			if (tint.w > 0.5 && tint.w < 1.5)
+			{
+				sum_wmo = vec3(1.0, 1.0, 1.0);
+				sidn_w = 0.0;
+			}
+		}
+		vec3 sidn_e = sidn.rgb * (grade.x * sidn_w);
+		return clamp01(vcol.rgb * sum_wmo + sidn_e + highlight);
+	}
+	// `c28`: the vertex colour x the animated M2Color x the body tint.
+	vec3 anim_tint = tint.rgb + light_row(WOW_MATANIM_BASE + int(anim_slots.y)).xyz;
+	vec3 c = vcol.rgb * anim_tint * body_tint(fade_tag);
+	if (is_clutter)
+		// The detail-doodad pass lights by the FFP: the grey multiplies the whole sum.
+		return clamp01(c * (sum_nl + point_lit.rgb) + highlight);
+	vec4 quad = vec4(n_lit.x * n_lit.y, n_lit.y * n_lit.z, n_lit.z * n_lit.z, n_lit.x * n_lit.z);
+	vec4 n1 = vec4(n_lit, 1.0);
+	float x2y2 = n_lit.x * n_lit.x - n_lit.y * n_lit.y;
+	// The `Model2.bls` lobe at the per-instance intensity (see the WGSL for the families), baked
+	// into the SH unclamped; only the per-vertex sum clamps.
+	float inst_shade = interior_prop ? 0.0 : float((fade_tag >> 6u) & 0xffu) / 255.0;
+	float mat_shade = sun_scale.x < 0.5 ? 1.0 : 0.0;
+	float shade_t = max(mat_shade, inst_shade);
+	bool mid_band = sun_scale.x >= 0.5 && sun_scale.x < 0.85;
+	float intensity = mid_band ? 1.0 : mix(2.5, 0.5, shade_t);
+	vec3 sun_dc = grade.yzw * intensity;
+	vec4 sh_c10_r = light_row(6);
+	vec4 sh_c10_g = light_row(7);
+	vec4 sh_c10_b = light_row(8);
+	vec4 sh_c16 = light_row(12);
+	vec3 sun_lobe = vec3(
+		sh_c10_r.w + sun_dc.x + intensity * (dot(sh_c10_r.xyz, n_lit) + dot(light_row(9), quad) + sh_c16.x * x2y2),
+		sh_c10_g.w + sun_dc.y + intensity * (dot(sh_c10_g.xyz, n_lit) + dot(light_row(10), quad) + sh_c16.y * x2y2),
+		sh_c10_b.w + sun_dc.z + intensity * (dot(sh_c10_b.xyz, n_lit) + dot(light_row(11), quad) + sh_c16.z * x2y2));
+	// Interior M2 props: the prop's order-2 SH probe (7 rows a slot).
+	int probe = WOW_PROBES_BASE + 7 * probe_slot;
+	vec4 p6 = light_row(probe + 6);
+	vec3 e_probe = vec3(
+		dot(light_row(probe), n1) + dot(light_row(probe + 3), quad) + p6.x * x2y2,
+		dot(light_row(probe + 1), n1) + dot(light_row(probe + 4), quad) + p6.y * x2y2,
+		dot(light_row(probe + 2), n1) + dot(light_row(probe + 5), quad) + p6.z * x2y2);
+	// The lobe needs the directional light on (`light_sun.w`); off, the FFP sum stands in.
+	vec3 e_exterior = light_sun.w > 0.5 ? sun_lobe : sum_nl;
+	bool is_rig = sun_scale.x >= 1.5;
+	vec3 e = ((is_interior || is_rig) ? e_probe : e_exterior) + point_lit.rgb;
+	// `Model2.bls`: with a point light bound E clamps to [0, 1] first.
+	if (point_lit.w > 0.5)
+		e = clamp01(e);
+	return clamp01(c * e + highlight);
 }
 
 // The centre of the MCNK chunk under P (`mcnk_cell_anchor`), world-merged clutter's light anchor.
@@ -267,7 +378,6 @@ vs_output gfx_main(vs_input gfx_input)
 	if ((markers & 8192u) != 0u)
 		clip.z = 0.0;
 	gfx_output.merged_fade = 1.0;
-	gfx_output.merged_slot = 0;
 	if (merged_fade_on)
 	{
 		// A fully faded placement leaves the clip volume.
@@ -275,8 +385,6 @@ vs_output gfx_main(vs_input gfx_input)
 		gfx_output.merged_fade = merged_fade_alpha(gfx_input.fade_sphere.w, fade_d);
 		if (gfx_output.merged_fade <= 0.0)
 			clip = vec4(0.0, 0.0, 2.0, 1.0);
-		if (merged_slot_on)
-			gfx_output.merged_slot = gfx_input.merged_slot;
 	}
 	gfx_output.gfx_position = device_clip(clip);
 
@@ -284,25 +392,28 @@ vs_output gfx_main(vs_input gfx_input)
 	// Env-mapped batches (bit 12) generate their texcoord per vertex (`wow_env_uv`).
 	if ((markers & 4096u) != 0u)
 		gfx_output.uv = wow_env_uv(p_view, normalize(mul(vec4(world_normal, 0.0), view_from_world).xyz));
-	// Stage 1 takes the same generated coordinate in its own interpolant: a two-texture unit's
-	// second lookup is the environment one in every stock model.
-	gfx_output.env_uv = vec2(0.0, 0.0);
-	if (stage1.x > 0.5)
-		gfx_output.env_uv = wow_env_uv(p_view, normalize(mul(vec4(world_normal, 0.0), view_from_world).xyz));
+	// Stage 1's coordinate in its own interpolant: the generated one, or with `stage1.w` the
+	// vertex's UV set 1 (zero on a mesh without one, as the WGSL leaves it).
+	gfx_output.stage1_uv = vec2(0.0, 0.0);
+	if (stage1.x > 0.5 && stage1.w < 0.5)
+		gfx_output.stage1_uv = wow_env_uv(p_view, normalize(mul(vec4(world_normal, 0.0), view_from_world).xyz));
+	if ((present & 256u) != 0u && stage1.w > 0.5)
+		gfx_output.stage1_uv = gfx_input.uv_b;
 	gfx_output.color = gfx_input.color;
 
 	// Point lights: none on WMO surfaces or interior M2 props, else the <=3 nearest the instance
 	// origin (clutter: its MCNK chunk).
-	if (model_flags.x > 0.5 || model_flags.z > 0.5)
-	{
-		gfx_output.point_lit = vec3(0.0, 0.0, 0.0);
-	}
-	else
+	vec4 point_lit = vec4(0.0, 0.0, 0.0, 0.0);
+	if (model_flags.x < 0.5 && model_flags.z < 0.5)
 	{
 		vec3 anchor = world_from_local[3].xyz;
 		if (clutter_fade.w > 0.5)
 			anchor = mcnk_cell_anchor(gfx_output.world_position.xyz);
-		gfx_output.point_lit = point_light_sum(gfx_output.world_position.xyz, world_normal, anchor);
+		point_lit = point_light_sum(gfx_output.world_position.xyz, world_normal, anchor);
 	}
+	// A merged blob bakes the probe slot per vertex; its tag carries only fog and alpha.
+	uint raw_tag = tag.x;
+	int probe_slot = merged_slot_on ? gfx_input.merged_slot : int(((raw_tag & 0x3fffffffu) >> 6u) & 0x1fffu);
+	gfx_output.primary = vertex_light(world_normal, point_lit, gfx_input.color, probe_slot, raw_tag);
 	return gfx_output;
 }

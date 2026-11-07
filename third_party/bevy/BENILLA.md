@@ -1366,6 +1366,15 @@ still described above, where it was made.
 
 The frame is unchanged by these: none adds a system, set or ordering.
 
+The merge of `main` through `013423de` brought callers of two more, restored the same way:
+
+- `bevy_ecs`: `World::contains_non_send` (`bindings.rs`).
+- `bevy_transform`: `Transform::from_matrix` (`portrait/glue_booth.rs`).
+
+Neither adds a system, set or ordering. That merge's `frame_pace::main_thread_clock` removed the
+render world's `TimeReceiver`, the channel cut above, so it is not restored: with no sender,
+`time_system` already reads the clock as that system makes it.
+
 ## How to check
 
 A crate no commit has touched since the copy is byte-identical to the registry crate:

@@ -749,6 +749,48 @@ fn a_button_rebound_away_from_the_mouse_command_clicks_nothing() {
     assert_eq!(log(&app), "b1 down;b1 up;");
 }
 
+/// A left click that drops a held item on the world still runs its binding's up-half: the
+/// reference drops from the click the release's `CameraOrSelectOrMoveStop` dispatches
+/// (`0x514b70` → `0x481f60(1)`), so the release is the world frame's (`0x483cb0`) and ends the
+/// camera's session (`0x514c48`), and the delete confirmation comes up with the camera free.
+#[test]
+fn a_world_drop_runs_its_binding_up_half() {
+    let mut app = client("PROBEBUTTON");
+    {
+        let mut script = app.world_mut().non_send_resource_mut::<UiScript>();
+        script.set_container(
+            0,
+            Some(benilla_ui::script::ContainerState {
+                num_slots: 16,
+                slots: std::collections::HashMap::from([(
+                    1,
+                    benilla_ui::script::ContainerSlot {
+                        guid: 0x77,
+                        item_id: 117,
+                        count: 1,
+                        ..Default::default()
+                    },
+                )]),
+                ..Default::default()
+            }),
+        );
+        script
+            .run("PickupContainerItem(0, 1)")
+            .expect("the pickup runs");
+        assert!(script.cursor_item().is_some(), "the premise: an item held");
+    }
+    click_at(&mut app, BESIDE_MOB);
+    app.update();
+    assert_eq!(log(&app), "b1 down;b1 up;", "the release ran the up-half");
+    assert!(
+        app.world()
+            .non_send_resource::<UiScript>()
+            .cursor_item()
+            .is_some(),
+        "the item stays held for the confirmation"
+    );
+}
+
 /// The world frame's right-press hook runs ahead of the binding (`0x483c62`, then `0x483c93`): the
 /// binding reads the pending target the hook cancelled, and the repair mode it ended.
 #[test]
@@ -791,6 +833,24 @@ fn a_right_click_cancels_the_pending_target() {
             .iter()
             .any(|c| matches!(c, crate::net::ClientCommand::CastSpellAtDest { .. })),
         "a cancel casts nothing: {sent:?}"
+    );
+}
+
+/// The right click's payload leg clears the cursor and signals in place (`0x492c90`, `0x492d30`
+/// → `0x495190`), so its listeners run before the router's leg goes on: nothing the click writes
+/// after the payload leg follows them ([`crate::script_calls::census::writes_after`]).
+#[test]
+fn a_right_clicks_payload_clear_runs_ahead_of_the_rest_of_its_leg() {
+    let mut app = client("CAMERAORSELECTORMOVE");
+    aim(&mut app);
+    arm_ground_cast(&mut app);
+    let _watch = benilla_ui::script::census::watch_writes();
+    benilla_ui::script::census::take_writes();
+    right_click_at(&mut app, BESIDE_MOB);
+    app.update();
+    assert_eq!(
+        crate::script_calls::census::writes_after(),
+        Vec::<String>::new()
     );
 }
 

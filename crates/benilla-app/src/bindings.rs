@@ -16,10 +16,10 @@
 //! - what the bodies call reaches the engine through the Lua binding functions
 //!   ([`benilla_ui::script::BindingInput`]) as [`BindingsState`]'s [`Input`]s.
 //!
-//! Deviation: a press with Super (Cmd) held runs no binding, so a system chord such as Cmd+Tab or
-//! Cmd+Q never acts in game. The reference has no such modifier and runs the bare key's binding:
-//! the Mac enqueues the key with Command held and skips only its text (`0x8a519`), and Windows
-//! hands `VK_LWIN`/`VK_RWIN` to the layout arm (`0x42da39`) like any key.
+//! Deviation: a press with Super (Cmd) held runs no binding because that way a system chord such as
+//! Cmd+Tab or Cmd+Q never acts in game. The reference has no such modifier and runs the bare key's
+//! binding: the Mac enqueues the key with Command held and skips only its text (`mac:08a51e`), and
+//! Windows hands `VK_LWIN`/`VK_RWIN` to the layout arm (`0x42da39`) like any key.
 //!
 //! Persistence: `benilla-config/bindings/account.txt` and `<Realm>-<Char>.txt` ([`store`]); the
 //! character file's existence is the character-set state, as in the reference.
@@ -121,6 +121,16 @@ pub(crate) struct BindingLatches {
     down: KeyDownList,
 }
 
+impl BindingLatches {
+    /// Is a key bound to `command` (`"JUMP"`) still down from its press: every press latches its
+    /// command until the release. Quake 3 movement's auto-hop reads a held jump here, since JUMP's
+    /// `Jump()` is a one-shot with no held bit.
+    #[cfg(feature = "q3_movement")]
+    pub(crate) fn command_held(&self, command: &str) -> bool {
+        self.latched.iter().any(|(_, c)| c == command)
+    }
+}
+
 /// The keys believed down, the reference's own list (`0x4248b3`): a press of a key on it is an
 /// auto-repeat, whatever the OS flagged. One instance is the bindings', another the UI key feed's
 /// ([`crate::ui_script`]), which decides repeat for the frames by the same rule and reconcile.
@@ -187,13 +197,6 @@ impl BindingsState {
     pub(crate) fn fired(&self, i: Input) -> bool {
         self.edges.fired.contains(&i)
     }
-    /// Is a key bound to `command` (`"JUMP"`) still down from its press: every press latches its
-    /// command until the release. Quake 3 movement's auto-hop reads a held jump here, since JUMP's
-    /// `Jump()` is a one-shot with no held bit.
-    #[cfg(feature = "q3_movement")]
-    pub(crate) fn command_held(&self, command: &str) -> bool {
-        self.latched.iter().any(|(_, c)| c == command)
-    }
     /// Fire the one-shot `i` this frame, as a body's Lua call would.
     #[cfg(test)]
     pub(crate) fn fire_for_test(&mut self, i: Input) {
@@ -256,8 +259,8 @@ impl BindingsState {
     }
 }
 
-/// Which files this session's bindings live in: written by [`seed_bindings_for_vm`], read by the
-/// save.
+/// Which files this session's bindings live in: written by [`register_binding_readers`], read by
+/// the save.
 #[derive(Resource, Default)]
 struct BindingFiles {
     account: Option<std::path::PathBuf>,
@@ -288,6 +291,7 @@ pub(crate) struct BindingsPlugin;
 
 impl Plugin for BindingsPlugin {
     fn build(&self, app: &mut App) {
+        use crate::lanes::LaneApp;
         app.add_plugins(layout::plugin)
             .configure_sets(
                 Update,
@@ -304,56 +308,66 @@ impl Plugin for BindingsPlugin {
             .add_systems(
                 Update,
                 (
-                    // The key sets are seeded at the VM's birth, not here: `seed_bindings_for_vm`
-                    // runs in `load_ingame_ui_on_world_entry`, before FrameXML and every addon;
+                    // The key sets are read by the interface load, not here: the defaults at the
+                    // VM's birth (`seed_bindings_for_vm`), before FrameXML and every addon, and
+                    // the stored sets at the readers' registration (`register_binding_readers`);
                     // the commands come with the load.
                     (sync_dispatch, begin_dispatch).chain().in_set(BindingHead),
                     end_dispatch.in_set(BindingTail),
                     // After the tick: the requests are Lua's own (`SaveBindings`), queued by
                     // handlers the tick dispatched, and a save must not wait a frame.
                     drain_binding_requests.in_set(crate::ui_script::UiDrain),
-                    reread_arrived_bindings
-                        .run_if(crate::ui_script::ingame_ui_up)
-                        .in_set(crate::ui_script::UiFeed)
-                        .in_set(InWorldGated),
                 ),
+            )
+            // The readers of the binding sections, each at its section's settling.
+            .add_exclusive_lane(
+                "binding arrivals",
+                peek_arrived_bindings,
+                fire_arrived_bindings,
+                arrived_bindings_reads,
             );
     }
 }
 
-/// Seed the key sets at the VM's birth, before any interface file runs: the defaults off the
-/// player's chain (`WTF\DefaultBindings.wtf`), the account set, and the character's set if it has
-/// one. The keys are their own table, so a command a later file declares finds its keys there,
-/// and stock `ActionButton_OnLoad` paints its hotkey corner from `GetBindingKey` at load.
+/// Seed set 0, the defaults off the player's chain (`WTF\DefaultBindings.wtf`), at the VM's
+/// birth, before any interface file runs. The live table stays empty until the readers run
+/// ([`register_binding_readers`]).
 ///
 /// The reference reads the defaults later in `UI_Init` (`0x4b62b0` at `0x4900c7`); here they are
 /// read first because the stored sets are diffs against them ([`store`]'s deviation), and nothing
 /// reads set 0 before `LoadBindings(0)`.
-pub(crate) fn seed_bindings_for_vm(world: &mut World, script: &mut UiScript) {
-    let defaults = crate::ui_script::default_bindings();
-    script.set_default_bindings(defaults);
+pub(crate) fn seed_bindings_for_vm(script: &mut UiScript) {
+    script.set_default_bindings(crate::ui_script::default_bindings());
+}
+
+/// The reader's registration (`0x4b6240` through `0x5afe50` at `0x4b62ef` and `0x4b6300`), which
+/// the interface load makes after the layout's and ahead of the macros' (`0x4900c7` → `0x4b62b0`):
+/// a set is read now on a settled section (a `/reload`), else held until it settles
+/// ([`fire_arrived_bindings`]). Until set 2's read chooses, the live table is empty, as the load
+/// builds the binding object anew (`0x48feb0` → `0x4b6050`) after the last shutdown destroyed it
+/// (`0x490cb5` → `0x4b6100`). The reads run with the host lent, for the set choice's signal.
+pub(crate) fn register_binding_readers(world: &mut World, script: &mut UiScript) {
     let account = crate::local_state::bindings_account_path();
-    // No roster identity (a rigged or capture run) leaves set 2 unseeded.
+    // No roster identity (a rigged or capture run) leaves set 2 unread.
     let id = world
         .get_resource::<crate::glue_session::roster::Roster>()
         .and_then(crate::ui_macro::identity);
     let character = id
         .as_ref()
         .and_then(|(realm, name)| crate::local_state::bindings_character_path(realm, name));
-    // The reader (`0x4b6240`) registers for each section through `0x5afe50` (`0x4b62ef`,
-    // `0x4b6300`): a set is read now on a settled section, else held until it settles
-    // ([`reread_arrived_bindings`]), the live table empty until set 2's read chooses.
     let held = world
         .get_resource::<crate::account_data::AccountData>()
         .map_or([false; 2], |data| {
             crate::account_data::BINDINGS.map(|section| !data.register(section))
         });
-    if !held[0] {
-        read_account_set(script, &account);
-    }
-    if !held[1] {
-        read_character_set(script, &character);
-    }
+    crate::script_calls::lent_by_world(world, script, |script| {
+        if !held[0] {
+            read_account_set(script, &account);
+        }
+        if !held[1] {
+            read_character_set(script, &character);
+        }
+    });
     if let Some(mut files) = world.get_resource_mut::<BindingFiles>() {
         *files.held.get(script) = held;
         files.account = account;
@@ -377,40 +391,91 @@ fn read_account_set(script: &mut UiScript, account: &Option<std::path::PathBuf>)
 /// Section 3's read (`0x4b6240` with set 2): set 2 from the character file as
 /// [`read_account_set`] reads set 1, then the set choice (`0x4b629a` → `0x4b64b0`): the
 /// character's set in use when it has keys, else set 1 as it then stands, the defaults when it is
-/// still empty (`0x4b64e2`).
+/// still empty (`0x4b64e2`). Its copy into the live set signals `UPDATE_BINDINGS` in place
+/// (`0x4b6310(2, 3)`, `0x4b6498`).
 fn read_character_set(script: &mut UiScript, character: &Option<std::path::PathBuf>) {
     if let Some(overrides) = read_diff(character) {
         let defaults = script.default_bindings();
         script.seed_binding_set(2, Some(store::resolve(&overrides, &defaults)));
         info!("bindings: character-specific set read");
     }
+    // The choice zeroes the dirty mask before its copy into the live set (`0x4b6506`), so no
+    // `SaveBindings` made ahead of it is written: its queued files are dropped.
+    script.take_keybind_requests();
     script.load_binding_set(if script.character_bindings_exist() {
         2
     } else {
         1
     });
+    if script.take_keybinds_signal_owed() {
+        script.fire_event("UPDATE_BINDINGS", vec![]);
+    }
 }
 
-/// A binding section that settled: its set read again, as the reference's reader (`0x4b6240`)
-/// runs once its section settles (`0x5afaca`, `0x5afd19`), in the table's order.
-fn reread_arrived_bindings(
-    mut hosted_vm: crate::script_calls::HostedVm,
-    mut files: ResMut<BindingFiles>,
-    data: Option<Res<crate::account_data::AccountData>>,
-) {
-    let Some(data) = data else { return };
-    hosted_vm.run(|script| {
-        let Some(script) = script else { return };
-        let [account, character] = crate::account_data::BINDINGS.map(|s| data.take_owed(s));
-        if account {
-            read_account_set(script, &files.account);
-            files.held.get(script)[0] = false;
+/// The binding section that settled first, its reader still owed, with its settling's stamp.
+fn arrived_binding(world: &World) -> Option<(usize, crate::lanes::Stamp)> {
+    let data = world.get_resource::<crate::account_data::AccountData>()?;
+    crate::account_data::BINDINGS
+        .into_iter()
+        .filter_map(|section| Some((section, data.owed_at(section)?)))
+        .min_by_key(|(_, at)| *at)
+}
+
+/// A binding section's settling, the head of its lane: the reader (`0x4b6240`) runs where the
+/// handler that settled it ran (`0x5afaca` in the digests' check, `0x5afd19` in a download), in
+/// the packets' order with the other lanes' events.
+fn peek_arrived_bindings(world: &World) -> Option<crate::lanes::Stamp> {
+    arrived_binding(world).map(|(_, at)| at)
+}
+
+/// The settled section's set read into the VM, as the firing of its settling's stamp: section 2
+/// reads set 1, section 3 reads set 2 and chooses the set in use, signalling `UPDATE_BINDINGS`
+/// ([`read_character_set`]).
+fn fire_arrived_bindings(In(until): In<crate::lanes::Until>, world: &mut World) {
+    let Some((section, at)) = arrived_binding(world).filter(|(_, at)| until.admits(*at)) else {
+        return;
+    };
+    // No VM: the settling waits for one.
+    if !world.contains_non_send::<UiScript>() {
+        return;
+    }
+    world
+        .resource::<crate::account_data::AccountData>()
+        .take_owed(section);
+    crate::lanes::firing(at, || {
+        world.try_resource_scope(|world, mut files: Mut<BindingFiles>| {
+            crate::script_calls::with_hosted_vm(world, |script| {
+                let Some(script) = script else { return };
+                if section == crate::account_data::BINDINGS[0] {
+                    read_account_set(script, &files.account);
+                    files.held.get(script)[0] = false;
+                    return;
+                }
+                read_character_set(script, &files.character);
+                files.held.get(script)[1] = false;
+            })
+        })
+    });
+}
+
+/// What the bindings lane's firing touches beside the call host and its own lane: the files.
+fn arrived_bindings_reads(world: &mut World) -> bevy::ecs::query::FilteredAccessSet {
+    fn read(_: Option<ResMut<BindingFiles>>) {}
+    crate::lanes::system_access(world, read)
+}
+
+/// Every binding settling fired alone, in order, for a test that drives the lane without the
+/// others.
+#[cfg(test)]
+fn reread_arrived_bindings(world: &mut World) {
+    while let Some(head) = peek_arrived_bindings(world) {
+        world
+            .run_system_cached_with(fire_arrived_bindings, crate::lanes::Until::all())
+            .expect("the bindings lane fires");
+        if peek_arrived_bindings(world) == Some(head) {
+            break;
         }
-        if character {
-            read_character_set(script, &files.character);
-            files.held.get(script)[1] = false;
-        }
-    })
+    }
 }
 
 /// Read and parse one diff file; `None` (the defaults) when absent or unreadable.
@@ -427,7 +492,8 @@ fn read_diff(path: &Option<std::path::PathBuf>) -> Option<Vec<(String, Vec<Strin
 }
 
 /// Drain the VM's binding requests: `SaveBindings` writes the set's diff; saving the account set
-/// deletes the character file. Left at the frame, not in the call: the call's own work, the copy
+/// deletes the character file. A set choice drops those made before it ([`read_character_set`]).
+/// Left at the frame, not in the call: the call's own work, the copy
 /// and the dirty mark (`0x4b8260` → `0x4b6310`), is the VM's and signals nothing (only a copy into
 /// the live set does, `0x4b6498`), and the reference writes the files at the interface's shutdown
 /// (`0x490bd0` → `0x4b65e0`), which no script reads.
@@ -493,10 +559,9 @@ fn write_file(path: &Option<std::path::PathBuf>, text: &str) {
 }
 
 /// Rebuild the dispatch map when the engine table moved (a rebind, a set switch, the seed, a
-/// load, a registration), and fire the `UPDATE_BINDINGS` a host-side load owes so the Lua
-/// consumers (the action bar's hotkey corners) repaint. The reference signals it from `SetBinding`
-/// (`0x4b805b`), which signals in place, and from the copy of a set into the live table
-/// (`0x4b649d`); reading a `Bindings.xml` (`0x4b6f70`) signals nothing.
+/// load, a registration). It signals nothing: `SetBinding` (`0x4b805b`) and the copy of a set
+/// into the live table (`0x4b649d`, [`read_character_set`]) signal in place, and reading a
+/// `Bindings.xml` (`0x4b6f70`) signals nothing.
 pub(crate) fn sync_dispatch(
     mut hosted_vm: crate::script_calls::HostedVm,
     mut dispatch: ResMut<BindingDispatch>,
@@ -516,18 +581,20 @@ pub(crate) fn sync_dispatch(
                 }
             }
         }
-        if script.take_keybinds_signal_owed() {
-            script.fire_event("UPDATE_BINDINGS", vec![]);
-        }
     })
 }
 
-/// A wheel delta in lines (notches), whatever unit the OS reported: a trackpad's `Pixel` deltas
-/// go through Bevy's own conversion factor. Every wheel reader shares it.
-pub(crate) fn wheel_lines(unit: MouseScrollUnit, dy: f32) -> f32 {
-    match unit {
-        MouseScrollUnit::Line => dy,
-        MouseScrollUnit::Pixel => dy / MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR,
+/// Whether `Pixel` scroll is Wayland's axis units, Linux's one pixel path: winit reports lines on
+/// X11 and on Windows.
+pub(crate) const WAYLAND_PIXEL_SCROLL: bool = cfg!(target_os = "linux");
+
+/// The physical pixels of a trackpad's travel that make one notch. On Wayland it is 10 axis units,
+/// 10 logical pixels, as SDL, GLFW and Xwayland take one step; elsewhere Bevy's conversion factor.
+pub(crate) fn pixels_per_notch(scale_factor: f32, wayland: bool) -> f32 {
+    if wayland {
+        10.0 * scale_factor
+    } else {
+        MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR
     }
 }
 
@@ -582,10 +649,11 @@ pub(crate) fn world_takes_wheel(dispatch: Option<&BindingDispatch>, mods: Mods, 
 
 /// Whole notches out of a stream of line deltas, carrying the fraction between frames.
 ///
-/// Deviation: a trackpad's `Pixel` deltas are carried until they make a line, and step at most
-/// once per event ([`crate::ui_script::Record::Wheel`]). The reference steps on every
-/// `WM_MOUSEWHEEL`, whatever its delta (`0x76c1a9`); carried, a trackpad does not zoom or scroll
-/// at its event rate.
+/// Deviation: a trackpad's `Pixel` deltas are carried until they make a line, and an event steps
+/// once per whole line on Wayland and at most once elsewhere ([`Self::feed_pixels`]). The reference
+/// steps on every `WM_MOUSEWHEEL`, whatever its delta (`0x76c1a9`); the carry is kept because a
+/// carried trackpad does not zoom or scroll at its event rate, and Wayland takes every whole line
+/// because a 10-pixel notch capped per event would lose a fast swipe's travel.
 ///
 /// For consumers that act per notch off the sign alone: the UI's `OnMouseWheel` (stock
 /// `ScrollFrameTemplate_OnMouseWheel` moves half a pane per call, `UIPanelTemplates.lua:150`) and
@@ -609,6 +677,17 @@ impl WheelNotches {
         let whole = self.carry.trunc();
         self.carry -= whole;
         whole as i32
+    }
+
+    /// The steps a `Pixel` event of `travel` physical pixels makes. `scale_factor` is the window's
+    /// base scale, the one winit made the pixels physical with; `WOW_DPI`'s override is not.
+    pub(crate) fn feed_pixels(&mut self, travel: f32, scale_factor: f32, wayland: bool) -> i32 {
+        let whole = self.feed(travel / pixels_per_notch(scale_factor, wayland));
+        if wayland {
+            whole
+        } else {
+            whole.signum()
+        }
     }
 }
 
@@ -1276,8 +1355,9 @@ mod tests {
     }
 
     /// Only the two reference sites signal `UPDATE_BINDINGS`: a set's copy into the live table
-    /// (`0x4b649d`, here the host's load) and a stored `SetBinding`. Reading an addon's
-    /// `Bindings.xml` (`0x4b6f70`) moves the dispatch table and signals nothing.
+    /// (`0x4b649d`, here the reader's set choice, in place) and a stored `SetBinding`. Reading an
+    /// addon's `Bindings.xml` (`0x4b6f70`) moves the dispatch table and signals nothing, and the
+    /// frame's dispatch pass signals nothing of its own.
     #[test]
     fn registering_an_addons_bindings_signals_nothing_but_a_load_does() {
         let script = core_script();
@@ -1291,11 +1371,9 @@ mod tests {
         app.update();
         assert_eq!(
             lua_count(&app, "UPDATES"),
-            1,
-            "the seed's load owes its signal"
+            0,
+            "the fixture's load is no reader's: the frame pays it nothing"
         );
-        app.update();
-        assert_eq!(lua_count(&app, "UPDATES"), 1, "once");
 
         {
             let script = app.world().non_send_resource::<UiScript>();
@@ -1323,11 +1401,17 @@ mod tests {
             "but the dispatch map re-derives"
         );
 
-        app.world_mut()
-            .non_send_resource_mut::<UiScript>()
-            .load_binding_set(1);
+        read_character_set(
+            &mut app.world_mut().non_send_resource_mut::<UiScript>(),
+            &None,
+        );
+        assert_eq!(
+            lua_count(&app, "UPDATES"),
+            1,
+            "the set choice does, inside the read"
+        );
         app.update();
-        assert_eq!(lua_count(&app, "UPDATES"), 1, "a load does");
+        assert_eq!(lua_count(&app, "UPDATES"), 1, "once");
     }
 
     /// A `runOnUp` body is one chunk run twice, `keystate` "down" then "up"; a plain one runs on
@@ -2456,6 +2540,33 @@ mod tests {
         );
     }
 
+    /// Wayland's notch is 10 logical pixels and an event steps for each whole one; elsewhere it is
+    /// Bevy's factor, whatever the scale, and an event steps at most once.
+    #[test]
+    fn pixel_travel_steps_by_the_platforms_notch() {
+        let mut wayland = WheelNotches::default();
+        assert_eq!(wayland.feed_pixels(13.0, 1.33, true), 0, "under 10 logical");
+        assert_eq!(wayland.feed_pixels(0.5, 1.33, true), 1, "the carry adds up");
+        assert_eq!(
+            wayland.feed_pixels(-70.0, 1.33, true),
+            -5,
+            "each whole notch"
+        );
+
+        let mut elsewhere = WheelNotches::default();
+        assert_eq!(elsewhere.feed_pixels(250.0, 2.0, false), 1, "at most one");
+        assert_eq!(
+            elsewhere.feed_pixels(50.0, 2.0, false),
+            1,
+            "the fraction carries"
+        );
+        assert_eq!(
+            elsewhere.feed_pixels(99.0, 2.0, false),
+            0,
+            "under the factor"
+        );
+    }
+
     /// The window deactivate (`0x514490`) clears the direction bits a Lua Start set and keeps the
     /// mouse pair.
     #[test]
@@ -2767,7 +2878,8 @@ mod tests {
             .init_resource::<crate::account_data::AccountData>()
             .add_systems(Update, reread_arrived_bindings);
         let mut script = core_script();
-        seed_bindings_for_vm(app.world_mut(), &mut script);
+        seed_bindings_for_vm(&mut script);
+        register_binding_readers(app.world_mut(), &mut script);
         app.insert_non_send_resource(script);
         let jump = r#"return GetBindingKey("JUMP") or """#;
         assert_ne!(eval_str(&app, jump), "G", "pending: the sets are held");
@@ -2832,7 +2944,8 @@ mod tests {
             .resource::<crate::account_data::AccountData>()
             .settle_section_for_test(2);
         let mut script = core_script();
-        seed_bindings_for_vm(app.world_mut(), &mut script);
+        seed_bindings_for_vm(&mut script);
+        register_binding_readers(app.world_mut(), &mut script);
         app.insert_non_send_resource(script);
         app.world()
             .non_send_resource::<UiScript>()
@@ -2849,6 +2962,58 @@ mod tests {
             "bind H JUMP\r\n",
             "section 3 held: its file is not emptied"
         );
+        drop(app);
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// A `/reload` meets both binding sections settled, so the readers run at their registration,
+    /// after the addons' files (`0x4900c7` → `0x4b62b0`). A `SaveBindings(1)` at file scope is
+    /// never written: the set choice zeroes the dirty mask (`0x4b6506`), so the character's file
+    /// stays and its set is the one in use.
+    #[test]
+    fn a_save_before_the_set_choice_is_never_written() {
+        let _l = crate::local_state::test_env::ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let tmp = std::env::temp_dir().join(format!("benilla-bind-early-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        let _c = crate::local_state::test_env::EnvGuard::unset("WOW_CAPTURE");
+        let _h = crate::local_state::test_env::EnvGuard::set("BENILLA_HOME", tmp.to_str().unwrap());
+        let account = crate::local_state::bindings_account_path().unwrap();
+        crate::local_state::write_atomic(&account, "bind JUMP G\n").unwrap();
+        let character = crate::local_state::bindings_character_path("Realm", "Probeone").unwrap();
+        crate::local_state::write_atomic(&character, "bind JUMP H\n").unwrap();
+        let mut app = App::new();
+        app.insert_resource(crate::glue_session::roster::Roster::with_pending_pick(
+            vec![crate::glue_session::roster::test_character(7, "Probeone")],
+            7,
+        ))
+        .init_resource::<BindingFiles>()
+        .init_resource::<crate::account_data::AccountData>()
+        .add_systems(
+            Update,
+            (reread_arrived_bindings, drain_binding_requests).chain(),
+        );
+        app.world()
+            .resource::<crate::account_data::AccountData>()
+            .settle_for_test(Some(("Realm".into(), "Probeone".into())));
+        let mut script = core_script();
+        seed_bindings_for_vm(&mut script);
+        // An addon's file scope, ahead of the readers.
+        script.run("SaveBindings(1)").unwrap();
+        register_binding_readers(app.world_mut(), &mut script);
+        app.insert_non_send_resource(script);
+        app.update();
+        assert_eq!(
+            std::fs::read_to_string(&character).ok().as_deref(),
+            Some("bind JUMP H\n"),
+            "the character's file stays"
+        );
+        assert_eq!(
+            eval_str(&app, "return tostring(GetCurrentBindingSet())"),
+            "2"
+        );
+        assert_eq!(eval_str(&app, r#"return GetBindingKey("JUMP") or """#), "H");
         drop(app);
         std::fs::remove_dir_all(&tmp).ok();
     }

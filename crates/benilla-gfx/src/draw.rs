@@ -105,6 +105,21 @@ pub struct LateDraw {
     pub desc: u32,
 }
 
+/// A re-sort of each 3D view's transparent list after its depth sort, which a crate above
+/// installs in [`DrawList::resort`]: the gfx side of a render-world system that runs after
+/// `sort_phase_system::<Transparent3d>` (gfx has no render world).
+pub trait TransparentResort: Send + Sync + 'static {
+    /// `items` is the view's transparent list, back to front, as `(distance, entity)`, the
+    /// distance the `Transparent3d` one. Returns the new order as indices into `items`, each with
+    /// its new distance, or `None` to keep the order.
+    fn resort(
+        &self,
+        eye: Vec3,
+        view_from_world: &Mat4,
+        items: &[(f32, Entity)],
+    ) -> Option<Vec<(usize, f32)>>;
+}
+
 /// This frame's draw items by entity, rebuilt each frame by the material collectors.
 #[derive(Resource, Default)]
 pub struct DrawList {
@@ -114,6 +129,8 @@ pub struct DrawList {
     early: Vec<(Entity, EarlyDraw)>,
     sorted: Vec<(Entity, SortedDraw)>,
     late: Vec<(Entity, LateDraw)>,
+    /// The transparent re-sort, if a crate above installed one; [`DrawList::clear`] keeps it.
+    pub resort: Option<Box<dyn TransparentResort>>,
 }
 
 impl DrawList {
@@ -1509,6 +1526,17 @@ fn view_3d_cmds(
     cmds.extend(copy_opaque);
     // Farthest first: the most negative view-space z.
     transparent.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if let Some(resort) = &list.resort {
+        let eye = view.view_from_world.inverse().w_axis.truncate();
+        let keys: Vec<(f32, Entity)> = transparent.iter().map(|(z, e, _)| (*z, *e)).collect();
+        if let Some(order) = resort.resort(eye, &view.view_from_world, &keys) {
+            let mut slots: Vec<_> = transparent.into_iter().map(Some).collect();
+            transparent = order
+                .into_iter()
+                .filter_map(|(i, z)| slots.get_mut(i)?.take().map(|(_, e, cmd)| (z, e, cmd)))
+                .collect();
+        }
+    }
     for (z, entity, cmd) in transparent {
         if record {
             phases.transparent.push((entity, z));

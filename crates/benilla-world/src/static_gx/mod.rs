@@ -59,8 +59,8 @@ const WORD_WINDOW: u32 = 1 << 26;
 // The batch authors vertex colours. White passes every lane unchanged except INT's
 // ×(1 + 4·MOCV.a) self-illumination, which a colourless entity batch skips, so it keys on this.
 const WORD_HAS_VC: u32 = 1 << 27;
-// `ShadeSel::Matte`, fixed 1.0: a map doodad never reaches the 2.5 site (`0x69e4ad`). Not
-// `WORD_SHADE_LIT`, so lifting the shader's `min(I, 1)` cap leaves this at 1.0.
+// `ShadeSel::Matte`, fixed 1.0: a map doodad never reaches the 2.5 site (`0x69e4ad`), so it is
+// not `WORD_SHADE_LIT`.
 const WORD_MATTE: u32 = 1 << 28;
 // An interior M2 prop is WORD_INTERIOR with WORD_WMO clear, the entity shader's `interior_prop =
 // flags.z && !flags.x`: SH-probe light from its record slot, interior fog, no live point lights.
@@ -776,6 +776,97 @@ pub(crate) mod testkit {
 mod tests {
     use super::testkit::{batch, batch_of, object, tri};
     use super::*;
+
+    /// The static pass lights as the entity pass does, per vertex: `vertex_light` holds every
+    /// lane, the vertex stage writes its clamped colour to the interpolated `primary`, and the
+    /// fragment only modulates the texel by it.
+    #[test]
+    fn the_static_light_is_evaluated_per_vertex() {
+        let vs = include_str!("../../../benilla-gfx/shaders/src/static_gx.vs.gfxs");
+        let fragment = include_str!("../../../benilla-gfx/shaders/src/static_gx.fs.gfxs");
+        let at = |needle: &str| {
+            vs.find(needle)
+                .unwrap_or_else(|| panic!("`{needle}` is gone"))
+        };
+        let light = &vs[at("vec3 vertex_light(")..at("vs_output gfx_main(")];
+        let vertex = &vs[at("vs_output gfx_main(")..];
+        for (lane, term) in [
+            ("the exterior SH lobe", "sh_c10_r.w + sun_dc.x"),
+            ("the FFP N·L", "float ndotl = max(dot(n_lit, L), 0.0);"),
+            ("the interior probe", "dot(light_row(probe), n1)"),
+        ] {
+            assert!(light.contains(term), "{lane} left `vertex_light`");
+        }
+        assert!(
+            vertex.contains(
+                "gfx_output.primary = vertex_light(gfx_input.normal, point_lit, vc, word, rec);"
+            ),
+            "the vertex stage no longer lights its vertex"
+        );
+        assert!(
+            vs.contains("\nout 3 vec3 primary\n") && fragment.contains("\nin 3 vec3 primary\n"),
+            "the lit colour must be interpolated across the triangle, never flat"
+        );
+        for term in [
+            "sh_c10",
+            "WOW_PROBES_BASE",
+            "light_sun",
+            "light_diffuse",
+            "point_light_sum",
+            "vertex_light(",
+        ] {
+            assert!(
+                !fragment.contains(term),
+                "the fragment evaluates `{term}` again — the reference lights per vertex"
+            );
+        }
+    }
+
+    /// The vertex colour is the lit material inside the one clamp, as in `wow_model.wgsl`: MOCV
+    /// under GL_COLOR_MATERIAL (`0x59cfec`), a doodad's baked M2Color as `Model2.bls`'s `c28`,
+    /// whose light sum clamps first only with a point light bound.
+    #[test]
+    fn the_static_vertex_colour_is_lit_inside_the_one_clamp() {
+        let vs = include_str!("../../../benilla-gfx/shaders/src/static_gx.vs.gfxs");
+        let fragment = include_str!("../../../benilla-gfx/shaders/src/static_gx.fs.gfxs");
+        let at = |needle: &str| {
+            vs.find(needle)
+                .unwrap_or_else(|| panic!("`{needle}` is gone"))
+        };
+        let light = &vs[at("vec3 vertex_light(")..at("vs_output gfx_main(")];
+        for (why, line) in [
+            (
+                "the FFP sum is never clamped on its own",
+                "vec3 sum_nl = light_ambient.rgb + light_diffuse.rgb * ndotl;",
+            ),
+            (
+                "a WMO's MOCV multiplies the light sum inside the one clamp",
+                "return clamp01(vc.rgb * sum_wmo + sidn_e);",
+            ),
+            (
+                "a doodad's colour multiplies E inside the one clamp",
+                "return clamp01(vc.rgb * e);",
+            ),
+            (
+                "E clamps first only with a point light bound",
+                "\tif (point_lit.w > 0.5)\n\t\te = clamp01(e);",
+            ),
+        ] {
+            assert!(light.contains(line), "{why}: `{line}` is gone");
+        }
+        assert!(
+            !light.contains("clamp01(sun_lobe"),
+            "the SH lobe clamps before the colour multiplies it again"
+        );
+        assert!(
+            fragment.contains("vec3 rgb = base.rgb * gfx_input.primary;"),
+            "the texel multiplies the vertex colour outside the clamp again"
+        );
+        assert!(
+            fragment.contains("rgb = base.rgb * mix(vc.rgb, gfx_input.primary, vc.a);"),
+            "a TRANS batch is its clamped lit pass by MOCV.a over the unlit `tex × MOCV`"
+        );
+    }
 
     #[test]
     fn a_collected_region_is_undrawn_until_it_publishes() {

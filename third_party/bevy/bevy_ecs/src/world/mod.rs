@@ -1711,6 +1711,15 @@ impl World {
             .is_some_and(ResourceData::is_present)
     }
 
+    /// Returns `true` if a resource of type `R` exists. Otherwise returns `false`.
+    #[inline]
+    pub fn contains_non_send<R: 'static>(&self) -> bool {
+        self.components
+            .get_valid_resource_id(TypeId::of::<R>())
+            .and_then(|component_id| self.storages.non_send_resources.get(component_id))
+            .is_some_and(ResourceData::is_present)
+    }
+
     /// Returns `true` if a resource of type `R` exists and was added since the world's
     /// [`last_change_tick`](World::last_change_tick()). Otherwise, this returns `false`.
     ///
