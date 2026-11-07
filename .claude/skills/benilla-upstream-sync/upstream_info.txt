@@ -2,4 +2,4 @@ gfx-dll-backend
   commit 013423deb481e64d60bf1ae7259ad519f1dd8611
 
 trimmed-bevy
-  commit e9817dc296cec427072431e621794286176df20d
+  commit 013423deb481e64d60bf1ae7259ad519f1dd8611
