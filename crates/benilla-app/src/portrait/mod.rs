@@ -757,6 +757,7 @@ pub(crate) fn on_cvar(ev: &crate::cvars::CvarChanged, mut rate: bevy::prelude::M
 
 impl Plugin for PortraitPlugin {
     fn build(&self, app: &mut App) {
+        glue_booth::trace::plugin(app);
         app.init_resource::<PortraitImages>()
             .init_resource::<PortraitMarks>()
             .init_resource::<crate::field_watch::NoticeLane>()
@@ -826,6 +827,14 @@ impl Plugin for PortraitPlugin {
                     // After the VM pass, whose script calls may change the unit a portrait shows;
                     // the booths' transforms and cameras are none a call reads.
                     .after(crate::vm_pass::VmPass::End),
+            )
+            // The seats ride this frame's scene pose, as the reference animates the scene before
+            // the children on it (`0x714000`); the seats' builds above wrote the bind pose.
+            .add_systems(
+                PostUpdate,
+                glue_booth::seat_on_stage_bones
+                    .after(benilla_world::rig_anim::RigModelPass)
+                    .before(bevy::transform::TransformSystems::Propagate),
             )
             // The character panes: the VM's paint list, after its paint pass armed the turns and
             // the extract published the panes' geometry; before the camera gate reads the marks.

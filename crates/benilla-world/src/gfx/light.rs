@@ -338,9 +338,13 @@ mod tests {
         assert_eq!(define(vs, "WOW_RIG_TABLE_BASE"), b.rig_table);
         assert_eq!(define(vs, "WOW_RIG_ORIGIN_BASE"), b.rig_origin);
         assert_eq!(define(vs, "WOW_PALETTE_BASE"), b.palette);
-        assert_eq!(define(fs, "WOW_PROBES_BASE"), b.probes);
-        assert_eq!(define(fs, "WOW_RIG_TINT_BASE"), b.rig_tint);
-        assert_eq!(define(fs, "WOW_MATANIM_BASE"), b.matanim);
+        // The vertex stage lights (`vertex_light`); the fragment reads the tint and mat-anim rows
+        // again for the unlit path and the texture transforms.
+        assert_eq!(define(vs, "WOW_PROBES_BASE"), b.probes);
+        for src in [vs, fs] {
+            assert_eq!(define(src, "WOW_RIG_TINT_BASE"), b.rig_tint);
+            assert_eq!(define(src, "WOW_MATANIM_BASE"), b.matanim);
+        }
         assert_eq!(define(fs, "WOW_WATER_CLIP_BASE"), b.water_clip);
         // The prefix: 21 header rows, then the point table.
         assert_eq!(b.probes, 21 + 2 * 256);
@@ -349,14 +353,15 @@ mod tests {
     #[test]
     fn the_static_and_terrain_shaders_read_the_same_regions() {
         let b = bases();
+        let static_vs = include_str!("../../../benilla-gfx/shaders/src/static_gx.vs.gfxs");
         for vs in [
-            include_str!("../../../benilla-gfx/shaders/src/static_gx.vs.gfxs"),
+            static_vs,
             include_str!("../../../benilla-gfx/shaders/src/terrain.vs.gfxs"),
         ] {
             assert_eq!(define(vs, "WOW_POINTS_BASE"), b.points);
         }
-        let fs = include_str!("../../../benilla-gfx/shaders/src/static_gx.fs.gfxs");
-        assert_eq!(define(fs, "WOW_PROBES_BASE"), b.probes);
+        // The static pass lights per vertex, so its probe rows are the vertex stage's.
+        assert_eq!(define(static_vs, "WOW_PROBES_BASE"), b.probes);
     }
 
     #[test]

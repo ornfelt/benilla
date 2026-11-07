@@ -99,8 +99,13 @@ live_reads! {
         book: crate::ui_spellbook::BookLive<'static, 'static>,
         /// The battleground queue slots, list, board and positions.
         battlefield: crate::ui_battlefield::BattlefieldLive<'static, 'static>,
-        /// A unit's position for the world map, as `GetPlayerMapPosition` reads it.
+        /// A unit's position for the world map, as `GetPlayerMapPosition` reads it, and the
+        /// corpse's, as `GetCorpseMapPosition` does.
         world_map: crate::ui_world_map::MapPositionLive<'static, 'static>,
+        /// The explored bytes and the landmark sources the map setter builds over.
+        map_setter: crate::ui_world_map::LandmarkReads<'static, 'static>,
+        /// The world-state readout's rows.
+        world_state_ui: crate::world_state_ui::WorldStateUiLive<'static>,
         /// The friend list, its selections and the `/who` array.
         social: crate::ui_social::SocialLive<'static>,
         /// The stance bar's form list and its entries; absent in a harness without the relations'
@@ -143,6 +148,8 @@ live_reads! {
         requirements: crate::ui_items::RequirementsLive<'static, 'static>,
         /// The item set blocks: the set table, the member names and the bonuses.
         item_sets: crate::ui_items::ItemSetLive<'static, 'static>,
+        /// The item records' views as the tooltip build reads them, and the bind point's area.
+        item_views: crate::ui_items::ItemViewLive<'static, 'static>,
         /// The questgiver panel's cells, its rows' records and the turn-in's held counts.
         quest_giver: crate::ui_quest::QuestGiverLive<'static, 'static>,
         /// The trade window's offers, its partner cell and the money offers.
@@ -162,6 +169,8 @@ live_reads! {
         game_time: crate::net::GameTimeLive<'static>,
         /// The joined-channel slot array.
         channels: crate::ui_chat::edit::ChannelLive<'static>,
+        /// What the guild recruitment cascade acts on.
+        recruitment: crate::ui_chat::RecruitmentLive<'static, 'static>,
         /// The acknowledged tutorial bank `TutorialsEnabled` scans.
         tutorials: crate::tutorial::TutorialLive<'static>,
         /// The camera's freelook, which blanks the world's pick, and the TurnOrAction bit.
@@ -175,6 +184,9 @@ live_reads! {
         /// The world plates' builds, the game object's and the corpse's; absent in a harness
         /// without the object records or the caches.
         plates: Option<crate::ui_tooltip::PlateLive<'static, 'static>>,
+        /// The nameplates' callbacks and their gate inside a packet; absent in a harness without
+        /// the relations' inputs.
+        nameplates: Option<crate::vplates::NamePlateLive<'static, 'static>>,
         /// The targeting word's halves and `SpellCanTargetUnit`'s unit leg; absent in a harness
         /// without the unit checks' inputs.
         targeting: Option<crate::spell::targeting::TargetingLive<'static, 'static>>,

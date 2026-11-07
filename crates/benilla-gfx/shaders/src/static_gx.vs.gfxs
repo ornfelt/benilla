@@ -6,11 +6,10 @@ in 4 int word
 in 5 vec3 anchor
 
 out 0 vec4 world_position
-out 1 vec3 world_normal
-out 2 vec2 uv
-out 3 vec4 color
-out 4 vec3 point_lit
-out 5 int word
+out 1 vec2 uv
+out 2 vec4 color
+out 3 vec3 primary
+out 4 int word
 
 constant 0 view_block
 {
@@ -53,9 +52,15 @@ Texture2DArray wow_light : register(t1);
 Texture2DArray gx_records : register(t2);
 #endif
 
+#define WOW_PROBES_BASE 533
 #define WOW_POINTS_BASE 21
+#define WORD_SHADE_LIT 1048576u
 #define WORD_WMO 4194304u
 #define WORD_INTERIOR 8388608u
+#define WORD_CLASS_INT 16777216u
+#define WORD_WINDOW 67108864u
+#define WORD_HAS_VC 134217728u
+#define WORD_MATTE 268435456u
 
 vec4 light_row(int i)
 {
@@ -80,8 +85,20 @@ vec4 record(uint word)
 #endif
 }
 
-// The <=3 point lights nearest `anchor` (`point_light_sum`, mirrored from `wow_model.vs.gfxs`).
-vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
+vec3 wow_normalize(vec3 v)
+{
+	float l2 = dot(v, v);
+	return l2 > 1e-12 ? normalize(v) : vec3(0.0, 0.0, 0.0);
+}
+
+vec3 clamp01(vec3 v)
+{
+	return clamp(v, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
+}
+
+// The <=3 point lights nearest `anchor` (`point_light_sum`, mirrored from `wow_model.vs.gfxs`);
+// `.w` counts the bound ones.
+vec4 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 {
 	// At most the 256 lights the table holds (512 rows): a count read off a wrong binding must
 	// not spin the GPU into a reset.
@@ -115,7 +132,7 @@ vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 			sd2 = d2; sel2 = i;
 		}
 	}
-	vec3 sum = vec3(0.0, 0.0, 0.0);
+	vec4 sum = vec4(0.0, 0.0, 0.0, 0.0);
 	for (int s = 0; s < 3; s++)
 	{
 		float sd = s == 0 ? sd0 : (s == 1 ? sd1 : sd2);
@@ -127,9 +144,88 @@ vec3 point_light_sum(vec3 P, vec3 N, vec3 anchor)
 		float d = length(to_light);
 		float atten = 1.0 / (0.7 * d + 0.03 * d * d);
 		float nl = max(dot(N, to_light / max(d, 1e-4)), 0.0);
-		sum += light_row(WOW_POINTS_BASE + 2 * sel + 1).rgb * (atten * nl);
+		sum += vec4(light_row(WOW_POINTS_BASE + 2 * sel + 1).rgb * (atten * nl), 1.0);
 	}
 	return sum;
+}
+
+// The lit colour at one vertex (`vertex_light`): the reference lights per vertex and interpolates
+// the clamped colour, the vertex colour inside the clamp as the lit material. `vc` is the vertex
+// colour, white where the batch authors none; `point_lit.w` counts the bound point lights.
+vec3 vertex_light(vec3 normal, vec4 point_lit, vec4 vc, uint word, vec4 rec)
+{
+	vec4 light_ambient = light_row(0);
+	vec4 light_diffuse = light_row(1);
+	vec4 light_sun = light_row(2);
+	vec4 grade = light_row(17);
+	vec3 n_lit = wow_normalize(normal);
+	vec3 L = -normalize(light_sun.xyz);
+	float ndotl = max(dot(n_lit, L), 0.0);
+	// The FFP light sum, unclamped: GL clamps the lit colour once, after the material colour.
+	vec3 sum_nl = light_ambient.rgb + light_diffuse.rgb * ndotl;
+	if ((word & WORD_WMO) != 0u)
+	{
+		// WMO surfaces: INT unlit, TRANS's lit pass and EXT the FFP sum; a WINDOW batch on the
+		// interior drawer lights at the Direct/Ambient midpoint, its +16/255 ambient saturating
+		// on its own.
+		vec3 window_mid = 0.5 * (light_ambient.rgb + light_diffuse.rgb);
+		vec3 sum_window = min(window_mid + vec3(16.0 / 255.0, 16.0 / 255.0, 16.0 / 255.0), vec3(1.0, 1.0, 1.0)) + window_mid * ndotl;
+		vec3 sum_wmo = sum_nl;
+		// SIDN night glow (MOMT 0x10): an emission term inside the clamp; zero on INT.
+		float sidn_w = 1.0;
+		if ((word & WORD_INTERIOR) != 0u)
+		{
+			sum_wmo = (word & WORD_WINDOW) != 0u ? sum_window : sum_nl;
+			if ((word & WORD_CLASS_INT) != 0u)
+			{
+				sum_wmo = vec3(1.0, 1.0, 1.0);
+				sidn_w = 0.0;
+			}
+		}
+		uint sidn_word = uint(rec.z);
+		vec3 sidn_rgb = vec3(float(sidn_word & 0xffu), float((sidn_word >> 8u) & 0xffu), float((sidn_word >> 16u) & 0xffu)) / 255.0;
+		vec3 sidn_e = sidn_rgb * (grade.x * sidn_w);
+		// GL_COLOR_MATERIAL: MOCV multiplies the light sum inside the clamp; emission adds beside.
+		return clamp01(vc.rgb * sum_wmo + sidn_e);
+	}
+	vec4 quad = vec4(n_lit.x * n_lit.y, n_lit.y * n_lit.z, n_lit.z * n_lit.z, n_lit.x * n_lit.z);
+	float x2y2 = n_lit.x * n_lit.x - n_lit.y * n_lit.y;
+	vec3 e;
+	if ((word & WORD_INTERIOR) != 0u)
+	{
+		// Interior M2 props: the spawn-folded SH probe over the vertex normal.
+		int probe = WOW_PROBES_BASE + 7 * int((uint(rec.w) >> 1u) & 0x1fffu);
+		vec4 n1 = vec4(n_lit, 1.0);
+		vec4 p6 = light_row(probe + 6);
+		e = vec3(
+			dot(light_row(probe), n1) + dot(light_row(probe + 3), quad) + p6.x * x2y2,
+			dot(light_row(probe + 1), n1) + dot(light_row(probe + 4), quad) + p6.y * x2y2,
+			dot(light_row(probe + 2), n1) + dot(light_row(probe + 5), quad) + p6.z * x2y2);
+	}
+	else
+	{
+		// Exterior ADT doodads and exterior MODD props: the Model2.bls order-2 SH sun lobe at
+		// 0.5 Shaded, 1.0 Matte, 2.5 Lit, unclamped; only the per-vertex sum clamps.
+		float shade_t = (word & WORD_SHADE_LIT) != 0u ? 0.0 : 1.0;
+		float intensity = (word & WORD_MATTE) != 0u ? 1.0 : mix(2.5, 0.5, shade_t);
+		vec3 sun_dc = grade.yzw * intensity;
+		vec4 sh_c10_r = light_row(6);
+		vec4 sh_c10_g = light_row(7);
+		vec4 sh_c10_b = light_row(8);
+		vec4 sh_c16 = light_row(12);
+		vec3 sun_lobe = vec3(
+			sh_c10_r.w + sun_dc.x + intensity * (dot(sh_c10_r.xyz, n_lit) + dot(light_row(9), quad) + sh_c16.x * x2y2),
+			sh_c10_g.w + sun_dc.y + intensity * (dot(sh_c10_g.xyz, n_lit) + dot(light_row(10), quad) + sh_c16.y * x2y2),
+			sh_c10_b.w + sun_dc.z + intensity * (dot(sh_c10_b.xyz, n_lit) + dot(light_row(11), quad) + sh_c16.z * x2y2));
+		// Sun disabled (light_sun.w) falls back to the FFP sum.
+		e = light_sun.w > 0.5 ? sun_lobe : sum_nl;
+	}
+	// `Model2.bls`: with a point light bound E clamps to [0, 1] before `c28` multiplies it.
+	e += point_lit.rgb;
+	if (point_lit.w > 0.5)
+		e = clamp01(e);
+	// `c28`: the vertex colour, the M2Color baked constant, is the lit material.
+	return clamp01(vc.rgb * e);
 }
 
 // Bevy's clip z, in [0, 1], into [-1, 1] where the device clips depth there (`misc.y` 2 or 3: a
@@ -152,9 +248,8 @@ vs_output gfx_main(vs_input gfx_input)
 	{
 		gfx_output.gfx_position = vec4(0.0, 0.0, 2.0, 1.0);
 		gfx_output.world_position = vec4(0.0, 0.0, 0.0, 0.0);
-		gfx_output.world_normal = vec3(0.0, 1.0, 0.0);
 		gfx_output.uv = vec2(0.0, 0.0);
-		gfx_output.point_lit = vec3(0.0, 0.0, 0.0);
+		gfx_output.primary = vec3(0.0, 0.0, 0.0);
 		gfx_output.color = vec4(1.0, 1.0, 1.0, 1.0);
 		return gfx_output;
 	}
@@ -168,13 +263,14 @@ vs_output gfx_main(vs_input gfx_input)
 	// The authored MOBA batch order on Bevy's clip z, (1 + n 2^-23).
 	clip.z = clip.z * (1.0 + rec.y * 1.1920929e-7);
 	gfx_output.gfx_position = device_clip(clip);
-	gfx_output.world_normal = gfx_input.normal;
 	gfx_output.uv = gfx_input.uv;
 	gfx_output.color = gfx_input.color;
 	// Point lights: none on WMO surfaces or interior props, else the <=3 nearest the placement.
-	if ((word & (WORD_WMO | WORD_INTERIOR)) != 0u)
-		gfx_output.point_lit = vec3(0.0, 0.0, 0.0);
-	else
-		gfx_output.point_lit = point_light_sum(world, gfx_input.normal, gfx_input.anchor);
+	vec4 point_lit = vec4(0.0, 0.0, 0.0, 0.0);
+	if ((word & (WORD_WMO | WORD_INTERIOR)) == 0u)
+		point_lit = point_light_sum(world, gfx_input.normal, gfx_input.anchor);
+	// A colour-less batch takes a constant 1.0 (WORD_HAS_VC).
+	vec4 vc = (word & WORD_HAS_VC) != 0u ? gfx_input.color : vec4(1.0, 1.0, 1.0, 1.0);
+	gfx_output.primary = vertex_light(gfx_input.normal, point_lit, vc, word, rec);
 	return gfx_output;
 }

@@ -1240,6 +1240,7 @@ fn convert_entry(
             name,
             character,
             model,
+            depth_fill,
             facing,
             model_scale,
             position,
@@ -1337,6 +1338,7 @@ fn convert_entry(
                     handle,
                     crate::ui_models::TileRequest {
                         path: path.to_string(),
+                        depth_fill,
                         size_px,
                         px_per_unit: units.px_per_unit,
                         pos_px_per_unit: units.pos_px_per_unit,
@@ -1461,8 +1463,8 @@ fn convert_entry(
                             );
                         }
                         // Deviation: the V-plate border is resampled sharp to the quad's physical
-                        // size rather than GPU-magnified, so its 1 px bevel stays crisp; keyed by
-                        // that size, so only a resize re-rasterises it.
+                        // size rather than GPU-magnified, because that way its 1 px bevel stays
+                        // crisp; keyed by that size, so only a resize re-rasterises it.
                         let px = |v: f32| (v * dpi).round().max(1.0) as u32;
                         a.resampled_sprite(
                             p,

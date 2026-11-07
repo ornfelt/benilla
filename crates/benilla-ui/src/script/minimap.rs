@@ -189,10 +189,27 @@ fn load_arrow_model(model: &mut Model, minimap: FrameHandle, path: &str) -> bool
     for (frames, sequence) in [(group, GROUP_ARROW), (rim, LANDMARK_ARROW)] {
         for h in frames {
             model.set_pane_model(h, path.to_string());
+            // Each takes a copy of the one model (`0x707400`, flags 0), which keeps depth fill.
+            if let Some(KindState::Model(m)) = model.arena.frame_mut(h).map(|f| &mut f.kind_state) {
+                m.depth_fill = true;
+            }
             arm(model, h, sequence);
         }
     }
     true
+}
+
+/// Every Minimap's player arrow, the frame update's `[minimap+0x338]`.
+pub(super) fn player_arrows(model: &Model) -> Vec<FrameHandle> {
+    model
+        .arena
+        .minimap_kinds()
+        .iter()
+        .filter_map(|&h| match model.arena.frame(h).map(|f| &f.kind_state) {
+            Some(KindState::Minimap(m)) => m.player_arrow,
+            _ => None,
+        })
+        .collect()
 }
 
 /// `LoadPlayerModel` (`0x4ee260`): `SetModel` on the player arrow (slot 0x94, `0x76cce0`), which

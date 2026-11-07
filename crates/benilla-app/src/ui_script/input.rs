@@ -160,7 +160,6 @@ fn dispatch(world: &mut World, feed: &mut Option<bevy::ecs::system::SystemId>, l
     let id = *feed.get_or_insert_with(|| world.register_system(feed_ui_input));
     *world.get_resource_or_init::<RecordWalk>() = RecordWalk::default();
     crate::target::begin_records(world);
-    crate::target::plate_clicks_first(world);
     loop {
         if let Err(err) = world.run_system(id) {
             debug!("ui_script(input): the walk did not run: {err}");
@@ -761,11 +760,11 @@ pub(crate) fn feed_key(
         // The char walk gates no binding (`0x765df0` reaches no keybinding), so whether a
         // frame took the character is not recorded: the key-down already decided that.
         //
-        // Deviation: the character is the platform's Unicode text, so a player can type any
-        // language on any platform.
-        // The reference's window is ANSI (`RegisterClassExA`, `DefWindowProcA`), so `WM_CHAR`
-        // carries a byte of the system code page, which `0x42d185`-`0x42d1f5` maps through a
-        // table `GetACP` picks; a character outside that code page never arrives.
+        // Deviation: the character is the platform's Unicode text, because that way a player can
+        // type any language on any platform. The reference's window is ANSI (`RegisterClassExA`,
+        // `DefWindowProcA`), so `WM_CHAR` carries a byte of the system code page, which
+        // `0x42d185`-`0x42d1f5` maps through a table `GetACP` picks; a character outside that code
+        // page never arrives.
         if let Some(text) = &ev.text {
             script.char_input(text);
         }

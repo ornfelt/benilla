@@ -16,7 +16,7 @@ use benilla_gfx::pipelines::Blend;
 use benilla_gfx::{GfxAlpha, GfxMaterialDesc, GfxProgram, GfxTextureSlot};
 
 /// The program's inputs; the shader reads its shader defs off the mask of those a mesh has (bit 3
-/// colours, 4 the rig joints, 6 the merged fade sphere, 7 the merged probe slot).
+/// colours, 4 the rig joints, 6 the merged fade sphere, 7 the merged probe slot, 8 UV set 1).
 pub const WOW_MODEL: GfxProgram = GfxProgram {
     name: "wow_model",
     inputs: &[
@@ -29,13 +29,14 @@ pub const WOW_MODEL: GfxProgram = GfxProgram {
         VertexInput::new(ATTRIBUTE_WOW_FADE_SPHERE, [0.0; 4]),
         // A `u32` slot, read as the `int` both shader languages have.
         VertexInput::new(ATTRIBUTE_WOW_MERGED_SLOT, [0.0; 4]).read_as(GfxFormat::R32Sint),
+        VertexInput::new(Mesh::ATTRIBUTE_UV_1, [0.0; 4]),
     ],
-    params: 11,
+    params: 12,
     samplers: 3,
 };
 
 /// One model material: the base's rows 0-2, row 3 `x` = `WOW_WATER_CLIP` (the blend pass, as
-/// `specialize` keys it on `BLEND_ALPHA`), rows 4-10 the extension's uniforms in field order; the
+/// `specialize` keys it on `BLEND_ALPHA`), rows 4-11 the extension's uniforms in field order; the
 /// texture, the light buffer's data texture, then stage 1's texture (white when none).
 pub fn describe(m: &WowModelMaterial) -> GfxMaterialDesc {
     let (rows, texture, alpha, mut state) = standard_rows(&m.base);
@@ -43,7 +44,7 @@ pub fn describe(m: &WowModelMaterial) -> GfxMaterialDesc {
     let mut params = [[0.0; 4]; MAX_PARAMS];
     params[..3].copy_from_slice(&rows);
     params[3][0] = if alpha == GfxAlpha::Blend { 1.0 } else { 0.0 };
-    for (row, v) in params[4..11].iter_mut().zip([
+    for (row, v) in params[4..12].iter_mut().zip([
         e.clutter_fade,
         e.model_flags,
         e.sun_scale,
@@ -51,6 +52,7 @@ pub fn describe(m: &WowModelMaterial) -> GfxMaterialDesc {
         e.sidn,
         e.anim_slots,
         e.stage1,
+        e.stage1_uv,
     ]) {
         *row = v.to_array();
     }
