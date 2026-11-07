@@ -44,24 +44,31 @@ fn back_on_logout(
     }
 }
 
-/// `Connected` ([`EnteredWorldMessage`]): the world owns the session. A glue entry opens the world
-/// on the pick's map, as the reference's state 8 opens it at the record's map before the login
-/// (`0x46c236` → `0x401570`): `SMSG_LOGIN_VERIFY_WORLD` only moves it, and its handler ignores that
-/// map (`0x401de0`, `0x468580`), so a server may leave the packet out (MaNGOS Zero does).
+/// `Connected` ([`EnteredWorldMessage`]): the world owns the session.
 fn enter_on_connected(
+    mut msgs: MessageReader<EnteredWorldMessage>,
+    mut next: ResMut<NextState<ClientState>>,
+) {
+    if msgs.read().next().is_some() {
+        next.set(ClientState::InWorld);
+    }
+}
+
+/// A glue entry ([`EnteredWorldMessage`] outside the world) opens the world on the pick's map, as
+/// the reference's state 8 opens it at the record's map before the login (`0x46c236` →
+/// `0x401570`): `SMSG_LOGIN_VERIFY_WORLD` only moves it, and its handler ignores that map
+/// (`0x401de0`, `0x468580`), so a server may leave the packet out (MaNGOS Zero does). Outside
+/// [`session_edges`]' chain, whose systems take no `Commands`.
+pub(crate) fn open_world_on_pick(
     mut msgs: MessageReader<EnteredWorldMessage>,
     roster: Res<Roster>,
     state: Res<State<ClientState>>,
     mut commands: Commands,
-    mut next: ResMut<NextState<ClientState>>,
 ) {
-    if msgs.read().next().is_some() {
-        if *state.get() != ClientState::InWorld {
-            if let Some(map) = roster.pending_map() {
-                commands.insert_resource(benilla_world::world_map::CurrentMap(map));
-            }
+    if msgs.read().next().is_some() && *state.get() != ClientState::InWorld {
+        if let Some(map) = roster.pending_map() {
+            commands.insert_resource(benilla_world::world_map::CurrentMap(map));
         }
-        next.set(ClientState::InWorld);
     }
 }
 
@@ -157,7 +164,7 @@ mod tests {
                 .insert_resource(Roster::with_pending_pick(vec![kalimdor], 7))
                 .insert_resource(benilla_world::world_map::CurrentMap(0))
                 .add_message::<EnteredWorldMessage>()
-                .add_systems(Update, enter_on_connected);
+                .add_systems(Update, open_world_on_pick);
             app.world_mut().write_message(EnteredWorldMessage {
                 tutorial_flags: None,
             });
