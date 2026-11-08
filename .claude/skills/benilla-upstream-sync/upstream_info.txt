@@ -1,5 +1,5 @@
 gfx-dll-backend
-  commit 013423deb481e64d60bf1ae7259ad519f1dd8611
+  commit c486d8f0d2c819269538b83426fd2203f2f7d199
 
 trimmed-bevy
-  commit 013423deb481e64d60bf1ae7259ad519f1dd8611
+  commit c486d8f0d2c819269538b83426fd2203f2f7d199

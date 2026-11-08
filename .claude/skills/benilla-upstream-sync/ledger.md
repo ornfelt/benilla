@@ -6,9 +6,9 @@ Maintained by the `benilla-upstream-sync` skill. A hint, not the truth: `git rev
 Source: `main` (origin `ornfelt/benilla`, the fork: upstream benilla's commits, the fork's own
 commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `upstream`).
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
-gfx-dll-backend merged through: `013423de` The world entry's map is set outside the session edges' chain (#2) - 0 remaining
-trimmed-bevy merged through: `013423de` The world entry's map is set outside the session edges' chain (#2) - 0 remaining
-`main` when last fetched: `013423de` The world entry's map is set outside the session edges' chain (#2) (2026-11-07)
+gfx-dll-backend merged through: `c486d8f0` Merge branch 'samwhosung:main' into main - 0 remaining
+trimmed-bevy merged through: `c486d8f0` Merge branch 'samwhosung:main' into main - 0 remaining
+`main` when last fetched: `c486d8f0` Merge branch 'samwhosung:main' into main (2026-11-08)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
@@ -786,6 +786,10 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 756 | `a8e5e5ec` | 2026-11-07 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) 37b9fdfc | skipped (merge, changes nothing) aac77299 | as-is | in the bulk merge of `main` through `013423de` (37b9fdfc); --remerge-diff empty |
 | 757 | `24aab5c5` | 2026-11-07 | fork | A world entry opens on the pick's map and ends its wait when our player arrives (#1) | as-is 37b9fdfc | as-is aac77299 | as-is | in the bulk merge of `main` through `013423de` (37b9fdfc); as is: no gfx trigger |
 | 758 | `013423de` | 2026-11-07 | fork | The world entry's map is set outside the session edges' chain (#2) | as-is 37b9fdfc | as-is aac77299 | as-is | in the bulk merge of `main` through `013423de` (37b9fdfc); as is: no gfx trigger |
+| 759 | `69dc0fa6` | 2026-11-08 | upstream | README: name WOW_PIN and WOW_PIN_TOTP beside the login variables (#3012) | as-is 3c3914e9 | as-is c423a59f | as-is | in the merge of `main` through `c486d8f0` (3c3914e9 / c423a59f); as is: README only |
+| 760 | `1b61c377` | 2026-11-08 | upstream | A world entry opens on the pick's map and ends its wait at our arrival (#3011) | already-in 3c3914e9 | already-in c423a59f | as-is | in the merge of `main` through `c486d8f0` (3c3914e9 / c423a59f); upstream's landing of the fork's #1 and #2 (`24aab5c5`, `013423de`), already on both branches: the merge changes no file of it |
+| 761 | `e5651f0d` | 2026-11-08 | upstream | nameplates: draw overhead names in the UNIT_NAME_FONT face (#3013) | as-is 3c3914e9 | as-is c423a59f | as-is | in the merge of `main` through `c486d8f0` (3c3914e9 / c423a59f); as is: the name mesh's face only (the gfx path draws the same `Mesh3d` and glyph atlas), `UnitNameFont` inserted by the exclusive UI load so no new schedule pair; nameplates, world_entry, lifecycle and game_plugins tests green on both |
+| 762 | `c486d8f0` | 2026-11-08 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) 3c3914e9 | skipped (merge, changes nothing) c423a59f | as-is | in the merge of `main` through `c486d8f0` (3c3914e9 / c423a59f); --remerge-diff empty |
 
 ## Special handling
 
