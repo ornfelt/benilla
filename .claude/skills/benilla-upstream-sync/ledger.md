@@ -6,9 +6,9 @@ Maintained by the `benilla-upstream-sync` skill. A hint, not the truth: `git rev
 Source: `main` (origin `ornfelt/benilla`, the fork: upstream benilla's commits, the fork's own
 commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `upstream`).
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
-gfx-dll-backend merged through: `8800ccc6` Merge branch 'samwhosung:main' into main - 0 remaining
-trimmed-bevy merged through: `8800ccc6` Merge branch 'samwhosung:main' into main - 0 remaining
-`main` when last fetched: `8800ccc6` Merge branch 'samwhosung:main' into main (2026-11-17)
+gfx-dll-backend merged through: `11a21a6a` Pick: a texture unit flagged 0x08 is out of the hit test, so Arathi Basin's banners take a click - 0 remaining
+trimmed-bevy merged through: `11a21a6a` Pick: a texture unit flagged 0x08 is out of the hit test, so Arathi Basin's banners take a click - 0 remaining
+`main` when last fetched: `11a21a6a` Pick: a texture unit flagged 0x08 is out of the hit test, so Arathi Basin's banners take a click (2026-11-19)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
@@ -795,6 +795,7 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 765 | `641f188a` | 2026-11-17 | upstream | Step trigger: a riser leaning out over its foot is a step (#3023) | as-is f88c326f | as-is 116e29d5 | as-is | in the merge of `main` through `8800ccc6` (f88c326f / 116e29d5); as is: mover geometry only, no gfx trigger; player::mover tests green on both |
 | 766 | `84022ba9` | 2026-11-17 | upstream | README: point to benilla-wotlk beside the expansions not planned (#3024) | as-is f88c326f | as-is 116e29d5 | as-is | in the merge of `main` through `8800ccc6` (f88c326f / 116e29d5); as is: README only |
 | 767 | `8800ccc6` | 2026-11-17 | merge | Merge branch 'samwhosung:main' into main | skipped (merge, changes nothing) f88c326f | skipped (merge, changes nothing) 116e29d5 | as-is | in the merge of `main` through `8800ccc6` (f88c326f / 116e29d5); --remerge-diff empty |
+| 768 | `11a21a6a` | 2026-11-19 | fork | Pick: a texture unit flagged 0x08 is out of the hit test, so Arathi Basin's banners take a click | as-is 0a068741 | as-is e3458a6f | as-is | in the merge of `main` through `11a21a6a` (0a068741 / e3458a6f); as is: the M2 batch's `no_hit_test` (texture unit flag 0x08) and the shared pick narrow phase, no gfx trigger (the pick reads resident geometry, not the render path); cargo check --workspace --all-targets clean on both (gfx-dll-backend with and without `benilla-app/gfx`), both built release; upstream PR #3032 (an alternative to #3027) |
 
 ## Special handling
 
