@@ -6,9 +6,9 @@ Maintained by the `benilla-upstream-sync` skill. A hint, not the truth: `git rev
 Source: `main` (origin `ornfelt/benilla`, the fork: upstream benilla's commits, the fork's own
 commits and its merges; not linear). Upstream: `samwhosung/benilla` (remote `upstream`).
 Fork point of both branches: `ba7fe6e2` release 0.2.0 (#468) (2026-09-27)
-gfx-dll-backend merged through: `74bf5c36` Merge upstream/main (6 commits, 84022ba9..dbc37d62) - 0 remaining
-trimmed-bevy merged through: `74bf5c36` Merge upstream/main (6 commits, 84022ba9..dbc37d62) - 0 remaining
-`main` when last fetched: `74bf5c36` Merge upstream/main (6 commits, 84022ba9..dbc37d62) (2026-11-20)
+gfx-dll-backend merged through: `a29fc1ae` Merge upstream/main (6 commits, dbc37d62..e2bad3c4) - 0 remaining
+trimmed-bevy merged through: `a29fc1ae` Merge upstream/main (6 commits, dbc37d62..e2bad3c4) - 0 remaining
+`main` when last fetched: `a29fc1ae` Merge upstream/main (6 commits, dbc37d62..e2bad3c4) (2026-11-23)
 
 Statuses (per branch): `pending` (not looked at yet), `as-is` (merged, the change unchanged,
 nothing else needed), `adapted` (merged, and reshaped for the branch or followed by a gfx-side
@@ -803,6 +803,13 @@ redone because the maintainer asked). Anything but `as-is` has an entry under Sp
 | 773 | `58fabe69` | 2026-11-20 | upstream | A unit's parts flagged 0x08 leave the mouse pick too (#3036) | as-is 113fb32d | as-is 54600a46 | as-is | in the merge of `main` through `74bf5c36` (113fb32d / 54600a46); as is: `target/hover.rs` drops a unit's 0x08 parts from the hover pick and the generated DEVIATIONS.md lines move, no gfx trigger (the pick reads resident geometry); target::hover tests green on both |
 | 774 | `dbc37d62` | 2026-11-20 | upstream | Sound tests wait for the tap writers and the decode ring, not a sleep (#3037) | as-is 113fb32d | as-is 54600a46 | as-is | in the merge of `main` through `74bf5c36` (113fb32d / 54600a46); as is: sound mixer and tap test waits, no gfx trigger; sound tests green on both |
 | 775 | `74bf5c36` | 2026-11-20 | merge | Merge upstream/main (6 commits, 84022ba9..dbc37d62) | as-is 113fb32d | as-is 54600a46 | as-is | in the merge of `main` through `74bf5c36` (113fb32d / 54600a46); --remerge-diff not empty: its `pick.rs` test conflict resolved to upstream's rustfmt'd `assert_eq!`, taken as main has it |
+| 776 | `474c81ea` | 2026-11-21 | upstream | A recast of a channel keeps its hold, so Fishing holds FishingLoop (#3043) | as-is d735589e | as-is 776606af | as-is | in the merge of `main` through `a29fc1ae` (d735589e / 776606af); as is: `CastHold` gains `channel` and a non-forced Fail / Reap spares a channel-armed hold (cast-animation logic, not drawing), no gfx trigger; creature_anim tests green on both |
+| 777 | `4dbca442` | 2026-11-21 | upstream | Live reads: a question goes straight to the family that took its type (#3041) | as-is d735589e | as-is 776606af | as-is | in the merge of `main` through `a29fc1ae` (d735589e / 776606af); as is: `live_reads!` routes each question type to the family that answered it before, `LiveAsk::question`; no gfx trigger; script_calls and benilla-ui tests green on both |
+| 778 | `53fbf8dc` | 2026-11-21 | upstream | Unit field changes signal by the unit's linked watchers (#3039) | as-is d735589e | as-is 776606af | as-is | in the merge of `main` through `a29fc1ae` (d735589e / 776606af); as is: `unit_has_field_watchers` reads `UnitWatches::linked`, `field_watchers_in` export gone (no branch caller); no gfx trigger; ui_unit and ui_script tests green on both |
+| 779 | `0e5c47bc` | 2026-11-21 | upstream | Disjoint sets box their state, so a system holding the host is small (#3045) | as-is d735589e | as-is 776606af | as-is | in the merge of `main` through `a29fc1ae` (d735589e / 776606af); as is: `disjoint_set!`'s `SystemParam::State` is boxed; the vendored Bevy's `SystemParam` on trimmed-bevy has the same API, nothing restored; script_calls tests green on both |
+| 780 | `3216a7a5` | 2026-11-21 | upstream | The call host validates once a run, not at every lend (#3042) | as-is d735589e | as-is 776606af | as-is | in the merge of `main` through `a29fc1ae` (d735589e / 776606af); as is: `Pair::p1_valid` (`validate_param` once a run) replaces `p1()` at the host's lends, the trimmed Bevy has `validate_param` as stock; no gfx trigger; script_calls, ui_chat and lanes tests green on both |
+| 781 | `e2bad3c4` | 2026-11-22 | upstream | A self-flagged create of a new guid becomes our player (#3046) | as-is d735589e | as-is 776606af | as-is | in the merge of `main` through `a29fc1ae` (d735589e / 776606af); as is: `UPDATEFLAG_SELF` decoded into `ActivePlayerCreate` and `on_active_player_create`, a registered net handler, not a scheduled system (frame test green on trimmed-bevy); wire decode only, no gfx trigger; benilla-protocol and net tests green on both |
+| 782 | `a29fc1ae` | 2026-11-23 | merge | Merge upstream/main (6 commits, dbc37d62..e2bad3c4) | skipped (merge, changes nothing) d735589e | skipped (merge, changes nothing) 776606af | as-is | --remerge-diff and --cc empty; merged directly as the tip of `main`, so it is in both branches' ancestry |
 
 ## Special handling
 
