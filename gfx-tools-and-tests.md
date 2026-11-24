@@ -32,7 +32,7 @@ special pairs run on the CPU instead of the GPU:
 
 | Script | What it does |
 |---|---|
-| `crates/benilla-gfx/shaders/compile.sh [names]` | Recompiles every `.gfxs` shader under `shaders/src/` (or only the named ones) into the four families the loader picks from: `shaders/` (gl3, gl4, gles3), `shaders_vk/` (SPIR-V), `shaders_d3/` (HLSL for d3d11 and d3d12) and `shaders_gles3_dark/`. Uses `wc_compiler_rs` (`$GFX_SHADER_COMPILER`, or the build under `Code2/General/gfx/wc_compiler_rs`) |
+| `crates/benilla-gfx/shaders/compile.sh [names]` | Recompiles every `.gfxs` shader under `shaders/src/` (or only the named ones) into the three families the loader picks from: `shaders/` (gl3, gl4, gles3 - gles3 on every window and OS), `shaders_vk/` (SPIR-V) and `shaders_d3/` (HLSL for d3d11 and d3d12). Uses `wc_compiler_rs` (`$GFX_SHADER_COMPILER`, or the build under `Code2/General/gfx/wc_compiler_rs`) |
 | `tools/validate_gfx.py crates/benilla-gfx/shaders` | Runs glslangValidator over the GL and GLES text and the d3d11 HLSL inside every compiled `.gfx` file, so shader code that cannot be built on this machine is still checked |
 
 ### Rendering comparisons: capture scenarios

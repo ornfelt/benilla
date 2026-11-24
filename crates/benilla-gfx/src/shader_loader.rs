@@ -1,5 +1,5 @@
 //! Loads the compiled `.gfx` shaders and creates their shader states, ported from
-//! `wc_clean_new_rs/src/gfx_shader_loader.rs`. The four families `shaders/compile.sh` writes are
+//! `wc_clean_new_rs/src/gfx_shader_loader.rs`. The three families `shaders/compile.sh` writes are
 //! embedded; `WOW_GFX_SHADERS=<dir>` reads `<dir>/<family>/` from disk instead, to iterate on a
 //! shader without a rebuild.
 
@@ -17,7 +17,6 @@ use crate::shader_def::ParsedShader;
 static GL: Dir = include_dir!("$CARGO_MANIFEST_DIR/shaders/shaders");
 static VK: Dir = include_dir!("$CARGO_MANIFEST_DIR/shaders/shaders_vk");
 static D3: Dir = include_dir!("$CARGO_MANIFEST_DIR/shaders/shaders_d3");
-static GLES3_DARK: Dir = include_dir!("$CARGO_MANIFEST_DIR/shaders/shaders_gles3_dark");
 
 /// The shader family a device reads, as `gfx_shader_loader.rs` picks it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,21 +24,14 @@ pub enum ShaderFamily {
     Gl,
     Vk,
     D3,
-    Gles3Dark,
 }
 
 impl ShaderFamily {
-    pub const ALL: [ShaderFamily; 4] = [Self::Gl, Self::Vk, Self::D3, Self::Gles3Dark];
+    pub const ALL: [ShaderFamily; 3] = [Self::Gl, Self::Vk, Self::D3];
 
-    pub fn for_backends(device: GfxDeviceBackend, window: GfxWindowBackend) -> Self {
+    pub fn for_backends(device: GfxDeviceBackend, _window: GfxWindowBackend) -> Self {
         match device {
             GfxDeviceBackend::Vk => Self::Vk,
-            // A native (non-GLFW) gles3 window off Linux reads its own variants.
-            GfxDeviceBackend::Gles3
-                if cfg!(not(target_os = "linux")) && window != GfxWindowBackend::Glfw =>
-            {
-                Self::Gles3Dark
-            }
             GfxDeviceBackend::D3d9 | GfxDeviceBackend::D3d11 | GfxDeviceBackend::D3d12 => Self::D3,
             _ => Self::Gl,
         }
@@ -50,7 +42,6 @@ impl ShaderFamily {
             Self::Gl => "shaders",
             Self::Vk => "shaders_vk",
             Self::D3 => "shaders_d3",
-            Self::Gles3Dark => "shaders_gles3_dark",
         }
     }
 
@@ -59,7 +50,6 @@ impl ShaderFamily {
             Self::Gl => &GL,
             Self::Vk => &VK,
             Self::D3 => &D3,
-            Self::Gles3Dark => &GLES3_DARK,
         }
     }
 
@@ -326,7 +316,6 @@ mod tests {
                 ],
                 ShaderFamily::Vk => &[GfxDeviceBackend::Vk],
                 ShaderFamily::D3 => &[GfxDeviceBackend::D3d11],
-                ShaderFamily::Gles3Dark => &[GfxDeviceBackend::Gles3],
             };
             for name in &sources {
                 let vs = ParsedShader::parse(
@@ -360,6 +349,10 @@ mod tests {
         );
         assert_eq!(
             ShaderFamily::for_backends(D::Gles3, W::Glfw),
+            ShaderFamily::Gl
+        );
+        assert_eq!(
+            ShaderFamily::for_backends(D::Gles3, W::Win32),
             ShaderFamily::Gl
         );
     }
