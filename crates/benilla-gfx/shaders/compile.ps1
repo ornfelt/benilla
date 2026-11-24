@@ -1,9 +1,8 @@
-# Recompiles every `.gfxs` source under `src/` into the four shader families the loader picks
+# Recompiles every `.gfxs` source under `src/` into the three shader families the loader picks
 # from at runtime (`crates/benilla-gfx/src/shader_loader.rs`); the Windows twin of `compile.sh`:
 #   shaders/            gl3, gl4, gles3
 #   shaders_vk/         vk (SPIR-V, through glslangValidator)
 #   shaders_d3/         d3d11 (HLSL; d3d12 reads the same blob)
-#   shaders_gles3_dark/ gles3 (the native-window gles3 family off Linux)
 #
 # The compiler is `wc_compiler_rs`: `$env:GFX_SHADER_COMPILER`, else the release or debug build
 # under `$env:code_root_dir\Code2\General\gfx\wc_compiler_rs` (`cargo build --release` there);
@@ -32,8 +31,7 @@ if (-not $compiler -or -not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
 $families = @(
     @{ Dir = 'shaders';            Backends = 'gl3,gl4,gles3' },
     @{ Dir = 'shaders_vk';         Backends = 'vk' },
-    @{ Dir = 'shaders_d3';         Backends = 'd3d11' },
-    @{ Dir = 'shaders_gles3_dark'; Backends = 'gles3' }
+    @{ Dir = 'shaders_d3';         Backends = 'd3d11' }
 )
 
 if (-not $Names -or $Names.Count -eq 0) {

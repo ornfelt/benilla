@@ -84,9 +84,9 @@ WOW_GFX_WINDOW=sdl WOW_GFX_DEVICE=vk cargo run --release -p benilla
 
 ## Shaders
 
-The shaders are `.gfxs` sources under `crates/benilla-gfx/shaders/src`, compiled into four
-families the loader picks per device: `shaders/` (gl3, gl4, gles3), `shaders_vk/` (SPIR-V),
-`shaders_d3/` (HLSL for d3d11 and d3d12) and `shaders_gles3_dark/`. The compiled families are
+The shaders are `.gfxs` sources under `crates/benilla-gfx/shaders/src`, compiled into three
+families the loader picks per device: `shaders/` (gl3, gl4, gles3 - gles3 on every window and OS),
+`shaders_vk/` (SPIR-V) and `shaders_d3/` (HLSL for d3d11 and d3d12). The compiled families are
 committed and embedded in the binary, so a build needs no shader compiler. After editing a source,
 recompile with `wc_compiler_rs` (`cargo build --release` in
 `<code_root>/Code2/General/gfx/wc_compiler_rs`, or `GFX_SHADER_COMPILER=<path>`):

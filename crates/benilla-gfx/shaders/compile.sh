@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Recompiles every `.gfxs` source under `src/` into the four shader families the loader picks
+# Recompiles every `.gfxs` source under `src/` into the three shader families the loader picks
 # from at runtime (`crates/benilla-gfx/src/shader_loader.rs`):
 #   shaders/            gl3, gl4, gles3
 #   shaders_vk/         vk (SPIR-V, through glslangValidator)
 #   shaders_d3/         d3d11 (HLSL; d3d12 reads the same blob)
-#   shaders_gles3_dark/ gles3 (the native-window gles3 family off Linux)
 #
 # The compiler is `wc_compiler_rs`: `$GFX_SHADER_COMPILER`, else the release or debug build under
 # `$code_root_dir/Code2/General/gfx/wc_compiler_rs` (`cargo build --release` there).
@@ -28,7 +27,7 @@ if [[ -z "$compiler" || ! -x "$compiler" ]]; then
     exit 1
 fi
 
-families=("shaders:gl3,gl4,gles3" "shaders_vk:vk" "shaders_d3:d3d11" "shaders_gles3_dark:gles3")
+families=("shaders:gl3,gl4,gles3" "shaders_vk:vk" "shaders_d3:d3d11")
 
 shopt -s nullglob
 names=()
