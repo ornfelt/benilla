@@ -69,9 +69,8 @@ feature flag, at parity with the wgpu path, and `GFX.md` exists (see "Finishing"
   unavailable combination (`gfx_dll_has_window_backend` / `gfx_dll_has_device_backend`) fails at
   boot with a message naming the choices, never a silent fallback.
 - Shaders: `.gfxs` sources committed under `crates/benilla-gfx/shaders`, compiled with
-  `wc_compiler_rs` into one directory per shader family (`shaders`, `shaders_vk`, `shaders_d3`,
-  and `shaders_gles3_dark` where the loader asks for it), picked at runtime as
-  `gfx_shader_loader.rs` does. Keep a script beside them that recompiles all of them.
+  `wc_compiler_rs` into one directory per shader family (`shaders`, `shaders_vk`, `shaders_d3`),
+  picked at runtime as `gfx_shader_loader.rs` does. Keep a script beside them that recompiles all of them.
 - `crates/benilla-gfx/build.rs` finds the library the way `wc_clean_new_rs/build.rs` does, only
   when the feature is on, prefers `gfx_dll/gfx_benilla` once it exists, and `GFX_DIR` overrides.
 
